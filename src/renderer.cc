@@ -156,34 +156,33 @@ void QuadRenderer::Render() {
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, ByteSize(indices_), indices_.data(),
                GL_STATIC_DRAW);
   shader_program_.Use();
+  const GLint pos_attribute =
+      glGetAttribLocation(shader_program_.id(), "input_position");
+  glVertexAttribPointer(
+      pos_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
+      sizeof(VertexData),
+      reinterpret_cast<void*>(offsetof(VertexData, position)));
+  glEnableVertexAttribArray(pos_attribute);
+  const GLint tex_coord_attribute =
+      glGetAttribLocation(shader_program_.id(), "input_tex_coord");
+  glVertexAttribPointer(
+      tex_coord_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
+      sizeof(VertexData),
+      reinterpret_cast<void*>(offsetof(VertexData, tex_coords)));
+  glEnableVertexAttribArray(tex_coord_attribute);
+  const GLint origin_attribute =
+      glGetAttribLocation(shader_program_.id(), "origin");
+  glVertexAttribPointer(origin_attribute, FVec2::kCardinality, GL_FLOAT,
+                        GL_FALSE, sizeof(VertexData),
+                        reinterpret_cast<void*>(offsetof(VertexData, origin)));
+  glEnableVertexAttribArray(origin_attribute);
+  const GLint angle_attribute =
+      glGetAttribLocation(shader_program_.id(), "angle");
+  glVertexAttribPointer(angle_attribute, 1, GL_FLOAT, GL_FALSE,
+                        sizeof(VertexData),
+                        reinterpret_cast<void*>(offsetof(VertexData, angle)));
+  glEnableVertexAttribArray(angle_attribute);
   for (const auto& batch : batches_) {
-    const GLint pos_attribute =
-        glGetAttribLocation(shader_program_.id(), "input_position");
-    glVertexAttribPointer(
-        pos_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
-        sizeof(VertexData),
-        reinterpret_cast<void*>(offsetof(VertexData, position)));
-    glEnableVertexAttribArray(pos_attribute);
-    const GLint tex_coord_attribute =
-        glGetAttribLocation(shader_program_.id(), "input_tex_coord");
-    glVertexAttribPointer(
-        tex_coord_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
-        sizeof(VertexData),
-        reinterpret_cast<void*>(offsetof(VertexData, tex_coords)));
-    glEnableVertexAttribArray(tex_coord_attribute);
-    const GLint origin_attribute =
-        glGetAttribLocation(shader_program_.id(), "origin");
-    glVertexAttribPointer(
-        origin_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
-        sizeof(VertexData),
-        reinterpret_cast<void*>(offsetof(VertexData, origin)));
-    glEnableVertexAttribArray(origin_attribute);
-    const GLint angle_attribute =
-        glGetAttribLocation(shader_program_.id(), "angle");
-    glVertexAttribPointer(angle_attribute, 1, GL_FLOAT, GL_FALSE,
-                          sizeof(VertexData),
-                          reinterpret_cast<void*>(offsetof(VertexData, angle)));
-    glEnableVertexAttribArray(angle_attribute);
     shader_program_.SetUniform("tex", batch.texture_unit);
     shader_program_.SetUniform("projection",
                                Ortho(0, viewport_.x, 0, viewport_.y));
