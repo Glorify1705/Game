@@ -1,0 +1,45 @@
+namespace assets;
+
+table Image {
+    filename: string;
+    width: uint32;
+    height: uint32;
+    components: uint32;
+    contents: [uint8];
+}
+
+table Subtexture {
+    name: string;
+    x: uint32;
+    y: uint32;
+    width: uint32;
+    height: uint32;
+}
+
+table Spritesheet {
+    filename: string;
+    image_name: string;
+    sub_texture: [Subtexture];
+}
+
+table Script {
+    filename: string;
+    contents: [uint8];
+}
+
+enum SoundType : uint8 { OGG }
+
+table Sound {
+    filename: string;
+    type: SoundType;
+    contents: [uint8];
+}
+
+table Assets {
+    images: [Image];
+    sprite_sheets: [Spritesheet];
+    scripts: [Script];
+    sounds: [Sound];
+}
+
+root_type Assets;
