@@ -144,7 +144,8 @@ class SpriteSheetRenderer {
 
   LookupTable<Sheet> sheet_info_;
   LookupTable<const assets::Subtexture*> subtexts_;
-
+  const assets::Subtexture* texture_current_ = nullptr;
+  Sheet current_;
   QuadRenderer* renderer_;
 };
 

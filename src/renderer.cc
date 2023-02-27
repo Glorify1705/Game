@@ -232,18 +232,20 @@ void SpriteSheetRenderer::SetColor(FVec4 color) {
 
 void SpriteSheetRenderer::Draw(FVec2 position, float angle,
                                const assets::Subtexture& texture) {
-  Sheet sheet;
-  CHECK(sheet_info_.Lookup(texture.spritesheet()->c_str(),
-                           texture.spritesheet()->size(), &sheet));
-  renderer_->SetActiveTexture(sheet.texture);
+  if (texture_current_ != &texture) {
+    CHECK(sheet_info_.Lookup(texture.spritesheet()->c_str(),
+                             texture.spritesheet()->size(), &current_));
+    renderer_->SetActiveTexture(current_.texture);
+    texture_current_ = &texture;
+  }
   const FVec2 p0(position -
                  FVec2(texture.width() / 2.0, texture.height() / 2.0));
   const FVec2 p1(position +
                  FVec2(texture.width() / 2.0, texture.height() / 2.0));
-  FVec2 q0(
-      FVec2(1.0 * texture.x() / sheet.width, 1.0 * texture.y() / sheet.height));
-  FVec2 q1(1.0 * (texture.x() + texture.width()) / sheet.width,
-           1.0 * (texture.y() + texture.height()) / sheet.height);
+  const FVec2 q0(FVec2(1.0 * texture.x() / current_.width,
+                       1.0 * texture.y() / current_.height));
+  const FVec2 q1(1.0 * (texture.x() + texture.width()) / current_.width,
+                 1.0 * (texture.y() + texture.height()) / current_.height);
   renderer_->PushQuad(p0, p1, q0, q1, position, angle);
 }
 
