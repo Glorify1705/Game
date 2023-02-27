@@ -151,14 +151,13 @@ class Game {
   void Run() {
     double last_frame = NowInMillis();
     constexpr double kStep = TimeStepInMillis();
-    constexpr double kStepsPerFrame = 1.0 / TimeStepInMillis();
     double t = 0, accum = 0;
     for (;;) {
       const double now = NowInMillis();
       const double frame_time = now - last_frame;
       last_frame = now;
       accum += frame_time;
-      if (accum < kStepsPerFrame) {
+      if (accum < kStep) {
         SDL_Delay(1);
         continue;
       }
@@ -183,10 +182,10 @@ class Game {
           if (e_->keyboard.IsDown(SDL_SCANCODE_Q)) return;
         }
       }
-      while (accum >= kStepsPerFrame) {
+      while (accum >= kStep) {
         Update(t, kStep);
-        t += kStepsPerFrame;
-        accum -= kStepsPerFrame;
+        t += kStep;
+        accum -= kStep;
       }
       Render();
       stats_.AddSample(NowInMillis() - frame_start);

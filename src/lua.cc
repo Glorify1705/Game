@@ -297,34 +297,45 @@ static const struct luaL_Reg kPhysicsLib[] = {
 struct Context {
   lua_State* state;
   int func;
+  int times;
+  double dt;
 };
+
+void QueueRun(void* ptr) {
+  auto* context = static_cast<Context*>(ptr);
+  auto* events = Registry<Events>::Retrieve(context->state);
+  lua_rawgeti(context->state, LUA_REGISTRYINDEX, context->func);
+  lua_pcall(context->state, 0, LUA_MULTRET, 0);
+  if (context->times == -1 || --context->times > 0) {
+    events->QueueIn(context->dt, QueueRun, ptr);
+    return;
+  }
+  luaL_unref(context->state, LUA_REGISTRYINDEX, context->func);
+  delete context;
+}
 
 static const struct luaL_Reg kClockLib[] = {
     {"call_in",
      [](lua_State* state) {
        auto* events = Registry<Events>::Retrieve(state);
-       auto* context = new Context{state, luaL_ref(state, LUA_REGISTRYINDEX)};
-       events->QueueIn(
-           luaL_checknumber(state, 1),
-           [](void* ptr) {
-             auto* context = static_cast<Context*>(ptr);
-             lua_rawgeti(context->state, LUA_REGISTRYINDEX, context->func);
-             lua_pcall(context->state, 0, LUA_MULTRET, 0);
-             luaL_unref(context->state, LUA_REGISTRYINDEX, context->func);
-             delete context;
-           },
-           context);
+       auto* context =
+           new Context{state, luaL_ref(state, LUA_REGISTRYINDEX), 1, 0};
+       events->QueueIn(context->dt, QueueRun, context);
+       return 0;
+     }},
+    {"repeat_call",
+     [](lua_State* state) {
+       auto* events = Registry<Events>::Retrieve(state);
+       double dt = luaL_checknumber(state, 1);
+       int times = luaL_checknumber(state, 2);
+       auto* context =
+           new Context{state, luaL_ref(state, LUA_REGISTRYINDEX), times, dt};
+       events->QueueIn(context->dt, QueueRun, context);
        return 0;
      }},
     {"now",
      [](lua_State* state) {
        lua_pushnumber(state, NowInMillis());
-       return 1;
-     }},
-    {"frame",
-     [](lua_State* state) {
-       auto* events = Registry<Events>::Retrieve(state);
-       lua_pushnumber(state, events->frame());
        return 1;
      }},
     {nullptr, nullptr}};
