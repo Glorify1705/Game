@@ -14,8 +14,8 @@ class Physics {
 
   Handle AddBox(FVec2 top_left, FVec2 bottom_right, FVec2 initial_position);
 
-  FVec2 GetPosition(Handle handle);
-  FVec2 GetAngle(Handle handle);
+  FVec2 GetPosition(Handle handle) const;
+  float GetAngle(Handle handle) const;
 
   void ApplyForce(Handle handle, FVec2 force);
 
@@ -26,6 +26,7 @@ class Physics {
  private:
   struct Body {
     FVec2 position = FVec2::Zero();
+    float angle = 0;
     FVec2 velocity = FVec2::Zero();
     FVec2 acceleration = FVec2::Zero();
     float mass = 1.0;

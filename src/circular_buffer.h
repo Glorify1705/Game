@@ -8,7 +8,7 @@
 
 template <typename T, size_t N>
 class FixedCircularBuffer {
-  static_assert(!(N & (N - 1)));
+  static_assert(!(N & (N - 1)), "Circular Buffer Size is not a power of two");
 
  public:
   void Push(T t) {

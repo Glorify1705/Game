@@ -34,6 +34,10 @@ class FixedArray {
     DCHECK(index < elems_);
     return buffer_[index];
   }
+  const T& operator[](size_t index) const {
+    DCHECK(index < elems_);
+    return buffer_[index];
+  }
 
   T* begin() { return &buffer_[0]; }
   T* end() { return buffer_.data() + elems_; }

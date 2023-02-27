@@ -35,6 +35,10 @@ function Vec2.distance2(a, b)
     return (b.x - a.x) ^ 2 + (b.y - a.y) ^ 2
 end
 
+function Vec2.distance(a, b)
+    return math.sqrt(Vec2.distance(a, b))
+end
+
 function Vec2:length2()
     return self.x * self.x + self.y * self.y
 end
@@ -45,6 +49,10 @@ end
 
 function Vec2:normalized()
     return self / self:length()
+end
+
+function Vec2:normal()
+    return Vec2( -self.y, self.x)
 end
 
 return Vec2

@@ -17,6 +17,10 @@ ANGLE_DELTA = 0.1
 Player = Object:extend()
 
 function Player:new(x, y)
+    self.image = "playerShip1_green"
+    local info = G.assets.subtexture_info(self.image)
+    self.physics = G.physics.add_box(x - info.width / 2, y - info.height / 2, x + info.width / 2, y + info.height, x,
+        y)
     self.pos = Vec2(x or 0, y or 0)
     self.aim = Vec2(0, 0)
     self.angle = 0
@@ -43,11 +47,10 @@ function Player:update(dt)
 
 
     if G.input.is_key_down('lshift') then
-        local n = (self.aim - self.pos):normalized()
         if G.input.is_key_down('d') then
-            self.pos = self.pos - (n / 1000) * dt
+            self.pos.x = self.pos.x + dt / 100
         elseif G.input.is_key_down('a') then
-            self.pos = self.pos + n * dt
+            self.pos.x = self.pos.x - dt / 100
         end
     else
         if G.input.is_key_down('d') then
@@ -76,7 +79,7 @@ function Player:update(dt)
 end
 
 function Player:render()
-    G.renderer.draw_sprite("playerShip1_green", self.pos.x, self.pos.y, self.angle)
+    G.renderer.draw_sprite(self.image, self.pos.x, self.pos.y, self.angle)
 end
 
 function Player:center_camera()

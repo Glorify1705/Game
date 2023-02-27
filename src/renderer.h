@@ -130,6 +130,8 @@ class SpriteSheetRenderer {
   void Translate(float x, float y) { ApplyTransform(TranslationXY(x, y)); }
   void Scale(float x, float y) { ApplyTransform(ScaleXY(x, y)); }
 
+  const assets::Spritesheet* sheet() const { return sheet_; };
+
  private:
   void ApplyTransform(const FMat4x4& mat) {
     transform_stack_.back() = mat * transform_stack_.back();

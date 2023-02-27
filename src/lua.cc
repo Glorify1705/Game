@@ -199,6 +199,48 @@ static const struct luaL_Reg kSoundLib[] = {
      }},
     {nullptr, nullptr}};
 
+static const struct luaL_Reg kAssetsLib[] = {
+    {"subtexture",
+     [](lua_State* state) {
+       size_t len;
+       const char* name = luaL_checklstring(state, 1, &len);
+       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       auto* subtexture = renderer->sub_texture(name, len);
+       if (subtexture == nullptr) {
+         luaL_error(state, "Could not find an image called %s in sheet %s",
+                    name, renderer->sheet()->image_name()->c_str());
+       }
+       luaL_newmetatable(state, "asset_subtexture_ptr");
+       lua_pop(state, 1);
+       lua_pushlightuserdata(state, renderer);
+       luaL_setmetatable(state, "asset_subtexture_ptr");
+       return 1;
+     }},
+    {"subtexture_info",
+     [](lua_State* state) {
+       const assets::Subtexture* ptr = nullptr;
+       if (lua_isstring(state, 1)) {
+         auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+         size_t len;
+         const char* name = luaL_checklstring(state, 1, &len);
+         ptr = renderer->sub_texture(name, len);
+         if (ptr == nullptr) {
+           luaL_error(state, "Could not find an image called %s in sheet %s",
+                      name, renderer->sheet()->image_name()->c_str());
+         }
+       } else {
+         ptr = reinterpret_cast<const assets::Subtexture*>(
+             luaL_checkudata(state, 1, "asset_subtexture_ptr"));
+       }
+       lua_newtable(state);
+       lua_pushnumber(state, ptr->width());
+       lua_setfield(state, -2, "width");
+       lua_pushnumber(state, ptr->height());
+       lua_setfield(state, -2, "height");
+       return 1;
+     }},
+    {nullptr, nullptr}};
+
 static const struct luaL_Reg kPhysicsLib[] = {
     {"add_box",
      [](lua_State* state) {
@@ -223,6 +265,15 @@ static const struct luaL_Reg kPhysicsLib[] = {
        lua_pushnumber(state, pos.x);
        lua_pushnumber(state, pos.y);
        return 2;
+     }},
+    {"get_angle",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       const auto handle = luaL_checkinteger(state, 1);
+       const float angle =
+           physics->GetAngle(Physics::Handle{.id = uint32_t(handle)});
+       lua_pushnumber(state, angle);
+       return 1;
      }},
     {nullptr, nullptr}};
 
@@ -308,6 +359,7 @@ Lua::Lua(const char* script_name, Assets* assets) {
   AddLibrary(state_, "input", kMouseLib);
   AddLibrary(state_, "sound", kSoundLib);
   AddLibrary(state_, "physics", kPhysicsLib);
+  AddLibrary(state_, "assets", kAssetsLib);
   lua_pushcfunction(state_, [](lua_State* state) {
     const char* message = luaL_checkstring(state, 1);
     luaL_traceback(state, state, message, 1);

@@ -20,15 +20,21 @@ void Physics::ApplyForce(Handle handle, FVec2 force) {
   box.acceleration += force / box.mass;
 }
 
-FVec2 Physics::GetPosition(Handle handle) {
+FVec2 Physics::GetPosition(Handle handle) const {
   const auto& box = boxes_[handle.id];
   return box.position;
+}
+
+float Physics::GetAngle(Handle handle) const {
+  const auto& box = boxes_[handle.id];
+  return box.angle;
 }
 
 void Physics::Turn(Handle handle, float angle) {
   auto& box = boxes_[handle.id];
   const FMat4x4 transform =
       RotateZOnPoint(box.position.x, box.position.y, angle);
+  box.angle += angle;
   for (auto& p : box.v) {
     FVec4 r = transform * FVec(p.x, p.y, 0, 1);
     p = FVec(r.x, r.y);

@@ -22,7 +22,9 @@ void Stats::AddSample(double sample) {
   // Welford's algorithm.
   m2n_ += (sample - prev_avg) * (sample - avg_);
   stdev_ = m2n_ / samples_;
-  buckets_[std::floor(buckets_.size() * sample / kMax)]++;
+  const double index =
+      std::min(buckets_.size() - 1.0, buckets_.size() * sample / kMax);
+  buckets_[std::floor(index)]++;
 }
 
 double Stats::Percentile(double percentile) const {
