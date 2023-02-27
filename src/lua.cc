@@ -133,7 +133,8 @@ static const struct luaL_Reg kMouseLib[] = {
        size_t len;
        const char* c = luaL_checklstring(state, 1, &len);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
-       lua_pushboolean(state, keyboard->IsDown(keyboard->StrToKeycode(c, len)));
+       lua_pushboolean(state,
+                       keyboard->IsDown(keyboard->StrToScancode(c, len)));
        return 1;
      }},
     {"is_key_released",
@@ -142,7 +143,7 @@ static const struct luaL_Reg kMouseLib[] = {
        const char* c = luaL_checklstring(state, 1, &len);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
        lua_pushboolean(state,
-                       keyboard->IsReleased(keyboard->StrToKeycode(c, len)));
+                       keyboard->IsReleased(keyboard->StrToScancode(c, len)));
        return 1;
      }},
     {"is_key_pressed",
@@ -151,7 +152,7 @@ static const struct luaL_Reg kMouseLib[] = {
        const char* c = luaL_checklstring(state, 1, &len);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
        lua_pushboolean(state,
-                       keyboard->IsPressed(keyboard->StrToKeycode(c, len)));
+                       keyboard->IsPressed(keyboard->StrToScancode(c, len)));
        return 1;
      }},
     {"mouse_wheel",

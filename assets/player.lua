@@ -1,5 +1,6 @@
 Object = require "classic"
 Lume = require 'lume'
+Vec2 = require 'vector2d'
 
 Status = {
     ACCELERATING = 0,
@@ -13,31 +14,20 @@ MAX_SPEED = 10;
 MIN_DISTANCE = 2000.0
 ANGLE_DELTA = 0.1
 
-local function length2(x, y)
-    return x * x + y * y
-end
-
-local function distance2(x0, y0, x1, y1)
-    return length2(x1 - x0, y1 - y0)
-end
-
 Player = Object:extend()
 
 function Player:new(x, y)
-    self.x = x or 0
-    self.y = y or 0
-    self.aim_x = 0
-    self.aim_y = 0
+    self.pos = Vec2(x or 0, y or 0)
+    self.aim = Vec2(0, 0)
     self.angle = 0
     self.speed = 0
     self.status = Status.STOPPED
 end
 
 function Player:update(dt)
-    local aim_x, aim_y = G.input.mouse_position()
-    if distance2(self.x, self.y, aim_x, aim_y) > MIN_DISTANCE then
-        self.aim_x = aim_x
-        self.aim_y = aim_y
+    local aim = Vec2(G.input.mouse_position())
+    if Vec2.distance2(self.pos, aim) > MIN_DISTANCE then
+        self.aim_x = aim
     end
 
     if G.input.is_key_down('w') then
@@ -50,8 +40,15 @@ function Player:update(dt)
         end
     end
 
+
+
     if G.input.is_key_down('lshift') then
-        G.console.log("Is down")
+        local n = (self.aim - self.pos):normalized()
+        if G.input.is_key_down('d') then
+            self.pos = self.pos - (n / 1000) * dt
+        elseif G.input.is_key_down('a') then
+            self.pos = self.pos + n * dt
+        end
     else
         if G.input.is_key_down('d') then
             self.angle = self.angle + ANGLE_DELTA
@@ -74,23 +71,23 @@ function Player:update(dt)
         end
     end
 
-    self.x = self.x + math.sin(math.pi - self.angle) * self.speed
-    self.y = self.y + math.cos(math.pi - self.angle) * self.speed
+    local a = math.pi - self.angle
+    self.pos = self.pos + Vec2(math.sin(a), math.cos(a)) * self.speed
 end
 
 function Player:render()
-    G.renderer.draw_sprite("playerShip1_green", self.x, self.y, self.angle)
+    G.renderer.draw_sprite("playerShip1_green", self.pos.x, self.pos.y, self.angle)
 end
 
 function Player:center_camera()
     local vx, vy = G.renderer.viewport()
-    G.renderer.translate( -self.x, -self.y)
+    G.renderer.translate( -self.pos.x, -self.pos.y)
     local mx, my = G.input.mouse_wheel()
     local factor = 0.4 + my * 0.9;
     G.renderer.scale(factor, factor)
     G.renderer.rotate( -self.angle)
-    G.renderer.translate(self.x, self.y)
-    G.renderer.translate(vx / 2 - self.x, vy / 2 - self.y)
+    G.renderer.translate(self.pos.x, self.pos.y)
+    G.renderer.translate(vx / 2 - self.pos.x, vy / 2 - self.pos.y)
 end
 
 return Player

@@ -176,8 +176,8 @@ class Game {
         e_.keyboard.PushEvent(event);
         e_.mouse.PushEvent(event);
         if (event.type == SDL_KEYDOWN) {
-          if (e_.keyboard.IsDown(SDLK_TAB)) e_.debug_console.Toggle();
-          if (e_.keyboard.IsDown(SDLK_q)) return;
+          if (e_.keyboard.IsDown(SDL_SCANCODE_TAB)) e_.debug_console.Toggle();
+          if (e_.keyboard.IsDown(SDL_SCANCODE_Q)) return;
         }
       }
       while (accum >= kStepsPerFrame) {

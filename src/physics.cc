@@ -1,10 +1,18 @@
 #include "physics.h"
 
+#include "mat.h"
+#include "transformations.h"
+
 Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right,
                                 FVec2 initial_position) {
   uint32_t index = boxes_.size();
-  boxes_.Push(Box{top_left, bottom_right, /*angle=*/0,
-                  Body{.position = initial_position}});
+  Rectangle rect = {.v = {
+                        top_left,
+                        FVec(bottom_right.x, top_left.y),
+                        bottom_right,
+                        FVec(top_left.x, bottom_right.y),
+                    }};
+  boxes_.Push(Box{rect, Body{.position = initial_position}});
   return Handle{index};
 }
 void Physics::ApplyForce(Handle handle, FVec2 force) {
@@ -19,7 +27,12 @@ FVec2 Physics::GetPosition(Handle handle) {
 
 void Physics::Turn(Handle handle, float angle) {
   auto& box = boxes_[handle.id];
-  box.angle += angle;
+  const FMat4x4 transform =
+      RotateZOnPoint(box.position.x, box.position.y, angle);
+  for (auto& p : box.v) {
+    FVec4 r = transform * FVec(p.x, p.y, 0, 1);
+    p = FVec(r.x, r.y);
+  }
 }
 
 void Physics::Update(float dt) {

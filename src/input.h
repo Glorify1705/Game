@@ -13,25 +13,20 @@
 class Keyboard {
  public:
   Keyboard();
-  bool IsDown(char c) const {
-    const SDL_Keycode k = SDL_GetScancodeFromKey(c);
-    return pressed_[k];
-  }
+  bool IsDown(SDL_Scancode k) const { return pressed_[k]; }
 
-  bool IsReleased(SDL_Keycode c) const {
-    const SDL_Keycode k = SDL_GetScancodeFromKey(c);
+  bool IsReleased(SDL_Scancode k) const {
     return previous_pressed_[k] && !pressed_[k];
   }
 
-  bool IsPressed(SDL_Keycode c) const {
-    const SDL_Keycode k = SDL_GetScancodeFromKey(c);
+  bool IsPressed(SDL_Scancode k) const {
     return !previous_pressed_[k] && pressed_[k];
   }
 
-  SDL_Keycode StrToKeycode(const char* key, size_t length) const {
-    SDL_Keycode result;
+  SDL_Scancode StrToScancode(const char* key, size_t length) const {
+    SDL_Scancode result;
     if (!table_.Lookup(key, length, &result)) {
-      return SDLK_UNKNOWN;
+      return SDL_SCANCODE_UNKNOWN;
     }
     return result;
   }
@@ -49,7 +44,7 @@ class Keyboard {
   FixedCircularBuffer<Event, kQueueSize> keydown_events_;
   std::bitset<kKeyboardTable + 1> pressed_;
   std::bitset<kKeyboardTable + 1> previous_pressed_;
-  LookupTable<SDL_Keycode> table_;
+  LookupTable<SDL_Scancode> table_;
 };
 
 class Mouse {

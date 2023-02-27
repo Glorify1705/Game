@@ -18,12 +18,12 @@ void Keyboard::InitForFrame() {
 }
 
 Keyboard::Keyboard() {
-  table_.Insert("w", SDLK_w);
-  table_.Insert("a", SDLK_a);
-  table_.Insert("s", SDLK_s);
-  table_.Insert("d", SDLK_d);
-  table_.Insert("lshift", SDLK_LSHIFT);
-  table_.Insert("rshift", SDLK_RSHIFT);
+  table_.Insert("w", SDL_SCANCODE_W);
+  table_.Insert("a", SDL_SCANCODE_A);
+  table_.Insert("s", SDL_SCANCODE_S);
+  table_.Insert("d", SDL_SCANCODE_D);
+  table_.Insert("lshift", SDL_SCANCODE_LSHIFT);
+  table_.Insert("rshift", SDL_SCANCODE_RSHIFT);
 }
 
 void Keyboard::PushEvent(const SDL_Event& event) {

@@ -13,4 +13,6 @@ FMat4x4 RotationZ(float angle);
 
 FMat4x4 ScaleXY(float sx, float sy);
 
+FMat4x4 RotateZOnPoint(float x, float y, float angle);
+
 #endif  // _GAME_TRANSFORMATIONS_H

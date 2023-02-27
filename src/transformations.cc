@@ -33,3 +33,7 @@ FMat4x4 ScaleXY(float sx, float sy) {
   mat.mut(1, 1) = sy;
   return mat;
 }
+
+FMat4x4 RotateZOnPoint(float x, float y, float angle) {
+  return TranslationXY(x, y) * RotationZ(angle) * TranslationXY(-x, -y);
+}
