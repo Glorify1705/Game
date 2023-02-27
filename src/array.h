@@ -42,7 +42,7 @@ class FixedArray {
   T* begin() { return &buffer_[0]; }
   T* end() { return buffer_.data() + elems_; }
 
-  T* data() const { return buffer_; }
+  T* data() { return buffer_.data(); }
 
   const T* cbegin() const { return &buffer_[0]; }
   const T* cend() const { return buffer_.data() + elems_; }

@@ -128,8 +128,7 @@ class Game {
   Game(int argc, const char* argv[])
       : arguments_(argv + 1, argv + argc),
         window_(CreateWindow(params_)),
-        context_(CreateOpenglContext(window_)),
-        e_(arguments_, params_) {}
+        context_(CreateOpenglContext(window_)) {}
 
   ~Game() {
     LOG("Initiating shutdown");
@@ -142,7 +141,8 @@ class Game {
     CHECK(Mix_OpenAudio(44100, MIX_INIT_OGG, 2, 2048) == 0,
           "Could not initialize audio: ", Mix_GetError());
     SDL_ShowCursor(false);
-    e_.lua.Init();
+    e_ = std::make_unique<EngineModules>(arguments_, params_);
+    e_->lua.Init();
   }
 
   void Run() {
@@ -166,18 +166,18 @@ class Game {
           if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
             params_.screen_width = event.window.data1;
             params_.screen_height = event.window.data2;
-            e_.quad_renderer.SetViewport(
+            e_->quad_renderer.SetViewport(
                 IVec2(params_.screen_width, params_.screen_height));
           }
         }
         if (event.type == SDL_QUIT) {
           return;
         }
-        e_.keyboard.PushEvent(event);
-        e_.mouse.PushEvent(event);
+        e_->keyboard.PushEvent(event);
+        e_->mouse.PushEvent(event);
         if (event.type == SDL_KEYDOWN) {
-          if (e_.keyboard.IsDown(SDL_SCANCODE_TAB)) e_.debug_console.Toggle();
-          if (e_.keyboard.IsDown(SDL_SCANCODE_Q)) return;
+          if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) e_->debug_console.Toggle();
+          if (e_->keyboard.IsDown(SDL_SCANCODE_Q)) return;
         }
       }
       while (accum >= kStepsPerFrame) {
@@ -191,20 +191,20 @@ class Game {
   }
 
   void StartFrame() {
-    e_.quad_renderer.Clear();
-    e_.debug_console.Clear();
-    e_.mouse.InitForFrame();
-    e_.keyboard.InitForFrame();
+    e_->quad_renderer.Clear();
+    e_->debug_console.Clear();
+    e_->mouse.InitForFrame();
+    e_->keyboard.InitForFrame();
   }
 
   // Update state given current time t and frame delta dt, both in ms.
   void Update(double t, double dt) {
-    e_.lua.Update(t, dt);
-    e_.debug_console.PushText(
+    e_->lua.Update(t, dt);
+    e_->debug_console.PushText(
         StrCat("Mouse position ", Mouse::GetPosition(), "\n"),
         FVec2(params_.screen_width - 300, 0));
-    e_.debug_console.PushText(StrCat("Frame Stats: ", stats_),
-                              FVec2(0, params_.screen_height - 20));
+    e_->debug_console.PushText(StrCat("Frame Stats: ", stats_),
+                               FVec2(0, params_.screen_height - 20));
   }
 
   void ClearWindow() {
@@ -217,11 +217,11 @@ class Game {
 
   void Render() {
     ClearWindow();
-    e_.sprite_sheet_renderer.BeginFrame();
-    e_.lua.Render();
-    e_.sprite_sheet_renderer.FlushFrame();
-    e_.debug_console.Render();
-    e_.quad_renderer.Render();
+    e_->sprite_sheet_renderer.BeginFrame();
+    e_->lua.Render();
+    e_->sprite_sheet_renderer.FlushFrame();
+    e_->debug_console.Render();
+    e_->quad_renderer.Render();
     SDL_GL_SwapWindow(window_);
   }
 
@@ -230,7 +230,7 @@ class Game {
   GameParams params_;
   SDL_Window* window_ = nullptr;
   SDL_GLContext context_;
-  EngineModules e_;
+  std::unique_ptr<EngineModules> e_;
   Stats stats_;
 };
 

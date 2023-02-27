@@ -112,20 +112,20 @@ void QuadRenderer::PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1,
                             FVec2 origin, float angle) {
   auto& batch = batches_.back();
   size_t current = vertices_.size();
-  vertices_.push_back({.position = FVec2(p0.x, p1.y),
-                       .tex_coords = FVec2(q0.x, q1.y),
-                       .origin = origin,
-                       .angle = angle});
-  vertices_.push_back(
+  vertices_.Push({.position = FVec2(p0.x, p1.y),
+                  .tex_coords = FVec2(q0.x, q1.y),
+                  .origin = origin,
+                  .angle = angle});
+  vertices_.Push(
       {.position = p1, .tex_coords = q1, .origin = origin, .angle = angle});
-  vertices_.push_back({.position = FVec2(p1.x, p0.y),
-                       .tex_coords = FVec2(q1.x, q0.y),
-                       .origin = origin,
-                       .angle = angle});
-  vertices_.push_back(
+  vertices_.Push({.position = FVec2(p1.x, p0.y),
+                  .tex_coords = FVec2(q1.x, q0.y),
+                  .origin = origin,
+                  .angle = angle});
+  vertices_.Push(
       {.position = p0, .tex_coords = q0, .origin = origin, .angle = angle});
   for (int i : {0, 1, 3, 1, 2, 3}) {
-    indices_.push_back(current + i);
+    indices_.Push(current + i);
     batch.indices_count++;
   }
 }
@@ -133,10 +133,10 @@ void QuadRenderer::PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1,
 void QuadRenderer::Render() {
   glBindVertexArray(vao_);
   glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-  glBufferData(GL_ARRAY_BUFFER, ByteSize(vertices_), vertices_.data(),
+  glBufferData(GL_ARRAY_BUFFER, vertices_.bytes(), vertices_.data(),
                GL_STATIC_DRAW);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, ByteSize(indices_), indices_.data(),
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_.bytes(), indices_.data(),
                GL_STATIC_DRAW);
   shader_program_.Use();
   const GLint pos_attribute =

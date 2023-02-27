@@ -49,9 +49,9 @@ class QuadRenderer {
   void PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1, FVec2 origin,
                 float angle);
   void Clear() {
-    batches_.clear();
-    indices_.clear();
-    vertices_.clear();
+    batches_.Clear();
+    indices_.Clear();
+    vertices_.Clear();
   }
 
   void SetViewport(IVec2 viewport) { viewport_ = viewport; }
@@ -90,16 +90,16 @@ class QuadRenderer {
       batch.transform = prev.transform;
     }
     batch.indices_start = indices_.size();
-    batches_.push_back(std::move(batch));
+    batches_.Push(std::move(batch));
   }
 
-  std::vector<VertexData> vertices_;
-  std::vector<GLuint> indices_;
+  FixedArray<VertexData, 1 << 24> vertices_;
+  FixedArray<GLuint, 1 << 24> indices_;
   ShaderCompiler compiler_;
   ShaderId vertex_shader_;
   ShaderId fragment_shader_;
   ShaderProgram shader_program_;
-  std::vector<Batch> batches_;
+  FixedArray<Batch, 1 << 24> batches_;
   std::array<GLuint, 64> tex_;
   GLuint ebo_, vao_, vbo_;
   GLuint unit_ = 0;
