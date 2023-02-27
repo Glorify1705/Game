@@ -1,5 +1,6 @@
 #include "lua.h"
 
+#include "clock.h"
 #include "input.h"
 #include "physics.h"
 #include "renderer.h"
@@ -239,38 +240,41 @@ static const struct luaL_Reg kAssetsLib[] = {
      }},
     {nullptr, nullptr}};
 
-static const struct luaL_Reg kPhysicsLib[] = {
-    {"add_box",
+static const struct luaL_Reg kPhysicsLib[] = {{nullptr, nullptr}};
+
+static constexpr char kEventCallbacksKey = 'e';
+
+struct Context {
+  lua_State* state;
+  int func;
+};
+
+static const struct luaL_Reg kClockLib[] = {
+    {"call_in",
      [](lua_State* state) {
-       const auto tx = luaL_checknumber(state, 1);
-       const auto ty = luaL_checknumber(state, 2);
-       const auto bx = luaL_checknumber(state, 3);
-       const auto by = luaL_checknumber(state, 4);
-       const auto px = luaL_checknumber(state, 5);
-       const auto py = luaL_checknumber(state, 6);
-       auto* physics = Registry<Physics>::Retrieve(state);
-       Physics::Handle handle =
-           physics->AddBox(FVec2(tx, ty), FVec2(bx, by), FVec2(px, py));
-       lua_pushinteger(state, handle.id);
+       auto* events = Registry<Events>::Retrieve(state);
+       auto* context = new Context{state, luaL_ref(state, LUA_REGISTRYINDEX)};
+       events->QueueIn(
+           luaL_checknumber(state, 1),
+           [](void* ptr) {
+             auto* context = static_cast<Context*>(ptr);
+             lua_rawgeti(context->state, LUA_REGISTRYINDEX, context->func);
+             lua_pcall(context->state, 0, LUA_MULTRET, 0);
+             luaL_unref(context->state, LUA_REGISTRYINDEX, context->func);
+             delete context;
+           },
+           context);
+       return 0;
+     }},
+    {"now",
+     [](lua_State* state) {
+       lua_pushnumber(state, NowInMillis());
        return 1;
      }},
-    {"get_position",
+    {"frame",
      [](lua_State* state) {
-       auto* physics = Registry<Physics>::Retrieve(state);
-       const auto handle = luaL_checkinteger(state, 1);
-       const FVec2 pos =
-           physics->GetPosition(Physics::Handle{.id = uint32_t(handle)});
-       lua_pushnumber(state, pos.x);
-       lua_pushnumber(state, pos.y);
-       return 2;
-     }},
-    {"get_angle",
-     [](lua_State* state) {
-       auto* physics = Registry<Physics>::Retrieve(state);
-       const auto handle = luaL_checkinteger(state, 1);
-       const float angle =
-           physics->GetAngle(Physics::Handle{.id = uint32_t(handle)});
-       lua_pushnumber(state, angle);
+       auto* events = Registry<Events>::Retrieve(state);
+       lua_pushnumber(state, events->frame());
        return 1;
      }},
     {nullptr, nullptr}};
@@ -358,6 +362,7 @@ Lua::Lua(const char* script_name, Assets* assets) {
   AddLibrary(state_, "sound", kSoundLib);
   AddLibrary(state_, "physics", kPhysicsLib);
   AddLibrary(state_, "assets", kAssetsLib);
+  AddLibrary(state_, "clock", kClockLib);
   lua_pushcfunction(state_, [](lua_State* state) {
     const char* message = luaL_checkstring(state, 1);
     luaL_traceback(state, state, message, 1);

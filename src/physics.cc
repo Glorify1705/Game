@@ -3,47 +3,30 @@
 #include "mat.h"
 #include "transformations.h"
 
-Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right,
-                                FVec2 initial_position) {
-  uint32_t index = boxes_.size();
-  Rectangle rect = {.v = {
-                        top_left,
-                        FVec(bottom_right.x, top_left.y),
-                        bottom_right,
-                        FVec(top_left.x, bottom_right.y),
-                    }};
-  boxes_.Push(Box{rect, Body{.position = initial_position}});
-  return Handle{index};
-}
-void Physics::ApplyForce(Handle handle, FVec2 force) {
-  auto& box = boxes_[handle.id];
-  box.acceleration += force / box.mass;
+Physics::Physics() : world_(b2Vec2(0, 0)) { world_.SetContactListener(this); }
+
+Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, FVec2 pos) {
+  b2BodyDef def;
+  def.type = b2_dynamicBody;
+  def.position.Set(pos.x, pos.y);
+  b2PolygonShape box;
+  FVec2 center = (top_left + bottom_right) / 2.0;
+  box.SetAsBox(center.x, center.y);
+  b2Body* body = world_.CreateBody(&def);
+  b2FixtureDef fixture;
+  fixture.shape = &box;
+  fixture.density = 1.0f;
+  fixture.friction = 0.3f;
+  body->CreateFixture(&fixture);
+  return Handle{body};
 }
 
-FVec2 Physics::GetPosition(Handle handle) const {
-  const auto& box = boxes_[handle.id];
-  return box.position;
-}
-
-float Physics::GetAngle(Handle handle) const {
-  const auto& box = boxes_[handle.id];
-  return box.angle;
-}
-
-void Physics::Turn(Handle handle, float angle) {
-  auto& box = boxes_[handle.id];
-  const FMat4x4 transform =
-      RotateZOnPoint(box.position.x, box.position.y, angle);
-  box.angle += angle;
-  for (auto& p : box.v) {
-    FVec4 r = transform * FVec(p.x, p.y, 0, 1);
-    p = FVec(r.x, r.y);
-  }
+void Physics::SetOrigin(FVec2 origin) {
+  world_.ShiftOrigin(b2Vec2(origin.x, origin.y));
 }
 
 void Physics::Update(float dt) {
-  for (auto& box : boxes_) {
-    box.velocity += box.acceleration * dt;
-    box.position += box.velocity * dt;
-  }
+  constexpr int32_t kVelocityIterations = 6;
+  constexpr int32_t kPositionIterations = 2;
+  world_.Step(dt, kVelocityIterations, kPositionIterations);
 }

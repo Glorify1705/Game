@@ -19,3 +19,4 @@ clang
 -ldl
 -lSDL2_mixer
 obj/liblua.a
+obj/libbox2d.a

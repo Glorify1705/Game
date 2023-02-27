@@ -22,7 +22,7 @@ INCLUDES += -I$(LUADIR)/src -I$(FBSDIR)/include -I$(BOX2DDIR)/include
 CXXFLAGS += -std=c++17 -O1 -Wall -Werror -Wextra -DNDEBUG -DGAME_WITH_ASSERTS -fno-omit-frame-pointer -ggdb $(shell sdl2-config --cflags) $(INCLUDES)
 
 LDFLAGS += -pthread
-LDLIBS += $(shell sdl2-config --libs) -lGL -ldl -lSDL2_mixer $(LUALIB)
+LDLIBS += $(shell sdl2-config --libs) -lGL -ldl -lSDL2_mixer $(LUALIB) $(BOX2DLIB)
 
 SRCS := $(wildcard src/*.cc) src/vec.h src/mat.h src/assets_generated.h
 OBJS := $(patsubst src/%.cc, $(OBJDIR)/%.o, $(filter %.cc, $(SRCS)))
@@ -48,7 +48,7 @@ bin/flatc: $(FBSDIR)/CMakeLists.txt | $(OBJDIR)
 src/assets_generated.h: src/assets.fbs bin/flatc
 > bin/flatc -o src --cpp-std c++17 --cpp-static-reflection --cpp $<
 
-usrbin/$(APPNAME): obj/assets.o $(OBJS) $(LUALIB)
+usrbin/$(APPNAME): obj/assets.o $(OBJS) $(LUALIB) $(BOX2DLIB)
 > mkdir -p usrbin
 > $(CXX) $^ $(LDFLAGS) $(LDLIBS) -o $@
 
@@ -57,7 +57,7 @@ $(LUALIB): $(LUADIR)/Makefile | $(OBJDIR)
 > cp $(LUADIR)/src/liblua.a $(OBJDIR)
 > touch $<
 
-$(BOX2DLIB): $(BOX2DDIR)/CMakeLists.txt
+$(BOX2DLIB): $(BOX2DDIR)/CMakeLists.txt | $(OBJDIR)
 > cmake -S$(BOX2DDIR) -B$(BOX2DDIR) -DBOX2D_BUILD_DOCS=OFF -G "Unix Makefiles" \
 	-DCMAKE_BUILD_TYPE=Release -DBOX2D_BUILD_UNIT_TESTS=OFF -DBOX2D_BUILD_TESTBED=OFF -DBOX2D_BUILD_DOCS=OFF
 > $(MAKE) -C$(BOX2DDIR)

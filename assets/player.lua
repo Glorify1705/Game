@@ -19,8 +19,6 @@ Player = Object:extend()
 function Player:new(x, y)
     self.image = "playerShip1_green"
     local info = G.assets.subtexture_info(self.image)
-    self.physics = G.physics.add_box(x - info.width / 2, y - info.height / 2, x + info.width / 2, y + info.height, x,
-        y)
     self.pos = Vec2(x or 0, y or 0)
     self.aim = Vec2(0, 0)
     self.angle = 0

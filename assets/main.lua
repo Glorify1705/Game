@@ -1,13 +1,17 @@
 local Player = require "player"
-local player, positions
+local player
+
+local positions = {}
 
 function Init()
     local vx, vy = G.renderer.viewport()
     player = Player(25000, 25000)
     positions = {}
-    for i = 0, 50000 do
-        table.insert(positions, { x = math.random() * 100000, y = math.random() * 100000 })
-    end
+    G.clock.call_in(100, function()
+        for i = 0, 50000 do
+            table.insert(positions, { x = math.random() * 100000, y = math.random() * 100000 })
+        end
+    end)
     -- G.sound.play("music.ogg")
 end
 

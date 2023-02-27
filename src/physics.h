@@ -3,37 +3,30 @@
 #define _PHYSICS_H
 
 #include "array.h"
+#include "box2d/box2d.h"
 #include "math.h"
 #include "vec.h"
 
-class Physics {
+class Physics final : public b2ContactListener {
  public:
+  inline static constexpr float kPixelsPerMeter = 60;
   struct Handle {
-    uint32_t id;
+    b2Body *handle;
   };
 
-  Handle AddBox(FVec2 top_left, FVec2 bottom_right, FVec2 initial_position);
-
-  FVec2 GetPosition(Handle handle) const;
-  float GetAngle(Handle handle) const;
-
-  void ApplyForce(Handle handle, FVec2 force);
-
-  void Turn(Handle handle, float angle);
+  Physics();
 
   void Update(float dt);
+  void SetOrigin(FVec2 origin);
+
+  void BeginContact(b2Contact *) override {}
+
+  void EndContact(b2Contact *) override {}
+
+  Handle AddBox(FVec2 top_left, FVec2 top_right, FVec2 position);
 
  private:
-  struct Body {
-    FVec2 position = FVec2::Zero();
-    float angle = 0;
-    FVec2 velocity = FVec2::Zero();
-    FVec2 acceleration = FVec2::Zero();
-    float mass = 1.0;
-  };
-  struct Box final : public Rectangle, public Body {};
-
-  FixedArray<Box, 256> boxes_;
+  b2World world_;
 };
 
 #endif

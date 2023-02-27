@@ -52,6 +52,8 @@ class FixedArray {
   size_t bytes() const { return elems_ * sizeof(T); }
   bool empty() const { return elems_ == 0; }
 
+  void Resize(size_t size) { elems_ = size; }
+
  private:
   std::array<T, Size> buffer_;
 

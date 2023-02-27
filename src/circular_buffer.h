@@ -3,6 +3,7 @@
 #define _GAME_CIRCULAR_BUFFER_H
 
 #include <array>
+#include <iterator>
 
 #include "logging.h"
 

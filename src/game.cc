@@ -12,6 +12,7 @@
 #include "SDL_mixer.h"
 #include "allocators.h"
 #include "assets.h"
+#include "box2d/b2_common.h"
 #include "circular_buffer.h"
 #include "clock.h"
 #include "debug_ui.h"
@@ -75,6 +76,7 @@ struct EngineModules {
   SpriteSheetRenderer sprite_sheet_renderer;
   Lua lua;
   Physics physics;
+  Events events;
 
   EngineModules(const std::vector<const char*> arguments,
                 const GameParams& params)
@@ -90,6 +92,7 @@ struct EngineModules {
     lua.Register(&mouse);
     lua.Register(&sound);
     lua.Register(&physics);
+    lua.Register(&events);
   }
 
   ~EngineModules() { delete[] assets_buf_; }
@@ -180,6 +183,7 @@ class Game {
           if (e_->keyboard.IsDown(SDL_SCANCODE_Q)) return;
         }
       }
+      e_->events.Fire();
       while (accum >= kStepsPerFrame) {
         Update(t, kStep);
         t += kStepsPerFrame;
