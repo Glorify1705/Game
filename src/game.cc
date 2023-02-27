@@ -183,7 +183,6 @@ class Game {
           if (e_->keyboard.IsDown(SDL_SCANCODE_Q)) return;
         }
       }
-      e_->events.Fire();
       while (accum >= kStepsPerFrame) {
         Update(t, kStep);
         t += kStepsPerFrame;
@@ -203,6 +202,8 @@ class Game {
 
   // Update state given current time t and frame delta dt, both in ms.
   void Update(double t, double dt) {
+    e_->events.Fire(dt);
+    e_->physics.Update(dt);
     e_->lua.Update(t, dt);
     e_->debug_console.PushText(
         StrCat("Mouse position ", Mouse::GetPosition(), "\n"),

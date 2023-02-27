@@ -23,7 +23,15 @@ class Physics final : public b2ContactListener {
 
   void EndContact(b2Contact *) override {}
 
-  Handle AddBox(FVec2 top_left, FVec2 top_right, FVec2 position);
+  Handle AddBox(FVec2 top_left, FVec2 top_right, float angle);
+
+  void ApplyLinearVelocity(Handle handle, FVec2 v);
+
+  void Rotate(Handle handle, float angle);
+
+  FVec2 GetPosition(Handle handle) const;
+
+  float GetAngle(Handle handle) const;
 
  private:
   b2World world_;

@@ -5,13 +5,11 @@ local positions = {}
 
 function Init()
     local vx, vy = G.renderer.viewport()
-    player = Player(25000, 25000)
+    player = Player(100, 100)
     positions = {}
-    G.clock.call_in(100, function()
-        for i = 0, 50000 do
-            table.insert(positions, { x = math.random() * 100000, y = math.random() * 100000 })
-        end
-    end)
+    for i = 0, 10 do
+        table.insert(positions, { x = math.random() * vx, y = math.random() * vy })
+    end
     -- G.sound.play("music.ogg")
 end
 
@@ -20,13 +18,10 @@ function Update(t, dt)
 end
 
 function Render()
-    G.renderer.push()
-    player:center_camera()
-    player:render()
     for _, pos in ipairs(positions) do
         G.renderer.draw_sprite("star1", pos.x, pos.y)
     end
-    G.renderer.pop()
+    player:render()
     local mx, my = G.input.mouse_position()
     G.renderer.draw_sprite("numeralX", mx, my)
 end

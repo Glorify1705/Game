@@ -210,8 +210,6 @@ static const struct luaL_Reg kAssetsLib[] = {
        if (subtexture == nullptr) {
          luaL_error(state, "Could not find a subtexture %s", name);
        }
-       luaL_newmetatable(state, "asset_subtexture_ptr");
-       lua_pop(state, 1);
        lua_pushlightuserdata(state, renderer);
        luaL_setmetatable(state, "asset_subtexture_ptr");
        return 1;
@@ -240,10 +238,62 @@ static const struct luaL_Reg kAssetsLib[] = {
      }},
     {nullptr, nullptr}};
 
-static const struct luaL_Reg kPhysicsLib[] = {{nullptr, nullptr}};
+static const struct luaL_Reg kPhysicsLib[] = {
+    {"add_box",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       const float tx = luaL_checknumber(state, 1);
+       const float ty = luaL_checknumber(state, 2);
+       const float bx = luaL_checknumber(state, 3);
+       const float by = luaL_checknumber(state, 4);
+       const float angle = luaL_checknumber(state, 5);
+       auto* handle = static_cast<Physics::Handle*>(
+           lua_newuserdata(state, sizeof(Physics::Handle)));
+       luaL_setmetatable(state, "physics_handle");
+       *handle = physics->AddBox(FVec(tx, ty), FVec(bx, by), angle);
+       return 1;
+     }},
+    {"position",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const FVec2 pos = physics->GetPosition(*handle);
+       lua_pushnumber(state, pos.x);
+       lua_pushnumber(state, pos.y);
+       return 2;
+     }},
+    {"angle",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float angle = physics->GetAngle(*handle);
+       lua_pushnumber(state, angle);
+       return 1;
+     }},
+    {"apply_linear_velocity",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float x = luaL_checknumber(state, 2);
+       const float y = luaL_checknumber(state, 3);
+       physics->ApplyLinearVelocity(*handle, FVec(x, y));
+       return 0;
+     }},
+    {"rotate",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float angle = luaL_checknumber(state, 2);
+       physics->Rotate(*handle, angle);
+       return 0;
+     }},
+    {nullptr, nullptr}};
 
-static constexpr char kEventCallbacksKey = 'e';
-
+// TODO: Allocate these with a bitmap.
 struct Context {
   lua_State* state;
   int func;
@@ -352,6 +402,9 @@ Lua::Lua(const char* script_name, Assets* assets) {
     LuaCrash(state, 1);
     return 0;
   });
+  luaL_newmetatable(state_, "physics_handle");
+  luaL_newmetatable(state_, "asset_subtexture_ptr");
+  lua_pop(state_, 2);
   luaL_openlibs(state_);
   lua_newtable(state_);
   lua_setglobal(state_, "G");

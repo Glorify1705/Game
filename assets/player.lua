@@ -9,8 +9,8 @@ Status = {
     STOPPED = 3
 }
 
-ACCELERATION = 0.30
-MAX_SPEED = 10;
+ACCELERATION = 1200.00
+MAX_SPEED = 90000;
 MIN_DISTANCE = 2000.0
 ANGLE_DELTA = 0.1
 
@@ -19,18 +19,13 @@ Player = Object:extend()
 function Player:new(x, y)
     self.image = "playerShip1_green"
     local info = G.assets.subtexture_info(self.image)
-    self.pos = Vec2(x or 0, y or 0)
-    self.aim = Vec2(0, 0)
-    self.angle = 0
+    self.physics = G.physics.add_box(100, 100, 199, 175, 0)
     self.speed = 0
     self.status = Status.STOPPED
 end
 
 function Player:update(dt)
     local aim = Vec2(G.input.mouse_position())
-    if Vec2.distance2(self.pos, aim) > MIN_DISTANCE then
-        self.aim_x = aim
-    end
 
     if G.input.is_key_down('w') then
         if self.status == Status.STOPPED or self.status == Status.DECELERATING then
@@ -42,53 +37,48 @@ function Player:update(dt)
         end
     end
 
-
-
-    if G.input.is_key_down('lshift') then
-        if G.input.is_key_down('d') then
-            self.pos.x = self.pos.x + dt / 100
-        elseif G.input.is_key_down('a') then
-            self.pos.x = self.pos.x - dt / 100
-        end
-    else
-        if G.input.is_key_down('d') then
-            self.angle = self.angle + ANGLE_DELTA
-        elseif G.input.is_key_down('a') then
-            self.angle = self.angle - ANGLE_DELTA
-        end
+    if G.input.is_key_down('d') then
+        G.physics.rotate(self.physics, ANGLE_DELTA)
+    elseif G.input.is_key_down('a') then
+        G.physics.rotate(self.physics, -ANGLE_DELTA)
     end
 
     if self.status == Status.ACCELERATING then
-        self.speed = self.speed + ACCELERATION * dt
+        self.speed = self.speed + ACCELERATION * dt / 1000.0
         if self.speed > MAX_SPEED then
             self.speed = MAX_SPEED
             self.status = Status.FULL_SPEED
         end
     elseif self.status == Status.DECELERATING then
-        self.speed = self.speed - ACCELERATION * dt
+        self.speed = self.speed - ACCELERATION * dt / 1000.0
         if self.speed < 0 then
             self.speed = 0
             self.status = Status.STOPPED
         end
     end
 
-    local a = math.pi - self.angle
-    self.pos = self.pos + Vec2(math.sin(a), math.cos(a)) * self.speed
+    local a = math.pi - G.physics.angle(self.physics)
+    G.console.log(self.speed)
+    G.physics.apply_linear_velocity(self.physics, math.sin(a) * self.speed, math.cos(a) * self.speed)
 end
 
 function Player:render()
-    G.renderer.draw_sprite(self.image, self.pos.x, self.pos.y, self.angle)
+    local x, y = G.physics.position(self.physics)
+    local angle = G.physics.angle(self.physics)
+    G.renderer.draw_sprite(self.image, x, y, angle)
 end
 
 function Player:center_camera()
     local vx, vy = G.renderer.viewport()
-    G.renderer.translate( -self.pos.x, -self.pos.y)
+    local x, y = G.physics.position(self.physics)
+    local angle = G.physics.angle(self.physics)
+    G.renderer.translate( -x, -y)
     local mx, my = G.input.mouse_wheel()
     local factor = 0.4 + my * 0.9;
     G.renderer.scale(factor, factor)
-    G.renderer.rotate( -self.angle)
-    G.renderer.translate(self.pos.x, self.pos.y)
-    G.renderer.translate(vx / 2 - self.pos.x, vy / 2 - self.pos.y)
+    G.renderer.rotate( -angle)
+    G.renderer.translate(x, y)
+    G.renderer.translate(vx / 2 - x, vy / 2 - y)
 end
 
 return Player
