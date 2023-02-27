@@ -41,10 +41,7 @@ void Physics::Rotate(Handle handle, float angle) {
 
 void Physics::ApplyLinearVelocity(Handle handle, FVec2 v) {
   auto* body = handle.handle;
-  const auto before = body->GetPosition();
   body->ApplyLinearImpulse(To(v), body->GetWorldCenter(), /*wake=*/true);
-  const auto after = body->GetPosition();
-  LOG("v = ", v, " ", From(before), " ", From(after));
 }
 
 FVec2 Physics::GetPosition(Handle handle) const {

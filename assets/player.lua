@@ -1,6 +1,7 @@
 Object = require "classic"
 Lume = require 'lume'
 Vec2 = require 'vector2d'
+Physics = require 'physics'
 
 Status = {
     ACCELERATING = 0,
@@ -19,14 +20,12 @@ Player = Object:extend()
 function Player:new(x, y)
     self.image = "playerShip1_green"
     local info = G.assets.subtexture_info(self.image)
-    self.physics = G.physics.add_box(100, 100, 199, 175, 0)
+    self.physics = Physics(100, 100, 199, 175, 0)
     self.speed = 0
     self.status = Status.STOPPED
 end
 
 function Player:update(dt)
-    local aim = Vec2(G.input.mouse_position())
-
     if G.input.is_key_down('w') then
         if self.status == Status.STOPPED or self.status == Status.DECELERATING then
             self.status = Status.ACCELERATING
@@ -38,9 +37,9 @@ function Player:update(dt)
     end
 
     if G.input.is_key_down('d') then
-        G.physics.rotate(self.physics, ANGLE_DELTA)
+        self.physics:rotate(ANGLE_DELTA)
     elseif G.input.is_key_down('a') then
-        G.physics.rotate(self.physics, -ANGLE_DELTA)
+        self.physics:rotate( -ANGLE_DELTA)
     end
 
     if self.status == Status.ACCELERATING then
@@ -57,15 +56,14 @@ function Player:update(dt)
         end
     end
 
-    local a = math.pi - G.physics.angle(self.physics)
-    G.console.log(self.speed)
-    G.physics.apply_linear_velocity(self.physics, math.sin(a) * self.speed, math.cos(a) * self.speed)
+    local a = math.pi - self.physics:angle()
+    self.physics:move(math.sin(a) * self.speed, math.cos(a) * self.speed)
 end
 
 function Player:render()
-    local x, y = G.physics.position(self.physics)
-    local angle = G.physics.angle(self.physics)
-    G.renderer.draw_sprite(self.image, x, y, angle)
+    local v = self.physics:position()
+    local angle = self.physics:angle()
+    G.renderer.draw_sprite(self.image, v.x, v.y, angle)
 end
 
 function Player:center_camera()
