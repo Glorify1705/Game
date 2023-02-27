@@ -7,10 +7,12 @@
 
 #include "SDL.h"
 #include "circular_buffer.h"
+#include "map.h"
 #include "vec.h"
 
 class Keyboard {
  public:
+  Keyboard();
   bool IsDown(char c) const {
     const SDL_Keycode k = SDL_GetScancodeFromKey(c);
     return pressed_[k];
@@ -26,6 +28,14 @@ class Keyboard {
     return !previous_pressed_[k] && pressed_[k];
   }
 
+  SDL_Keycode StrToKeycode(const char* key, size_t length) const {
+    SDL_Keycode result;
+    if (!table_.Lookup(key, length, &result)) {
+      return SDLK_UNKNOWN;
+    }
+    return result;
+  }
+
   void InitForFrame();
 
   void PushEvent(const SDL_Event& event);
@@ -39,6 +49,7 @@ class Keyboard {
   FixedCircularBuffer<Event, kQueueSize> keydown_events_;
   std::bitset<kKeyboardTable + 1> pressed_;
   std::bitset<kKeyboardTable + 1> previous_pressed_;
+  LookupTable<SDL_Keycode> table_;
 };
 
 class Mouse {

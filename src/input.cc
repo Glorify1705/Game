@@ -17,6 +17,15 @@ void Keyboard::InitForFrame() {
   }
 }
 
+Keyboard::Keyboard() {
+  table_.Insert("w", SDLK_w);
+  table_.Insert("a", SDLK_a);
+  table_.Insert("s", SDLK_s);
+  table_.Insert("d", SDLK_d);
+  table_.Insert("lshift", SDLK_LSHIFT);
+  table_.Insert("rshift", SDLK_RSHIFT);
+}
+
 void Keyboard::PushEvent(const SDL_Event& event) {
   if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
     const SDL_Scancode c = event.key.keysym.scancode;

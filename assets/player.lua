@@ -50,12 +50,8 @@ function Player:update(dt)
         end
     end
 
-    if G.input.is_key_down('shift') then
-        if G.input.is_key_down('d') then
-            self.angle = self.angle + ANGLE_DELTA
-        elseif G.input.is_key_down('a') then
-            self.angle = self.angle - ANGLE_DELTA
-        end
+    if G.input.is_key_down('lshift') then
+        G.console.log("Is down")
     else
         if G.input.is_key_down('d') then
             self.angle = self.angle + ANGLE_DELTA
