@@ -6,6 +6,7 @@
 
 #include "array.h"
 #include "assets.h"
+#include "map.h"
 #include "mat.h"
 #include "shaders.h"
 #include "transformations.h"
@@ -139,8 +140,7 @@ class SpriteSheetRenderer {
   const assets::Image* image_;
   FixedArray<FMat4x4, 128> transform_stack_;
 
-  inline static constexpr size_t kSubtexTableSize = 15;
-  std::array<const assets::Subtexture*, 1 << kSubtexTableSize> subtexts_;
+  LookupTable<const assets::Subtexture*> subtexts_;
 
   QuadRenderer* renderer_;
   GLuint tex_;

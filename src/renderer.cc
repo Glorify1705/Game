@@ -64,23 +64,6 @@ size_t ByteSize(const std::vector<T>& v) {
   return v.size() * sizeof(T);
 }
 
-// MSI probe and hash from https://nullprogram.com/blog/2022/08/08/.
-// Does not need to be very good, just fast.
-uint64_t Hash(const char* s, size_t len) {
-  uint64_t h = 0x100;
-  for (size_t i = 0; i < len; i++) {
-    h ^= s[i] & 255;
-    h *= 1111111111111111111;
-  }
-  return h;
-}
-
-int32_t MSIProbe(uint64_t hash, int exp, int32_t idx) {
-  uint32_t mask = (static_cast<uint32_t>(1) << exp) - 1;
-  uint32_t step = (hash >> (64 - exp)) | 1;
-  return (idx + step) & mask;
-}
-
 }  // namespace
 
 QuadRenderer::QuadRenderer(IVec2 viewport)
@@ -208,16 +191,9 @@ SpriteSheetRenderer::SpriteSheetRenderer(const char* spritesheet,
   CHECK(image_ != nullptr, "Unknown image ", image_path, " for spritesheet ",
         spritesheet);
   tex_ = renderer->LoadTexture(*image_);
-  std::fill(subtexts_.begin(), subtexts_.end(), nullptr);
   for (const auto* texture : *sheet_->sub_texture()) {
-    const uint64_t h = Hash(texture->name()->c_str(), texture->name()->size());
-    for (int32_t i = h;;) {
-      i = MSIProbe(h, kSubtexTableSize, i);
-      if (subtexts_[i] == nullptr) {
-        subtexts_[i] = texture;
-        break;
-      }
-    }
+    subtexts_.Insert(texture->name()->c_str(), texture->name()->size(),
+                     texture);
   }
 }
 
@@ -230,16 +206,9 @@ void SpriteSheetRenderer::BeginFrame() {
 
 const assets::Subtexture* SpriteSheetRenderer::sub_texture(const char* name,
                                                            size_t length) {
-  const uint64_t h = Hash(name, length);
-  for (int32_t i = h;;) {
-    i = MSIProbe(h, kSubtexTableSize, i);
-    const auto* tex = subtexts_[i];
-    if (tex != nullptr && length == tex->name()->size() &&
-        !std::memcmp(tex->name()->Data(), name, length)) {
-      return tex;
-    }
-  }
-  return nullptr;
+  const assets::Subtexture* result = nullptr;
+  if (!subtexts_.Lookup(name, length, &result)) return nullptr;
+  return result;
 }
 
 void SpriteSheetRenderer::Push() {
