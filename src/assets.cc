@@ -16,9 +16,6 @@ const assets::Script* Assets::GetScript(const char* name) const {
   }
   return nullptr;
 }
-const assets::Script* Assets::GetScriptByIndex(size_t idx) const {
-  return assets_->scripts()->Get(idx);
-}
 const assets::Spritesheet* Assets::GetSpritesheet(const char* name) const {
   for (const auto* spritesheet : *assets_->sprite_sheets()) {
     if (!std::strcmp(spritesheet->filename()->c_str(), name)) {

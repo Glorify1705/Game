@@ -181,24 +181,30 @@ void QuadRenderer::Render() {
   }
 }
 
-SpriteSheetRenderer::SpriteSheetRenderer(const char* spritesheet,
-                                         Assets* assets, QuadRenderer* renderer)
+SpriteSheetRenderer::SpriteSheetRenderer(Assets* assets, QuadRenderer* renderer)
     : renderer_(renderer) {
-  sheet_ = assets->GetSpritesheet(spritesheet);
-  CHECK(sheet_ != nullptr, "Unknown sheet ", spritesheet);
-  const char* image_path = sheet_->image_name()->c_str();
-  image_ = assets->GetImage(image_path);
-  CHECK(image_ != nullptr, "Unknown image ", image_path, " for spritesheet ",
-        spritesheet);
-  tex_ = renderer->LoadTexture(*image_);
-  for (const auto* texture : *sheet_->sub_texture()) {
-    subtexts_.Insert(texture->name()->c_str(), texture->name()->size(),
-                     texture);
+  for (size_t i = 0; i < assets->spritesheets(); ++i) {
+    auto* sheet = assets->GetSpritesheetByIndex(i);
+    for (const auto* texture : *sheet->sub_texture()) {
+      const char* spritesheet = texture->spritesheet()->c_str();
+      size_t len = texture->spritesheet()->size();
+      if (!sheet_info_.Lookup(spritesheet, len)) {
+        const char* image_name = sheet->image_name()->c_str();
+        auto* image = assets->GetImage(image_name);
+        CHECK(image != nullptr, "Unknown image ", image_name,
+              " for spritesheet ", spritesheet);
+        Sheet info = {.texture = renderer->LoadTexture(*image),
+                      .width = image->width(),
+                      .height = image->height()};
+        sheet_info_.Insert(spritesheet, len, info);
+      }
+      subtexts_.Insert(texture->name()->c_str(), texture->name()->size(),
+                       texture);
+    }
   }
 }
 
 void SpriteSheetRenderer::BeginFrame() {
-  renderer_->SetActiveTexture(tex_);
   transform_stack_.Clear();
   transform_stack_.Push(FMat4x4::Identity());
   ApplyTransform(FMat4x4::Identity());
@@ -226,14 +232,18 @@ void SpriteSheetRenderer::SetColor(FVec4 color) {
 
 void SpriteSheetRenderer::Draw(FVec2 position, float angle,
                                const assets::Subtexture& texture) {
+  Sheet sheet;
+  CHECK(sheet_info_.Lookup(texture.spritesheet()->c_str(),
+                           texture.spritesheet()->size(), &sheet));
+  renderer_->SetActiveTexture(sheet.texture);
   const FVec2 p0(position -
                  FVec2(texture.width() / 2.0, texture.height() / 2.0));
   const FVec2 p1(position +
                  FVec2(texture.width() / 2.0, texture.height() / 2.0));
-  FVec2 q0(FVec2(1.0 * texture.x() / image_->width(),
-                 1.0 * texture.y() / image_->height()));
-  FVec2 q1(1.0 * (texture.x() + texture.width()) / image_->width(),
-           1.0 * (texture.y() + texture.height()) / image_->height());
+  FVec2 q0(
+      FVec2(1.0 * texture.x() / sheet.width, 1.0 * texture.y() / sheet.height));
+  FVec2 q1(1.0 * (texture.x() + texture.width()) / sheet.width,
+           1.0 * (texture.y() + texture.height()) / sheet.height);
   renderer_->PushQuad(p0, p1, q0, q1, position, angle);
 }
 

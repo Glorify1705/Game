@@ -193,13 +193,17 @@ struct Subtexture FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   struct Traits;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_NAME = 4,
-    VT_X = 6,
-    VT_Y = 8,
-    VT_WIDTH = 10,
-    VT_HEIGHT = 12
+    VT_SPRITESHEET = 6,
+    VT_X = 8,
+    VT_Y = 10,
+    VT_WIDTH = 12,
+    VT_HEIGHT = 14
   };
   const ::flatbuffers::String *name() const {
     return GetPointer<const ::flatbuffers::String *>(VT_NAME);
+  }
+  const ::flatbuffers::String *spritesheet() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SPRITESHEET);
   }
   uint32_t x() const {
     return GetField<uint32_t>(VT_X, 0);
@@ -216,16 +220,19 @@ struct Subtexture FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   template<size_t Index>
   auto get_field() const {
          if constexpr (Index == 0) return name();
-    else if constexpr (Index == 1) return x();
-    else if constexpr (Index == 2) return y();
-    else if constexpr (Index == 3) return width();
-    else if constexpr (Index == 4) return height();
+    else if constexpr (Index == 1) return spritesheet();
+    else if constexpr (Index == 2) return x();
+    else if constexpr (Index == 3) return y();
+    else if constexpr (Index == 4) return width();
+    else if constexpr (Index == 5) return height();
     else static_assert(Index != Index, "Invalid Field Index");
   }
   bool Verify(::flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyOffset(verifier, VT_NAME) &&
            verifier.VerifyString(name()) &&
+           VerifyOffset(verifier, VT_SPRITESHEET) &&
+           verifier.VerifyString(spritesheet()) &&
            VerifyField<uint32_t>(verifier, VT_X, 4) &&
            VerifyField<uint32_t>(verifier, VT_Y, 4) &&
            VerifyField<uint32_t>(verifier, VT_WIDTH, 4) &&
@@ -240,6 +247,9 @@ struct SubtextureBuilder {
   ::flatbuffers::uoffset_t start_;
   void add_name(::flatbuffers::Offset<::flatbuffers::String> name) {
     fbb_.AddOffset(Subtexture::VT_NAME, name);
+  }
+  void add_spritesheet(::flatbuffers::Offset<::flatbuffers::String> spritesheet) {
+    fbb_.AddOffset(Subtexture::VT_SPRITESHEET, spritesheet);
   }
   void add_x(uint32_t x) {
     fbb_.AddElement<uint32_t>(Subtexture::VT_X, x, 0);
@@ -267,6 +277,7 @@ struct SubtextureBuilder {
 inline ::flatbuffers::Offset<Subtexture> CreateSubtexture(
     ::flatbuffers::FlatBufferBuilder &_fbb,
     ::flatbuffers::Offset<::flatbuffers::String> name = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> spritesheet = 0,
     uint32_t x = 0,
     uint32_t y = 0,
     uint32_t width = 0,
@@ -276,6 +287,7 @@ inline ::flatbuffers::Offset<Subtexture> CreateSubtexture(
   builder_.add_width(width);
   builder_.add_y(y);
   builder_.add_x(x);
+  builder_.add_spritesheet(spritesheet);
   builder_.add_name(name);
   return builder_.Finish();
 }
@@ -285,9 +297,10 @@ struct Subtexture::Traits {
   static auto constexpr Create = CreateSubtexture;
   static constexpr auto name = "Subtexture";
   static constexpr auto fully_qualified_name = "assets.Subtexture";
-  static constexpr size_t fields_number = 5;
+  static constexpr size_t fields_number = 6;
   static constexpr std::array<const char *, fields_number> field_names = {
     "name",
+    "spritesheet",
     "x",
     "y",
     "width",
@@ -300,14 +313,17 @@ struct Subtexture::Traits {
 inline ::flatbuffers::Offset<Subtexture> CreateSubtextureDirect(
     ::flatbuffers::FlatBufferBuilder &_fbb,
     const char *name = nullptr,
+    const char *spritesheet = nullptr,
     uint32_t x = 0,
     uint32_t y = 0,
     uint32_t width = 0,
     uint32_t height = 0) {
   auto name__ = name ? _fbb.CreateString(name) : 0;
+  auto spritesheet__ = spritesheet ? _fbb.CreateString(spritesheet) : 0;
   return assets::CreateSubtexture(
       _fbb,
       name__,
+      spritesheet__,
       x,
       y,
       width,

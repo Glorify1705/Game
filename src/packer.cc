@@ -121,6 +121,7 @@ class Packer {
     WithAllocator<std::vector<flatbuffers::Offset<assets::Subtexture>>,
                   BumpAllocator>
         sub_textures(allocator_);
+    auto str = fbs_.CreateString(root.attribute("imagePath").value());
     for (const auto& sub_texture : root) {
       uint32_t x, y, w, h;
       sscanf(sub_texture.attribute("width").value(), "%u", &w);
@@ -128,13 +129,12 @@ class Packer {
       sscanf(sub_texture.attribute("x").value(), "%u", &x);
       sscanf(sub_texture.attribute("y").value(), "%u", &y);
       sub_textures.push_back(assets::CreateSubtexture(
-          fbs_, fbs_.CreateString(sub_texture.attribute("name").value()), x, y,
-          w, h));
+          fbs_, fbs_.CreateString(sub_texture.attribute("name").value()), str,
+          x, y, w, h));
     }
-    spritesheets_.push_back(assets::CreateSpritesheet(
-        fbs_, fbs_.CreateString(filename),
-        fbs_.CreateString(root.attribute("imagePath").value()),
-        fbs_.CreateVector(sub_textures)));
+    spritesheets_.push_back(
+        assets::CreateSpritesheet(fbs_, fbs_.CreateString(filename), str,
+                                  fbs_.CreateVector(sub_textures)));
   }
 
   void HandleOggSound(const char* filename, uint8_t* buf, size_t size) {

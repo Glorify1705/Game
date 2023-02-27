@@ -108,8 +108,7 @@ class QuadRenderer {
 
 class SpriteSheetRenderer {
  public:
-  SpriteSheetRenderer(const char* spritesheet, Assets* assets,
-                      QuadRenderer* renderer);
+  SpriteSheetRenderer(Assets* assets, QuadRenderer* renderer);
 
   void BeginFrame();
   void FlushFrame() {}
@@ -130,22 +129,23 @@ class SpriteSheetRenderer {
   void Translate(float x, float y) { ApplyTransform(TranslationXY(x, y)); }
   void Scale(float x, float y) { ApplyTransform(ScaleXY(x, y)); }
 
-  const assets::Spritesheet* sheet() const { return sheet_; };
-
  private:
   void ApplyTransform(const FMat4x4& mat) {
     transform_stack_.back() = mat * transform_stack_.back();
     renderer_->SetActiveTransform(transform_stack_.back());
   }
 
-  const assets::Spritesheet* sheet_;
-  const assets::Image* image_;
   FixedArray<FMat4x4, 128> transform_stack_;
 
+  struct Sheet {
+    GLuint texture;
+    uint32_t width, height;
+  };
+
+  LookupTable<Sheet> sheet_info_;
   LookupTable<const assets::Subtexture*> subtexts_;
 
   QuadRenderer* renderer_;
-  GLuint tex_;
 };
 
 #endif  // _GAME_RENDERER_H

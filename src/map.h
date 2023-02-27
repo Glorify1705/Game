@@ -35,16 +35,14 @@ class LookupTable {
  public:
   LookupTable() { std::fill(key_lengths_.begin(), key_lengths_.end(), 0); }
 
-  bool Lookup(const char* key, size_t length, T* value) const {
+  bool Lookup(const char* key, size_t length, T* value = nullptr) const {
     const uint64_t h = internal::Hash(key, length);
     for (int32_t i = h;;) {
       i = internal::MSIProbe(h, kTableSize, i);
-      if (key_lengths_[i] == 0) continue;
+      if (key_lengths_[i] == 0) break;
       if (key_lengths_[i] == length && !std::memcmp(keys_[i], key, length)) {
-        *value = values_[i];
+        if (value) *value = values_[i];
         return true;
-      } else {
-        return false;
       }
     }
     return false;

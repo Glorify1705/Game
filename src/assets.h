@@ -20,9 +20,15 @@ class Assets {
   const assets::Image* GetImage(const char* name) const;
   const assets::Script* GetScript(const char* name) const;
   size_t scripts() const { return assets_->scripts()->size(); }
-  const assets::Script* GetScriptByIndex(size_t idx) const;
+  const assets::Script* GetScriptByIndex(size_t idx) const {
+    return assets_->scripts()->Get(idx);
+  }
   const assets::Spritesheet* GetSpritesheet(const char* name) const;
   const assets::Sound* GetSound(const char* name) const;
+  size_t spritesheets() const { return assets_->sprite_sheets()->size(); }
+  const assets::Spritesheet* GetSpritesheetByIndex(size_t idx) const {
+    return assets_->sprite_sheets()->Get(idx);
+  }
 
  private:
   const assets::Assets* assets_;

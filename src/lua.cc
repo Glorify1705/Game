@@ -207,8 +207,7 @@ static const struct luaL_Reg kAssetsLib[] = {
        auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
        auto* subtexture = renderer->sub_texture(name, len);
        if (subtexture == nullptr) {
-         luaL_error(state, "Could not find an image called %s in sheet %s",
-                    name, renderer->sheet()->image_name()->c_str());
+         luaL_error(state, "Could not find a subtexture %s", name);
        }
        luaL_newmetatable(state, "asset_subtexture_ptr");
        lua_pop(state, 1);
@@ -225,8 +224,7 @@ static const struct luaL_Reg kAssetsLib[] = {
          const char* name = luaL_checklstring(state, 1, &len);
          ptr = renderer->sub_texture(name, len);
          if (ptr == nullptr) {
-           luaL_error(state, "Could not find an image called %s in sheet %s",
-                      name, renderer->sheet()->image_name()->c_str());
+           luaL_error(state, "Could not find an image called %s", name);
          }
        } else {
          ptr = reinterpret_cast<const assets::Subtexture*>(

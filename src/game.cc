@@ -83,7 +83,7 @@ struct EngineModules {
         quad_renderer(IVec2(params.screen_width, params.screen_height)),
         debug_console(&quad_renderer),
         sound(&assets),
-        sprite_sheet_renderer("sheet.xml", &assets, &quad_renderer),
+        sprite_sheet_renderer(&assets, &quad_renderer),
         lua("main.lua", &assets) {
     lua.Register(&sprite_sheet_renderer);
     lua.Register(&keyboard);
