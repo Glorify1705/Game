@@ -12,6 +12,7 @@ clang
 -D_REENTRANT
 -Ivendor/lua-5.4.4/src
 -Ivendor/flatbuffers-23.1.21/include
+-Ivendor/box2d/include
 -pthread
 -lSDL2
 -lGL

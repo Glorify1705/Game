@@ -12,11 +12,13 @@ OBJDIR ?= obj
 
 LUADIR := vendor/lua-5.4.4
 FBSDIR := vendor/flatbuffers-23.1.21
+BOX2DDIR := vendor/box2d
 
 LUALIB := $(OBJDIR)/liblua.a
+BOX2DLIB := $(OBJDIR)/libbox2d.a
 
 CXX ?= g++
-INCLUDES += -I$(LUADIR)/src -I$(FBSDIR)/include
+INCLUDES += -I$(LUADIR)/src -I$(FBSDIR)/include -I$(BOX2DDIR)/include
 CXXFLAGS += -std=c++17 -O1 -Wall -Werror -Wextra -DNDEBUG -DGAME_WITH_ASSERTS -fno-omit-frame-pointer -ggdb $(shell sdl2-config --cflags) $(INCLUDES)
 
 LDFLAGS += -pthread
@@ -54,6 +56,12 @@ $(LUALIB): $(LUADIR)/Makefile | $(OBJDIR)
 > $(MAKE) -C $(LUADIR) all
 > cp $(LUADIR)/src/liblua.a $(OBJDIR)
 > touch $<
+
+$(BOX2DLIB): $(BOX2DDIR)/CMakeLists.txt
+> cmake -S$(BOX2DDIR) -B$(BOX2DDIR) -DBOX2D_BUILD_DOCS=OFF -G "Unix Makefiles" \
+	-DCMAKE_BUILD_TYPE=Release -DBOX2D_BUILD_UNIT_TESTS=OFF -DBOX2D_BUILD_TESTBED=OFF -DBOX2D_BUILD_DOCS=OFF
+> $(MAKE) -C$(BOX2DDIR)
+> cp $(BOX2DDIR)/bin/libbox2d.a $(BOX2DLIB)
 
 $(OBJDIR):
 > mkdir -p -- $(OBJDIR)
