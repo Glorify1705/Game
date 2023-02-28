@@ -8,12 +8,22 @@
 #include <string_view>
 
 #include "assets_generated.h"
+#include "clock.h"
 #include "flatbuffers/flatbuffers.h"
 #include "logging.h"
 
+namespace internal {
+
+inline const assets::Assets* GetAssets(const void* buf) {
+  TIMER();
+  return assets::GetAssets(buf);
+}
+
+}  // namespace internal
+
 class Assets {
  public:
-  Assets(const uint8_t* buffer) : assets_(assets::GetAssets(buffer)) {
+  Assets(const uint8_t* buffer) : assets_(internal::GetAssets(buffer)) {
     CHECK(assets_ != nullptr, "Failed to build assets from buffer");
   }
 

@@ -11,6 +11,7 @@ extern "C" {
 }
 
 #include "assets.h"
+#include "clock.h"
 
 template <typename T>
 class Registry {
@@ -47,9 +48,8 @@ class Lua {
     Registry<T>::Register(state_, t);
   }
 
-  void Start();
-
   void Init() {
+    TIMER();
     lua_getglobal(state_, "Init");
     if (lua_pcall(state_, 0, LUA_MULTRET, traceback_handler_) != LUA_OK) {
       lua_error(state_);

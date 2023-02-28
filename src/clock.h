@@ -13,14 +13,15 @@ double NowInMillis();
 
 class LogTimer {
  public:
-  LogTimer(const char* file, int line, const char* func)
-      : file_(file), line_(line), func_(func) {
-    start_ = NowInMillis();
+  LogTimer(const char* file, int line, const char* func, StringBuffer<255> buf)
+      : file_(file), line_(line), func_(func), start_(NowInMillis()) {
+    buf_ = buf.str();
   }
 
   ~LogTimer() {
     const double time = NowInMillis() - start_;
-    Log(file_, line_, func_, " elapsed ", time, "ms");
+    Log(file_, line_, func_, buf_[0] == '\0' ? "" : " ", buf_, " elapsed ",
+        time, "ms");
   }
 
  private:
@@ -28,11 +29,18 @@ class LogTimer {
   int line_;
   const char* func_;
 
+  const char* buf_;
+
   double start_;
 };
 
-#define TIMER(...) \
-  LogTimer t##__COUNTER__(__FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define INTERNAL_ID_I1(x, y) x##y
+#define INTERNAL_ID_I(x, y) INTERNAL_ID_I1(x, y)
+#define INTERNAL_ID(x) INTERNAL_ID_I(x, __COUNTER__)
+
+#define TIMER(...)                                                 \
+  LogTimer INTERNAL_ID(t)(__FILE__, __LINE__, __PRETTY_FUNCTION__, \
+                          StringBuffer<255>(__VA_ARGS__))
 
 class Events {
  public:

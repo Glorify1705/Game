@@ -74,11 +74,11 @@ class QuadRenderer {
     float angle;
   };
   struct Batch {
-    GLuint texture_unit = 0;
-    FVec4 rgba_color = FVec4(1, 1, 1, 1);
-    FMat4x4 transform = FMat4x4::Identity();
-    size_t indices_start = 0;
-    size_t indices_count = 0;
+    GLuint texture_unit;
+    FVec4 rgba_color;
+    FMat4x4 transform;
+    size_t indices_start;
+    size_t indices_count;
   };
 
   void FlushBatch() {
@@ -88,8 +88,12 @@ class QuadRenderer {
       batch.texture_unit = prev.texture_unit;
       batch.rgba_color = prev.rgba_color;
       batch.transform = prev.transform;
+    } else {
+      batch.transform = FMat4x4::Identity();
+      batch.rgba_color = FVec(1, 1, 1, 1);
     }
     batch.indices_start = indices_.size();
+    batch.indices_count = 0;
     batches_.Push(std::move(batch));
   }
 

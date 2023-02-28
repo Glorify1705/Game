@@ -40,12 +40,12 @@ class FixedArray {
   }
 
   T* begin() { return &buffer_[0]; }
-  T* end() { return buffer_.data() + elems_; }
+  T* end() { return buffer_ + elems_; }
 
-  T* data() { return buffer_.data(); }
+  T* data() { return buffer_; }
 
   const T* cbegin() const { return &buffer_[0]; }
-  const T* cend() const { return buffer_.data() + elems_; }
+  const T* cend() const { return buffer_ + elems_; }
 
   size_t size() const { return elems_; }
   size_t max_size() const { return Size; }
@@ -55,7 +55,7 @@ class FixedArray {
   void Resize(size_t size) { elems_ = size; }
 
  private:
-  std::array<T, Size> buffer_;
+  T buffer_[Size];
 
   size_t elems_ = 0;
 };

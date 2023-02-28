@@ -49,6 +49,7 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
 }
 
 const uint8_t* ReadAssets(const std::vector<const char*>& arguments) {
+  TIMER();
   const char* file = arguments.empty() ? "assets.fbs" : arguments[0];
   FILE* f = std::fopen(file, "rb");
   CHECK(f != nullptr, "Could not read ", file);
@@ -87,6 +88,7 @@ struct EngineModules {
         sound(&assets),
         sprite_sheet_renderer(&assets, &quad_renderer),
         lua("main.lua", &assets) {
+    TIMER();
     lua.Register(&sprite_sheet_renderer);
     lua.Register(&keyboard);
     lua.Register(&mouse);
@@ -131,7 +133,11 @@ class Game {
   Game(int argc, const char* argv[])
       : arguments_(argv + 1, argv + argc),
         window_(CreateWindow(params_)),
-        context_(CreateOpenglContext(window_)) {}
+        context_(CreateOpenglContext(window_)) {
+    CHECK(Mix_OpenAudio(44100, MIX_INIT_OGG, 2, 2048) == 0,
+          "Could not initialize audio: ", Mix_GetError());
+    SDL_ShowCursor(false);
+  }
 
   ~Game() {
     LOG("Initiating shutdown");
@@ -141,10 +147,10 @@ class Game {
   }
 
   void Init() {
-    CHECK(Mix_OpenAudio(44100, MIX_INIT_OGG, 2, 2048) == 0,
-          "Could not initialize audio: ", Mix_GetError());
-    SDL_ShowCursor(false);
-    e_ = std::make_unique<EngineModules>(arguments_, params_);
+    {
+      TIMER("Initializing Engine Modules");
+      e_ = std::make_unique<EngineModules>(arguments_, params_);
+    }
     e_->lua.Init();
   }
 

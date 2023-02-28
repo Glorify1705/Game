@@ -408,45 +408,51 @@ void AddLibrary(lua_State* state, const char* name, const luaL_Reg* funcs) {
 }  // namespace
 
 Lua::Lua(const char* script_name, Assets* assets) {
+  TIMER();
   state_ = luaL_newstate();
   lua_atpanic(state_, [](lua_State* state) {
     LuaCrash(state, 1);
     return 0;
   });
-  luaL_newmetatable(state_, "physics_handle");
-  luaL_newmetatable(state_, "asset_subtexture_ptr");
-  lua_pop(state_, 2);
-  luaL_openlibs(state_);
-  lua_newtable(state_);
-  lua_setglobal(state_, "G");
-  Register(assets);
-  AddLibrary(state_, "console", kConsoleLib);
-  AddLibrary(state_, "renderer", kRendererLib);
-  AddLibrary(state_, "input", kMouseLib);
-  AddLibrary(state_, "sound", kSoundLib);
-  AddLibrary(state_, "physics", kPhysicsLib);
-  AddLibrary(state_, "assets", kAssetsLib);
-  AddLibrary(state_, "clock", kClockLib);
-  lua_pushcfunction(state_, [](lua_State* state) {
-    const char* message = luaL_checkstring(state, 1);
-    luaL_traceback(state, state, message, 1);
-    return 1;
-  });
-  traceback_handler_ = lua_gettop(state_);
+  {
+    TIMER("Basic Lua Setup");
+    luaL_newmetatable(state_, "physics_handle");
+    luaL_newmetatable(state_, "asset_subtexture_ptr");
+    lua_pop(state_, 2);
+    luaL_openlibs(state_);
+    lua_newtable(state_);
+    lua_setglobal(state_, "G");
+    Register(assets);
+    AddLibrary(state_, "console", kConsoleLib);
+    AddLibrary(state_, "renderer", kRendererLib);
+    AddLibrary(state_, "input", kMouseLib);
+    AddLibrary(state_, "sound", kSoundLib);
+    AddLibrary(state_, "physics", kPhysicsLib);
+    AddLibrary(state_, "assets", kAssetsLib);
+    AddLibrary(state_, "clock", kClockLib);
+    lua_pushcfunction(state_, [](lua_State* state) {
+      const char* message = luaL_checkstring(state, 1);
+      luaL_traceback(state, state, message, 1);
+      return 1;
+    });
+    traceback_handler_ = lua_gettop(state_);
+  }
   for (size_t i = 0; i < assets->scripts(); ++i) {
     auto* script = assets->GetScriptByIndex(i);
     std::string_view asset_name(script->filename()->c_str());
+    TIMER("Loading script ", asset_name);
     ConsumeSuffix(&asset_name, ".lua");
     if (asset_name != "main") {
       SetPackagePreload(asset_name);
     }
   }
-  auto* main = assets->GetScript(script_name);
-  CHECK(main != nullptr, "Unknown script ", script_name);
-  LoadMain(*main);
+  {
+    TIMER("Loading Main");
+    auto* main = assets->GetScript(script_name);
+    CHECK(main != nullptr, "Unknown script ", script_name);
+    LoadMain(*main);
+  }
 }
-
-void Lua::Start() {}
 
 void Lua::LoadAsset(const assets::Script& asset) {
   const char* name = asset.filename()->c_str();

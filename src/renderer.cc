@@ -3,6 +3,7 @@
 #include <cmath>
 #include <vector>
 
+#include "clock.h"
 #include "transformations.h"
 
 namespace {
@@ -75,6 +76,7 @@ QuadRenderer::QuadRenderer(IVec2 viewport)
           kFragmentShader.size())),
       shader_program_(compiler_.LinkOrDie(vertex_shader_, fragment_shader_)),
       viewport_(viewport) {
+  TIMER();
   glGenVertexArrays(1, &vao_);
   glGenBuffers(1, &vbo_);
   glGenBuffers(1, &ebo_);
@@ -183,6 +185,7 @@ void QuadRenderer::Render() {
 
 SpriteSheetRenderer::SpriteSheetRenderer(Assets* assets, QuadRenderer* renderer)
     : renderer_(renderer) {
+  TIMER();
   for (size_t i = 0; i < assets->spritesheets(); ++i) {
     auto* sheet = assets->GetSpritesheetByIndex(i);
     for (const auto* texture : *sheet->sub_texture()) {
