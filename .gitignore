@@ -4,5 +4,8 @@ usrbin
 __pycache__
 .ccls-cache
 *.bin
+*.exe
+*.d
 bin
 .vscode
+CMakeFiles

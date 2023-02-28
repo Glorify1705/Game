@@ -9,12 +9,13 @@ MAKEFLAGS += --no-builtin-rules
 
 APPNAME ?= game
 OBJDIR ?= obj
+BINDIR ?= bin
 
-LUADIR := vendor/lua-5.4.4
+LUADIR := vendor/luajit
 FBSDIR := vendor/flatbuffers-23.1.21
 BOX2DDIR := vendor/box2d
 
-LUALIB := $(OBJDIR)/liblua.a
+LUALIB := $(OBJDIR)/libluajit.a
 BOX2DLIB := $(OBJDIR)/libbox2d.a
 
 CXX ?= g++
@@ -39,23 +40,21 @@ all: $(APPNAME) .ccls
 
 $(APPNAME): usrbin/$(APPNAME)
 
-bin/flatc: $(FBSDIR)/CMakeLists.txt | $(OBJDIR)
+$(BINDIR)/flatc: $(FBSDIR)/CMakeLists.txt | $(BINDIR)
 > cmake -S$(FBSDIR) -B$(FBSDIR) -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 > $(MAKE) -C$(FBSDIR) -j
 > cp $(FBSDIR)/flatc $@
-> touch $<
 
 src/assets_generated.h: src/assets.fbs bin/flatc
-> bin/flatc -o src --cpp-std c++17 --cpp-static-reflection --cpp $<
+> $(BINDIR)/flatc -o src --cpp-std c++17 --cpp-static-reflection --cpp $<
 
 usrbin/$(APPNAME): obj/assets.o $(OBJS) $(LUALIB) $(BOX2DLIB)
 > mkdir -p usrbin
 > $(CXX) $^ $(LDFLAGS) $(LDLIBS) -o $@
 
 $(LUALIB): $(LUADIR)/Makefile | $(OBJDIR)
-> $(MAKE) -C $(LUADIR) all
-> cp $(LUADIR)/src/liblua.a $(OBJDIR)
-> touch $<
+> make -C $(LUADIR) all
+> cp $(LUADIR)/src/*.a $(OBJDIR)
 
 $(BOX2DLIB): $(BOX2DDIR)/CMakeLists.txt | $(OBJDIR)
 > cmake -S$(BOX2DDIR) -B$(BOX2DDIR) -DBOX2D_BUILD_DOCS=OFF -G "Unix Makefiles" \
@@ -65,6 +64,9 @@ $(BOX2DLIB): $(BOX2DDIR)/CMakeLists.txt | $(OBJDIR)
 
 $(OBJDIR):
 > mkdir -p -- $(OBJDIR)
+
+$(BINDIR):
+> mkdir -p -- $(BINDIR)
 
 $(OBJDIR)/%.o: src/%.cc Makefile | $(OBJDIR)
 > $(CXX) $(CXXFLAGS) -MM -MT $@ src/$*.cc | sed "s/$(shell printf '\t')/>/" >$(OBJDIR)/$*.dep

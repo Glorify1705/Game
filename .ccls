@@ -10,7 +10,7 @@ clang
 -ggdb
 -I/usr/include/SDL2
 -D_REENTRANT
--Ivendor/lua-5.4.4/src
+-Ivendor/luajit/src
 -Ivendor/flatbuffers-23.1.21/include
 -Ivendor/box2d/include
 -pthread
@@ -18,5 +18,5 @@ clang
 -lGL
 -ldl
 -lSDL2_mixer
-obj/liblua.a
+obj/libluajit.a
 obj/libbox2d.a

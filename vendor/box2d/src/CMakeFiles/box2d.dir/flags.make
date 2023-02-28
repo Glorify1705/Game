@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/home/jpdarago/code/game2/vendor/box2d/src/../include -I/home/jpdarago/code/game2/vendor/box2d/src
+CXX_INCLUDES = -I/home/jpdarago/code/game3/vendor/box2d/src/../include -I/home/jpdarago/code/game3/vendor/box2d/src
 
 CXX_FLAGS = -O3 -DNDEBUG -fvisibility=hidden -fvisibility-inlines-hidden -std=c++11
 
