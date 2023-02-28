@@ -63,7 +63,7 @@ $(BOX2DLIB): $(BOX2DDIR)/CMakeLists.txt | $(OBJDIR)
 > cp $(BOX2DDIR)/bin/libbox2d.a $(BOX2DLIB)
 
 $(OBJDIR):
-> mkdir -p -- $(OBJDIR)
+> mkdir -p -- $(OBJDIR) $(BINDIR)
 
 $(BINDIR):
 > mkdir -p -- $(BINDIR)
