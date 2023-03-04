@@ -1,5 +1,7 @@
 #include "shaders.h"
 
+namespace G {
+
 ShaderId ShaderId::Make(ShaderType type) {
   const GLuint shader_type =
       type == ShaderType::kVertex ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
@@ -42,3 +44,5 @@ ShaderProgram ShaderCompiler::LinkOrDie(const ShaderId& vertex_shader,
   }
   return program;
 }
+
+}  // namespace G

@@ -3,6 +3,7 @@
 #include "mat.h"
 #include "transformations.h"
 
+namespace G {
 namespace {
 
 FVec2 From(b2Vec2 v) { return FVec(v.x, v.y); }
@@ -57,3 +58,5 @@ void Physics::Update(float dt) {
   constexpr int32_t kPositionIterations = 2;
   world_.Step(dt, kVelocityIterations, kPositionIterations);
 }
+
+}  // namespace G

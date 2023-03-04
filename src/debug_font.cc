@@ -1,5 +1,6 @@
 #include "debug_font.h"
 
+namespace G {
 namespace {
 
 unsigned char assets_debug_font_ttf[] = {
@@ -2870,3 +2871,5 @@ DebugFont GetDebugFont() {
   return DebugFont{.data = assets_debug_font_ttf,
                    .length = assets_debug_font_ttf_len};
 }
+
+}  // namespace G

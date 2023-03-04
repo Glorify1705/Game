@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+namespace G {
+
 FMat4x4 Ortho(float l, float r, float t, float b) {
   auto mat = FMat4x4::Identity();
   mat.mut(0, 0) = 2.0 / (r - l);
@@ -37,3 +39,5 @@ FMat4x4 ScaleXY(float sx, float sy) {
 FMat4x4 RotateZOnPoint(float x, float y, float angle) {
   return TranslationXY(x, y) * RotationZ(angle) * TranslationXY(-x, -y);
 }
+
+}  // namespace G

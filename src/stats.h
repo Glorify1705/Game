@@ -5,6 +5,8 @@
 #include <array>
 #include <string>
 
+namespace G {
+
 class Stats {
  public:
   Stats();
@@ -18,5 +20,7 @@ class Stats {
   double min_, max_, avg_, stdev_, samples_, sum_, m2n_;
   std::array<size_t, 32> buckets_;
 };
+
+}  // namespace G
 
 #endif  // _GAME_STATS_H

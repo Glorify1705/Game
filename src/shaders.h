@@ -5,6 +5,8 @@
 #include "glad.h"
 #include "logging.h"
 
+namespace G {
+
 enum class ShaderType { kVertex, kFragment };
 
 class ShaderId {
@@ -73,5 +75,7 @@ class ShaderCompiler {
   ShaderProgram LinkOrDie(const ShaderId& vertex_shader,
                           const ShaderId& fragment_shader);
 };
+
+}  // namespace G
 
 #endif  // _GAME_SHADERS_H

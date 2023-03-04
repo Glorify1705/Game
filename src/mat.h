@@ -12,6 +12,8 @@
 #include "strings.h"
 #include "vec.h"
 
+namespace G {
+
 struct FMat2x2 {
   using type = float;
   inline static constexpr size_t kDimension = 2;
@@ -1502,5 +1504,7 @@ struct IMat4x4 {
     sink.append(" }");
   }
 };
+
+}  // namespace G
 
 #endif  // _GAME_MATRICES_H

@@ -6,6 +6,7 @@
 #include "clock.h"
 #include "transformations.h"
 
+namespace G {
 namespace {
 
 constexpr std::string_view kVertexShader = R"(
@@ -213,9 +214,9 @@ void SpriteSheetRenderer::BeginFrame() {
   ApplyTransform(FMat4x4::Identity());
 }
 
-const assets::Subtexture* SpriteSheetRenderer::sub_texture(const char* name,
-                                                           size_t length) {
-  const assets::Subtexture* result = nullptr;
+const Subtexture* SpriteSheetRenderer::sub_texture(const char* name,
+                                                   size_t length) {
+  const Subtexture* result = nullptr;
   if (!subtexts_.Lookup(name, length, &result)) return nullptr;
   return result;
 }
@@ -234,7 +235,7 @@ void SpriteSheetRenderer::SetColor(FVec4 color) {
 }
 
 void SpriteSheetRenderer::Draw(FVec2 position, float angle,
-                               const assets::Subtexture& texture) {
+                               const Subtexture& texture) {
   if (texture_current_ != &texture) {
     CHECK(sheet_info_.Lookup(texture.spritesheet()->c_str(),
                              texture.spritesheet()->size(), &current_));
@@ -258,3 +259,5 @@ void SpriteSheetRenderer::DrawRect(FVec2 top_left, FVec2 bottom_right,
   renderer_->PushQuad(top_left, bottom_right, FVec2(0, 0), FVec2(1, 1),
                       /*origin=*/center, angle);
 }
+
+}  // namespace G

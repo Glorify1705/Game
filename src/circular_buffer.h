@@ -7,6 +7,8 @@
 
 #include "logging.h"
 
+namespace G {
+
 template <typename T, size_t N>
 class FixedCircularBuffer {
   static_assert(!(N & (N - 1)), "Circular Buffer Size is not a power of two");
@@ -30,5 +32,7 @@ class FixedCircularBuffer {
   std::array<T, N> buffer_;
   size_t start_ = 0, end_ = 0;
 };
+
+}  // namespace G
 
 #endif  // _GAME_CIRCULAR_BUFFER_H

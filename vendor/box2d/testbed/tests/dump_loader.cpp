@@ -66,7 +66,8 @@ public:
 		b2Vec2 v = m_ball->GetLinearVelocity();
 		float omega = m_ball->GetAngularVelocity();
 
-		b2MassData massData = m_ball->GetMassData();
+		b2MassData massData;
+		m_ball->GetMassData(&massData);
 
 		float ke = 0.5f * massData.mass * b2Dot(v, v) + 0.5f * massData.I * omega * omega;
 

@@ -479,7 +479,6 @@ void *qoi_decode(const void *data, int size, qoi_desc *desc, int channels) {
   if (data == NULL || desc == NULL ||
       (channels != 0 && channels != 3 && channels != 4) ||
       size < QOI_HEADER_SIZE + (int)sizeof(qoi_padding)) {
-    LOG("Invalid parameters passed");
     return NULL;
   }
 
@@ -622,4 +621,8 @@ void *qoi_read(const char *filename, qoi_desc *desc, int channels) {
 #endif /* QOI_NO_STDIO */
 #endif /* QOI_IMPLEMENTATION */
 
+namespace G {
+
 void SetQoiAlloc(void *(*alloc)(size_t size), void (*dealloc)(void *ptr));
+
+}  // namespace G

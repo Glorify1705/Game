@@ -4,6 +4,9 @@ Test case for collision/jerking issue.
 
 #include "test.h"
 
+#include <vector>
+#include <iostream>
+
 class Skier : public Test
 {
 public:

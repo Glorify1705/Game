@@ -12,36 +12,31 @@
 #include "flatbuffers/flatbuffers.h"
 #include "logging.h"
 
-namespace internal {
-
-inline const assets::Assets* GetAssets(const void* buf) {
-  TIMER();
-  return assets::GetAssets(buf);
-}
-
-}  // namespace internal
+namespace G {
 
 class Assets {
  public:
-  Assets(const uint8_t* buffer) : assets_(internal::GetAssets(buffer)) {
+  Assets(const uint8_t* buffer) : assets_(GetAssetsPack(buffer)) {
     CHECK(assets_ != nullptr, "Failed to build assets from buffer");
   }
 
-  const assets::Image* GetImage(const char* name) const;
-  const assets::Script* GetScript(const char* name) const;
+  const ImageFile* GetImage(const char* name) const;
+  const ScriptFile* GetScript(const char* name) const;
   size_t scripts() const { return assets_->scripts()->size(); }
-  const assets::Script* GetScriptByIndex(size_t idx) const {
+  const ScriptFile* GetScriptByIndex(size_t idx) const {
     return assets_->scripts()->Get(idx);
   }
-  const assets::Spritesheet* GetSpritesheet(const char* name) const;
-  const assets::Sound* GetSound(const char* name) const;
+  const SpritesheetFile* GetSpritesheet(const char* name) const;
+  const SoundFile* GetSound(const char* name) const;
   size_t spritesheets() const { return assets_->sprite_sheets()->size(); }
-  const assets::Spritesheet* GetSpritesheetByIndex(size_t idx) const {
+  const SpritesheetFile* GetSpritesheetByIndex(size_t idx) const {
     return assets_->sprite_sheets()->Get(idx);
   }
 
  private:
-  const assets::Assets* assets_;
+  const AssetsPack* assets_;
 };
+
+}  // namespace G
 
 #endif  // _GAME_ASSETS_H

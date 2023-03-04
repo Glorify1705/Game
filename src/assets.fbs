@@ -1,6 +1,6 @@
-namespace assets;
+namespace G;
 
-table Image {
+table ImageFile {
     filename: string;
     width: uint32;
     height: uint32;
@@ -17,30 +17,30 @@ table Subtexture {
     height: uint32;
 }
 
-table Spritesheet {
+table SpritesheetFile {
     filename: string;
     image_name: string;
     sub_texture: [Subtexture];
 }
 
-table Script {
+table ScriptFile {
     filename: string;
     contents: [uint8];
 }
 
 enum SoundType : uint8 { OGG }
 
-table Sound {
+table SoundFile {
     filename: string;
     type: SoundType;
     contents: [uint8];
 }
 
-table Assets {
-    images: [Image];
-    sprite_sheets: [Spritesheet];
-    scripts: [Script];
-    sounds: [Sound];
+table AssetsPack {
+    images: [ImageFile];
+    sprite_sheets: [SpritesheetFile];
+    scripts: [ScriptFile];
+    sounds: [SoundFile];
 }
 
-root_type Assets;
+root_type AssetsPack;

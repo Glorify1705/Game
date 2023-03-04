@@ -7,6 +7,8 @@
 #include "math.h"
 #include "vec.h"
 
+namespace G {
+
 class Physics final : public b2ContactListener {
  public:
   inline static constexpr float kPixelsPerMeter = 60;
@@ -36,5 +38,7 @@ class Physics final : public b2ContactListener {
  private:
   b2World world_;
 };
+
+}  // namespace G
 
 #endif

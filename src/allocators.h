@@ -8,6 +8,8 @@
 
 #include "logging.h"
 
+namespace G {
+
 class BumpAllocator {
  public:
   explicit BumpAllocator(size_t size);
@@ -106,5 +108,7 @@ struct WrapAllocator<C<T1, T2, A>, Allocator> {
 
 template <class C, class Allocator>
 using WithAllocator = typename WrapAllocator<C, Allocator>::type;
+
+}  // namespace G
 
 #endif

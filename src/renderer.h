@@ -12,12 +12,14 @@
 #include "transformations.h"
 #include "vec.h"
 
+namespace G {
+
 class QuadRenderer {
  public:
   QuadRenderer(IVec2 viewport);
   ~QuadRenderer();
 
-  GLuint LoadTexture(const assets::Image& image) {
+  GLuint LoadTexture(const ImageFile& image) {
     return LoadTexture(image.contents()->Data(), image.width(), image.height());
   }
 
@@ -117,12 +119,12 @@ class SpriteSheetRenderer {
   void BeginFrame();
   void FlushFrame() {}
 
-  void Draw(FVec2 position, float angle, const assets::Subtexture& texture);
+  void Draw(FVec2 position, float angle, const Subtexture& texture);
 
   void SetColor(FVec4 color);
   void DrawRect(FVec2 top_left, FVec2 bottom_right, float angle);
 
-  const assets::Subtexture* sub_texture(const char* name, size_t length);
+  const Subtexture* sub_texture(const char* name, size_t length);
   IVec2 viewport() const { return renderer_->GetViewport(); }
 
   void Push();
@@ -147,10 +149,12 @@ class SpriteSheetRenderer {
   };
 
   LookupTable<Sheet> sheet_info_;
-  LookupTable<const assets::Subtexture*> subtexts_;
-  const assets::Subtexture* texture_current_ = nullptr;
+  LookupTable<const Subtexture*> subtexts_;
+  const Subtexture* texture_current_ = nullptr;
   Sheet current_;
   QuadRenderer* renderer_;
 };
+
+}  // namespace G
 
 #endif  // _GAME_RENDERER_H

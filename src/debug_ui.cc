@@ -2,6 +2,7 @@
 
 #include "SDL.h"
 
+namespace G {
 namespace {
 
 void LogWithConsole(void* userdata, int, SDL_LogPriority priority,
@@ -104,3 +105,5 @@ void DebugConsole::PushChar(char c, FVec2* position) {
   renderer_->PushQuad(FVec2(q.x0, q.y1), FVec2(q.x1, q.y0), FVec2(q.s0, q.t1),
                       FVec2(q.s1, q.t0), FVec2(0, 0), /*angle=*/0);
 }
+
+}  // namespace G

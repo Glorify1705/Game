@@ -9,6 +9,8 @@
 #include "array.h"
 #include "logging.h"
 
+namespace G {
+
 double NowInMillis();
 
 class LogTimer {
@@ -84,5 +86,7 @@ class Events {
 };
 
 inline constexpr double TimeStepInMillis() { return 1000.0 / 60.0; }
+
+}  // namespace G
 
 #endif  // _GAME_CLOCK_H

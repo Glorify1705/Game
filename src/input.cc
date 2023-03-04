@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+namespace G {
+
 template <typename T>
 T Clamp(T min, T val, T max) {
   return std::min(max, std::max(min, val));
@@ -50,3 +52,5 @@ void Mouse::PushEvent(const SDL_Event& event) {
     }
   }
 }
+
+}  // namespace G

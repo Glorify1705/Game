@@ -6,6 +6,7 @@
 #include "renderer.h"
 #include "sound.h"
 
+namespace G {
 namespace {
 
 static int PackageLoader(lua_State* state) {
@@ -19,11 +20,11 @@ static int PackageLoader(lua_State* state) {
   }
   const char* name = asset->filename()->c_str();
   auto data = reinterpret_cast<const char*>(asset->contents()->Data());
-  if (luaL_loadbuffer(state, data, asset->contents()->size(), name) != LUA_OK) {
+  if (luaL_loadbuffer(state, data, asset->contents()->size(), name)) {
     luaL_error(state, "Failure in %s: %s", name, lua_tostring(state, -1));
     return 0;
   }
-  if (lua_pcall(state, 0, LUA_MULTRET, 0) != LUA_OK) {
+  if (lua_pcall(state, 0, LUA_MULTRET, 0)) {
     luaL_error(state, "Failure in %s: %s", name, lua_tostring(state, -1));
     return 0;
   }
@@ -211,12 +212,13 @@ static const struct luaL_Reg kAssetsLib[] = {
          luaL_error(state, "Could not find a subtexture %s", name);
        }
        lua_pushlightuserdata(state, renderer);
-       luaL_setmetatable(state, "asset_subtexture_ptr");
+       lua_getfield(state, LUA_REGISTRYINDEX, "asset_subtexture_ptr");
+       lua_setmetatable(state, -2);
        return 1;
      }},
     {"subtexture_info",
      [](lua_State* state) {
-       const assets::Subtexture* ptr = nullptr;
+       const Subtexture* ptr = nullptr;
        if (lua_isstring(state, 1)) {
          auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
          size_t len;
@@ -226,7 +228,7 @@ static const struct luaL_Reg kAssetsLib[] = {
            luaL_error(state, "Could not find an image called %s", name);
          }
        } else {
-         ptr = reinterpret_cast<const assets::Subtexture*>(
+         ptr = reinterpret_cast<const Subtexture*>(
              luaL_checkudata(state, 1, "asset_subtexture_ptr"));
        }
        lua_newtable(state);
@@ -249,7 +251,8 @@ static const struct luaL_Reg kPhysicsLib[] = {
        const float angle = luaL_checknumber(state, 5);
        auto* handle = static_cast<Physics::Handle*>(
            lua_newuserdata(state, sizeof(Physics::Handle)));
-       luaL_setmetatable(state, "physics_handle");
+       luaL_getmetatable(state, "physics_handle");
+       lua_setmetatable(state, -2);
        *handle = physics->AddBox(FVec(tx, ty), FVec(bx, by), angle);
        return 1;
      }},
@@ -400,7 +403,7 @@ void LuaCrash(lua_State* state, int idx, Ts... ts) {
 void AddLibrary(lua_State* state, const char* name, const luaL_Reg* funcs) {
   lua_getglobal(state, "G");
   lua_newtable(state);
-  luaL_setfuncs(state, funcs, 0);
+  luaL_register(state, name, funcs);
   lua_setfield(state, -2, name);
   lua_pop(state, 1);
 }
@@ -454,14 +457,14 @@ Lua::Lua(const char* script_name, Assets* assets) {
   }
 }
 
-void Lua::LoadAsset(const assets::Script& asset) {
+void Lua::LoadAsset(const ScriptFile& asset) {
   const char* name = asset.filename()->c_str();
   if (luaL_loadbuffer(state_,
                       reinterpret_cast<const char*>(asset.contents()->Data()),
                       asset.contents()->size(), name) != 0) {
     LuaCrash(state_, -1, "while loading ", name);
   }
-  if (lua_pcall(state_, 0, LUA_MULTRET, traceback_handler_) != LUA_OK) {
+  if (lua_pcall(state_, 0, LUA_MULTRET, traceback_handler_)) {
     LuaCrash(state_, -1, "while running ", name);
   }
 }
@@ -477,7 +480,7 @@ void Lua::SetPackagePreload(std::string_view filename) {
   lua_pop(state_, 2);
 }
 
-void Lua::LoadMain(const assets::Script& asset) {
+void Lua::LoadMain(const ScriptFile& asset) {
   const char* name = asset.filename()->c_str();
   LOG("Loading ", name);
   LoadAsset(asset);
@@ -490,3 +493,5 @@ void Lua::LoadMain(const assets::Script& asset) {
     lua_pop(state_, 1);
   }
 }
+
+}  // namespace G

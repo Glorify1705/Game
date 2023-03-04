@@ -5,6 +5,8 @@
 #include "assets.h"
 #include "sound.h"
 
+namespace G {
+
 class Sound {
  public:
   explicit Sound(const Assets* assets) : assets_(assets) {}
@@ -16,5 +18,7 @@ class Sound {
  private:
   const Assets* assets_;
 };
+
+}  // namespace G
 
 #endif  // _GAME_SOUND_H

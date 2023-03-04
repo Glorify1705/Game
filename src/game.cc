@@ -33,6 +33,8 @@
 #include "strings.h"
 #include "vec.h"
 
+namespace G {
+
 struct GameParams {
   int screen_width = 1440;
   int screen_height = 1024;
@@ -58,7 +60,7 @@ const uint8_t* ReadAssets(const std::vector<const char*>& arguments) {
   std::fseek(f, 0, SEEK_SET);
   auto* buffer = new uint8_t[fsize + 1];
   CHECK(std::fread(buffer, fsize, 1, f) == 1, " failed to read ", file);
-  fclose(f);
+  std::fclose(f);
   LOG("Read assets file (", fsize, " bytes)");
   return buffer;
 }
@@ -249,12 +251,15 @@ void GameMain(int argc, const char* argv[]) {
   g.Init();
   g.Run();
 }
+
+}  // namespace G
+
 int main(int argc, const char* argv[]) {
   if (argc > 1 && !strcmp(argv[1], "packer")) {
     CHECK(argc > 3, "Usage: <output file> <files to pack>");
-    PackerMain(argv[2], std::vector(argv + 3, argv + argc));
+    G::PackerMain(argv[2], std::vector(argv + 3, argv + argc));
   } else {
-    GameMain(argc, argv);
+    G::GameMain(argc, argv);
   }
   return 0;
 }

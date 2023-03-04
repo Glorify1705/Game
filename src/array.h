@@ -8,6 +8,8 @@
 
 #include "logging.h"
 
+namespace G {
+
 template <typename T, size_t Size>
 class FixedArray {
  public:
@@ -59,5 +61,7 @@ class FixedArray {
 
   size_t elems_ = 0;
 };
+
+}  // namespace G
 
 #endif  // _FIXED_ARRAY_H

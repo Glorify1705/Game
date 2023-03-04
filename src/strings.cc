@@ -1,5 +1,7 @@
 #include "strings.h"
 
+namespace G {
+
 bool HasSuffix(std::string_view str, std::string_view suffix) {
   size_t i = 0;
   for (; i < str.size() && i < suffix.size(); i++) {
@@ -13,3 +15,5 @@ bool ConsumeSuffix(std::string_view* str, std::string_view suffix) {
   if (has_suffix) str->remove_suffix(suffix.size());
   return has_suffix;
 }
+
+}  // namespace G

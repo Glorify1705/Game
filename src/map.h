@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstring>
 
+namespace G {
 namespace internal {
 // MSI probe and hash from https://nullprogram.com/blog/2022/08/08/.
 // Does not need to be very good, just fast.
@@ -80,5 +81,7 @@ class LookupTable {
   std::array<T, 1 << kTableSize> values_;
   size_t elements_ = 0;
 };
+
+}  // namespace G
 
 #endif  // _GAME_MAP_H

@@ -13,6 +13,8 @@ extern "C" {
 #include "assets.h"
 #include "clock.h"
 
+namespace G {
+
 template <typename T>
 class Registry {
  public:
@@ -51,7 +53,7 @@ class Lua {
   void Init() {
     TIMER();
     lua_getglobal(state_, "Init");
-    if (lua_pcall(state_, 0, LUA_MULTRET, traceback_handler_) != LUA_OK) {
+    if (lua_pcall(state_, 0, LUA_MULTRET, traceback_handler_)) {
       lua_error(state_);
     }
   }
@@ -60,7 +62,7 @@ class Lua {
     lua_getglobal(state_, "Update");
     lua_pushnumber(state_, t);
     lua_pushnumber(state_, dt);
-    if (lua_pcall(state_, 2, LUA_MULTRET, traceback_handler_) != LUA_OK) {
+    if (lua_pcall(state_, 2, LUA_MULTRET, traceback_handler_)) {
       lua_error(state_);
       LOG("Failure in update ", lua_tostring(state_, -1));
     }
@@ -68,20 +70,22 @@ class Lua {
 
   void Render() {
     lua_getglobal(state_, "Render");
-    if (lua_pcall(state_, 0, LUA_MULTRET, traceback_handler_) != LUA_OK) {
+    if (lua_pcall(state_, 0, LUA_MULTRET, traceback_handler_)) {
       lua_error(state_);
     }
   }
 
  private:
-  void LoadAsset(const assets::Script& asset);
+  void LoadAsset(const ScriptFile& asset);
 
-  void LoadMain(const assets::Script& asset);
+  void LoadMain(const ScriptFile& asset);
   void SetPackagePreload(std::string_view filename);
 
   lua_State* state_ = nullptr;
   // Index of the traceback handler.
   int traceback_handler_;
 };
+
+}  // namespace G
 
 #endif  // _GAME_LUA_H

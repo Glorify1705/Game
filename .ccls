@@ -11,12 +11,12 @@ clang
 -I/usr/include/SDL2
 -D_REENTRANT
 -Ivendor/luajit/src
--Ivendor/flatbuffers-23.1.21/include
+-Ivendor/flatbuffers/include
 -Ivendor/box2d/include
 -pthread
 -lSDL2
 -lGL
 -ldl
 -lSDL2_mixer
-obj/libluajit.a
-obj/libbox2d.a
+out/libluajit.a
+out/libbox2d.a

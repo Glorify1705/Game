@@ -10,6 +10,8 @@
 
 #include "glad.h"
 
+namespace G {
+
 struct FVec2 {
   using type = float;
   inline static constexpr size_t kCardinality = 2;
@@ -1524,5 +1526,7 @@ struct IVec4 {
 };
 
 inline IVec4 IVec(int x, int y, int z, int w) { return IVec4(x, y, z, w); }
+
+}  // namespace G
 
 #endif  // _GAME_VEC_H

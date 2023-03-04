@@ -1,6 +1,9 @@
 #include "allocators.h"
 
 #include "logging.h"
+
+namespace G {
+
 BumpAllocator::BumpAllocator(size_t size) {
   ptr_ = reinterpret_cast<uintptr_t>(::new uint8_t[size]);
   pos_ = ptr_;
@@ -14,3 +17,5 @@ void* BumpAllocator::Alloc(size_t size, size_t align) {
   pos_ = prev + size;
   return reinterpret_cast<void*>(prev);
 }
+
+}  // namespace G

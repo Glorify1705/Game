@@ -10,6 +10,8 @@
 #include "map.h"
 #include "vec.h"
 
+namespace G {
+
 class Keyboard {
  public:
   Keyboard();
@@ -82,5 +84,7 @@ class Mouse {
   FVec2 mouse_wheel_ = FVec2::Zero();
   std::array<bool, 3> previous_pressed_, pressed_;
 };
+
+}  // namespace G
 
 #endif  // _GAME_INPUT_H

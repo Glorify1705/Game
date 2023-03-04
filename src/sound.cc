@@ -3,6 +3,8 @@
 #include "SDL_mixer.h"
 #include "assets.h"
 
+namespace G {
+
 void Sound::Play(const char* file, int times) {
   auto* music = assets_->GetSound(file);
   CHECK(music != nullptr);
@@ -15,3 +17,5 @@ void Sound::Play(const char* file, int times) {
 }
 
 void Sound::Stop() { Mix_HaltMusic(); }
+
+}  // namespace G

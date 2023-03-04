@@ -14,6 +14,8 @@
 #include "stb_truetype.h"
 #include "strings.h"
 
+namespace G {
+
 class DebugConsole {
  public:
   DebugConsole(QuadRenderer* renderer);
@@ -80,5 +82,7 @@ class DebugConsole {
   FontInfo info_;
   GLuint tex_;
 };
+
+}  // namespace G
 
 #endif  // _GAME_DEBUG_UI_H

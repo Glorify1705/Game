@@ -16,6 +16,7 @@
 #include "pugixml.h"
 #include "qoi.h"
 
+namespace G {
 namespace {
 
 template <typename T>
@@ -102,15 +103,15 @@ class Packer {
     qoi_desc desc;
     const auto* data = reinterpret_cast<const uint8_t*>(
         qoi_decode(buf, size, &desc, /*components=*/4));
-    images_.push_back(assets::CreateImage(
+    images_.push_back(CreateImageFile(
         fbs_, fbs_.CreateString(filename), desc.width, desc.height,
         desc.channels,
         fbs_.CreateVector(data,
                           1ULL * desc.width * desc.height * desc.channels)));
   }
   void HandleScript(const char* filename, uint8_t* buf, size_t size) {
-    scripts_.push_back(assets::CreateScript(fbs_, fbs_.CreateString(filename),
-                                            fbs_.CreateVector(buf, size)));
+    scripts_.push_back(CreateScriptFile(fbs_, fbs_.CreateString(filename),
+                                        fbs_.CreateVector(buf, size)));
   }
 
   void HandleSpritesheet(const char* filename, uint8_t* buf, size_t size) {
@@ -118,8 +119,7 @@ class Packer {
     pugi::xml_parse_result result = doc.load_buffer_inplace(buf, size);
     CHECK(result, "Could not parse ", filename, ": ", result.status);
     pugi::xml_node root = doc.child("TextureAtlas");
-    WithAllocator<std::vector<flatbuffers::Offset<assets::Subtexture>>,
-                  BumpAllocator>
+    WithAllocator<std::vector<flatbuffers::Offset<Subtexture>>, BumpAllocator>
         sub_textures(allocator_);
     auto str = fbs_.CreateString(root.attribute("imagePath").value());
     for (const auto& sub_texture : root) {
@@ -128,19 +128,19 @@ class Packer {
       sscanf(sub_texture.attribute("height").value(), "%u", &h);
       sscanf(sub_texture.attribute("x").value(), "%u", &x);
       sscanf(sub_texture.attribute("y").value(), "%u", &y);
-      sub_textures.push_back(assets::CreateSubtexture(
+      sub_textures.push_back(CreateSubtexture(
           fbs_, fbs_.CreateString(sub_texture.attribute("name").value()), str,
           x, y, w, h));
     }
     spritesheets_.push_back(
-        assets::CreateSpritesheet(fbs_, fbs_.CreateString(filename), str,
-                                  fbs_.CreateVector(sub_textures)));
+        CreateSpritesheetFile(fbs_, fbs_.CreateString(filename), str,
+                              fbs_.CreateVector(sub_textures)));
   }
 
   void HandleOggSound(const char* filename, uint8_t* buf, size_t size) {
-    sounds_.push_back(assets::CreateSound(fbs_, fbs_.CreateString(filename),
-                                          assets::SoundType::OGG,
-                                          fbs_.CreateVector(buf, size)));
+    sounds_.push_back(CreateSoundFile(fbs_, fbs_.CreateString(filename),
+                                      SoundType::OGG,
+                                      fbs_.CreateVector(buf, size)));
   }
 
  private:
@@ -149,15 +149,15 @@ class Packer {
 
   FlatbufferAllocator<BumpAllocator> fbs_wrapper_;
   flatbuffers::FlatBufferBuilder fbs_;
-  assets::AssetsBuilder assets_;
-  WithAllocator<std::vector<flatbuffers::Offset<assets::Image>>, BumpAllocator>
+  AssetsPackBuilder assets_;
+  WithAllocator<std::vector<flatbuffers::Offset<ImageFile>>, BumpAllocator>
       images_;
-  WithAllocator<std::vector<flatbuffers::Offset<assets::Script>>, BumpAllocator>
+  WithAllocator<std::vector<flatbuffers::Offset<ScriptFile>>, BumpAllocator>
       scripts_;
-  WithAllocator<std::vector<flatbuffers::Offset<assets::Spritesheet>>,
+  WithAllocator<std::vector<flatbuffers::Offset<SpritesheetFile>>,
                 BumpAllocator>
       spritesheets_;
-  WithAllocator<std::vector<flatbuffers::Offset<assets::Sound>>, BumpAllocator>
+  WithAllocator<std::vector<flatbuffers::Offset<SoundFile>>, BumpAllocator>
       sounds_;
 };
 
@@ -193,3 +193,5 @@ void PackerMain(const char* output_file, const std::vector<const char*> paths) {
   }
   packer.Finish(output_file);
 }
+
+}  // namespace G

@@ -6,6 +6,7 @@
 #include <cstring>
 #include <string>
 
+namespace G {
 namespace internal_strings {
 
 class Alphanumeric {
@@ -121,5 +122,7 @@ class StringBuffer {
 
 bool HasSuffix(std::string_view str, std::string_view suffix);
 bool ConsumeSuffix(std::string_view* str, std::string_view suffix);
+
+}  // namespace G
 
 #endif  // _GAME_STRINGS_H

@@ -12,5 +12,4 @@ sudo apt install \
     libsdl2-ttf-dev \
     libsdl2-net-dev \
     libsdl2-mixer-dev \
-    libsdl2-gfx-dev \
-    protobuf-compiler
+    libsdl2-gfx-dev

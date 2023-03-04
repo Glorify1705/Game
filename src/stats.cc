@@ -6,6 +6,8 @@
 
 #include "logging.h"
 
+namespace G {
+
 Stats::Stats() {
   std::memset(this, 0, sizeof(Stats));
   min_ = std::numeric_limits<double>::max();
@@ -50,3 +52,5 @@ void Stats::AppendToString(std::string& str) const {
   }
   str.append(buf);
 }
+
+}  // namespace G

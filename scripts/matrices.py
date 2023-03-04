@@ -196,6 +196,8 @@ def main():
     print("#include \"glad.h\"")
     print("#include \"strings.h\"")
     print("#include \"vec.h\"")
+    print("")
+    print("namespace G {")
     openglLetter = {
         "float": "f",
         "double": "d",
@@ -213,6 +215,8 @@ def main():
             vector = vectorName[type] + str(components)
             print(template.render(typename=typename, type=type, cardinality=components ** 2,
                   uniform="glUniformMatrix" + str(components) + openglLetter[type] + "v", dimension=components, vector=vector))
+    print("")
+    print("}  // namespace G")
     print("")
     print("#endif  // _GAME_MATRICES_H")
 

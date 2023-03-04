@@ -214,6 +214,8 @@ def main():
     print("#include <cmath>")
     print("#include <ostream>")
     print("#include \"glad.h\"")
+    print("")
+    print("namespace G {")
     formats = {
         "float": "%.3f",
         "double": "%.3lf",
@@ -229,6 +231,8 @@ def main():
             typename = type[0].upper() + "Vec" + str(components)
             print(template.render(typename=typename, type=type, uniform="glUniform" + str(components) + openglLetter[type],
                   format=formats[type], components=names[:components], letter=type[0].upper()))
+    print("")
+    print("}  // namespace G")
     print("")
     print("#endif  // _GAME_VEC_H")
 

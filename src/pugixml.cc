@@ -2763,7 +2763,8 @@ struct strconv_attribute_impl {
     if (PUGI__IS_CHARTYPE(*s, ct_space)) {
       char_t* str = s;
 
-      do ++str;
+      do
+        ++str;
       while (PUGI__IS_CHARTYPE(*str, ct_space));
 
       g.push(s, str - s);
@@ -2776,7 +2777,8 @@ struct strconv_attribute_impl {
       if (*s == end_quote) {
         char_t* str = g.flush(s);
 
-        do *str-- = 0;
+        do
+          *str-- = 0;
         while (PUGI__IS_CHARTYPE(*str, ct_space));
 
         return s + 1;
@@ -11750,8 +11752,8 @@ struct xpath_parser {
   //					| AdditiveExpr '-' MultiplicativeExpr
   // MultiplicativeExpr ::= UnaryExpr
   //						  | MultiplicativeExpr '*'
-  // UnaryExpr 						  | MultiplicativeExpr 'div' UnaryExpr
-  // | MultiplicativeExpr 'mod' UnaryExpr
+  // UnaryExpr 						  | MultiplicativeExpr 'div'
+  // UnaryExpr | MultiplicativeExpr 'mod' UnaryExpr
   xpath_ast_node* parse_expression(int limit = 0) {
     size_t old_depth = _depth;
 
