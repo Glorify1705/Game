@@ -102,16 +102,25 @@ struct EngineModules {
   ~EngineModules() { delete[] assets_buf_; }
 };
 
+void PrintSDLVersion() {
+  SDL_version compiled, linked;
+  SDL_VERSION(&compiled);
+  SDL_GetVersion(&linked);
+  LOG("Using Compiled SDL ", SDL_VERSIONNUM(compiled.major, compiled.minor, compiled.patch));
+  LOG("Using Linked SDL ", SDL_VERSIONNUM(linked.major, linked.minor, linked.patch));
+  LOG("SDL Revision: ", SDL_GetRevision());
+}
+
 SDL_Window* CreateWindow(const GameParams& params) {
-  SDL_LogSetAllPriority(SDL_LOG_PRIORITY_INFO);
   CHECK(SDL_Init(SDL_INIT_EVERYTHING) == 0,
         "Could not initialize SDL: ", SDL_GetError());
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
-  SDL_GL_SetSwapInterval(1);  // Sync update with monitor vertical.
+  SDL_LogSetAllPriority(SDL_LOG_PRIORITY_INFO);
+  PrintSDLVersion();
+  LOG("Initializing basic attributes");
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4) == 0, "Could not set major version", SDL_GetError());
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6) == 0, "Could not set minor version", SDL_GetError());
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE) == 0, "Could not set Core profile", SDL_GetError());
+  CHECK(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1) == 0, "Could not set double buffering version", SDL_GetError());
   auto* window =
       SDL_CreateWindow("Game", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
                        params.screen_width, params.screen_height,
@@ -121,10 +130,12 @@ SDL_Window* CreateWindow(const GameParams& params) {
 }
 
 SDL_GLContext CreateOpenglContext(SDL_Window* window) {
+  LOG("Creating SDL context");
   auto context = SDL_GL_CreateContext(window);
   CHECK(context != nullptr, "Could not load OpenGL context: ", SDL_GetError());
   CHECK(gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress),
         "Could not load GLAD");
+  CHECK(SDL_GL_SetSwapInterval(1) == 0, "Could not set up VSync: ", SDL_GetError());  // Sync update with monitor vertical.
   glEnable(GL_DEBUG_OUTPUT);
   glDebugMessageCallback(OpenglMessageCallback, /*userParam=*/nullptr);
   return context;
@@ -149,6 +160,7 @@ class Game {
   }
 
   void Init() {
+    LOG("Using GLAD Version: ", GLVersion.major, ".", GLVersion.minor);
     {
       TIMER("Initializing Engine Modules");
       e_ = std::make_unique<EngineModules>(arguments_, params_);

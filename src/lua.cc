@@ -403,7 +403,11 @@ void LuaCrash(lua_State* state, int idx, Ts... ts) {
 void AddLibrary(lua_State* state, const char* name, const luaL_Reg* funcs) {
   lua_getglobal(state, "G");
   lua_newtable(state);
-  luaL_register(state, name, funcs);
+  for (auto* func = funcs; func->name != nullptr; func++) {
+    lua_pushstring(state, func->name);
+    lua_pushcfunction(state, func->func);
+    lua_settable(state, -3);
+  }
   lua_setfield(state, -2, name);
   lua_pop(state, 1);
 }

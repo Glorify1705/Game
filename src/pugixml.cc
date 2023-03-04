@@ -11752,8 +11752,8 @@ struct xpath_parser {
   //					| AdditiveExpr '-' MultiplicativeExpr
   // MultiplicativeExpr ::= UnaryExpr
   //						  | MultiplicativeExpr '*'
-  // UnaryExpr 						  | MultiplicativeExpr 'div'
-  // UnaryExpr | MultiplicativeExpr 'mod' UnaryExpr
+  // UnaryExpr 						  | MultiplicativeExpr
+  // 'div' UnaryExpr | MultiplicativeExpr 'mod' UnaryExpr
   xpath_ast_node* parse_expression(int limit = 0) {
     size_t old_depth = _depth;
 
