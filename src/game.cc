@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#define SDL_MAIN_HANDLED
 #include "SDL.h"
 #include "SDL_mixer.h"
 #include "allocators.h"
@@ -19,10 +20,9 @@
 #include "glad.h"
 #include "input.h"
 #include "logging.h"
-#include "lua.h"
+#include "lua_setup.h"
 #include "mat.h"
 #include "math.h"
-#include "packer.h"
 #include "physics.h"
 #include "qoi.h"
 #include "renderer.h"
@@ -39,6 +39,37 @@ struct GameParams {
   int screen_width = 1440;
   int screen_height = 1024;
 };
+
+void LogWithConsole(void* userdata, int, SDL_LogPriority priority,
+                    const char* message) {
+  const char* priority_str = [priority] {
+    switch (priority) {
+      case SDL_LOG_PRIORITY_CRITICAL:
+        return "FATAL";
+      case SDL_LOG_PRIORITY_ERROR:
+        return "ERROR";
+      case SDL_LOG_PRIORITY_WARN:
+        return "WARNING";
+      case SDL_LOG_PRIORITY_INFO:
+        return "INFO";
+      default:
+        return "?";
+    };
+  }();
+  fprintf(stdout, "%s: %s\n", priority_str, message);
+  static_cast<DebugConsole*>(userdata)->Log(priority_str, " ", message);
+}
+
+void LogToSDL(LogLevel level, const char* message) {
+  switch (level) {
+    case LOG_LEVEL_FATAL:
+      SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "%s", message);
+      break;
+    case LOG_LEVEL_INFO:
+      SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "%s", message);
+      break;
+  }
+}
 
 void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
                                       GLuint /*id*/, GLenum severity,
@@ -80,6 +111,7 @@ struct EngineModules {
   Lua lua;
   Physics physics;
   Events events;
+  SDL_LogOutputFunction log_fn_;
 
   EngineModules(const std::vector<const char*> arguments,
                 const GameParams& params)
@@ -91,6 +123,8 @@ struct EngineModules {
         sprite_sheet_renderer(&assets, &quad_renderer),
         lua("main.lua", &assets) {
     TIMER();
+    SDL_LogGetOutputFunction(&log_fn_, nullptr);
+    SDL_LogSetOutputFunction(LogWithConsole, &debug_console);
     lua.Register(&sprite_sheet_renderer);
     lua.Register(&keyboard);
     lua.Register(&mouse);
@@ -99,28 +133,53 @@ struct EngineModules {
     lua.Register(&events);
   }
 
-  ~EngineModules() { delete[] assets_buf_; }
+  ~EngineModules() {
+    SDL_LogSetOutputFunction(log_fn_, &debug_console);
+    delete[] assets_buf_;
+  }
 };
 
-void PrintSDLVersion() {
+void InitializeSDL() {
+  SDL_LogSetAllPriority(SDL_LOG_PRIORITY_INFO);
+  CHECK(SDL_Init(SDL_INIT_EVERYTHING) == 0,
+        "Could not initialize SDL: ", SDL_GetError());
+  CHECK(Mix_OpenAudio(44100, MIX_INIT_OGG, 2, 2048) == 0,
+        "Could not initialize audio: ", Mix_GetError());
+  SetLogSink(LogToSDL);
+}
+
+void PrintDependencyVersions() {
   SDL_version compiled, linked;
   SDL_VERSION(&compiled);
   SDL_GetVersion(&linked);
-  LOG("Using Compiled SDL ", SDL_VERSIONNUM(compiled.major, compiled.minor, compiled.patch));
-  LOG("Using Linked SDL ", SDL_VERSIONNUM(linked.major, linked.minor, linked.patch));
-  LOG("SDL Revision: ", SDL_GetRevision());
+  LOG("Using Compiled SDL ",
+      SDL_VERSIONNUM(compiled.major, compiled.minor, compiled.patch));
+  LOG("Using Linked SDL ",
+      SDL_VERSIONNUM(linked.major, linked.minor, linked.patch));
+  LOG("Using OpenGL Version: ", glGetString(GL_VERSION));
+  LOG("Using GLAD Version: ", GLVersion.major, ".", GLVersion.minor);
+  LOG("Using ", LUA_VERSION);
+  const SDL_version& mix_version = *Mix_Linked_Version();
+  LOG("Using Linked SDL Mixer ",
+      SDL_VERSIONNUM(mix_version.major, mix_version.minor, mix_version.patch));
+  LOG("Using Compiled Mixer ", SDL_MIXER_COMPILEDVERSION);
+  LOG("Using Flatbuffers ", FLATBUFFERS_VERSION_MAJOR, ".",
+      FLATBUFFERS_VERSION_MINOR, ".", FLATBUFFERS_VERSION_REVISION);
+  LOG("Using Box2D ", b2_version.major, ".", b2_version.minor, ".",
+      b2_version.revision);
 }
 
 SDL_Window* CreateWindow(const GameParams& params) {
-  CHECK(SDL_Init(SDL_INIT_EVERYTHING) == 0,
-        "Could not initialize SDL: ", SDL_GetError());
-  SDL_LogSetAllPriority(SDL_LOG_PRIORITY_INFO);
-  PrintSDLVersion();
   LOG("Initializing basic attributes");
-  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4) == 0, "Could not set major version", SDL_GetError());
-  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6) == 0, "Could not set minor version", SDL_GetError());
-  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE) == 0, "Could not set Core profile", SDL_GetError());
-  CHECK(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1) == 0, "Could not set double buffering version", SDL_GetError());
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4) == 0,
+        "Could not set major version", SDL_GetError());
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6) == 0,
+        "Could not set minor version", SDL_GetError());
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+                            SDL_GL_CONTEXT_PROFILE_CORE) == 0,
+        "Could not set Core profile", SDL_GetError());
+  CHECK(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1) == 0,
+        "Could not set double buffering version", SDL_GetError());
   auto* window =
       SDL_CreateWindow("Game", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
                        params.screen_width, params.screen_height,
@@ -135,7 +194,8 @@ SDL_GLContext CreateOpenglContext(SDL_Window* window) {
   CHECK(context != nullptr, "Could not load OpenGL context: ", SDL_GetError());
   CHECK(gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress),
         "Could not load GLAD");
-  CHECK(SDL_GL_SetSwapInterval(1) == 0, "Could not set up VSync: ", SDL_GetError());  // Sync update with monitor vertical.
+  CHECK(SDL_GL_SetSwapInterval(1) == 0, "Could not set up VSync: ",
+        SDL_GetError());  // Sync update with monitor vertical.
   glEnable(GL_DEBUG_OUTPUT);
   glDebugMessageCallback(OpenglMessageCallback, /*userParam=*/nullptr);
   return context;
@@ -143,16 +203,16 @@ SDL_GLContext CreateOpenglContext(SDL_Window* window) {
 
 class Game {
  public:
-  Game(int argc, const char* argv[])
-      : arguments_(argv + 1, argv + argc),
-        window_(CreateWindow(params_)),
-        context_(CreateOpenglContext(window_)) {
-    CHECK(Mix_OpenAudio(44100, MIX_INIT_OGG, 2, 2048) == 0,
-          "Could not initialize audio: ", Mix_GetError());
-    SDL_ShowCursor(false);
+  Game(int argc, const char* argv[]) : arguments_(argv + 1, argv + argc) {
+    InitializeSDL();
+    window_ = CreateWindow(params_);
+    context_ = CreateOpenglContext(window_);
+    PrintDependencyVersions();
   }
 
   ~Game() {
+    LOG("Closing Engine Modules");
+    e_.reset();
     LOG("Initiating shutdown");
     SDL_GL_DeleteContext(context_);
     SDL_DestroyWindow(window_);
@@ -160,7 +220,7 @@ class Game {
   }
 
   void Init() {
-    LOG("Using GLAD Version: ", GLVersion.major, ".", GLVersion.minor);
+    SDL_ShowCursor(false);
     {
       TIMER("Initializing Engine Modules");
       e_ = std::make_unique<EngineModules>(arguments_, params_);
@@ -267,11 +327,6 @@ void GameMain(int argc, const char* argv[]) {
 }  // namespace G
 
 int main(int argc, const char* argv[]) {
-  if (argc > 1 && !strcmp(argv[1], "packer")) {
-    CHECK(argc > 3, "Usage: <output file> <files to pack>");
-    G::PackerMain(argv[2], std::vector(argv + 3, argv + argc));
-  } else {
-    G::GameMain(argc, argv);
-  }
+  G::GameMain(argc, argv);
   return 0;
 }

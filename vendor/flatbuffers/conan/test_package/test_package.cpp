@@ -14,22 +14,23 @@
  * limitations under the License.
  */
 
+#include "flatbuffers/util.h"
 #include <cstdlib>
 #include <iostream>
-#include "flatbuffers/util.h"
 
 // Test to validate Conan package generated
 
-int main(int /*argc*/, const char * /*argv*/ []) {
+int main(int /*argc*/, const char* /*argv*/[])
+{
 
-  const std::string filename("conanbuildinfo.cmake");
+    const std::string filename("conanbuildinfo.cmake");
 
-  if (flatbuffers::FileExists(filename.c_str())) {
-    std::cout << "File " << filename << " exists.\n";
-  } else {
-    std::cout << "File " << filename << " does not exist.\n";
-    return EXIT_FAILURE;
-  }
+    if (flatbuffers::FileExists(filename.c_str())) {
+        std::cout << "File " << filename << " exists.\n";
+    } else {
+        std::cout << "File " << filename << " does not exist.\n";
+        return EXIT_FAILURE;
+    }
 
-  return EXIT_SUCCESS;
+    return EXIT_SUCCESS;
 }

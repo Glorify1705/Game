@@ -1,31 +1,6 @@
 #include "debug_ui.h"
 
-#include "SDL.h"
-
 namespace G {
-namespace {
-
-void LogWithConsole(void* userdata, int, SDL_LogPriority priority,
-                    const char* message) {
-  const char* priority_str = [priority] {
-    switch (priority) {
-      case SDL_LOG_PRIORITY_CRITICAL:
-        return "F";
-      case SDL_LOG_PRIORITY_ERROR:
-        return "E";
-      case SDL_LOG_PRIORITY_WARN:
-        return "W";
-      case SDL_LOG_PRIORITY_INFO:
-        return "I";
-      default:
-        return "?";
-    };
-  }();
-  fprintf(stderr, "%s %s\n", priority_str, message);
-  static_cast<DebugConsole*>(userdata)->Log(priority_str, " ", message);
-}
-
-}  // namespace
 
 std::ostream& operator<<(std::ostream& os, const stbtt_aligned_quad& q) {
   os << "{ ";
@@ -51,7 +26,6 @@ DebugConsole::DebugConsole(QuadRenderer* renderer) : renderer_(renderer) {
   tex_ = renderer->LoadTexture(buffer, kBitmapSize, kBitmapSize);
   delete[] buffer;
   info_.Init(font);
-  SDL_LogSetOutputFunction(LogWithConsole, this);
 }
 
 void DebugConsole::LogLine(std::string_view text) {

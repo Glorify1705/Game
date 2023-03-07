@@ -1,5 +1,4 @@
-#include "packer.h"
-
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -9,7 +8,6 @@
 
 #include "allocators.h"
 #include "assets_generated.h"
-#include "clock.h"
 #include "flatbuffers/flatbuffers.h"
 #include "flatbuffers/idl.h"
 #include "logging.h"
@@ -18,6 +16,15 @@
 
 namespace G {
 namespace {
+
+using Clock = std::chrono::high_resolution_clock;
+using Time = std::chrono::time_point<Clock>;
+
+int64_t NowInMillis() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             Clock::now().time_since_epoch())
+      .count();
+}
 
 template <typename T>
 class FlatbufferAllocator : public flatbuffers::Allocator {
@@ -73,29 +80,33 @@ class Packer {
         allocator_(GlobalBumpAllocator()),
         fbs_wrapper_(allocator_),
         fbs_(1024 * 1024 * 1024, &fbs_wrapper_),
-        assets_(fbs_),
         images_(allocator_),
         scripts_(allocator_),
         spritesheets_(allocator_),
         sounds_(allocator_) {}
+
   static void Init() {
     SetQoiAlloc(GlobalAllocate, GlobalDeallocate);
     pugi::set_memory_management_functions(GlobalAllocate, GlobalDeallocate);
   }
 
   void Finish(const char* output_file) {
-    assets_.add_images(fbs_.CreateVector(images_));
-    assets_.add_scripts(fbs_.CreateVector(scripts_));
-    assets_.add_sprite_sheets(fbs_.CreateVector(spritesheets_));
-    assets_.add_sounds(fbs_.CreateVector(sounds_));
-    const auto assets = assets_.Finish();
-    fbs_.Finish(assets);
+    auto image_vec = fbs_.CreateVector(images_);
+    auto scripts_vec = fbs_.CreateVector(scripts_);
+    auto sprite_sheets_vec = fbs_.CreateVector(spritesheets_);
+    auto sounds_vec = fbs_.CreateVector(sounds_);
+    AssetsPackBuilder assets(fbs_);
+    assets.add_images(image_vec);
+    assets.add_scripts(scripts_vec);
+    assets.add_sprite_sheets(sprite_sheets_vec);
+    assets.add_sounds(sounds_vec);
+    fbs_.Finish(assets.Finish());
     FILE* f = std::fopen(output_file, "wb");
     std::fwrite(fbs_.GetBufferPointer(), fbs_.GetSize(), 1, f);
     std::fclose(f);
-    std::printf("Elapsed %.2lfms\n", NowInMillis() - start_ms_);
-    std::printf("Used %ld out of %ld memory (%.2lf %%)\n", allocator_->used(),
-                allocator_->total(),
+    std::printf("Elapsed %lldms\n", NowInMillis() - start_ms_);
+    std::printf("Used %llud out of %llu memory (%.2lf %%)\n",
+                allocator_->used(), allocator_->total(),
                 100.0 * allocator_->used() / allocator_->total());
   }
 
@@ -144,12 +155,11 @@ class Packer {
   }
 
  private:
-  const double start_ms_;
+  int64_t start_ms_;
   BumpAllocator* allocator_;
 
   FlatbufferAllocator<BumpAllocator> fbs_wrapper_;
   flatbuffers::FlatBufferBuilder fbs_;
-  AssetsPackBuilder assets_;
   WithAllocator<std::vector<flatbuffers::Offset<ImageFile>>, BumpAllocator>
       images_;
   WithAllocator<std::vector<flatbuffers::Offset<ScriptFile>>, BumpAllocator>
@@ -182,6 +192,7 @@ void PackerMain(const char* output_file, const std::vector<const char*> paths) {
     bool handled = false;
     for (auto& handler : kHandlers) {
       if (HasSuffix(path, handler.extension)) {
+        LOG("Handling ", path, " with basename ", fname);
         auto [buffer, fsize] = ReadWholeFile(path);
         auto method = handler.method;
         (packer.*method)(fname, buffer, fsize);
@@ -189,9 +200,15 @@ void PackerMain(const char* output_file, const std::vector<const char*> paths) {
         break;
       }
     }
-    if (!handled) DIE("No handler for file ", fname);
+    if (!handled) DIE("No handler for file ", path);
   }
+  LOG("Finished with files, packing to ", output_file);
   packer.Finish(output_file);
 }
 
 }  // namespace G
+
+int main(int argc, const char* argv[]) {
+  CHECK(argc > 2, "Usage: <output file> <files to pack>");
+  G::PackerMain(argv[1], std::vector(argv + 2, argv + argc));
+}

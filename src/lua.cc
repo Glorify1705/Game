@@ -1,7 +1,6 @@
-#include "lua.h"
-
 #include "clock.h"
 #include "input.h"
+#include "lua_setup.h"
 #include "physics.h"
 #include "renderer.h"
 #include "sound.h"

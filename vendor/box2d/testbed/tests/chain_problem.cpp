@@ -22,10 +22,8 @@
 
 #include "test.h"
 
-class ChainProblem : public Test
-{
+class ChainProblem : public Test {
 public:
-
     ChainProblem()
     {
         {
@@ -88,7 +86,6 @@ public:
     {
         return new ChainProblem;
     }
-
 };
 
 static int testIndex = RegisterTest("Bugs", "Chain Problem", ChainProblem::Create);

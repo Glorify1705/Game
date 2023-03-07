@@ -34,59 +34,67 @@ namespace flatbuffers {
 
 namespace {
 
-class BinaryCodeGenerator : public CodeGenerator {
- public:
-  Status GenerateCode(const Parser &parser, const std::string &path,
-                      const std::string &filename) override {
-    if (!GenerateBinary(parser, path, filename)) { return Status::ERROR; }
-    return Status::OK;
-  }
+    class BinaryCodeGenerator : public CodeGenerator {
+    public:
+        Status GenerateCode(const Parser& parser, const std::string& path,
+            const std::string& filename) override
+        {
+            if (!GenerateBinary(parser, path, filename)) {
+                return Status::ERROR;
+            }
+            return Status::OK;
+        }
 
-  // Generate code from the provided `buffer` of given `length`. The buffer is a
-  // serialized reflection.fbs.
-  Status GenerateCode(const uint8_t *buffer, int64_t length) override {
-    (void)buffer;
-    (void)length;
-    return Status::NOT_IMPLEMENTED;
-  }
+        // Generate code from the provided `buffer` of given `length`. The buffer is a
+        // serialized reflection.fbs.
+        Status GenerateCode(const uint8_t* buffer, int64_t length) override
+        {
+            (void)buffer;
+            (void)length;
+            return Status::NOT_IMPLEMENTED;
+        }
 
-  Status GenerateMakeRule(const Parser &parser, const std::string &path,
-                          const std::string &filename,
-                          std::string &output) override {
-    output = BinaryMakeRule(parser, path, filename);
-    return Status::OK;
-  }
+        Status GenerateMakeRule(const Parser& parser, const std::string& path,
+            const std::string& filename,
+            std::string& output) override
+        {
+            output = BinaryMakeRule(parser, path, filename);
+            return Status::OK;
+        }
 
-  Status GenerateGrpcCode(const Parser &parser, const std::string &path,
-                          const std::string &filename) override {
-    (void)parser;
-    (void)path;
-    (void)filename;
-    return Status::NOT_IMPLEMENTED;
-  }
+        Status GenerateGrpcCode(const Parser& parser, const std::string& path,
+            const std::string& filename) override
+        {
+            (void)parser;
+            (void)path;
+            (void)filename;
+            return Status::NOT_IMPLEMENTED;
+        }
 
-  Status GenerateRootFile(const Parser &parser,
-                          const std::string &path) override {
-    (void)parser;
-    (void)path;
-    return Status::NOT_IMPLEMENTED;
-  }
+        Status GenerateRootFile(const Parser& parser,
+            const std::string& path) override
+        {
+            (void)parser;
+            (void)path;
+            return Status::NOT_IMPLEMENTED;
+        }
 
-  bool IsSchemaOnly() const override { return false; }
+        bool IsSchemaOnly() const override { return false; }
 
-  bool SupportsBfbsGeneration() const override { return false; }
+        bool SupportsBfbsGeneration() const override { return false; }
 
-  bool SupportsRootFileGeneration() const override { return false; }
+        bool SupportsRootFileGeneration() const override { return false; }
 
-  IDLOptions::Language Language() const override { return IDLOptions::kBinary; }
+        IDLOptions::Language Language() const override { return IDLOptions::kBinary; }
 
-  std::string LanguageName() const override { return "binary"; }
-};
+        std::string LanguageName() const override { return "binary"; }
+    };
 
-}  // namespace
+} // namespace
 
-std::unique_ptr<CodeGenerator> NewBinaryCodeGenerator() {
-  return std::unique_ptr<BinaryCodeGenerator>(new BinaryCodeGenerator());
+std::unique_ptr<CodeGenerator> NewBinaryCodeGenerator()
+{
+    return std::unique_ptr<BinaryCodeGenerator>(new BinaryCodeGenerator());
 }
 
-}  // namespace flatbuffers
+} // namespace flatbuffers
