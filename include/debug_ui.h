@@ -7,6 +7,7 @@
 #include <deque>
 #include <memory>
 
+#include "SDL.h"
 #include "assets.h"
 #include "debug_font.h"
 #include "logging.h"
@@ -19,6 +20,7 @@ namespace G {
 class DebugConsole {
  public:
   DebugConsole(QuadRenderer* renderer);
+  ~DebugConsole();
 
   void LogLine(std::string_view text);
 
@@ -81,6 +83,7 @@ class DebugConsole {
   std::array<stbtt_bakedchar, 128> char_data_;
   FontInfo info_;
   GLuint tex_;
+  SDL_LogOutputFunction log_fn_;
 };
 
 }  // namespace G

@@ -12,5 +12,4 @@ CMakeFiles
 *.cmake
 .vs
 out
-vendor/box2d/build
-vendor/flatbuffers/build
+build

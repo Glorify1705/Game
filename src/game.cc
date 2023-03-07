@@ -40,26 +40,6 @@ struct GameParams {
   int screen_height = 1024;
 };
 
-void LogWithConsole(void* userdata, int, SDL_LogPriority priority,
-                    const char* message) {
-  const char* priority_str = [priority] {
-    switch (priority) {
-      case SDL_LOG_PRIORITY_CRITICAL:
-        return "FATAL";
-      case SDL_LOG_PRIORITY_ERROR:
-        return "ERROR";
-      case SDL_LOG_PRIORITY_WARN:
-        return "WARNING";
-      case SDL_LOG_PRIORITY_INFO:
-        return "INFO";
-      default:
-        return "?";
-    };
-  }();
-  fprintf(stdout, "%s: %s\n", priority_str, message);
-  static_cast<DebugConsole*>(userdata)->Log(priority_str, " ", message);
-}
-
 void LogToSDL(LogLevel level, const char* message) {
   switch (level) {
     case LOG_LEVEL_FATAL:
@@ -111,7 +91,6 @@ struct EngineModules {
   Lua lua;
   Physics physics;
   Events events;
-  SDL_LogOutputFunction log_fn_;
 
   EngineModules(const std::vector<const char*> arguments,
                 const GameParams& params)
@@ -123,8 +102,6 @@ struct EngineModules {
         sprite_sheet_renderer(&assets, &quad_renderer),
         lua("main.lua", &assets) {
     TIMER();
-    SDL_LogGetOutputFunction(&log_fn_, nullptr);
-    SDL_LogSetOutputFunction(LogWithConsole, &debug_console);
     lua.Register(&sprite_sheet_renderer);
     lua.Register(&keyboard);
     lua.Register(&mouse);
@@ -133,10 +110,7 @@ struct EngineModules {
     lua.Register(&events);
   }
 
-  ~EngineModules() {
-    SDL_LogSetOutputFunction(log_fn_, &debug_console);
-    delete[] assets_buf_;
-  }
+  ~EngineModules() { delete[] assets_buf_; }
 };
 
 void InitializeSDL() {
@@ -213,7 +187,7 @@ class Game {
   ~Game() {
     LOG("Closing Engine Modules");
     e_.reset();
-    LOG("Initiating shutdown");
+    LOG("Closing OpenGL and SDL");
     SDL_GL_DeleteContext(context_);
     SDL_DestroyWindow(window_);
     SDL_Quit();
