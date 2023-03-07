@@ -22,12 +22,7 @@ class DebugConsole {
   DebugConsole(QuadRenderer* renderer);
   ~DebugConsole();
 
-  void LogLine(std::string_view text);
-
-  template <typename... T>
-  void Log(T... ts) {
-    LogLine(StrCat(ts...));
-  }
+  void Log(int category, SDL_LogPriority priority, const char* message);
 
   void Render();
 
@@ -68,6 +63,8 @@ class DebugConsole {
     float scale_;
   };
 
+  void LogLine(std::string_view text);
+
   void PushChar(char c, FVec2* position);
 
   struct TextToRender {
@@ -83,7 +80,9 @@ class DebugConsole {
   std::array<stbtt_bakedchar, 128> char_data_;
   FontInfo info_;
   GLuint tex_;
+
   SDL_LogOutputFunction log_fn_;
+  void* log_fn_userdata_;
 };
 
 }  // namespace G

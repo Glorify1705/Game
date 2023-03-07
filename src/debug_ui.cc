@@ -3,24 +3,13 @@
 namespace G {
 namespace {
 
-void LogWithConsole(void* userdata, int, SDL_LogPriority priority,
+void LogWithConsole(void* userdata, int category, SDL_LogPriority priority,
                     const char* message) {
-  const char* priority_str = [priority] {
-    switch (priority) {
-      case SDL_LOG_PRIORITY_CRITICAL:
-        return "F ";
-      case SDL_LOG_PRIORITY_ERROR:
-        return "E ";
-      case SDL_LOG_PRIORITY_WARN:
-        return "W ";
-      case SDL_LOG_PRIORITY_INFO:
-        return "I ";
-      default:
-        return "?";
-    };
-  }();
-  static_cast<DebugConsole*>(userdata)->Log(priority_str, " ", message);
+  static_cast<DebugConsole*>(userdata)->Log(category, priority, message);
 }
+
+constexpr const char* kPriorities[SDL_NUM_LOG_PRIORITIES] = {
+    NULL, "VERBOSE", "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"};
 
 }  // namespace
 
@@ -32,6 +21,13 @@ std::ostream& operator<<(std::ostream& os, const stbtt_aligned_quad& q) {
   os << "s1 = " << q.s1 << " t1 = " << q.t1 << " ";
   os << "}";
   return os;
+}
+
+void DebugConsole::Log(int category, SDL_LogPriority priority,
+                       const char* message) {
+  log_fn_(log_fn_userdata_, category, priority, message);
+  StringBuffer<kMaxLogLineLength> buf(kPriorities[priority], " ", message);
+  LogLine(buf.piece());
 }
 
 DebugConsole::DebugConsole(QuadRenderer* renderer) : renderer_(renderer) {
@@ -48,11 +44,13 @@ DebugConsole::DebugConsole(QuadRenderer* renderer) : renderer_(renderer) {
   tex_ = renderer->LoadTexture(buffer, kBitmapSize, kBitmapSize);
   delete[] buffer;
   info_.Init(font);
-  SDL_LogGetOutputFunction(&log_fn_, nullptr);
+  SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
   SDL_LogSetOutputFunction(LogWithConsole, this);
 }
 
-DebugConsole::~DebugConsole() { SDL_LogSetOutputFunction(log_fn_, nullptr); }
+DebugConsole::~DebugConsole() {
+  SDL_LogSetOutputFunction(log_fn_, log_fn_userdata_);
+}
 
 void DebugConsole::LogLine(std::string_view text) {
   lines_.push_back(std::string(text));

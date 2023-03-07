@@ -13,6 +13,8 @@ enum LogLevel { LOG_LEVEL_INFO, LOG_LEVEL_FATAL };
 
 using LogSink = void (*)(LogLevel /*lvl*/, const char* /*message*/);
 
+inline constexpr size_t kMaxLogLineLength = 511;
+
 // Sets the sink for log messages.
 void SetLogSink(LogSink sink);
 
@@ -30,7 +32,7 @@ template <typename... T>
 #define _INTERNAL_GAME_TRAP std::abort
 #endif
 #endif
-  StringBuffer<511> buf("[", file, ":", line, "] ");
+  StringBuffer<kMaxLogLineLength> buf("[", file, ":", line, "] ");
   buf.Append(std::forward<T>(ts)...);
   GetLogSink()(LOG_LEVEL_FATAL, buf.str());
   _INTERNAL_GAME_TRAP();
@@ -38,7 +40,7 @@ template <typename... T>
 
 template <typename... T>
 void Log(const char* file, int line, T... ts) {
-  StringBuffer<511> buf("[", file, ":", line, "] ");
+  StringBuffer<kMaxLogLineLength> buf("[", file, ":", line, "] ");
   buf.Append(std::forward<T>(ts)...);
   GetLogSink()(LOG_LEVEL_INFO, buf.str());
 }

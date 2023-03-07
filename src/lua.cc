@@ -94,7 +94,7 @@ static const struct luaL_Reg kConsoleLib[] = {
     {"log",
      [](lua_State* state) {
        const int num_args = lua_gettop(state);
-       StringBuffer<255> buffer;
+       StringBuffer<kMaxLogLineLength> buffer;
        lua_getglobal(state, "tostring");
        for (int i = 0; i < num_args; ++i) {
          // Call tostring to print the value of the argument.
