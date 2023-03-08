@@ -51,11 +51,15 @@ set(GAME_SRCS
     src/allocators.cc
     src/assets.cc
     src/clock.cc
-    src/debug_font.cc
-    src/debug_ui.cc
     src/game.cc
     src/glad.cc
     src/input.cc
+    src/imgui_impl_opengl3.cc
+    src/imgui_impl_sdl2.cc
+    src/imgui_draw.cc
+    src/imgui_tables.cc
+    src/imgui.cc
+    src/imgui_widgets.cc
     src/lua.cc
     src/physics.cc
     src/qoi.cc

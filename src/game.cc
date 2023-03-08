@@ -13,11 +13,12 @@
 #include "SDL_mixer.h"
 #include "allocators.h"
 #include "assets.h"
-#include "box2d/b2_common.h"
 #include "circular_buffer.h"
 #include "clock.h"
-#include "debug_ui.h"
 #include "glad.h"
+#include "imgui.h"
+#include "imgui_impl_opengl3.h"
+#include "imgui_impl_sdl2.h"
 #include "input.h"
 #include "logging.h"
 #include "lua_setup.h"
@@ -109,7 +110,6 @@ struct EngineModules {
  public:
   Assets assets;
   QuadRenderer quad_renderer;
-  DebugConsole debug_console;
   Keyboard keyboard;
   Mouse mouse;
   Sound sound;
@@ -123,7 +123,6 @@ struct EngineModules {
       : assets_buf_(ReadAssets(arguments)),
         assets(assets_buf_),
         quad_renderer(IVec2(params.screen_width, params.screen_height)),
-        debug_console(&quad_renderer),
         sound(&assets),
         sprite_sheet_renderer(&assets, &quad_renderer),
         lua("main.lua", &assets) {
@@ -167,6 +166,7 @@ void PrintDependencyVersions() {
       FLATBUFFERS_VERSION_MINOR, ".", FLATBUFFERS_VERSION_REVISION);
   LOG("Using Box2D ", b2_version.major, ".", b2_version.minor, ".",
       b2_version.revision);
+  LOG("Using Dear ImGUI Version: ", IMGUI_VERSION);
 }
 
 SDL_Window* CreateWindow(const GameParams& params) {
@@ -201,6 +201,102 @@ SDL_GLContext CreateOpenglContext(SDL_Window* window) {
   return context;
 }
 
+class DebugConsole {
+ public:
+  template <typename... Ts>
+  void Log(Ts... ts) {
+    StringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
+    LogLine(buf.piece());
+  }
+
+  template <typename Fn>
+  void ForAllLines(Fn&& fn) {
+    for (std::string_view line : lines_) fn(line);
+  }
+
+ private:
+  inline static constexpr size_t kMaxLines = 128;
+
+  void LogLine(std::string_view text) {
+    lines_.push_back(std::string(text));
+    if (lines_.size() > kMaxLines) {
+      lines_.pop_front();
+    }
+  }
+
+  std::deque<std::string> lines_;
+};
+
+constexpr const char* kPriorities[SDL_NUM_LOG_PRIORITIES] = {
+    NULL, "VERBOSE", "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"};
+
+class DebugUi {
+ public:
+  DebugUi(SDL_Window* window, SDL_GLContext context, DebugConsole* console,
+          Stats* frame_stats)
+      : console_(console), stats_(frame_stats) {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+    ImGui_ImplSDL2_InitForOpenGL(window, context);
+    ImGui_ImplOpenGL3_Init("#version 130");
+    SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
+    SDL_LogSetOutputFunction(LogWithConsole, this);
+  }
+
+  ~DebugUi() {
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+    SDL_LogSetOutputFunction(log_fn_, log_fn_userdata_);
+  }
+
+  void Log(int category, SDL_LogPriority priority, const char* message) {
+    log_fn_(log_fn_userdata_, category, priority, message);
+    console_->Log(kPriorities[priority], " ", message);
+  }
+
+  void Toggle() { show_ = !show_; }
+
+  void Render() {
+    if (!show_) return;
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+    ImGui::Begin("Debug Information");
+    ImGui::TextColored(ImVec4(1, 1, 0, 1), "Frame Stats");
+    std::string buf;
+    stats_->AppendToString(buf);
+    ImGui::Text(buf.c_str());
+    ImGui::TextColored(ImVec4(1, 1, 0, 1), "Console");
+    ImGui::BeginChild("Scrolling");
+    console_->ForAllLines([this](std::string_view line) {
+      ImGui::TextUnformatted(line.data(), line.end());
+    });
+    ImGui::EndChild();
+    ImGui::End();
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+  }
+
+  void ProcessEvent(const SDL_Event& event) {
+    ImGui_ImplSDL2_ProcessEvent(&event);
+  }
+
+ private:
+  static void LogWithConsole(void* userdata, int category,
+                             SDL_LogPriority priority, const char* message) {
+    static_cast<DebugUi*>(userdata)->Log(category, priority, message);
+  }
+
+  SDL_LogOutputFunction log_fn_;
+  void* log_fn_userdata_;
+
+  DebugConsole* console_;
+  Stats* stats_;
+  bool show_ = false;
+};
+
 class Game {
  public:
   Game(int argc, const char* argv[]) : arguments_(argv + 1, argv + argc) {
@@ -208,12 +304,13 @@ class Game {
     window_ = CreateWindow(params_);
     context_ = CreateOpenglContext(window_);
     PrintDependencyVersions();
+    debug_ui_ =
+        std::make_unique<DebugUi>(window_, context_, &debug_console_, &stats_);
   }
 
   ~Game() {
-    LOG("Closing Engine Modules");
     e_.reset();
-    LOG("Closing OpenGL and SDL");
+    debug_ui_.reset();
     SDL_GL_DeleteContext(context_);
     SDL_DestroyWindow(window_);
     SDL_Quit();
@@ -244,6 +341,7 @@ class Game {
       const auto frame_start = NowInMillis();
       StartFrame();
       for (SDL_Event event; SDL_PollEvent(&event);) {
+        ImGui_ImplSDL2_ProcessEvent(&event);
         if (event.type == SDL_WINDOWEVENT) {
           if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
             params_.screen_width = event.window.data1;
@@ -258,7 +356,7 @@ class Game {
         e_->keyboard.PushEvent(event);
         e_->mouse.PushEvent(event);
         if (event.type == SDL_KEYDOWN) {
-          if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) e_->debug_console.Toggle();
+          if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) debug_ui_->Toggle();
           if (e_->keyboard.IsDown(SDL_SCANCODE_Q)) return;
         }
       }
@@ -274,7 +372,6 @@ class Game {
 
   void StartFrame() {
     e_->quad_renderer.Clear();
-    e_->debug_console.Clear();
     e_->mouse.InitForFrame();
     e_->keyboard.InitForFrame();
   }
@@ -284,11 +381,6 @@ class Game {
     e_->events.Fire(dt);
     e_->physics.Update(dt);
     e_->lua.Update(t, dt);
-    e_->debug_console.PushText(
-        StrCat("Mouse position ", Mouse::GetPosition(), "\n"),
-        FVec2(params_.screen_width - 300, 0));
-    e_->debug_console.PushText(StrCat("Frame Stats: ", stats_),
-                               FVec2(0, params_.screen_height - 20));
   }
 
   void ClearWindow() {
@@ -304,8 +396,8 @@ class Game {
     e_->sprite_sheet_renderer.BeginFrame();
     e_->lua.Render();
     e_->sprite_sheet_renderer.FlushFrame();
-    e_->debug_console.Render();
     e_->quad_renderer.Render();
+    debug_ui_->Render();
     SDL_GL_SwapWindow(window_);
   }
 
@@ -314,6 +406,8 @@ class Game {
   GameParams params_;
   SDL_Window* window_ = nullptr;
   SDL_GLContext context_;
+  DebugConsole debug_console_;
+  std::unique_ptr<DebugUi> debug_ui_;
   std::unique_ptr<EngineModules> e_;
   Stats stats_;
 };
