@@ -264,17 +264,16 @@ class DebugUi {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
+    RenderFrameStats();
     ImGui::Begin("Debug Information");
-    ImGui::TextColored(ImVec4(1, 1, 0, 1), "Frame Stats");
-    std::string buf;
-    stats_->AppendToString(buf);
-    ImGui::Text(buf.c_str());
-    ImGui::TextColored(ImVec4(1, 1, 0, 1), "Console");
-    ImGui::BeginChild("Scrolling");
-    console_->ForAllLines([this](std::string_view line) {
-      ImGui::TextUnformatted(line.data(), line.end());
-    });
-    ImGui::EndChild();
+    if (ImGui::TreeNode("Console")) {
+      ImGui::BeginChild("Scrolling");
+      console_->ForAllLines([this](std::string_view line) {
+        ImGui::TextUnformatted(line.data(), line.end());
+      });
+      ImGui::EndChild();
+      ImGui::TreePop();
+    }
     ImGui::End();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -285,6 +284,34 @@ class DebugUi {
   }
 
  private:
+  void RenderFrameStats() {
+    ImGuiWindowFlags window_flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+        ImGuiWindowFlags_NoNav;
+    if (frame_stats_location_ >= 0) {
+      constexpr float kPad = 10.0f;
+      const ImGuiViewport* viewport = ImGui::GetMainViewport();
+      ImVec2 work_pos = viewport->WorkPos;
+      ImVec2 work_size = viewport->WorkSize;
+      ImVec2 window_pos, window_pos_pivot;
+      window_pos.x = (frame_stats_location_ & 1)
+                         ? (work_pos.x + work_size.x - kPad)
+                         : (work_pos.x + kPad);
+      window_pos.y = (frame_stats_location_ & 2)
+                         ? (work_pos.y + work_size.y - kPad)
+                         : (work_pos.y + kPad);
+      window_pos_pivot.x = (frame_stats_location_ & 1) ? 1.0f : 0.0f;
+      window_pos_pivot.y = (frame_stats_location_ & 2) ? 1.0f : 0.0f;
+      ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
+      window_flags |= ImGuiWindowFlags_NoMove;
+    }
+    ImGui::SetNextWindowBgAlpha(0.35f);
+    ImGui::Begin("Frame Stats", nullptr, window_flags);
+    ImGui::TextUnformatted(StrCat("Frame Stats: ", *stats_).c_str());
+    ImGui::End();
+  }
+
   static void LogWithConsole(void* userdata, int category,
                              SDL_LogPriority priority, const char* message) {
     static_cast<DebugUi*>(userdata)->Log(category, priority, message);
@@ -296,6 +323,7 @@ class DebugUi {
   DebugConsole* console_;
   Stats* stats_;
   bool show_ = false;
+  int frame_stats_location_ = 1;
 };
 
 class Game {
