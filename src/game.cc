@@ -133,6 +133,7 @@ struct EngineModules {
     lua.Register(&sound);
     lua.Register(&physics);
     lua.Register(&events);
+    lua.Init();
   }
 
   ~EngineModules() { delete[] assets_buf_; }
@@ -322,7 +323,6 @@ class Game {
       TIMER("Initializing Engine Modules");
       e_ = std::make_unique<EngineModules>(arguments_, params_);
     }
-    e_->lua.Init();
   }
 
   void Run() {
