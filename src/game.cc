@@ -32,6 +32,7 @@
 #include "stb_truetype.h"
 #include "strings.h"
 #include "vec.h"
+#include "zip.h"
 
 namespace G {
 
@@ -61,18 +62,43 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
   }
 }
 
+static BumpAllocator* GlobalBumpAllocator() {
+  static BumpAllocator allocator(1 * 1024 * 1024 * 1024ULL);  // 1 Gigabytes.
+  return &allocator;
+}
+
 const uint8_t* ReadAssets(const std::vector<const char*>& arguments) {
   TIMER();
-  const char* file = arguments.empty() ? "assets.fbs" : arguments[0];
-  FILE* f = std::fopen(file, "rb");
-  CHECK(f != nullptr, "Could not read ", file);
-  std::fseek(f, 0, SEEK_END);
-  const size_t fsize = std::ftell(f);
-  std::fseek(f, 0, SEEK_SET);
-  auto* buffer = new uint8_t[fsize + 1];
-  CHECK(std::fread(buffer, fsize, 1, f) == 1, " failed to read ", file);
-  std::fclose(f);
-  LOG("Read assets file (", fsize, " bytes)");
+  const char* output_file = arguments.empty() ? "assets.fbs" : arguments[0];
+  constexpr char kAssetFileName[] = "assets.bin";
+  zip_error_t zip_error;
+  int zip_error_code;
+  zip_t* zip_file = zip_open(output_file, ZIP_RDONLY, &zip_error_code);
+  if (zip_file == nullptr) {
+    zip_error_init_with_code(&zip_error, zip_error_code);
+    DIE("Failed to open ", output_file,
+        " as a zip file: ", zip_error_strerror(&zip_error));
+  }
+  const int64_t num_entries = zip_get_num_entries(zip_file, ZIP_FL_UNCHANGED);
+  LOG("Zip file has ", num_entries, " entries");
+  for (int i = 0; i < num_entries; ++i) {
+    LOG("Found file: ", zip_get_name(zip_file, i, ZIP_FL_ENC_RAW),
+        " in zip file");
+  }
+  zip_stat_t stat;
+  if (zip_stat(zip_file, kAssetFileName, ZIP_FL_ENC_UTF_8, &stat) == -1) {
+    DIE("Failed to open ", output_file,
+        " as a zip file: ", zip_strerror(zip_file));
+  }
+  auto* assets_file = zip_fopen(zip_file, kAssetFileName, /*flags=*/0);
+  if (assets_file == nullptr) {
+    DIE("Failed to decompress ", output_file, ": ", zip_strerror(zip_file));
+  }
+  auto* buffer = GlobalBumpAllocator()->AllocArray<uint8_t>(stat.size);
+  if (zip_fread(assets_file, buffer, stat.size) == -1) {
+    DIE("Failed to read decompressed file");
+  }
+  LOG("Read assets file (", stat.size, " bytes)");
   return buffer;
 }
 

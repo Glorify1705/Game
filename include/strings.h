@@ -29,6 +29,11 @@ class Alphanumeric {
     piece_ = std::string_view(buf_);
   }
 
+  Alphanumeric(long long i) {
+    snprintf(buf_, sizeof(buf_), "%lld", i);
+    piece_ = std::string_view(buf_);
+  }
+
   Alphanumeric(long unsigned int i) {
     snprintf(buf_, sizeof(buf_), "%lu", i);
     piece_ = std::string_view(buf_);

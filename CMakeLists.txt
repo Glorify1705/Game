@@ -20,12 +20,21 @@ set(FLATBUFFERS_BUILD_FLATLIB ON)
 set(FLATBUFFERS_BUILD_BENCHMARKS OFF)
 set(FLATBUFFERS_BUILD_FLATHASH OFF)
 set(FLATBUFFERS_INSTALL OFF)
+set(FLATBUFFERS_SKIP_MONSTER_EXTRA OFF)
+set(FLATBUFFERS_STRICT_MODE ON)
 add_subdirectory(vendor/flatbuffers EXCLUDE_FROM_ALL)
 
 set(BOX2D_BUILD_TESTBED OFF)
 set(BOX2D_BUILD_UNIT_TESTS OFF)
 add_subdirectory(vendor/box2d EXCLUDE_FROM_ALL)
+
 add_subdirectory(vendor/lua EXCLUDE_FROM_ALL)
+
+set(BUILD_REGRESS OFF)
+set(BUILD_EXAMPLES OFF)
+set(BUILD_DOC OFF)
+set(BUILD_TOOLS OFF)
+add_subdirectory(vendor/libzip EXCLUDE_FROM_ALL)
 
 find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
@@ -97,16 +106,16 @@ target_include_directories(Packer
 
 add_custom_command(
     OUTPUT Assets
-    COMMAND Packer ARGS ${CMAKE_CURRENT_BINARY_DIR}/assets.bin ${ASSETS}
-    DEPENDS Packer)
+    COMMAND Packer ARGS ${CMAKE_CURRENT_BINARY_DIR}/assets.zip ${ASSETS}
+    DEPENDS Packer ${ASSETS})
 
 add_custom_target(Run
-                  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/Game ${CMAKE_CURRENT_BINARY_DIR}/assets.bin
+                  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/Game ${CMAKE_CURRENT_BINARY_DIR}/assets.zip
                   DEPENDS Game Assets
                   VERBATIM COMMAND_EXPAND_LISTS)
 
-target_link_libraries(Game PRIVATE SDL2::SDL2 SDL2_mixer::SDL2_mixer flatbuffers box2d lua OpenGL::GL)
-target_link_libraries(Packer PRIVATE flatbuffers)
+target_link_libraries(Game PRIVATE SDL2::SDL2 SDL2_mixer::SDL2_mixer flatbuffers box2d lua zip OpenGL::GL)
+target_link_libraries(Packer PRIVATE flatbuffers zip)
 
 if (WIN32)
     add_custom_command(

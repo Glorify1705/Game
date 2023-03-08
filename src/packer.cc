@@ -13,6 +13,7 @@
 #include "logging.h"
 #include "pugixml.h"
 #include "qoi.h"
+#include "zip.h"
 
 namespace G {
 namespace {
@@ -101,9 +102,30 @@ class Packer {
     assets.add_sprite_sheets(sprite_sheets_vec);
     assets.add_sounds(sounds_vec);
     fbs_.Finish(assets.Finish());
-    FILE* f = std::fopen(output_file, "wb");
-    std::fwrite(fbs_.GetBufferPointer(), fbs_.GetSize(), 1, f);
-    std::fclose(f);
+    zip_error_t zip_error;
+    int zip_error_code;
+    zip_t* zip_file =
+        zip_open(output_file, ZIP_CREATE | ZIP_TRUNCATE, &zip_error_code);
+    if (zip_file == nullptr) {
+      zip_error_init_with_code(&zip_error, zip_error_code);
+      DIE("Failed to open ", output_file,
+          " as a zip file: ", zip_error_strerror(&zip_error));
+    }
+    zip_source_t* zip_source = zip_source_buffer(
+        zip_file, fbs_.GetBufferPointer(), fbs_.GetSize(), /*freep=*/0);
+    if (zip_source == nullptr) {
+      DIE("Failed to create zip file ", output_file, ": ",
+          zip_strerror(zip_file));
+    }
+    if (zip_file_add(zip_file, "assets.bin", zip_source, ZIP_FL_ENC_UTF_8) ==
+        -1) {
+      DIE("Could not add file to the archive ", output_file, ": ",
+          zip_strerror(zip_file));
+    }
+    if (zip_close(zip_file) == -1) {
+      DIE("Could not close archive ", output_file, ": ",
+          zip_strerror(zip_file));
+    }
     std::printf("Elapsed %lldms\n", NowInMillis() - start_ms_);
     std::printf("Used %llud out of %llu memory (%.2lf %%)\n",
                 allocator_->used(), allocator_->total(),
