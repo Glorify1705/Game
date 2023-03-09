@@ -64,7 +64,6 @@ class Lua {
     lua_pushnumber(state_, dt);
     if (lua_pcall(state_, 2, LUA_MULTRET, traceback_handler_)) {
       lua_error(state_);
-      LOG("Failure in update ", lua_tostring(state_, -1));
     }
   }
 

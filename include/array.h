@@ -50,7 +50,7 @@ class FixedArray {
   const T* cend() const { return buffer_ + elems_; }
 
   size_t size() const { return elems_; }
-  size_t max_size() const { return Size; }
+  size_t capacity() const { return Size; }
   size_t bytes() const { return elems_ * sizeof(T); }
   bool empty() const { return elems_ == 0; }
 

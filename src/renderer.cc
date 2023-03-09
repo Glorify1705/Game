@@ -1,9 +1,8 @@
-#include "renderer.h"
-
 #include <cmath>
 #include <vector>
 
 #include "clock.h"
+#include "renderer.h"
 #include "transformations.h"
 
 namespace G {
@@ -134,6 +133,11 @@ void QuadRenderer::PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1,
 }
 
 void QuadRenderer::Render() {
+  glViewport(0, 0, viewport_.x, viewport_.y);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glClearColor(0.f, 0.f, 0.f, 0.f);
+  glClear(GL_COLOR_BUFFER_BIT);
   glBindVertexArray(vao_);
   glBindBuffer(GL_ARRAY_BUFFER, vbo_);
   glBufferData(GL_ARRAY_BUFFER, vertices_.bytes(), vertices_.data(),

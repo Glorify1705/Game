@@ -2,6 +2,7 @@
 #ifndef _GAME_INPUT_H
 #define _GAME_INPUT_H
 
+#include <array>
 #include <bitset>
 #include <cstdint>
 
@@ -83,6 +84,27 @@ class Mouse {
  private:
   FVec2 mouse_wheel_ = FVec2::Zero();
   std::array<bool, 3> previous_pressed_, pressed_;
+};
+
+class Controllers {
+ public:
+  Controllers();
+  ~Controllers();
+
+  void PushEvent(const SDL_Event& event);
+
+  void InitForFrame();
+
+  int joysticks() const { return controllers_.size(); }
+
+ private:
+  struct Controller {
+    SDL_GameController* ptr = nullptr;
+    std::bitset<32> pressed;
+    std::bitset<32> previously_pressed;
+  };
+  std::array<Controller, 64> controllers_;
+  std::bitset<64> opened_controllers_;
 };
 
 }  // namespace G

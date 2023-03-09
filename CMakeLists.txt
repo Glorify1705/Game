@@ -61,6 +61,7 @@ set(GAME_SRCS
     src/imgui.cc
     src/imgui_widgets.cc
     src/lua.cc
+    src/controller_db.cc
     src/physics.cc
     src/qoi.cc
     src/renderer.cc

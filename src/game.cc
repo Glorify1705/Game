@@ -112,6 +112,7 @@ struct EngineModules {
   QuadRenderer quad_renderer;
   Keyboard keyboard;
   Mouse mouse;
+  Controllers controllers;
   Sound sound;
   SpriteSheetRenderer sprite_sheet_renderer;
   Lua lua;
@@ -133,7 +134,32 @@ struct EngineModules {
     lua.Register(&sound);
     lua.Register(&physics);
     lua.Register(&events);
-    lua.Init();
+  }
+
+  void StartFrame() {
+    quad_renderer.Clear();
+    mouse.InitForFrame();
+    keyboard.InitForFrame();
+    controllers.InitForFrame();
+  }
+
+  void HandleEvent(const SDL_Event& event) {
+    if (event.type == SDL_WINDOWEVENT) {
+      if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+        IVec2 new_viewport(event.window.data1, event.window.data2);
+        quad_renderer.SetViewport(new_viewport);
+      }
+    }
+    keyboard.PushEvent(event);
+    mouse.PushEvent(event);
+    controllers.PushEvent(event);
+  }
+
+  void Render() {
+    sprite_sheet_renderer.BeginFrame();
+    lua.Render();
+    sprite_sheet_renderer.FlushFrame();
+    quad_renderer.Render();
   }
 
   ~EngineModules() { delete[] assets_buf_; }
@@ -146,6 +172,10 @@ void InitializeSDL() {
   CHECK(Mix_OpenAudio(44100, MIX_INIT_OGG, 2, 2048) == 0,
         "Could not initialize audio: ", Mix_GetError());
   SetLogSink(LogToSDL);
+  CHECK(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) == 0,
+        "Could not initialize SDL joysticks: ", SDL_GetError());
+  SDL_JoystickEventState(SDL_ENABLE);
+  SDL_GameControllerEventState(SDL_ENABLE);
   SDL_ShowCursor(false);
 }
 
@@ -342,6 +372,10 @@ class Game {
   ~Game() {
     e_.reset();
     debug_ui_.reset();
+    if (SDL_WasInit(SDL_INIT_HAPTIC) != 0) {
+      SDL_QuitSubSystem(SDL_INIT_HAPTIC);
+    }
+    SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
     SDL_GL_DeleteContext(context_);
     SDL_DestroyWindow(window_);
     SDL_Quit();
@@ -352,6 +386,7 @@ class Game {
     e_ = std::make_unique<EngineModules>(arguments_, params_);
     debug_ui_ = std::make_unique<DebugUi>(window_, context_, &debug_console_,
                                           &stats_, e_.get());
+    e_->lua.Init();
   }
 
   void Run() {
@@ -368,22 +403,13 @@ class Game {
         continue;
       }
       const auto frame_start = NowInMillis();
-      StartFrame();
+      e_->StartFrame();
       for (SDL_Event event; SDL_PollEvent(&event);) {
-        ImGui_ImplSDL2_ProcessEvent(&event);
-        if (event.type == SDL_WINDOWEVENT) {
-          if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-            params_.screen_width = event.window.data1;
-            params_.screen_height = event.window.data2;
-            e_->quad_renderer.SetViewport(
-                IVec2(params_.screen_width, params_.screen_height));
-          }
-        }
         if (event.type == SDL_QUIT) {
           return;
         }
-        e_->keyboard.PushEvent(event);
-        e_->mouse.PushEvent(event);
+        ImGui_ImplSDL2_ProcessEvent(&event);
+        e_->HandleEvent(event);
         if (event.type == SDL_KEYDOWN) {
           if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) debug_ui_->Toggle();
           if (e_->keyboard.IsDown(SDL_SCANCODE_Q)) return;
@@ -399,12 +425,6 @@ class Game {
     }
   }
 
-  void StartFrame() {
-    e_->quad_renderer.Clear();
-    e_->mouse.InitForFrame();
-    e_->keyboard.InitForFrame();
-  }
-
   // Update state given current time t and frame delta dt, both in ms.
   void Update(double t, double dt) {
     e_->events.Fire(dt);
@@ -412,20 +432,8 @@ class Game {
     e_->lua.Update(t, dt);
   }
 
-  void ClearWindow() {
-    glViewport(0, 0, params_.screen_width, params_.screen_height);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glClearColor(0.f, 0.f, 0.f, 0.f);
-    glClear(GL_COLOR_BUFFER_BIT);
-  }
-
   void Render() {
-    ClearWindow();
-    e_->sprite_sheet_renderer.BeginFrame();
-    e_->lua.Render();
-    e_->sprite_sheet_renderer.FlushFrame();
-    e_->quad_renderer.Render();
+    e_->Render();
     debug_ui_->Render();
     SDL_GL_SwapWindow(window_);
   }
