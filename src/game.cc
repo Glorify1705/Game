@@ -235,6 +235,12 @@ SDL_GLContext CreateOpenglContext(SDL_Window* window) {
 
 class DebugConsole {
  public:
+  DebugConsole() {
+    SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
+    SDL_LogSetOutputFunction(LogWithConsole, this);
+  }
+  ~DebugConsole() { SDL_LogSetOutputFunction(log_fn_, log_fn_userdata_); }
+
   template <typename... Ts>
   void Log(Ts... ts) {
     StringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
@@ -247,6 +253,19 @@ class DebugConsole {
   }
 
  private:
+  inline static constexpr const char* kPriorities[SDL_NUM_LOG_PRIORITIES] = {
+      NULL, "VERBOSE", "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"};
+
+  void Log(int category, SDL_LogPriority priority, const char* message) {
+    log_fn_(log_fn_userdata_, category, priority, message);
+    Log(kPriorities[priority], " ", message);
+  }
+
+  static void LogWithConsole(void* userdata, int category,
+                             SDL_LogPriority priority, const char* message) {
+    static_cast<DebugConsole*>(userdata)->Log(category, priority, message);
+  }
+
   inline static constexpr size_t kMaxLines = 128;
 
   void LogLine(std::string_view text) {
@@ -257,10 +276,9 @@ class DebugConsole {
   }
 
   std::deque<std::string> lines_;
+  SDL_LogOutputFunction log_fn_;
+  void* log_fn_userdata_;
 };
-
-constexpr const char* kPriorities[SDL_NUM_LOG_PRIORITIES] = {
-    NULL, "VERBOSE", "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"};
 
 class DebugUi {
  public:
@@ -272,20 +290,12 @@ class DebugUi {
     ImGui::StyleColorsDark();
     ImGui_ImplSDL2_InitForOpenGL(window, context);
     ImGui_ImplOpenGL3_Init("#version 130");
-    SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
-    SDL_LogSetOutputFunction(LogWithConsole, this);
   }
 
   ~DebugUi() {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
-    SDL_LogSetOutputFunction(log_fn_, log_fn_userdata_);
-  }
-
-  void Log(int category, SDL_LogPriority priority, const char* message) {
-    log_fn_(log_fn_userdata_, category, priority, message);
-    console_->Log(kPriorities[priority], " ", message);
   }
 
   void Toggle() { show_ = !show_; }
@@ -344,14 +354,6 @@ class DebugUi {
         StrCat("Mouse Position: ", modules_->mouse.GetPosition()).c_str());
     ImGui::End();
   }
-
-  static void LogWithConsole(void* userdata, int category,
-                             SDL_LogPriority priority, const char* message) {
-    static_cast<DebugUi*>(userdata)->Log(category, priority, message);
-  }
-
-  SDL_LogOutputFunction log_fn_;
-  void* log_fn_userdata_;
 
   DebugConsole* console_;
   Stats* stats_;
