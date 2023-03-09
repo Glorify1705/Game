@@ -16,6 +16,9 @@ function Init()
 end
 
 function Update(t, dt)
+    if G.input.is_controller_button_pressed('x') then
+        G.console.log("Pressed x!")
+    end
     player:update(t)
 end
 

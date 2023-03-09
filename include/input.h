@@ -97,6 +97,34 @@ class Controllers {
 
   int joysticks() const { return controllers_.size(); }
 
+  bool IsDown(int button, int controller_id) {
+    if (controller_id == -1) return false;
+    auto& controller = controllers_[controller_id];
+    return controller.previously_pressed[button] && controller.pressed[button];
+  }
+
+  bool IsReleased(int button, int controller_id) {
+    if (controller_id == -1) return false;
+    auto& controller = controllers_[controller_id];
+    return controller.previously_pressed[button] && !controller.pressed[button];
+  }
+
+  bool IsPressed(int button, int controller_id) {
+    if (controller_id == -1) return false;
+    auto& controller = controllers_[controller_id];
+    return !controller.previously_pressed[button] && controller.pressed[button];
+  }
+
+  SDL_GameControllerButton StrToButton(const char* key, size_t length) const {
+    SDL_GameControllerButton result;
+    if (!table_.Lookup(key, length, &result)) {
+      return SDL_CONTROLLER_BUTTON_INVALID;
+    }
+    return result;
+  }
+
+  int active_controller() const { return active_controller_; }
+
  private:
   struct Controller {
     SDL_GameController* ptr = nullptr;
@@ -105,6 +133,8 @@ class Controllers {
   };
   std::array<Controller, 64> controllers_;
   std::bitset<64> opened_controllers_;
+  int active_controller_ = -1;
+  LookupTable<SDL_GameControllerButton> table_;
 };
 
 }  // namespace G

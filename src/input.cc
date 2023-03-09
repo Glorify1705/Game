@@ -60,6 +60,12 @@ Controllers::Controllers() {
     CHECK(SDL_GameControllerAddMappingsFromRW(rwops, /*freerw=*/true) > 0,
           "Could not add Joystick database: ", SDL_GetError());
   }
+  table_.Insert("a", SDL_CONTROLLER_BUTTON_A);
+  table_.Insert("b", SDL_CONTROLLER_BUTTON_B);
+  table_.Insert("x", SDL_CONTROLLER_BUTTON_X);
+  table_.Insert("y", SDL_CONTROLLER_BUTTON_Y);
+  table_.Insert("start", SDL_CONTROLLER_BUTTON_START);
+  table_.Insert("back", SDL_CONTROLLER_BUTTON_BACK);
   const int controllers = SDL_NumJoysticks();
   CHECK(controllers >= 0, "Failed to get joysticks: ", SDL_GetError());
   DCHECK(controllers < controllers_.size());
@@ -82,6 +88,7 @@ void Controllers::InitForFrame() {
   for (size_t i = 0; i < controllers_.size(); ++i) {
     if (!opened_controllers_[i]) continue;
     controllers_[i].previously_pressed = controllers_[i].pressed;
+    controllers_[i].pressed.reset();
   }
 }
 
@@ -113,15 +120,16 @@ void Controllers::PushEvent(const SDL_Event& event) {
     const int i = event.jbutton.which;
     DCHECK(i < controllers_.size());
     DCHECK(opened_controllers_[i]);
-    LOG("Button ", event.jbutton.button, " on gamepad ", i, " is pressed");
     DCHECK(event.jbutton.button < controllers_[i].pressed.size());
     controllers_[i].pressed[event.jbutton.button] = true;
+    active_controller_ = i;
   }
   if (event.type == SDL_JOYBUTTONUP) {
     const int i = event.jbutton.which;
     DCHECK(i < controllers_.size());
     DCHECK(event.jbutton.button < controllers_[i].pressed.size());
     controllers_[i].pressed[event.jbutton.button] = true;
+    active_controller_ = i;
   }
 }
 

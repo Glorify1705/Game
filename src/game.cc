@@ -131,6 +131,7 @@ struct EngineModules {
     lua.Register(&sprite_sheet_renderer);
     lua.Register(&keyboard);
     lua.Register(&mouse);
+    lua.Register(&controllers);
     lua.Register(&sound);
     lua.Register(&physics);
     lua.Register(&events);

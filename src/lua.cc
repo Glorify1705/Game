@@ -178,6 +178,36 @@ static const struct luaL_Reg kMouseLib[] = {
        lua_pushboolean(state, mouse->IsReleased(button));
        return 1;
      }},
+    {"is_controller_button_pressed",
+     [](lua_State* state) {
+       size_t len;
+       const char* c = luaL_checklstring(state, 1, &len);
+       auto* controllers = Registry<Controllers>::Retrieve(state);
+       lua_pushboolean(
+           state, controllers->IsPressed(controllers->StrToButton(c, len),
+                                         controllers->active_controller()));
+       return 1;
+     }},
+    {"is_controller_button_down",
+     [](lua_State* state) {
+       size_t len;
+       const char* c = luaL_checklstring(state, 1, &len);
+       auto* controllers = Registry<Controllers>::Retrieve(state);
+       lua_pushboolean(state,
+                       controllers->IsDown(controllers->StrToButton(c, len),
+                                           controllers->active_controller()));
+       return 1;
+     }},
+    {"is_controller_button_released",
+     [](lua_State* state) {
+       size_t len;
+       const char* c = luaL_checklstring(state, 1, &len);
+       auto* controllers = Registry<Controllers>::Retrieve(state);
+       lua_pushboolean(
+           state, controllers->IsReleased(controllers->StrToButton(c, len),
+                                          controllers->active_controller()));
+       return 1;
+     }},
     {"is_mouse_down",
      [](lua_State* state) {
        auto* mouse = Registry<Mouse>::Retrieve(state);
