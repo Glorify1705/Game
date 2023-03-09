@@ -9,10 +9,10 @@
 - [X] Assets as a zip file.
 - [ ] Pixelated effect by rendering to a small framebuffer.
 - [ ] Log lines using circular buffer.
-- [ ] IMGUI and copy of log.
+- [X] IMGUI and copy of log.
 - [ ] Convert all vendored repos into Git submodules.
 - [ ] Compilable with Visual Studio.
 - [ ] Hot asset/code reloading.
 - [ ] Configure renderer allocator sizes with a header or environment variables.
 - [ ] Screenshots.  
-- [ ] Collission
+- [ ] Collision.

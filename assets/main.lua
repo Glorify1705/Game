@@ -1,16 +1,18 @@
 local Player = require "player"
 local player
 
-local positions = {}
+local stars = {}
 
 function Init()
     local vx, vy = G.renderer.viewport()
     player = Player(100, 100)
-    positions = {}
+    stars = {}
     for i = 0, 10 do
-        table.insert(positions, { x = math.random() * vx, y = math.random() * vy })
+        table.insert(stars, { x = math.random() * vx, y = math.random() * vy })
     end
-    -- G.sound.play("music.ogg")
+    G.sound.set_volume(0.1)
+    G.sound.play("music.ogg")
+    G.console.log("Playing music")
 end
 
 function Update(t, dt)
@@ -18,7 +20,7 @@ function Update(t, dt)
 end
 
 function Render()
-    for _, pos in ipairs(positions) do
+    for _, pos in ipairs(stars) do
         G.renderer.draw_sprite("star1", pos.x, pos.y)
     end
     player:render()

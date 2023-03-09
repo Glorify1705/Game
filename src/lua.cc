@@ -192,10 +192,27 @@ static const struct luaL_Reg kSoundLib[] = {
      [](lua_State* state) {
        const char* name = luaL_checkstring(state, 1);
        auto* sound = Registry<Sound>::Retrieve(state);
-       int repeat = -1;
+       int repeat = Sound::kLoop;
        const int num_args = lua_gettop(state);
        if (num_args == 2) repeat = luaL_checknumber(state, 2);
        sound->Play(name, repeat);
+       return 0;
+     }},
+    {"stop",
+     [](lua_State* state) {
+       auto* sound = Registry<Sound>::Retrieve(state);
+       sound->Stop();
+       return 0;
+     }},
+    {"set_volume",
+     [](lua_State* state) {
+       const float volume = luaL_checknumber(state, 1);
+       if (volume < 0 || volume > 1) {
+         luaL_error(state, "Invalid volume %f must be in [0, 1)", volume);
+         return 0;
+       }
+       auto* sound = Registry<Sound>::Retrieve(state);
+       sound->SetVolume(volume);
        return 0;
      }},
     {nullptr, nullptr}};

@@ -11,7 +11,12 @@ class Sound {
  public:
   explicit Sound(const Assets* assets) : assets_(assets) {}
 
+  inline static constexpr int kLoop = -1;
+
   void Play(const char* file, int repeat);
+
+  // `volume` is between 0 and 1.
+  void SetVolume(float volume);
 
   void Stop();
 

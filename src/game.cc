@@ -146,6 +146,7 @@ void InitializeSDL() {
   CHECK(Mix_OpenAudio(44100, MIX_INIT_OGG, 2, 2048) == 0,
         "Could not initialize audio: ", Mix_GetError());
   SetLogSink(LogToSDL);
+  SDL_ShowCursor(false);
 }
 
 void PrintDependencyVersions() {
@@ -234,8 +235,8 @@ constexpr const char* kPriorities[SDL_NUM_LOG_PRIORITIES] = {
 class DebugUi {
  public:
   DebugUi(SDL_Window* window, SDL_GLContext context, DebugConsole* console,
-          Stats* frame_stats)
-      : console_(console), stats_(frame_stats) {
+          Stats* frame_stats, EngineModules* modules)
+      : console_(console), stats_(frame_stats), modules_(modules) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
@@ -264,7 +265,7 @@ class DebugUi {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
-    RenderFrameStats();
+    RenderTopWidget();
     ImGui::Begin("Debug Information");
     if (ImGui::TreeNode("Console")) {
       ImGui::BeginChild("Scrolling");
@@ -284,7 +285,7 @@ class DebugUi {
   }
 
  private:
-  void RenderFrameStats() {
+  void RenderTopWidget() {
     ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
@@ -309,6 +310,8 @@ class DebugUi {
     ImGui::SetNextWindowBgAlpha(0.35f);
     ImGui::Begin("Frame Stats", nullptr, window_flags);
     ImGui::TextUnformatted(StrCat("Frame Stats: ", *stats_).c_str());
+    ImGui::TextUnformatted(
+        StrCat("Mouse Position: ", modules_->mouse.GetPosition()).c_str());
     ImGui::End();
   }
 
@@ -322,6 +325,7 @@ class DebugUi {
 
   DebugConsole* console_;
   Stats* stats_;
+  EngineModules* modules_;
   bool show_ = false;
   int frame_stats_location_ = 1;
 };
@@ -333,8 +337,6 @@ class Game {
     window_ = CreateWindow(params_);
     context_ = CreateOpenglContext(window_);
     PrintDependencyVersions();
-    debug_ui_ =
-        std::make_unique<DebugUi>(window_, context_, &debug_console_, &stats_);
   }
 
   ~Game() {
@@ -346,11 +348,10 @@ class Game {
   }
 
   void Init() {
-    SDL_ShowCursor(false);
-    {
-      TIMER("Initializing Engine Modules");
-      e_ = std::make_unique<EngineModules>(arguments_, params_);
-    }
+    TIMER("Game Initialization");
+    e_ = std::make_unique<EngineModules>(arguments_, params_);
+    debug_ui_ = std::make_unique<DebugUi>(window_, context_, &debug_console_,
+                                          &stats_, e_.get());
   }
 
   void Run() {

@@ -1,6 +1,6 @@
-#include "input.h"
-
 #include <algorithm>
+
+#include "input.h"
 
 namespace G {
 
@@ -24,6 +24,7 @@ Keyboard::Keyboard() {
   table_.Insert("a", SDL_SCANCODE_A);
   table_.Insert("s", SDL_SCANCODE_S);
   table_.Insert("d", SDL_SCANCODE_D);
+  table_.Insert("z", SDL_SCANCODE_Z);
   table_.Insert("lshift", SDL_SCANCODE_LSHIFT);
   table_.Insert("rshift", SDL_SCANCODE_RSHIFT);
 }
