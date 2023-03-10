@@ -60,12 +60,25 @@ Controllers::Controllers() {
     CHECK(SDL_GameControllerAddMappingsFromRW(rwops, /*freerw=*/true) > 0,
           "Could not add Joystick database: ", SDL_GetError());
   }
-  table_.Insert("a", SDL_CONTROLLER_BUTTON_A);
-  table_.Insert("b", SDL_CONTROLLER_BUTTON_B);
-  table_.Insert("x", SDL_CONTROLLER_BUTTON_X);
-  table_.Insert("y", SDL_CONTROLLER_BUTTON_Y);
-  table_.Insert("start", SDL_CONTROLLER_BUTTON_START);
-  table_.Insert("back", SDL_CONTROLLER_BUTTON_BACK);
+  // Button table.
+  button_table_.Insert("a", SDL_CONTROLLER_BUTTON_A);
+  button_table_.Insert("b", SDL_CONTROLLER_BUTTON_B);
+  button_table_.Insert("x", SDL_CONTROLLER_BUTTON_X);
+  button_table_.Insert("y", SDL_CONTROLLER_BUTTON_Y);
+  button_table_.Insert("start", SDL_CONTROLLER_BUTTON_START);
+  button_table_.Insert("back", SDL_CONTROLLER_BUTTON_BACK);
+  button_table_.Insert("dpadl", SDL_CONTROLLER_BUTTON_DPAD_LEFT);
+  button_table_.Insert("dpadr", SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
+  button_table_.Insert("dpadu", SDL_CONTROLLER_BUTTON_DPAD_UP);
+  button_table_.Insert("dpadd", SDL_CONTROLLER_BUTTON_DPAD_DOWN);
+  // Axis table.
+  axis_table_.Insert("lanalogx", SDL_CONTROLLER_AXIS_LEFTX);
+  axis_table_.Insert("ranalogx", SDL_CONTROLLER_AXIS_RIGHTX);
+  axis_table_.Insert("lanalogy", SDL_CONTROLLER_AXIS_LEFTY);
+  axis_table_.Insert("ranalogy", SDL_CONTROLLER_AXIS_RIGHTY);
+  axis_table_.Insert("ltrigger", SDL_CONTROLLER_AXIS_TRIGGERLEFT);
+  axis_table_.Insert("rtrigger", SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+  // Load controllers.
   const int controllers = SDL_NumJoysticks();
   CHECK(controllers >= 0, "Failed to get joysticks: ", SDL_GetError());
   DCHECK(controllers < controllers_.size());
@@ -80,13 +93,13 @@ Controllers::Controllers() {
     CHECK(controller.ptr, "Could not open controller ", i, ": ",
           SDL_GetError());
     LOG("Opened joystick: ", SDL_GameControllerName(controller.ptr));
-    opened_controllers_[i] = true;
+    open_controllers_[i] = true;
   }
 }
 
 void Controllers::InitForFrame() {
   for (size_t i = 0; i < controllers_.size(); ++i) {
-    if (!opened_controllers_[i]) continue;
+    if (!open_controllers_[i]) continue;
     controllers_[i].previously_pressed = controllers_[i].pressed;
     controllers_[i].pressed.reset();
   }
@@ -96,30 +109,30 @@ void Controllers::PushEvent(const SDL_Event& event) {
   if (event.type == SDL_CONTROLLERDEVICEADDED) {
     const int i = event.cdevice.which;
     DCHECK(i < controllers_.size());
-    if (!opened_controllers_[i]) {
+    if (!open_controllers_[i]) {
       controllers_[i].ptr = SDL_GameControllerOpen(i);
       CHECK(controllers_[i].ptr, "Could not open joystick ", i, ": ",
             SDL_GetError());
-      opened_controllers_[i] = true;
+      open_controllers_[i] = true;
       LOG("Opened joystick: ", SDL_GameControllerName(controllers_[i].ptr));
     }
   }
   if (event.type == SDL_JOYDEVICEREMOVED) {
     const int i = event.jdevice.which;
     DCHECK(i < controllers_.size());
-    if (opened_controllers_[i] &&
+    if (open_controllers_[i] &&
         event.cdevice.which ==
             SDL_JoystickInstanceID(
                 SDL_GameControllerGetJoystick(controllers_[i].ptr))) {
       LOG("Closed joystick: ", SDL_GameControllerName(controllers_[i].ptr));
       SDL_GameControllerClose(controllers_[i].ptr);
-      opened_controllers_[i] = false;
+      open_controllers_[i] = false;
     }
   }
   if (event.type == SDL_JOYBUTTONDOWN) {
     const int i = event.jbutton.which;
     DCHECK(i < controllers_.size());
-    DCHECK(opened_controllers_[i]);
+    DCHECK(open_controllers_[i]);
     DCHECK(event.jbutton.button < controllers_[i].pressed.size());
     controllers_[i].pressed[event.jbutton.button] = true;
     active_controller_ = i;
@@ -135,7 +148,7 @@ void Controllers::PushEvent(const SDL_Event& event) {
 
 Controllers::~Controllers() {
   for (size_t i = 0; i < controllers_.size(); ++i) {
-    if (opened_controllers_[i]) {
+    if (open_controllers_[i]) {
       SDL_GameControllerClose(controllers_[i].ptr);
     }
   }

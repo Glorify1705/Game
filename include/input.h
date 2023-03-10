@@ -97,19 +97,19 @@ class Controllers {
 
   int joysticks() const { return controllers_.size(); }
 
-  bool IsDown(int button, int controller_id) {
+  bool IsDown(int button, int controller_id) const {
     if (controller_id == -1) return false;
     auto& controller = controllers_[controller_id];
     return controller.previously_pressed[button] && controller.pressed[button];
   }
 
-  bool IsReleased(int button, int controller_id) {
+  bool IsReleased(int button, int controller_id) const {
     if (controller_id == -1) return false;
     auto& controller = controllers_[controller_id];
     return controller.previously_pressed[button] && !controller.pressed[button];
   }
 
-  bool IsPressed(int button, int controller_id) {
+  bool IsPressed(int button, int controller_id) const {
     if (controller_id == -1) return false;
     auto& controller = controllers_[controller_id];
     return !controller.previously_pressed[button] && controller.pressed[button];
@@ -117,8 +117,27 @@ class Controllers {
 
   SDL_GameControllerButton StrToButton(const char* key, size_t length) const {
     SDL_GameControllerButton result;
-    if (!table_.Lookup(key, length, &result)) {
+    if (!button_table_.Lookup(key, length, &result)) {
       return SDL_CONTROLLER_BUTTON_INVALID;
+    }
+    return result;
+  }
+
+  int AxisPositions(SDL_GameControllerAxis axis, int controller_id) const {
+    if (controller_id == -1) return 0;
+    return SDL_GameControllerGetAxis(controllers_[controller_id].ptr, axis);
+  }
+
+  int TriggerPositions(SDL_GameControllerAxis axis, int controller_id) const {
+    if (controller_id == -1) return 0;
+    return SDL_GameControllerGetAxis(controllers_[controller_id].ptr, axis);
+  }
+
+  SDL_GameControllerAxis StrToAxisOrTrigger(const char* key,
+                                            size_t length) const {
+    SDL_GameControllerAxis result;
+    if (!axis_table_.Lookup(key, length, &result)) {
+      return SDL_CONTROLLER_AXIS_INVALID;
     }
     return result;
   }
@@ -132,9 +151,10 @@ class Controllers {
     std::bitset<32> previously_pressed;
   };
   std::array<Controller, 64> controllers_;
-  std::bitset<64> opened_controllers_;
+  std::bitset<64> open_controllers_;
   int active_controller_ = -1;
-  LookupTable<SDL_GameControllerButton> table_;
+  LookupTable<SDL_GameControllerButton> button_table_;
+  LookupTable<SDL_GameControllerAxis> axis_table_;
 };
 
 }  // namespace G

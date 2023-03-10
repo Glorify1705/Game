@@ -378,6 +378,7 @@ class Game {
     if (SDL_WasInit(SDL_INIT_HAPTIC) != 0) {
       SDL_QuitSubSystem(SDL_INIT_HAPTIC);
     }
+    Mix_Quit();
     SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
     SDL_GL_DeleteContext(context_);
     SDL_DestroyWindow(window_);

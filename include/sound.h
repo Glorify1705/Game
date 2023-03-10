@@ -10,6 +10,7 @@ namespace G {
 class Sound {
  public:
   explicit Sound(const Assets* assets) : assets_(assets) {}
+  ~Sound() { Stop(); }
 
   inline static constexpr int kLoop = -1;
 

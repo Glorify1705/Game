@@ -25,6 +25,8 @@ void Sound::SetVolume(float volume) {
   Mix_VolumeMusic(std::clamp(static_cast<int>(volume * 128), 0, 128));
 }
 
-void Sound::Stop() { Mix_HaltMusic(); }
+void Sound::Stop() {
+  if (Mix_PlayingMusic()) Mix_HaltMusic();
+}
 
 }  // namespace G
