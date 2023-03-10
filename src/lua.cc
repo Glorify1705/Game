@@ -470,6 +470,7 @@ Lua::Lua(const char* script_name, Assets* assets) {
     LuaCrash(state, 1);
     return 0;
   });
+  Register(this);
   {
     TIMER("Basic Lua Setup");
     luaL_newmetatable(state_, "physics_handle");
@@ -477,6 +478,12 @@ Lua::Lua(const char* script_name, Assets* assets) {
     lua_pop(state_, 2);
     luaL_openlibs(state_);
     lua_newtable(state_);
+    lua_pushcfunction(state_, [](lua_State* state) {
+      auto* lua = Registry<Lua>::Retrieve(state);
+      lua->Stop();
+      return 0;
+    });
+    lua_setfield(state_, -2, "quit");
     lua_setglobal(state_, "G");
     Register(assets);
     AddLibrary(state_, "console", kConsoleLib);

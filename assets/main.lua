@@ -16,6 +16,9 @@ function Init()
 end
 
 function Update(t, dt)
+    if G.input.is_key_pressed('q') then
+        G.quit()
+    end
     if G.input.is_controller_button_pressed('x') then
         print("Pressed a button")
     end

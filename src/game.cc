@@ -413,6 +413,7 @@ class Game {
     constexpr double kStep = TimeStepInMillis();
     double t = 0, accum = 0;
     for (;;) {
+      if (e_->lua.Stopped()) return;
       const double now = NowInMillis();
       const double frame_time = now - last_frame;
       last_frame = now;
@@ -431,7 +432,6 @@ class Game {
         e_->HandleEvent(event);
         if (event.type == SDL_KEYDOWN) {
           if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) debug_ui_->Toggle();
-          if (e_->keyboard.IsDown(SDL_SCANCODE_Q)) return;
         }
       }
       while (accum >= kStep) {

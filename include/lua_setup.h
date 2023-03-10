@@ -74,6 +74,9 @@ class Lua {
     }
   }
 
+  void Stop() { stopped_ = true; }
+  bool Stopped() const { return stopped_; }
+
  private:
   void LoadAsset(const ScriptFile& asset);
 
@@ -83,6 +86,7 @@ class Lua {
   lua_State* state_ = nullptr;
   // Index of the traceback handler.
   int traceback_handler_;
+  bool stopped_ = false;
 };
 
 }  // namespace G
