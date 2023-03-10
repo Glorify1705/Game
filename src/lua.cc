@@ -90,36 +90,36 @@ static const struct luaL_Reg kRendererLib[] = {
      }},
     {nullptr, nullptr}};
 
-static const struct luaL_Reg kConsoleLib[] = {
-    {"log",
-     [](lua_State* state) {
-       const int num_args = lua_gettop(state);
-       StringBuffer<kMaxLogLineLength> buffer;
-       lua_getglobal(state, "tostring");
-       for (int i = 0; i < num_args; ++i) {
-         // Call tostring to print the value of the argument.
-         lua_pushvalue(state, -1);
-         lua_pushvalue(state, i + 1);
-         lua_call(state, 1, 1);
-         const char* s = lua_tostring(state, -1);
-         if (s == nullptr) {
-           return luaL_error(state, "'tostring' did not return string");
-         }
-         buffer.Append(s);
-         if (i + 1 < num_args) buffer.Append(" ");
-         lua_pop(state, 1);
-       }
-       lua_pop(state, 1);
-       lua_Debug ar;
-       lua_getstack(state, 1, &ar);
-       lua_getinfo(state, "nSl", &ar);
-       int line = ar.currentline;
-       const char* file = ar.source;
-       lua_pop(state, 1);
-       Log(file, line, buffer);
-       return 0;
-     }},
-    {nullptr, nullptr}};
+int LuaLogPrint(lua_State* state) {
+  const int num_args = lua_gettop(state);
+  StringBuffer<kMaxLogLineLength> buffer;
+  lua_getglobal(state, "tostring");
+  for (int i = 0; i < num_args; ++i) {
+    // Call tostring to print the value of the argument.
+    lua_pushvalue(state, -1);
+    lua_pushvalue(state, i + 1);
+    lua_call(state, 1, 1);
+    const char* s = lua_tostring(state, -1);
+    if (s == nullptr) {
+      return luaL_error(state, "'tostring' did not return string");
+    }
+    buffer.Append(s);
+    if (i + 1 < num_args) buffer.Append(" ");
+    lua_pop(state, 1);
+  }
+  lua_pop(state, 1);
+  lua_Debug ar;
+  lua_getstack(state, 1, &ar);
+  lua_getinfo(state, "nSl", &ar);
+  int line = ar.currentline;
+  const char* file = ar.source;
+  lua_pop(state, 1);
+  Log(file, line, buffer);
+  return 0;
+}
+
+static const struct luaL_Reg kConsoleLib[] = {{"log", LuaLogPrint},
+                                              {nullptr, nullptr}};
 
 static const struct luaL_Reg kMouseLib[] = {
     {"mouse_position",
@@ -490,6 +490,9 @@ Lua::Lua(const char* script_name, Assets* assets) {
     });
     traceback_handler_ = lua_gettop(state_);
   }
+  // Set print as G.console.log for consistency.
+  lua_pushcfunction(state_, LuaLogPrint);
+  lua_setglobal(state_, "print");
   for (size_t i = 0; i < assets->scripts(); ++i) {
     auto* script = assets->GetScriptByIndex(i);
     std::string_view asset_name(script->filename()->c_str());

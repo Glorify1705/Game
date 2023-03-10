@@ -12,12 +12,12 @@ function Init()
     end
     G.sound.set_volume(0.1)
     G.sound.play("music.ogg")
-    G.console.log("Playing music")
+    print("Playing music")
 end
 
 function Update(t, dt)
     if G.input.is_controller_button_pressed('x') then
-        G.console.log("Pressed x!")
+        print("Pressed a button")
     end
     player:update(t)
 end
