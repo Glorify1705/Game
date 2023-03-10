@@ -42,6 +42,20 @@ struct GameParams {
   int screen_height = 1024;
 };
 
+void SdlCrash(const char* message) {
+#ifndef _INTERNAL_GAME_TRAP
+#if __has_builtin(__builtin_debugtrap)
+#define _INTERNAL_GAME_TRAP __builtin__debugtrap
+#elif _MSC_VER
+#define _INTERNAL_GAME_TRAP __debugbreak
+#else
+#define _INTERNAL_GAME_TRAP std::abort
+#endif
+#endif
+  SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Unrecoverable error", message,
+                           /*window=*/nullptr);
+}
+
 void LogToSDL(LogLevel level, const char* message) {
   switch (level) {
     case LOG_LEVEL_FATAL:
@@ -173,6 +187,7 @@ void InitializeSDL() {
   CHECK(Mix_OpenAudio(44100, MIX_INIT_OGG, 2, 2048) == 0,
         "Could not initialize audio: ", Mix_GetError());
   SetLogSink(LogToSDL);
+  SetCrashHandler(SdlCrash);
   CHECK(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) == 0,
         "Could not initialize SDL joysticks: ", SDL_GetError());
   SDL_JoystickEventState(SDL_ENABLE);

@@ -21,21 +21,23 @@ void SetLogSink(LogSink sink);
 // Gets the function for logging messages.
 LogSink GetLogSink();
 
+using CrashHandler = void (*)(const char* message);
+
+// Sets the sink for log messages.
+void SetCrashHandler(CrashHandler sink);
+
+// Crashes the binary.
+[[noreturn]] void Crash(const char* message);
+
+// Gets the function for logging messages.
+LogSink SetCrashHandler();
+
 template <typename... T>
 [[noreturn]] void Crash(const char* file, int line, T... ts) {
-#ifndef _INTERNAL_GAME_TRAP
-#if __has_builtin(__builtin_debugtrap)
-#define _INTERNAL_GAME_TRAP __builtin__debugtrap
-#elif _MSC_VER
-#define _INTERNAL_GAME_TRAP __debugbreak
-#else
-#define _INTERNAL_GAME_TRAP std::abort
-#endif
-#endif
   StringBuffer<kMaxLogLineLength> buf("[", file, ":", line, "] ");
   buf.Append(std::forward<T>(ts)...);
   GetLogSink()(LOG_LEVEL_FATAL, buf.str());
-  _INTERNAL_GAME_TRAP();
+  Crash(buf.str());
 }
 
 template <typename... T>
