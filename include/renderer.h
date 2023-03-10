@@ -124,7 +124,7 @@ class SpriteSheetRenderer {
   void SetColor(FVec4 color);
   void DrawRect(FVec2 top_left, FVec2 bottom_right, float angle);
 
-  const Subtexture* sub_texture(const char* name, size_t length);
+  const Subtexture* sub_texture(std::string_view name) const;
   IVec2 viewport() const { return renderer_->GetViewport(); }
 
   void Push();

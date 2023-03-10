@@ -218,10 +218,10 @@ void SpriteSheetRenderer::BeginFrame() {
   ApplyTransform(FMat4x4::Identity());
 }
 
-const Subtexture* SpriteSheetRenderer::sub_texture(const char* name,
-                                                   size_t length) {
+const Subtexture* SpriteSheetRenderer::sub_texture(
+    std::string_view name) const {
   const Subtexture* result = nullptr;
-  if (!subtexts_.Lookup(name, length, &result)) return nullptr;
+  if (!subtexts_.Lookup(name, &result)) return nullptr;
   return result;
 }
 

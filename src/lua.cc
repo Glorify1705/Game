@@ -30,18 +30,23 @@ static int PackageLoader(lua_State* state) {
   return 1;
 }
 
+std::string_view GetLuaString(lua_State* state, int index) {
+  size_t len;
+  const char* data = luaL_checklstring(state, index, &len);
+  return std::string_view(data, len);
+}
+
 static const struct luaL_Reg kRendererLib[] = {
     {"draw_sprite",
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
-       size_t length;
-       const char* texture = luaL_checklstring(state, 1, &length);
+       std::string_view texture = GetLuaString(state, 1);
        const float x = luaL_checknumber(state, 2);
        const float y = luaL_checknumber(state, 3);
        float angle = 0;
        if (parameters == 4) angle = luaL_checknumber(state, 4);
        auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
-       if (auto* sub_texture = renderer->sub_texture(texture, length);
+       if (auto* sub_texture = renderer->sub_texture(texture);
            sub_texture != nullptr) {
          renderer->Draw(FVec2(x, y), angle, *sub_texture);
        } else {
@@ -131,29 +136,23 @@ static const struct luaL_Reg kMouseLib[] = {
      }},
     {"is_key_down",
      [](lua_State* state) {
-       size_t len;
-       const char* c = luaL_checklstring(state, 1, &len);
+       std::string_view c = GetLuaString(state, 1);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
-       lua_pushboolean(state,
-                       keyboard->IsDown(keyboard->StrToScancode(c, len)));
+       lua_pushboolean(state, keyboard->IsDown(keyboard->StrToScancode(c)));
        return 1;
      }},
     {"is_key_released",
      [](lua_State* state) {
-       size_t len;
-       const char* c = luaL_checklstring(state, 1, &len);
+       std::string_view c = GetLuaString(state, 1);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
-       lua_pushboolean(state,
-                       keyboard->IsReleased(keyboard->StrToScancode(c, len)));
+       lua_pushboolean(state, keyboard->IsReleased(keyboard->StrToScancode(c)));
        return 1;
      }},
     {"is_key_pressed",
      [](lua_State* state) {
-       size_t len;
-       const char* c = luaL_checklstring(state, 1, &len);
+       std::string_view c = GetLuaString(state, 1);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
-       lua_pushboolean(state,
-                       keyboard->IsPressed(keyboard->StrToScancode(c, len)));
+       lua_pushboolean(state, keyboard->IsPressed(keyboard->StrToScancode(c)));
        return 1;
      }},
     {"mouse_wheel",
@@ -180,32 +179,38 @@ static const struct luaL_Reg kMouseLib[] = {
      }},
     {"is_controller_button_pressed",
      [](lua_State* state) {
-       size_t len;
-       const char* c = luaL_checklstring(state, 1, &len);
+       std::string_view c = GetLuaString(state, 1);
        auto* controllers = Registry<Controllers>::Retrieve(state);
        lua_pushboolean(
-           state, controllers->IsPressed(controllers->StrToButton(c, len),
+           state, controllers->IsPressed(controllers->StrToButton(c),
                                          controllers->active_controller()));
        return 1;
      }},
     {"is_controller_button_down",
      [](lua_State* state) {
-       size_t len;
-       const char* c = luaL_checklstring(state, 1, &len);
+       std::string_view c = GetLuaString(state, 1);
        auto* controllers = Registry<Controllers>::Retrieve(state);
        lua_pushboolean(state,
-                       controllers->IsDown(controllers->StrToButton(c, len),
+                       controllers->IsDown(controllers->StrToButton(c),
                                            controllers->active_controller()));
        return 1;
      }},
     {"is_controller_button_released",
      [](lua_State* state) {
-       size_t len;
-       const char* c = luaL_checklstring(state, 1, &len);
+       std::string_view c = GetLuaString(state, 1);
        auto* controllers = Registry<Controllers>::Retrieve(state);
        lua_pushboolean(
-           state, controllers->IsReleased(controllers->StrToButton(c, len),
+           state, controllers->IsReleased(controllers->StrToButton(c),
                                           controllers->active_controller()));
+       return 1;
+     }},
+    {"get_controller_axis",
+     [](lua_State* state) {
+       std::string_view c = GetLuaString(state, 1);
+       auto* controllers = Registry<Controllers>::Retrieve(state);
+       lua_pushnumber(
+           state, controllers->AxisPositions(controllers->StrToAxisOrTrigger(c),
+                                             controllers->active_controller()));
        return 1;
      }},
     {"is_mouse_down",
@@ -220,12 +225,12 @@ static const struct luaL_Reg kMouseLib[] = {
 static const struct luaL_Reg kSoundLib[] = {
     {"play",
      [](lua_State* state) {
-       const char* name = luaL_checkstring(state, 1);
+       std::string_view name = GetLuaString(state, 1);
        auto* sound = Registry<Sound>::Retrieve(state);
        int repeat = Sound::kLoop;
        const int num_args = lua_gettop(state);
        if (num_args == 2) repeat = luaL_checknumber(state, 2);
-       sound->Play(name, repeat);
+       sound->Play(name.data(), repeat);
        return 0;
      }},
     {"stop",
@@ -250,10 +255,9 @@ static const struct luaL_Reg kSoundLib[] = {
 static const struct luaL_Reg kAssetsLib[] = {
     {"subtexture",
      [](lua_State* state) {
-       size_t len;
-       const char* name = luaL_checklstring(state, 1, &len);
+       std::string_view name = GetLuaString(state, 1);
        auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
-       auto* subtexture = renderer->sub_texture(name, len);
+       auto* subtexture = renderer->sub_texture(name);
        if (subtexture == nullptr) {
          luaL_error(state, "Could not find a subtexture %s", name);
        }
@@ -267,9 +271,8 @@ static const struct luaL_Reg kAssetsLib[] = {
        const Subtexture* ptr = nullptr;
        if (lua_isstring(state, 1)) {
          auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
-         size_t len;
-         const char* name = luaL_checklstring(state, 1, &len);
-         ptr = renderer->sub_texture(name, len);
+         std::string_view name = GetLuaString(state, 1);
+         ptr = renderer->sub_texture(name);
          if (ptr == nullptr) {
            luaL_error(state, "Could not find an image called %s", name);
          }

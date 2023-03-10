@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string_view>
 
 namespace G {
 namespace internal {
@@ -49,6 +50,10 @@ class LookupTable {
     return false;
   }
 
+  bool Lookup(std::string_view key, T* value = nullptr) const {
+    return Lookup(key.data(), key.size(), value);
+  }
+
   template <size_t N>
   bool Lookup(const char (&key)[N], T* value) const {
     return Lookup(key, N - 1, value);
@@ -72,6 +77,10 @@ class LookupTable {
         break;
       }
     }
+  }
+
+  void Insert(std::string_view key, T value) {
+    Insert(key.data(), key.size(), value);
   }
 
  private:

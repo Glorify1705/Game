@@ -5,6 +5,7 @@
 #include <array>
 #include <bitset>
 #include <cstdint>
+#include <string_view>
 
 #include "SDL.h"
 #include "circular_buffer.h"
@@ -26,9 +27,9 @@ class Keyboard {
     return !previous_pressed_[k] && pressed_[k];
   }
 
-  SDL_Scancode StrToScancode(const char* key, size_t length) const {
+  SDL_Scancode StrToScancode(std::string_view key) const {
     SDL_Scancode result;
-    if (!table_.Lookup(key, length, &result)) {
+    if (!table_.Lookup(key, &result)) {
       return SDL_SCANCODE_UNKNOWN;
     }
     return result;
@@ -115,9 +116,9 @@ class Controllers {
     return !controller.previously_pressed[button] && controller.pressed[button];
   }
 
-  SDL_GameControllerButton StrToButton(const char* key, size_t length) const {
+  SDL_GameControllerButton StrToButton(std::string_view key) const {
     SDL_GameControllerButton result;
-    if (!button_table_.Lookup(key, length, &result)) {
+    if (!button_table_.Lookup(key, &result)) {
       return SDL_CONTROLLER_BUTTON_INVALID;
     }
     return result;
@@ -133,10 +134,9 @@ class Controllers {
     return SDL_GameControllerGetAxis(controllers_[controller_id].ptr, axis);
   }
 
-  SDL_GameControllerAxis StrToAxisOrTrigger(const char* key,
-                                            size_t length) const {
+  SDL_GameControllerAxis StrToAxisOrTrigger(std::string_view key) const {
     SDL_GameControllerAxis result;
-    if (!axis_table_.Lookup(key, length, &result)) {
+    if (!axis_table_.Lookup(key, &result)) {
       return SDL_CONTROLLER_AXIS_INVALID;
     }
     return result;
