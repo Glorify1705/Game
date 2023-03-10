@@ -331,6 +331,7 @@ class DebugUi {
       ImGui::EndChild();
       ImGui::TreePop();
     }
+    if (ImGui::Button("Copy")) CopyToClipboard();
     ImGui::End();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -341,6 +342,21 @@ class DebugUi {
   }
 
  private:
+  void CopyToClipboard() {
+    size_t buffer_sz = 0, pos = 0;
+    console_->ForAllLines([this, &buffer_sz](std::string_view line) {
+      buffer_sz += line.size() + 1;
+    });
+    auto* buffer = new char[buffer_sz + 1];
+    console_->ForAllLines([this, &buffer, &pos](std::string_view line) {
+      std::memcpy(&buffer[pos], line.data(), line.size());
+      pos += line.size();
+      buffer[pos++] = '\n';
+    });
+    buffer[pos] = '\0';
+    SDL_SetClipboardText(buffer);
+    delete buffer;
+  }
   void RenderTopWidget() {
     ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
