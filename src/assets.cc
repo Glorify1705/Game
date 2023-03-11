@@ -1,39 +1,40 @@
 #include "assets.h"
 
 namespace G {
+namespace {
 
-const ImageFile* Assets::GetImage(const char* name) const {
-  for (const auto* image : *assets_->images()) {
-    if (!std::strcmp(image->filename()->c_str(), name)) {
-      return image;
-    }
-  }
-  return nullptr;
+bool Match(const flatbuffers::String& a, std::string_view b) {
+  return a.size() == b.size() && !std::memcmp(a.data(), b.data(), a.size());
 }
-const ScriptFile* Assets::GetScript(const char* name) const {
-  for (const auto* script : *assets_->scripts()) {
-    if (!std::strcmp(script->filename()->c_str(), name)) {
-      return script;
-    }
-  }
-  return nullptr;
-}
-const SpritesheetFile* Assets::GetSpritesheet(const char* name) const {
-  for (const auto* spritesheet : *assets_->sprite_sheets()) {
-    if (!std::strcmp(spritesheet->filename()->c_str(), name)) {
-      return spritesheet;
-    }
+
+template <typename T>
+const T* Search(const flatbuffers::Vector<flatbuffers::Offset<T>>& v,
+                std::string_view name) {
+  for (const auto* entry : v) {
+    if (Match(*entry->filename(), name)) return entry;
   }
   return nullptr;
 }
 
-const SoundFile* Assets::GetSound(const char* name) const {
-  for (const auto* sound : *assets_->sounds()) {
-    if (!std::strcmp(sound->filename()->c_str(), name)) {
-      return sound;
-    }
-  }
-  return nullptr;
+}  // namespace
+
+const ImageFile* Assets::GetImage(std::string_view name) const {
+  return Search(*assets_->images(), name);
+}
+
+const ScriptFile* Assets::GetScript(std::string_view name) const {
+  return Search(*assets_->scripts(), name);
+}
+const SpritesheetFile* Assets::GetSpritesheet(std::string_view name) const {
+  return Search(*assets_->sprite_sheets(), name);
+}
+
+const SoundFile* Assets::GetSound(std::string_view name) const {
+  return Search(*assets_->sounds(), name);
+}
+
+const FontFile* Assets::GetFont(std::string_view name) const {
+  return Search(*assets_->fonts(), name);
 }
 
 }  // namespace G

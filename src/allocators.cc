@@ -1,5 +1,4 @@
 #include "allocators.h"
-
 #include "logging.h"
 
 namespace G {

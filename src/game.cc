@@ -15,6 +15,7 @@
 #include "assets.h"
 #include "circular_buffer.h"
 #include "clock.h"
+#include "fonts.h"
 #include "glad.h"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
@@ -84,7 +85,7 @@ static BumpAllocator* GlobalBumpAllocator() {
 
 const uint8_t* ReadAssets(const std::vector<const char*>& arguments) {
   TIMER();
-  const char* output_file = arguments.empty() ? "assets.fbs" : arguments[0];
+  const char* output_file = arguments.empty() ? "assets.zip" : arguments[0];
   constexpr char kAssetFileName[] = "assets.bin";
   zip_error_t zip_error;
   int zip_error_code;
@@ -128,6 +129,7 @@ struct EngineModules {
   Mouse mouse;
   Controllers controllers;
   Sound sound;
+  FontRenderer font_renderer;
   SpriteSheetRenderer sprite_sheet_renderer;
   Lua lua;
   Physics physics;
@@ -139,6 +141,7 @@ struct EngineModules {
         assets(assets_buf_),
         quad_renderer(IVec2(params.screen_width, params.screen_height)),
         sound(&assets),
+        font_renderer(&assets, &quad_renderer),
         sprite_sheet_renderer(&assets, &quad_renderer),
         lua("main.lua", &assets) {
     TIMER();
@@ -146,6 +149,7 @@ struct EngineModules {
     lua.Register(&keyboard);
     lua.Register(&mouse);
     lua.Register(&controllers);
+    lua.Register(&font_renderer);
     lua.Register(&sound);
     lua.Register(&physics);
     lua.Register(&events);

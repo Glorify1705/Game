@@ -108,7 +108,7 @@ void Controllers::InitForFrame() {
 
 void Controllers::PushEvent(const SDL_Event& event) {
   if (event.type == SDL_CONTROLLERDEVICEADDED) {
-    const int i = event.cdevice.which;
+    const size_t i = event.cdevice.which;
     DCHECK(i < controllers_.size());
     if (!open_controllers_[i]) {
       controllers_[i].ptr = SDL_GameControllerOpen(i);
@@ -119,7 +119,7 @@ void Controllers::PushEvent(const SDL_Event& event) {
     }
   }
   if (event.type == SDL_JOYDEVICEREMOVED) {
-    const int i = event.jdevice.which;
+    const size_t i = event.jdevice.which;
     DCHECK(i < controllers_.size());
     if (open_controllers_[i] &&
         event.cdevice.which ==
@@ -131,7 +131,7 @@ void Controllers::PushEvent(const SDL_Event& event) {
     }
   }
   if (event.type == SDL_JOYBUTTONDOWN) {
-    const int i = event.jbutton.which;
+    const size_t i = event.jbutton.which;
     DCHECK(i < controllers_.size());
     DCHECK(open_controllers_[i]);
     DCHECK(event.jbutton.button < controllers_[i].pressed.size());
@@ -139,7 +139,7 @@ void Controllers::PushEvent(const SDL_Event& event) {
     active_controller_ = i;
   }
   if (event.type == SDL_JOYBUTTONUP) {
-    const int i = event.jbutton.which;
+    const size_t i = event.jbutton.which;
     DCHECK(i < controllers_.size());
     DCHECK(event.jbutton.button < controllers_[i].pressed.size());
     controllers_[i].pressed[event.jbutton.button] = true;

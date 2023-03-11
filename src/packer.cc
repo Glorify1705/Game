@@ -84,7 +84,8 @@ class Packer {
         images_(allocator_),
         scripts_(allocator_),
         spritesheets_(allocator_),
-        sounds_(allocator_) {}
+        sounds_(allocator_),
+        fonts_(allocator_) {}
 
   static void Init() {
     SetQoiAlloc(GlobalAllocate, GlobalDeallocate);
@@ -96,11 +97,13 @@ class Packer {
     auto scripts_vec = fbs_.CreateVector(scripts_);
     auto sprite_sheets_vec = fbs_.CreateVector(spritesheets_);
     auto sounds_vec = fbs_.CreateVector(sounds_);
+    auto fonts_vec = fbs_.CreateVector(fonts_);
     AssetsPackBuilder assets(fbs_);
     assets.add_images(image_vec);
     assets.add_scripts(scripts_vec);
     assets.add_sprite_sheets(sprite_sheets_vec);
     assets.add_sounds(sounds_vec);
+    assets.add_fonts(fonts_vec);
     fbs_.Finish(assets.Finish());
     zip_error_t zip_error;
     int zip_error_code;
@@ -176,6 +179,11 @@ class Packer {
                                       fbs_.CreateVector(buf, size)));
   }
 
+  void HandleFont(const char* filename, uint8_t* buf, size_t size) {
+    fonts_.push_back(CreateFontFile(fbs_, fbs_.CreateString(filename),
+                                    fbs_.CreateVector(buf, size)));
+  }
+
  private:
   int64_t start_ms_;
   BumpAllocator* allocator_;
@@ -191,6 +199,8 @@ class Packer {
       spritesheets_;
   WithAllocator<std::vector<flatbuffers::Offset<SoundFile>>, BumpAllocator>
       sounds_;
+  WithAllocator<std::vector<flatbuffers::Offset<FontFile>>, BumpAllocator>
+      fonts_;
 };
 
 struct FileHandler {
@@ -198,10 +208,9 @@ struct FileHandler {
   void (Packer::*method)(const char* filename, uint8_t* buf, size_t size);
 };
 FileHandler kHandlers[] = {
-    {".lua", &Packer::HandleScript},
-    {".qoi", &Packer::HandleImage},
-    {".xml", &Packer::HandleSpritesheet},
-    {".ogg", &Packer::HandleOggSound},
+    {".lua", &Packer::HandleScript},      {".qoi", &Packer::HandleImage},
+    {".xml", &Packer::HandleSpritesheet}, {".ogg", &Packer::HandleOggSound},
+    {".ttf", &Packer::HandleFont},
 };
 
 }  // namespace

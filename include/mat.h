@@ -162,12 +162,12 @@ struct FMat2x2 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const FMat2x2& m, std::string& sink) {
     sink.append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
       sink.append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, v[row * kDimension + col]);
+        StrAppend(&sink, m.v[row * kDimension + col]);
         if (col + 1 < kDimension) sink.append(", ");
       }
       sink.append(" }");
@@ -329,12 +329,12 @@ struct FMat3x3 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const FMat3x3& m, std::string& sink) {
     sink.append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
       sink.append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, v[row * kDimension + col]);
+        StrAppend(&sink, m.v[row * kDimension + col]);
         if (col + 1 < kDimension) sink.append(", ");
       }
       sink.append(" }");
@@ -496,12 +496,12 @@ struct FMat4x4 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const FMat4x4& m, std::string& sink) {
     sink.append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
       sink.append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, v[row * kDimension + col]);
+        StrAppend(&sink, m.v[row * kDimension + col]);
         if (col + 1 < kDimension) sink.append(", ");
       }
       sink.append(" }");

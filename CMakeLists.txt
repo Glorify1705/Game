@@ -8,7 +8,7 @@ set(SDL2_DIR
 set(SDL2_mixer_DIR  
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/SDL2_mixer/cmake")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb -Wall -Wextra -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb -Wall -Wextra -Werror -Wno-sign-compare")
 
 project(Game 
     VERSION 0.1 
@@ -44,7 +44,7 @@ add_custom_command(
         OUTPUT assets_generated.h
         COMMAND flatc -o ${CMAKE_CURRENT_BINARY_DIR} --cpp-std c++17 --cpp-static-reflection --cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/assets.fbs
-        DEPENDS flatc)
+        DEPENDS flatc src/assets.fbs)
 
 set(GAME_SRCS
     src/logging.cc 
@@ -60,15 +60,18 @@ set(GAME_SRCS
     src/imgui_tables.cc
     src/imgui.cc
     src/imgui_widgets.cc
+    src/fonts.cc
     src/lua.cc
     src/controller_db.cc
     src/physics.cc
     src/qoi.cc
     src/renderer.cc
     src/shaders.cc
+    src/stb_rect_pack.cc
     src/sound.cc
     src/stats.cc
     src/stb_truetype.cc
+    src/stb_rect_pack.cc
     src/strings.cc
     src/transformations.cc
     ${CMAKE_CURRENT_BINARY_DIR}/assets_generated.h)
@@ -92,6 +95,7 @@ set(ASSETS
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/sheet.qoi
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/vector2d.lua
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/sheet.xml
+    ${CMAKE_CURRENT_SOURCE_DIR}/assets/terminus.ttf
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/music.ogg)
 
 add_executable(Game "${GAME_SRCS}")

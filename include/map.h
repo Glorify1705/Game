@@ -37,12 +37,13 @@ class LookupTable {
  public:
   LookupTable() { std::fill(key_lengths_.begin(), key_lengths_.end(), 0); }
 
-  bool Lookup(const char* key, size_t length, T* value = nullptr) const {
-    const uint64_t h = internal::Hash(key, length);
+  bool Lookup(std::string_view key, T* value = nullptr) const {
+    const uint64_t h = internal::Hash(key.data(), key.size());
     for (int32_t i = h;;) {
       i = internal::MSIProbe(h, kTableSize, i);
       if (key_lengths_[i] == 0) break;
-      if (key_lengths_[i] == length && !std::memcmp(keys_[i], key, length)) {
+      if (key_lengths_[i] == key.size() &&
+          !std::memcmp(keys_[i], key.data(), key.size())) {
         if (value) *value = values_[i];
         return true;
       }
@@ -50,41 +51,29 @@ class LookupTable {
     return false;
   }
 
-  bool Lookup(std::string_view key, T* value = nullptr) const {
-    return Lookup(key.data(), key.size(), value);
-  }
-
-  template <size_t N>
-  bool Lookup(const char (&key)[N], T* value) const {
-    return Lookup(key, N - 1, value);
-  }
-
-  template <size_t N>
-  void Insert(const char (&key)[N], T value) {
-    Insert(key, N - 1, value);
-  }
-
-  void Insert(const char* key, size_t length, T value) {
-    const uint64_t h = internal::Hash(key, length);
+  void Insert(std::string_view key, T value) {
+    const uint64_t h = internal::Hash(key.data(), key.size());
     for (int32_t i = h;;) {
       i = internal::MSIProbe(h, kTableSize, i);
       if (key_lengths_[i] == 0) {
         DCHECK(elements_ < keys_.size());
+        DCHECK(pos_ + key.size() < kTotalSize);
+        std::memcpy(&strbufs_[pos_], key.data(), key.size());
+        keys_[i] = &strbufs_[pos_];
+        pos_ += key.size();
         values_[i] = std::move(value);
-        keys_[i] = key;
-        key_lengths_[i] = length;
+        key_lengths_[i] = key.size();
         elements_++;
         break;
       }
     }
   }
 
-  void Insert(std::string_view key, T value) {
-    Insert(key.data(), key.size(), value);
-  }
-
  private:
   inline static constexpr size_t kTableSize = 15;
+  inline static constexpr size_t kTotalSize = 1 << 20;
+  char strbufs_[kTotalSize];
+  size_t pos_ = 0;
   std::array<const char*, 1 << kTableSize> keys_;
   std::array<size_t, 1 << kTableSize> key_lengths_;
   std::array<T, 1 << kTableSize> values_;

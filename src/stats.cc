@@ -1,10 +1,9 @@
-#include "stats.h"
-
 #include <cmath>
 #include <cstdlib>
 #include <limits>
 
 #include "logging.h"
+#include "stats.h"
 
 namespace G {
 
@@ -39,17 +38,21 @@ double Stats::Percentile(double percentile) const {
   return kMax;
 }
 
-void Stats::AppendToString(std::string& str) const {
-  char buf[128] = {0};
+void Stats::AppendToString(char* buf, size_t len) const {
   if (samples_ > 1) {
     int written =
-        snprintf(buf, sizeof(buf),
+        snprintf(buf, len,
                  "min = %.2lf, max = %.2lf, avg = %.2lf, stdev = "
                  "%.2lf, p50 = %.2f, p90 = %.2f, p99 = %.2f FPS = %.2f",
                  min_, max_, avg_, std::sqrt(stdev_), Percentile(50),
                  Percentile(90), Percentile(99), 1000.0 / avg_);
     CHECK(written >= 0 && written < 128, "wrote ", written, " to buffer");
   }
+}
+
+void AppendToString(const Stats& stats, std::string& str) {
+  char buf[128] = {0};
+  stats.AppendToString(buf, sizeof(buf));
   str.append(buf);
 }
 

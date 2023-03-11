@@ -1,4 +1,5 @@
 #include "clock.h"
+#include "fonts.h"
 #include "input.h"
 #include "lua_setup.h"
 #include "physics.h"
@@ -11,7 +12,7 @@ namespace {
 static int PackageLoader(lua_State* state) {
   const char* modname = luaL_checkstring(state, 1);
   StringBuffer<127> buf(modname, ".lua");
-  const auto* asset = Registry<Assets>::Retrieve(state)->GetScript(buf);
+  const auto* asset = Registry<Assets>::Retrieve(state)->GetScript(buf.piece());
   LOG("Loading package ", modname, " from file ", buf);
   if (asset == nullptr) {
     luaL_error(state, "Could not find asset %s.lua", modname);
@@ -52,6 +53,15 @@ static const struct luaL_Reg kRendererLib[] = {
        } else {
          luaL_error(state, "unknown texture %s", texture);
        }
+       return 0;
+     }},
+    {"draw_text",
+     [](lua_State* state) {
+       auto* renderer = Registry<FontRenderer>::Retrieve(state);
+       std::string_view text = GetLuaString(state, 1);
+       const float x = luaL_checknumber(state, 2);
+       const float y = luaL_checknumber(state, 3);
+       renderer->DrawText("terminus.ttf", 32, text, FVec2(x, y));
        return 0;
      }},
     {"viewport",

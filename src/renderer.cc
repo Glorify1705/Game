@@ -194,9 +194,9 @@ SpriteSheetRenderer::SpriteSheetRenderer(Assets* assets, QuadRenderer* renderer)
   for (size_t i = 0; i < assets->spritesheets(); ++i) {
     auto* sheet = assets->GetSpritesheetByIndex(i);
     for (const auto* texture : *sheet->sub_texture()) {
-      const char* spritesheet = texture->spritesheet()->c_str();
-      size_t len = texture->spritesheet()->size();
-      if (!sheet_info_.Lookup(spritesheet, len)) {
+      std::string_view spritesheet(texture->spritesheet()->c_str(),
+                                   texture->spritesheet()->size());
+      if (!sheet_info_.Lookup(spritesheet)) {
         const char* image_name = sheet->image_name()->c_str();
         auto* image = assets->GetImage(image_name);
         CHECK(image != nullptr, "Unknown image ", image_name,
@@ -204,10 +204,12 @@ SpriteSheetRenderer::SpriteSheetRenderer(Assets* assets, QuadRenderer* renderer)
         Sheet info = {.texture = renderer->LoadTexture(*image),
                       .width = image->width(),
                       .height = image->height()};
-        sheet_info_.Insert(spritesheet, len, info);
+        LOG("Loaded spritesheet ", spritesheet);
+        sheet_info_.Insert(spritesheet, info);
       }
-      subtexts_.Insert(texture->name()->c_str(), texture->name()->size(),
-                       texture);
+      std::string_view subtexture_name(texture->name()->c_str(),
+                                       texture->name()->size());
+      subtexts_.Insert(subtexture_name, texture);
     }
   }
 }
@@ -241,8 +243,10 @@ void SpriteSheetRenderer::SetColor(FVec4 color) {
 void SpriteSheetRenderer::Draw(FVec2 position, float angle,
                                const Subtexture& texture) {
   if (texture_current_ != &texture) {
-    CHECK(sheet_info_.Lookup(texture.spritesheet()->c_str(),
-                             texture.spritesheet()->size(), &current_));
+    std::string_view spritesheet(texture.spritesheet()->c_str(),
+                                 texture.spritesheet()->size());
+    CHECK(sheet_info_.Lookup(spritesheet, &current_),
+          "could not find texture [", spritesheet, "]");
     renderer_->SetActiveTexture(current_.texture);
     texture_current_ = &texture;
   }

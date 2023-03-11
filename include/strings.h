@@ -5,9 +5,19 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <type_traits>
 
 namespace G {
 namespace internal_strings {
+
+template <typename T, typename = void>
+struct HasAppendString : public std::false_type {};
+
+template <typename T>
+struct HasAppendString<
+    T, std::enable_if_t<std::is_void_v<decltype(AppendToString(
+           std::declval<const T&>(), std::declval<std::string&>()))>>>
+    : public std::true_type {};
 
 class Alphanumeric {
  public:
@@ -51,9 +61,10 @@ class Alphanumeric {
   Alphanumeric(const std::string& c) : piece_(c) {}
   Alphanumeric(std::string_view c) : piece_(c) {}
 
-  template <typename T, typename = std::void_t<decltype(&T::AppendToString)>>
+  template <typename T,
+            typename = typename std::enable_if_t<HasAppendString<T>::value>>
   Alphanumeric(const T& t, std::string&& output = {}) {
-    t.AppendToString(output);
+    AppendToString(t, output);
     piece_ = std::string_view(output);
   }
 

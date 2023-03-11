@@ -19,9 +19,6 @@ function Update(t, dt)
     if G.input.is_key_pressed('q') then
         G.quit()
     end
-    if G.input.is_controller_button_pressed('x') then
-        print("Pressed a button")
-    end
     player:update(t)
 end
 
@@ -32,4 +29,5 @@ function Render()
     player:render()
     local mx, my = G.input.mouse_position()
     G.renderer.draw_sprite("numeralX", mx, my)
+    G.renderer.draw_text("Hello world!", 200, 200)
 end

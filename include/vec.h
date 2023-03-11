@@ -147,9 +147,9 @@ struct FVec2 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const FVec2& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %.3f, %.3f }", x, y);
+    size_t len = snprintf(buf, sizeof(buf), "{ %.3f, %.3f }", v.x, v.y);
     sink.append(buf, len);
   }
 
@@ -319,9 +319,10 @@ struct FVec3 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const FVec3& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f }", x, y, z);
+    size_t len =
+        snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f }", v.x, v.y, v.z);
     sink.append(buf, len);
   }
 
@@ -505,10 +506,10 @@ struct FVec4 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const FVec4& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len =
-        snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f, %.3f }", x, y, z, w);
+    size_t len = snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f, %.3f }", v.x,
+                          v.y, v.z, v.w);
     sink.append(buf, len);
   }
 
@@ -656,9 +657,9 @@ struct DVec2 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const DVec2& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf }", x, y);
+    size_t len = snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf }", v.x, v.y);
     sink.append(buf, len);
   }
 
@@ -828,9 +829,10 @@ struct DVec3 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const DVec3& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf }", x, y, z);
+    size_t len =
+        snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf }", v.x, v.y, v.z);
     sink.append(buf, len);
   }
 
@@ -1014,10 +1016,10 @@ struct DVec4 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const DVec4& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf, %.3lf }", x,
-                          y, z, w);
+    size_t len = snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf, %.3lf }",
+                          v.x, v.y, v.z, v.w);
     sink.append(buf, len);
   }
 
@@ -1162,9 +1164,9 @@ struct IVec2 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const IVec2& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %d, %d }", x, y);
+    size_t len = snprintf(buf, sizeof(buf), "{ %d, %d }", v.x, v.y);
     sink.append(buf, len);
   }
 
@@ -1331,9 +1333,9 @@ struct IVec3 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const IVec3& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %d, %d, %d }", x, y, z);
+    size_t len = snprintf(buf, sizeof(buf), "{ %d, %d, %d }", v.x, v.y, v.z);
     sink.append(buf, len);
   }
 
@@ -1514,9 +1516,10 @@ struct IVec4 {
     return os << " }";
   }
 
-  void AppendToString(std::string& sink) const {
+  friend void AppendToString(const IVec4& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %d, %d, %d, %d }", x, y, z, w);
+    size_t len =
+        snprintf(buf, sizeof(buf), "{ %d, %d, %d, %d }", v.x, v.y, v.z, v.w);
     sink.append(buf, len);
   }
 

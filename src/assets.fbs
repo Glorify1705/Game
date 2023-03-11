@@ -36,11 +36,17 @@ table SoundFile {
     contents: [uint8];
 }
 
+table FontFile {
+    filename: string;
+    contents: [uint8];
+}
+
 table AssetsPack {
     images: [ImageFile];
     sprite_sheets: [SpritesheetFile];
     scripts: [ScriptFile];
     sounds: [SoundFile];
+    fonts: [FontFile];
 }
 
 root_type AssetsPack;
