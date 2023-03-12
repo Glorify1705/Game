@@ -15,12 +15,20 @@ function Physics:angle()
     return G.physics.angle(self.handle)
 end
 
-function Physics:move(x, y)
-    G.physics.apply_linear_velocity(self.handle, x, y)
+function Physics:apply_linear_impulse(x, y)
+    G.physics.apply_linear_impulse(self.handle, x, y)
+end
+
+function Physics:apply_force(x, y)
+    G.physics.apply_force(self.handle, x, y)
 end
 
 function Physics:rotate(angle)
     G.physics.rotate(self.handle, angle)
+end
+
+function Physics:apply_torque(angle)
+    G.physics.apply_torque(self.handle, angle)
 end
 
 return Physics

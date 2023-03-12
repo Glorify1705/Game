@@ -1,6 +1,5 @@
-#include "physics.h"
-
 #include "mat.h"
+#include "physics.h"
 #include "transformations.h"
 
 namespace G {
@@ -40,7 +39,17 @@ void Physics::Rotate(Handle handle, float angle) {
   body->SetTransform(body->GetPosition(), body->GetAngle() + angle);
 }
 
-void Physics::ApplyLinearVelocity(Handle handle, FVec2 v) {
+void Physics::ApplyTorque(Handle handle, float torque) {
+  auto* body = handle.handle;
+  body->ApplyTorque(torque, /*wake=*/true);
+}
+
+void Physics::ApplyForce(Handle handle, FVec2 v) {
+  auto* body = handle.handle;
+  body->ApplyForceToCenter(To(v), /*wake=*/true);
+}
+
+void Physics::ApplyLinearImpulse(Handle handle, FVec2 v) {
   auto* body = handle.handle;
   body->ApplyLinearImpulse(To(v), body->GetWorldCenter(), /*wake=*/true);
 }

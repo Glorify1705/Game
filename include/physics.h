@@ -27,9 +27,13 @@ class Physics final : public b2ContactListener {
 
   Handle AddBox(FVec2 top_left, FVec2 top_right, float angle);
 
-  void ApplyLinearVelocity(Handle handle, FVec2 v);
+  void ApplyLinearImpulse(Handle handle, FVec2 v);
 
   void Rotate(Handle handle, float angle);
+
+  void ApplyTorque(Handle handle, float torque);
+
+  void ApplyForce(Handle handle, FVec2 v);
 
   FVec2 GetPosition(Handle handle) const;
 

@@ -13,7 +13,7 @@ Status = {
 ACCELERATION = 1200.00
 MAX_SPEED = 90000;
 MIN_DISTANCE = 2000.0
-ANGLE_DELTA = 0.1
+ANGLE_DELTA = 0.3
 
 Player = Object:extend()
 
@@ -39,7 +39,7 @@ function Player:update(dt)
     if G.input.is_key_down('d') then
         self.physics:rotate(ANGLE_DELTA)
     elseif G.input.is_key_down('a') then
-        self.physics:rotate( -ANGLE_DELTA)
+        self.physics:rotate(-ANGLE_DELTA)
     end
 
     if self.status == Status.ACCELERATING then
@@ -57,7 +57,7 @@ function Player:update(dt)
     end
 
     local a = math.pi - self.physics:angle()
-    self.physics:move(math.sin(a) * self.speed, math.cos(a) * self.speed)
+    self.physics:apply_force(math.sin(a) * self.speed, math.cos(a) * self.speed)
 end
 
 function Player:render()
@@ -70,11 +70,11 @@ function Player:center_camera()
     local vx, vy = G.renderer.viewport()
     local x, y = G.physics.position(self.physics)
     local angle = G.physics.angle(self.physics)
-    G.renderer.translate( -x, -y)
+    G.renderer.translate(-x, -y)
     local mx, my = G.input.mouse_wheel()
     local factor = 0.4 + my * 0.9;
     G.renderer.scale(factor, factor)
-    G.renderer.rotate( -angle)
+    G.renderer.rotate(-angle)
     G.renderer.translate(x, y)
     G.renderer.translate(vx / 2 - x, vy / 2 - y)
 end
