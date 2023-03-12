@@ -8,7 +8,7 @@ set(SDL2_DIR
 set(SDL2_mixer_DIR  
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/SDL2_mixer/cmake")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb -Wall -Wextra -Werror -Wno-sign-compare")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DGAME_WITH_ASSERTS -ggdb -Wall -Wextra -Werror -Wno-sign-compare")
 
 project(Game 
     VERSION 0.1 
