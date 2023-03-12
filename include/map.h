@@ -53,7 +53,7 @@ class LookupTable {
     return false;
   }
 
-  void Insert(std::string_view key, T value) {
+  std::string_view Insert(std::string_view key, T value) {
     const uint64_t h = internal::Hash(key.data(), key.size());
     for (int32_t i = h;;) {
       i = internal::MSIProbe(h, kLogTableSize, i);
@@ -67,9 +67,10 @@ class LookupTable {
         values_[i] = std::move(value);
         key_lengths_[i] = key.size();
         elements_++;
-        break;
+        return std::string_view(keys_[i], key_lengths_[i]);
       }
     }
+    DIE("OOM");
   }
 
  private:

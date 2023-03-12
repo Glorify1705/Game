@@ -1,4 +1,5 @@
 #include "clock.h"
+#include "console.h"
 #include "fonts.h"
 #include "input.h"
 #include "lua_setup.h"
@@ -114,11 +115,12 @@ int LuaLogPrint(lua_State* state) {
     lua_pushvalue(state, -1);
     lua_pushvalue(state, i + 1);
     lua_call(state, 1, 1);
-    const char* s = lua_tostring(state, -1);
+    size_t length;
+    const char* s = lua_tolstring(state, -1, &length);
     if (s == nullptr) {
       return luaL_error(state, "'tostring' did not return string");
     }
-    buffer.Append(s);
+    buffer.Append(std::string_view(s, length));
     if (i + 1 < num_args) buffer.Append(" ");
     lua_pop(state, 1);
   }
@@ -133,8 +135,25 @@ int LuaLogPrint(lua_State* state) {
   return 0;
 }
 
-static const struct luaL_Reg kConsoleLib[] = {{"log", LuaLogPrint},
-                                              {nullptr, nullptr}};
+static const struct luaL_Reg kConsoleLib[] = {
+    {"log", LuaLogPrint},
+    {"watch",
+     [](lua_State* state) {
+       auto* console = Registry<DebugConsole>::Retrieve(state);
+       lua_getglobal(state, "tostring");
+       const std::string_view key = GetLuaString(state, 1);
+       lua_pushvalue(state, -1);
+       lua_pushvalue(state, 2);
+       lua_call(state, 1, 1);
+       size_t length;
+       const char* s = lua_tolstring(state, -1, &length);
+       if (s == nullptr) {
+         return luaL_error(state, "'tostring' did not return string");
+       }
+       console->AddWatcher(key, std::string_view(s, length));
+       return 0;
+     }},
+    {nullptr, nullptr}};
 
 static const struct luaL_Reg kMouseLib[] = {
     {"mouse_position",

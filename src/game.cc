@@ -274,8 +274,6 @@ class DebugUi {
 
   void Toggle() { show_ = !show_; }
 
-  void InitForFrame();
-
   void Render() {
     if (!show_) return;
     ImGui_ImplOpenGL3_NewFrame();
@@ -342,8 +340,17 @@ class DebugUi {
     ImGui::SetNextWindowBgAlpha(0.35f);
     ImGui::Begin("Frame Stats", nullptr, window_flags);
     ImGui::TextUnformatted(StrCat("Frame Stats: ", *stats_).c_str());
-    ImGui::TextUnformatted(
-        StrCat("Mouse Position: ", modules_->mouse.GetPosition()).c_str());
+    if (ImGui::BeginTable("Watchers", 2)) {
+      console_->ForAllWatchers(
+          [this](std::string_view key, std::string_view value) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(key.data(), key.end());
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(value.data(), value.end());
+          });
+      ImGui::EndTable();
+    }
     ImGui::End();
   }
 
@@ -383,6 +390,7 @@ class Game {
     e_ = std::make_unique<EngineModules>(arguments_, params_);
     debug_ui_ = std::make_unique<DebugUi>(window_, context_, &debug_console_,
                                           &stats_, e_.get());
+    e_->lua.Register(&debug_console_);
     e_->lua.Init();
   }
 
@@ -427,6 +435,8 @@ class Game {
     e_->events.Fire(dt);
     e_->physics.Update(dt);
     e_->lua.Update(t, dt);
+    debug_console_.AddWatcher("Mouse Position ",
+                              StrCat(e_->mouse.GetPosition()).c_str());
   }
 
   void Render() {
@@ -447,9 +457,11 @@ class Game {
 };
 
 void GameMain(int argc, const char* argv[]) {
-  Game g(argc, argv);
-  g.Init();
-  g.Run();
+  // Ensure we don't overflow the stack in any module by allocating Game on the
+  // heap.
+  auto g = std::make_unique<Game>(argc, argv);
+  g->Init();
+  g->Run();
 }
 
 }  // namespace G

@@ -52,7 +52,11 @@ function Vec2:normalized()
 end
 
 function Vec2:normal()
-    return Vec2( -self.y, self.x)
+    return Vec2(-self.y, self.x)
+end
+
+function Vec2:__tostring()
+    return string.format("{ x = %f, y = %f }", self.x, self.y)
 end
 
 return Vec2

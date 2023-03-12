@@ -7,6 +7,8 @@
 
 #include "SDL.h"
 #include "allocators.h"
+#include "circular_buffer.h"
+#include "map.h"
 #include "strings.h"
 
 namespace G {
@@ -33,6 +35,27 @@ class DebugConsole {
     }
   }
 
+  void AddWatcher(std::string_view key, std::string_view value) {
+    if (Linebuffer * buffer; watcher_values_.Lookup(key, &buffer)) {
+      CopyToBuffer(value, buffer);
+      return;
+    }
+    auto* buffer = buffers_->AllocArray<Linebuffer>(1);
+    CopyToBuffer(value, buffer);
+    auto inserted_key = watcher_values_.Insert(key, buffer);
+    watcher_keys_.Push(inserted_key);
+  }
+
+  template <typename Fn>
+  void ForAllWatchers(Fn&& fn) {
+    for (size_t i = 0; i < watcher_keys_.size(); ++i) {
+      const auto& key = watcher_keys_[i];
+      if (Linebuffer * val; watcher_values_.Lookup(key, &val)) {
+        fn(key, std::string_view(val->chars, val->len));
+      }
+    }
+  }
+
  private:
   inline static constexpr size_t kMaxLines = 1024;
 
@@ -54,6 +77,12 @@ class DebugConsole {
     static_cast<DebugConsole*>(userdata)->Log(category, priority, message);
   }
 
+  void CopyToBuffer(std::string_view text, Linebuffer* buffer) {
+    const size_t length = std::min(kMaxLogLineLength, text.size());
+    std::memcpy(buffer->chars, text.data(), length);
+    buffer->len = length;
+  }
+
   void LogLine(std::string_view text) {
     Linebuffer* buffer = nullptr;
     if (lines_.full()) {
@@ -61,16 +90,19 @@ class DebugConsole {
     } else {
       buffer = buffers_->AllocArray<Linebuffer>(1);
     }
-    const size_t length = std::min(kMaxLogLineLength, text.size());
-    std::memcpy(buffer->chars, text.data(), length);
-    buffer->len = length;
+    CopyToBuffer(text, buffer);
     lines_.Push(buffer);
   }
 
-  FixedArena<kMaxLines * sizeof(Linebuffer), BumpAllocator> buffers_;
+  FixedArena<2 * kMaxLines * sizeof(Linebuffer), BumpAllocator> buffers_;
   FixedCircularBuffer<Linebuffer*, kMaxLines> lines_;
   SDL_LogOutputFunction log_fn_;
   void* log_fn_userdata_;
+
+  inline static constexpr size_t kMaxWatchers = 128;
+
+  FixedArray<std::string_view, kMaxWatchers> watcher_keys_;
+  LookupTable<Linebuffer*> watcher_values_;
 };
 
 }  // namespace G

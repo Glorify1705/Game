@@ -58,6 +58,9 @@ function Player:update(dt)
 
     local a = math.pi - self.physics:angle()
     self.physics:apply_force(math.sin(a) * self.speed, math.cos(a) * self.speed)
+
+    G.console.watch("Player Position", self.physics:position())
+    G.console.watch("Player Angle", self.physics:angle())
 end
 
 function Player:render()
