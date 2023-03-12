@@ -15,6 +15,7 @@
 #include "assets.h"
 #include "circular_buffer.h"
 #include "clock.h"
+#include "console.h"
 #include "fonts.h"
 #include "glad.h"
 #include "imgui.h"
@@ -253,53 +254,6 @@ SDL_GLContext CreateOpenglContext(SDL_Window* window) {
   return context;
 }
 
-class DebugConsole {
- public:
-  DebugConsole() {
-    SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
-    SDL_LogSetOutputFunction(LogWithConsole, this);
-  }
-  ~DebugConsole() { SDL_LogSetOutputFunction(log_fn_, log_fn_userdata_); }
-
-  template <typename... Ts>
-  void Log(Ts... ts) {
-    StringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
-    LogLine(buf.piece());
-  }
-
-  template <typename Fn>
-  void ForAllLines(Fn&& fn) {
-    for (std::string_view line : lines_) fn(line);
-  }
-
- private:
-  inline static constexpr const char* kPriorities[SDL_NUM_LOG_PRIORITIES] = {
-      NULL, "VERBOSE", "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"};
-
-  void Log(int category, SDL_LogPriority priority, const char* message) {
-    log_fn_(log_fn_userdata_, category, priority, message);
-    Log(kPriorities[priority], " ", message);
-  }
-
-  static void LogWithConsole(void* userdata, int category,
-                             SDL_LogPriority priority, const char* message) {
-    static_cast<DebugConsole*>(userdata)->Log(category, priority, message);
-  }
-
-  inline static constexpr size_t kMaxLines = 128;
-
-  void LogLine(std::string_view text) {
-    lines_.push_back(std::string(text));
-    if (lines_.size() > kMaxLines) {
-      lines_.pop_front();
-    }
-  }
-
-  std::deque<std::string> lines_;
-  SDL_LogOutputFunction log_fn_;
-  void* log_fn_userdata_;
-};
-
 class DebugUi {
  public:
   DebugUi(SDL_Window* window, SDL_GLContext context, DebugConsole* console,
@@ -319,6 +273,8 @@ class DebugUi {
   }
 
   void Toggle() { show_ = !show_; }
+
+  void InitForFrame();
 
   void Render() {
     if (!show_) return;
@@ -394,6 +350,8 @@ class DebugUi {
   DebugConsole* console_;
   Stats* stats_;
   EngineModules* modules_;
+  char expressions_[1 << 20];
+  LookupTable<const char*> expression_table_;
   bool show_ = false;
   int frame_stats_location_ = 1;
 };

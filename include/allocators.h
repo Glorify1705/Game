@@ -2,6 +2,8 @@
 #ifndef _GAME_ALLOCATORS_H
 #define _GAME_ALLOCATORS_H
 
+#include <array>
+#include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -11,9 +13,16 @@
 
 namespace G {
 
+inline static size_t Align(size_t n, size_t m) {
+  return (n + m - 1) & ~(m - 1);
+};
+
 class BumpAllocator {
  public:
   explicit BumpAllocator(size_t size);
+
+  explicit BumpAllocator(const void* ptr, size_t size)
+      : ptr_(reinterpret_cast<uintptr_t>(ptr)), pos_(ptr_), end_(ptr_ + size) {}
 
   void* Alloc(size_t size, size_t align);
   template <typename T>
@@ -23,17 +32,52 @@ class BumpAllocator {
 
   void Dealloc(void* /*ptr*/, size_t /*size*/) {}
 
+  void Reset() { pos_ = ptr_; }
+
   size_t used() const { return pos_ - ptr_; }
   size_t total() const { return end_ - ptr_; }
 
  private:
-  inline static size_t Align(size_t n, size_t m) {
-    return (n + m - 1) & ~(m - 1);
-  };
-
   uintptr_t ptr_ = 0;
   uintptr_t pos_ = 0;
   uintptr_t end_ = 0;
+};
+
+template <size_t N, typename Allocator>
+class FixedArena {
+ public:
+  FixedArena() : allocator_(arena_.data(), arena_.size()){};
+  Allocator* operator->() { return &allocator_; }
+
+ private:
+  std::array<uint8_t, N> arena_;
+  Allocator allocator_;
+};
+
+template <size_t unit_size, size_t units>
+class BitmapAllocator {
+ public:
+  explicit BitmapAllocator(const void* memory, size_t size)
+      : ptr_(reinterpret_cast<uintptr_t>(memory)) {}
+
+  void* Alloc(size_t size, size_t align) {
+    DCHECK(size == unit_size && align == align);
+    for (size_t i = 0; i < used_.size(); ++i) {
+      if (!used_[i]) {
+        used_[i] = true;
+        return ptr_ + unit_size * i;
+      }
+    }
+    return nullptr;
+  }
+
+  void Dealloc(void* ptr, size_t /*size*/) {
+    used_[(reinterpret_cast<uint8_t>(ptr) - ptr_) / unit_size] = false;
+  }
+
+ private:
+  std::bitset<units> used_;
+  uintptr_t ptr_;
 };
 
 template <class T, class Allocator>

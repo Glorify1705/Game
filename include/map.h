@@ -9,6 +9,8 @@
 #include <cstring>
 #include <string_view>
 
+#include "allocators.h"
+
 namespace G {
 namespace internal {
 // MSI probe and hash from https://nullprogram.com/blog/2022/08/08/.
@@ -40,7 +42,7 @@ class LookupTable {
   bool Lookup(std::string_view key, T* value = nullptr) const {
     const uint64_t h = internal::Hash(key.data(), key.size());
     for (int32_t i = h;;) {
-      i = internal::MSIProbe(h, kTableSize, i);
+      i = internal::MSIProbe(h, kLogTableSize, i);
       if (key_lengths_[i] == 0) break;
       if (key_lengths_[i] == key.size() &&
           !std::memcmp(keys_[i], key.data(), key.size())) {
@@ -54,12 +56,13 @@ class LookupTable {
   void Insert(std::string_view key, T value) {
     const uint64_t h = internal::Hash(key.data(), key.size());
     for (int32_t i = h;;) {
-      i = internal::MSIProbe(h, kTableSize, i);
+      i = internal::MSIProbe(h, kLogTableSize, i);
       if (key_lengths_[i] == 0) {
         DCHECK(elements_ < keys_.size());
-        DCHECK(pos_ + key.size() < kTotalSize);
-        std::memcpy(&strbufs_[pos_], key.data(), key.size());
-        keys_[i] = &strbufs_[pos_];
+        DCHECK(pos_ + key.size() < kKeysSize);
+        auto* str = strbufs_->AllocArray<char>(key.size());
+        std::memcpy(str, key.data(), key.size());
+        keys_[i] = str;
         pos_ += key.size();
         values_[i] = std::move(value);
         key_lengths_[i] = key.size();
@@ -70,13 +73,13 @@ class LookupTable {
   }
 
  private:
-  inline static constexpr size_t kTableSize = 15;
-  inline static constexpr size_t kTotalSize = 1 << 20;
-  char strbufs_[kTotalSize];
+  inline static constexpr size_t kLogTableSize = 15;
+  inline static constexpr size_t kKeysSize = 1 << 20;
+  FixedArena<kKeysSize, BumpAllocator> strbufs_;
   size_t pos_ = 0;
-  std::array<const char*, 1 << kTableSize> keys_;
-  std::array<size_t, 1 << kTableSize> key_lengths_;
-  std::array<T, 1 << kTableSize> values_;
+  std::array<const char*, 1 << kLogTableSize> keys_;
+  std::array<size_t, 1 << kLogTableSize> key_lengths_;
+  std::array<T, 1 << kLogTableSize> values_;
   size_t elements_ = 0;
 };
 
