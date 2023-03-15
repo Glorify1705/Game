@@ -2,7 +2,7 @@
 #include "console.h"
 #include "fonts.h"
 #include "input.h"
-#include "lua_setup.h"
+#include "lua.h"
 #include "physics.h"
 #include "renderer.h"
 #include "sound.h"

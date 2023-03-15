@@ -23,7 +23,7 @@
 #include "imgui_impl_sdl2.h"
 #include "input.h"
 #include "logging.h"
-#include "lua_setup.h"
+#include "lua.h"
 #include "mat.h"
 #include "math.h"
 #include "physics.h"
