@@ -417,7 +417,10 @@ class Game {
         ImGui_ImplSDL2_ProcessEvent(&event);
         e_->HandleEvent(event);
         if (event.type == SDL_KEYDOWN) {
-          if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) debug_ui_->Toggle();
+          if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
+            e_->quad_renderer.ToggleDebugRender();
+            debug_ui_->Toggle();
+          }
         }
       }
       while (accum >= kStep) {

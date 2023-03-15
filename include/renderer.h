@@ -62,6 +62,8 @@ class QuadRenderer {
 
   void Render();
 
+  void ToggleDebugRender() { debug_render_ = !debug_render_; }
+
  private:
   struct VertexData {
     FVec2 position;
@@ -110,6 +112,7 @@ class QuadRenderer {
   GLuint ebo_, vao_, vbo_;
   GLuint unit_ = 0;
   IVec2 viewport_;
+  bool debug_render_ = false;
 };
 
 class SpriteSheetRenderer {

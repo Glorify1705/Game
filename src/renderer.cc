@@ -186,6 +186,22 @@ void QuadRenderer::Render() {
     glDrawElementsInstanced(GL_TRIANGLES, batch.indices_count, GL_UNSIGNED_INT,
                             reinterpret_cast<void*>(indices_start), 1);
   }
+  if (!debug_render_) return;
+  // Draw a red semi transparent quad for all quads.
+  shader_program_.SetUniform("tex", 0);
+  shader_program_.SetUniform("color", FVec4(1, 0, 0, 0.2));
+  for (const auto& batch : batches_) {
+    shader_program_.SetUniform("projection",
+                               Ortho(0, viewport_.x, 0, viewport_.y));
+    shader_program_.SetUniform("transform", batch.transform);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    const auto indices_start =
+        reinterpret_cast<uintptr_t>(&indices_[batch.indices_start]) -
+        reinterpret_cast<uintptr_t>(&indices_[0]);
+    glDrawElementsInstanced(GL_TRIANGLES, batch.indices_count, GL_UNSIGNED_INT,
+                            reinterpret_cast<void*>(indices_start), 1);
+  }
 }
 
 SpriteSheetRenderer::SpriteSheetRenderer(Assets* assets, QuadRenderer* renderer)
