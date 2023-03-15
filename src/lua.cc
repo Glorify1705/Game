@@ -444,7 +444,7 @@ static const struct luaL_Reg kClockLib[] = {
      }},
     {"now",
      [](lua_State* state) {
-       lua_pushnumber(state, NowInMillis());
+       lua_pushnumber(state, NowInSeconds());
        return 1;
      }},
     {nullptr, nullptr}};

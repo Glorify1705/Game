@@ -16,14 +16,14 @@ class Physics final : public b2ContactListener {
     b2Body *handle;
   };
 
-  Physics();
+  explicit Physics(FVec2 pixel_dimensions, float pixels_per_meter);
 
   void Update(float dt);
   void SetOrigin(FVec2 origin);
 
-  void BeginContact(b2Contact *) override {}
+  void BeginContact(b2Contact *) override { LOG("Colliding begin"); }
 
-  void EndContact(b2Contact *) override {}
+  void EndContact(b2Contact *) override { LOG("Colliding end"); }
 
   Handle AddBox(FVec2 top_left, FVec2 top_right, float angle);
 
@@ -40,7 +40,13 @@ class Physics final : public b2ContactListener {
   float GetAngle(Handle handle) const;
 
  private:
+  FVec2 From(b2Vec2 v) const;
+  b2Vec2 To(FVec2 v) const;
+
+  float pixels_per_meter_;
+  FVec2 world_dimensions_;
   b2World world_;
+  b2Body *ground_;
 };
 
 }  // namespace G

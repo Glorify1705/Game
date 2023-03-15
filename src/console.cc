@@ -11,7 +11,7 @@ constexpr const char* kPriorities[SDL_NUM_LOG_PRIORITIES] = {
 void DebugConsole::Log(int category, SDL_LogPriority priority,
                        const char* message) {
   log_fn_(log_fn_userdata_, category, priority, message);
-  Log(kPriorities[priority], " ", message);
+  Log(kPriorities[priority], ": ", message);
 }
 
 void DebugConsole::LogWithConsole(void* userdata, int category,

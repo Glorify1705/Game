@@ -144,7 +144,9 @@ struct EngineModules {
         sound(&assets),
         font_renderer(&assets, &quad_renderer),
         sprite_sheet_renderer(&assets, &quad_renderer),
-        lua("main.lua", &assets) {
+        lua("main.lua", &assets),
+        physics(FVec(params.screen_width, params.screen_height),
+                Physics::kPixelsPerMeter) {
     TIMER();
     lua.Register(&sprite_sheet_renderer);
     lua.Register(&keyboard);
@@ -256,9 +258,9 @@ SDL_GLContext CreateOpenglContext(SDL_Window* window) {
 
 class DebugUi {
  public:
-  DebugUi(SDL_Window* window, SDL_GLContext context, DebugConsole* console,
-          Stats* frame_stats, EngineModules* modules)
-      : console_(console), stats_(frame_stats), modules_(modules) {
+  DebugUi(SDL_Window* window, SDL_GLContext context, Stats* frame_stats,
+          EngineModules* modules)
+      : stats_(frame_stats), modules_(modules) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
@@ -283,7 +285,7 @@ class DebugUi {
     ImGui::Begin("Debug Information");
     if (ImGui::TreeNode("Console")) {
       ImGui::BeginChild("Scrolling");
-      console_->ForAllLines([this](std::string_view line) {
+      DebugConsole::instance().ForAllLines([this](std::string_view line) {
         ImGui::TextUnformatted(line.data(), line.end());
       });
       ImGui::EndChild();
@@ -302,11 +304,12 @@ class DebugUi {
  private:
   void CopyToClipboard() {
     size_t buffer_sz = 0, pos = 0;
-    console_->ForAllLines([this, &buffer_sz](std::string_view line) {
+    auto& console = DebugConsole::instance();
+    console.ForAllLines([this, &buffer_sz](std::string_view line) {
       buffer_sz += line.size() + 1;
     });
     auto* buffer = new char[buffer_sz + 1];
-    console_->ForAllLines([this, &buffer, &pos](std::string_view line) {
+    console.ForAllLines([this, &buffer, &pos](std::string_view line) {
       std::memcpy(&buffer[pos], line.data(), line.size());
       pos += line.size();
       buffer[pos++] = '\n';
@@ -341,7 +344,7 @@ class DebugUi {
     ImGui::Begin("Frame Stats", nullptr, window_flags);
     ImGui::TextUnformatted(StrCat("Frame Stats: ", *stats_).c_str());
     if (ImGui::BeginTable("Watchers", 2)) {
-      console_->ForAllWatchers(
+      DebugConsole::instance().ForAllWatchers(
           [this](std::string_view key, std::string_view value) {
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
@@ -354,7 +357,6 @@ class DebugUi {
     ImGui::End();
   }
 
-  DebugConsole* console_;
   Stats* stats_;
   EngineModules* modules_;
   char expressions_[1 << 20];
@@ -366,6 +368,8 @@ class DebugUi {
 class Game {
  public:
   Game(int argc, const char* argv[]) : arguments_(argv + 1, argv + argc) {
+    // Initialize the debug console.
+    DebugConsole::instance();
     InitializeSDL();
     window_ = CreateWindow(params_);
     context_ = CreateOpenglContext(window_);
@@ -388,19 +392,18 @@ class Game {
   void Init() {
     TIMER("Game Initialization");
     e_ = std::make_unique<EngineModules>(arguments_, params_);
-    debug_ui_ = std::make_unique<DebugUi>(window_, context_, &debug_console_,
-                                          &stats_, e_.get());
-    e_->lua.Register(&debug_console_);
+    debug_ui_ = std::make_unique<DebugUi>(window_, context_, &stats_, e_.get());
+    e_->lua.Register(&DebugConsole::instance());
     e_->lua.Init();
   }
 
   void Run() {
-    double last_frame = NowInMillis();
-    constexpr double kStep = TimeStepInMillis();
+    double last_frame = NowInSeconds();
+    constexpr double kStep = TimeStepInSeconds();
     double t = 0, accum = 0;
     for (;;) {
       if (e_->lua.Stopped()) return;
-      const double now = NowInMillis();
+      const double now = NowInSeconds();
       const double frame_time = now - last_frame;
       last_frame = now;
       accum += frame_time;
@@ -408,7 +411,7 @@ class Game {
         SDL_Delay(1);
         continue;
       }
-      const auto frame_start = NowInMillis();
+      const auto frame_start = NowInSeconds();
       e_->StartFrame();
       for (SDL_Event event; SDL_PollEvent(&event);) {
         if (event.type == SDL_QUIT) {
@@ -429,16 +432,18 @@ class Game {
         accum -= kStep;
       }
       Render();
-      stats_.AddSample(NowInMillis() - frame_start);
+      stats_.AddSample(NowInSeconds() - frame_start);
     }
   }
 
   // Update state given current time t and frame delta dt, both in ms.
   void Update(double t, double dt) {
+    WATCH_VAR(t);
+    WATCH_VAR(dt);
     e_->events.Fire(dt);
     e_->physics.Update(dt);
     e_->lua.Update(t, dt);
-    debug_console_.AddWatcher("Mouse Position ", e_->mouse.GetPosition());
+    WATCH_EXPR("Mouse Position ", e_->mouse.GetPosition());
   }
 
   void Render() {
@@ -452,7 +457,6 @@ class Game {
   GameParams params_;
   SDL_Window* window_ = nullptr;
   SDL_GLContext context_;
-  DebugConsole debug_console_;
   std::unique_ptr<DebugUi> debug_ui_;
   std::unique_ptr<EngineModules> e_;
   Stats stats_;

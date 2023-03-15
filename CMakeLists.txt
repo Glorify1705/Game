@@ -92,6 +92,7 @@ set(ASSETS
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/lume.lua
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/main.lua
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/physics.lua
+    ${CMAKE_CURRENT_SOURCE_DIR}/assets/meteor.lua
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/player.lua
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/sheet.qoi
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/vector2d.lua

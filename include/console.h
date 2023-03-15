@@ -59,6 +59,11 @@ class DebugConsole {
     }
   }
 
+  static DebugConsole& instance() {
+    static DebugConsole console;
+    return console;
+  }
+
  private:
   inline static constexpr size_t kMaxLines = 1024;
 
@@ -87,5 +92,11 @@ class DebugConsole {
 };
 
 }  // namespace G
+
+#define WATCH_EXPR(str, ...)                                    \
+  do {                                                          \
+    G::DebugConsole::instance().AddWatcher(str, ##__VA_ARGS__); \
+  } while (0);
+#define WATCH_VAR(var) WATCH_EXPR(#var, var)
 
 #endif  // _GAME_CONSOLE_H

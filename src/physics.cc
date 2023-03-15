@@ -1,38 +1,76 @@
+#include "console.h"
 #include "mat.h"
 #include "physics.h"
 #include "transformations.h"
 
 namespace G {
-namespace {
 
-FVec2 From(b2Vec2 v) { return FVec(v.x, v.y); }
-b2Vec2 To(FVec2 v) { return b2Vec2(v.x, v.y); }
+Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter)
+    : pixels_per_meter_(pixels_per_meter),
+      world_dimensions_(pixel_dimensions.x / pixels_per_meter,
+                        pixel_dimensions.y / pixels_per_meter),
+      world_(b2Vec2(0, 0)) {
+  WATCH_EXPR("World", world_dimensions_);
 
-}  // namespace
+  world_.SetGravity(b2Vec2(0, 0));
+  world_.SetContactListener(this);
 
-Physics::Physics() : world_(b2Vec2(0, 0)) { world_.SetContactListener(this); }
+  b2BodyDef bd;
+  bd.position.Set(0.0f, 0.0f);
+  ground_ = world_.CreateBody(&bd);
+
+  b2EdgeShape shape;
+
+  b2FixtureDef sd;
+  sd.shape = &shape;
+  sd.density = 0.0f;
+  sd.restitution = 0.4f;
+
+  // Surround the screen.
+  shape.SetTwoSided(b2Vec2(0, 0), b2Vec2(0, world_dimensions_.y));
+  ground_->CreateFixture(&sd);
+  shape.SetTwoSided(b2Vec2(0, world_dimensions_.y),
+                    b2Vec2(world_dimensions_.x, world_dimensions_.y));
+  ground_->CreateFixture(&sd);
+  shape.SetTwoSided(b2Vec2(world_dimensions_.x, 0),
+                    b2Vec2(world_dimensions_.x, world_dimensions_.y));
+  ground_->CreateFixture(&sd);
+  shape.SetTwoSided(b2Vec2(0, 0), b2Vec2(world_dimensions_.x, 0));
+  ground_->CreateFixture(&sd);
+}
 
 Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right,
                                 float angle) {
-  const FVec2 center = (top_left + bottom_right) / 2.0;
+  const b2Vec2 tl = To(top_left);
+  const b2Vec2 br = To(bottom_right);
   b2BodyDef def;
   def.type = b2_dynamicBody;
-  def.position.Set(center.x, center.y);
+  def.position.Set((tl.x + br.x) / 2, (tl.y + br.y) / 2);
   b2PolygonShape box;
-  const FVec2 hws = (bottom_right - top_left) / 2;
-  box.SetAsBox(hws.x, hws.y, To(center), angle);
+  box.SetAsBox((br.x - tl.x) / 2, (br.y - tl.y) / 2, b2Vec2(0, 0), angle);
   b2Body* body = world_.CreateBody(&def);
   b2FixtureDef fixture;
   fixture.shape = &box;
-  fixture.density = 1.0f;
+  fixture.density = 2.0f;
   fixture.friction = 0.3f;
   body->CreateFixture(&fixture);
+  b2FrictionJointDef jd;
+  float I = body->GetInertia();
+  float mass = body->GetMass();
+  jd.bodyA = ground_;
+  jd.bodyB = body;
+  jd.localAnchorA.SetZero();
+  jd.localAnchorB = body->GetLocalCenter();
+  jd.collideConnected = true;
+  const float gravity = 10.0f;
+  const float radius = b2Sqrt(2.0f * I / mass);
+  jd.maxForce = 0.5f * mass * gravity;
+  jd.maxTorque = 0.2f * mass * radius * gravity;
+  world_.CreateJoint(&jd);
   return Handle{body};
 }
 
-void Physics::SetOrigin(FVec2 origin) {
-  world_.ShiftOrigin(b2Vec2(origin.x, origin.y));
-}
+void Physics::SetOrigin(FVec2 origin) { world_.ShiftOrigin(To(origin)); }
 
 void Physics::Rotate(Handle handle, float angle) {
   auto* body = handle.handle;
@@ -46,7 +84,9 @@ void Physics::ApplyTorque(Handle handle, float torque) {
 
 void Physics::ApplyForce(Handle handle, FVec2 v) {
   auto* body = handle.handle;
-  body->ApplyForceToCenter(To(v), /*wake=*/true);
+  body->ApplyForce(body->GetWorldVector(b2Vec2(v.x, v.y)),
+                   body->GetWorldCenter(),
+                   /*wake=*/true);
 }
 
 void Physics::ApplyLinearImpulse(Handle handle, FVec2 v) {
@@ -60,6 +100,13 @@ FVec2 Physics::GetPosition(Handle handle) const {
 
 float Physics::GetAngle(Handle handle) const {
   return handle.handle->GetAngle();
+}
+
+FVec2 Physics::From(b2Vec2 v) const {
+  return FVec(v.x, v.y) * pixels_per_meter_;
+}
+b2Vec2 Physics::To(FVec2 v) const {
+  return b2Vec2(v.x / pixels_per_meter_, v.y / pixels_per_meter_);
 }
 
 void Physics::Update(float dt) {

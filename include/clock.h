@@ -11,19 +11,21 @@
 
 namespace G {
 
-double NowInMillis();
+double NowInSeconds();
 
 class LogTimer {
  public:
-  LogTimer(const char* file, int line, const char* func, StringBuffer<255> buf)
-      : file_(file), line_(line), func_(func), start_(NowInMillis()) {
+  using Buf = StringBuffer<kMaxLogLineLength>;
+
+  LogTimer(const char* file, int line, const char* func, Buf buf)
+      : file_(file), line_(line), func_(func), start_(NowInSeconds()) {
     buf_ = buf.str();
   }
 
   ~LogTimer() {
-    const double time = NowInMillis() - start_;
-    Log(file_, line_, func_, buf_[0] == '\0' ? "" : " ", buf_, " elapsed ",
-        time, "ms");
+    const double time = NowInSeconds() - start_;
+    Log(file_, line_, buf_[0] == '\0' ? func_ : "", buf_, " elapsed ", time,
+        "ms");
   }
 
  private:
@@ -42,7 +44,7 @@ class LogTimer {
 
 #define TIMER(...)                                                 \
   LogTimer INTERNAL_ID(t)(__FILE__, __LINE__, __PRETTY_FUNCTION__, \
-                          StringBuffer<255>(__VA_ARGS__))
+                          LogTimer::Buf(__VA_ARGS__))
 
 class Events {
  public:
@@ -85,7 +87,7 @@ class Events {
   double t_ = 0;
 };
 
-inline constexpr double TimeStepInMillis() { return 1000.0 / 60.0; }
+inline constexpr double TimeStepInSeconds() { return 1.0 / 60.0; }
 
 }  // namespace G
 

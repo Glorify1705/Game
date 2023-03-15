@@ -1,5 +1,4 @@
 Object = require "classic"
-Lume = require 'lume'
 Vec2 = require 'vector2d'
 Physics = require 'physics'
 
@@ -10,57 +9,36 @@ Status = {
     STOPPED = 3
 }
 
-ACCELERATION = 1200.00
-MAX_SPEED = 90000;
-MIN_DISTANCE = 2000.0
-ANGLE_DELTA = 0.3
+FORCE = 50.000
+ANGLE_DELTA = 20
 
 Player = Object:extend()
 
 function Player:new(x, y)
     self.image = "playerShip1_green"
+    self.angle = 0
     local info = G.assets.subtexture_info(self.image)
-    self.physics = Physics(100, 100, 199, 175, 0)
-    self.speed = 0
-    self.status = Status.STOPPED
+    self.physics = Physics(x, y, x + info.width, y + info.height, self.angle)
 end
 
 function Player:update(dt)
     if G.input.is_key_down('w') then
-        if self.status == Status.STOPPED or self.status == Status.DECELERATING then
-            self.status = Status.ACCELERATING
-        end
-    else
-        if self.status == Status.ACCELERATING or self.status == Status.FULL_SPEED then
-            self.status = Status.DECELERATING
-        end
-    end
-
-    if G.input.is_key_down('d') then
-        self.physics:rotate(ANGLE_DELTA)
-    elseif G.input.is_key_down('a') then
-        self.physics:rotate(-ANGLE_DELTA)
-    end
-
-    if self.status == Status.ACCELERATING then
-        self.speed = self.speed + ACCELERATION * dt / 1000.0
-        if self.speed > MAX_SPEED then
-            self.speed = MAX_SPEED
-            self.status = Status.FULL_SPEED
-        end
-    elseif self.status == Status.DECELERATING then
-        self.speed = self.speed - ACCELERATION * dt / 1000.0
-        if self.speed < 0 then
-            self.speed = 0
-            self.status = Status.STOPPED
-        end
+        self.physics:apply_force(0, -FORCE)
+    elseif G.input.is_key_down('s') then
+        self.physics:apply_force(0, FORCE)
     end
 
     local a = math.pi - self.physics:angle()
-    self.physics:apply_force(math.sin(a) * self.speed, math.cos(a) * self.speed)
+
+    if G.input.is_key_down('d') then
+        self.physics:apply_torque(ANGLE_DELTA)
+    elseif G.input.is_key_down('a') then
+        self.physics:apply_torque(-ANGLE_DELTA)
+    end
 
     G.console.watch("Player Position", self.physics:position())
     G.console.watch("Player Angle", self.physics:angle())
+    G.console.watch("Player Force", self.force)
 end
 
 function Player:render()
