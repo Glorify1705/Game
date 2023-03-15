@@ -28,6 +28,13 @@ CrashHandler g_CrashHandler = DefaultCrashHandler;
 
 }  // namespace
 
+std::string_view TrimPath(std::string_view f) {
+  if (f.empty()) return f;
+  int p = f.size() - 1;
+  while (p >= 0 && f[p] != '\\' && f[p] != '/') p--;
+  return f.substr(p < 0 ? 0 : (p + 1));
+}
+
 LogSink GetLogSink() { return g_LogSink; }
 
 void SetLogSink(LogSink sink) { g_LogSink = sink; }

@@ -52,6 +52,7 @@ set(GAME_SRCS
     src/assets.cc
     src/clock.cc
     src/game.cc
+    src/console.cc
     src/glad.cc
     src/input.cc
     src/imgui_impl_opengl3.cc

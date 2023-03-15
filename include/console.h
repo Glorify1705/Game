@@ -7,6 +7,7 @@
 
 #include "SDL.h"
 #include "allocators.h"
+#include "array.h"
 #include "circular_buffer.h"
 #include "map.h"
 #include "strings.h"
@@ -35,14 +36,16 @@ class DebugConsole {
     }
   }
 
-  void AddWatcher(std::string_view key, std::string_view value) {
-    if (Linebuffer * buffer; watcher_values_.Lookup(key, &buffer)) {
-      CopyToBuffer(value, buffer);
+  template <typename... Ts>
+  void AddWatcher(std::string_view key, Ts... ts) {
+    StringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
+    if (Linebuffer * linebuffer; watcher_values_.Lookup(key, &linebuffer)) {
+      CopyToBuffer(buf.piece(), linebuffer);
       return;
     }
-    auto* buffer = buffers_->AllocArray<Linebuffer>(1);
-    CopyToBuffer(value, buffer);
-    auto inserted_key = watcher_values_.Insert(key, buffer);
+    auto* linebuffer = buffers_->AllocArray<Linebuffer>(1);
+    CopyToBuffer(buf.piece(), linebuffer);
+    auto inserted_key = watcher_values_.Insert(key, linebuffer);
     watcher_keys_.Push(inserted_key);
   }
 
@@ -60,39 +63,17 @@ class DebugConsole {
   inline static constexpr size_t kMaxLines = 1024;
 
   struct Linebuffer {
-    size_t len = 0;
+    size_t len;
     char chars[kMaxLogLineLength + 1];
   };
 
-  inline static constexpr const char* kPriorities[SDL_NUM_LOG_PRIORITIES] = {
-      nullptr, "VERBOSE", "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"};
-
-  void Log(int category, SDL_LogPriority priority, const char* message) {
-    log_fn_(log_fn_userdata_, category, priority, message);
-    Log(kPriorities[priority], " ", message);
-  }
+  void Log(int category, SDL_LogPriority priority, const char* message);
 
   static void LogWithConsole(void* userdata, int category,
-                             SDL_LogPriority priority, const char* message) {
-    static_cast<DebugConsole*>(userdata)->Log(category, priority, message);
-  }
+                             SDL_LogPriority priority, const char* message);
 
-  void CopyToBuffer(std::string_view text, Linebuffer* buffer) {
-    const size_t length = std::min(kMaxLogLineLength, text.size());
-    std::memcpy(buffer->chars, text.data(), length);
-    buffer->len = length;
-  }
-
-  void LogLine(std::string_view text) {
-    Linebuffer* buffer = nullptr;
-    if (lines_.full()) {
-      buffer = lines_.Pop();
-    } else {
-      buffer = buffers_->AllocArray<Linebuffer>(1);
-    }
-    CopyToBuffer(text, buffer);
-    lines_.Push(buffer);
-  }
+  void CopyToBuffer(std::string_view text, Linebuffer* buffer);
+  void LogLine(std::string_view text);
 
   FixedArena<2 * kMaxLines * sizeof(Linebuffer), BumpAllocator> buffers_;
   FixedCircularBuffer<Linebuffer*, kMaxLines> lines_;

@@ -4,6 +4,7 @@
 
 #include <cstdlib>
 #include <sstream>
+#include <string_view>
 
 #include "strings.h"
 
@@ -32,17 +33,20 @@ void SetCrashHandler(CrashHandler sink);
 // Gets the function for logging messages.
 LogSink SetCrashHandler();
 
+// Trims the path to be the last part of the path (basename).
+std::string_view TrimPath(std::string_view f);
+
 template <typename... T>
-[[noreturn]] void Crash(const char* file, int line, T... ts) {
-  StringBuffer<kMaxLogLineLength> buf("[", file, ":", line, "] ");
+[[noreturn]] void Crash(std::string_view file, int line, T... ts) {
+  StringBuffer<kMaxLogLineLength> buf("[", TrimPath(file), ":", line, "] ");
   buf.Append(std::forward<T>(ts)...);
   GetLogSink()(LOG_LEVEL_FATAL, buf.str());
   Crash(buf.str());
 }
 
 template <typename... T>
-void Log(const char* file, int line, T... ts) {
-  StringBuffer<kMaxLogLineLength> buf("[", file, ":", line, "] ");
+void Log(std::string_view file, int line, T... ts) {
+  StringBuffer<kMaxLogLineLength> buf("[", TrimPath(file), ":", line, "] ");
   buf.Append(std::forward<T>(ts)...);
   GetLogSink()(LOG_LEVEL_INFO, buf.str());
 }

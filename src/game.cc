@@ -438,8 +438,7 @@ class Game {
     e_->events.Fire(dt);
     e_->physics.Update(dt);
     e_->lua.Update(t, dt);
-    debug_console_.AddWatcher("Mouse Position ",
-                              StrCat(e_->mouse.GetPosition()).c_str());
+    debug_console_.AddWatcher("Mouse Position ", e_->mouse.GetPosition());
   }
 
   void Render() {
