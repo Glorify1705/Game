@@ -92,13 +92,15 @@ set(ASSETS
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/lume.lua
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/main.lua
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/physics.lua
+    ${CMAKE_CURRENT_SOURCE_DIR}/assets/entity.lua
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/meteor.lua
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/player.lua
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/sheet.qoi
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/vector2d.lua
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/sheet.xml
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/terminus.ttf
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/music.ogg)
+    ${CMAKE_CURRENT_SOURCE_DIR}/assets/music.ogg
+    ${CMAKE_CURRENT_SOURCE_DIR}/assets/laser.wav)
 
 add_executable(Game "${GAME_SRCS}")
 add_executable(Packer "${PACKER_SRCS}")

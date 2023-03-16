@@ -10,7 +10,45 @@
 namespace G {
 namespace {
 
-static int PackageLoader(lua_State* state) {
+int Traceback(lua_State* L) {
+  if (!lua_isstring(L, 1)) return 1;
+  lua_getfield(L, LUA_GLOBALSINDEX, "debug");
+  if (!lua_istable(L, -1)) {
+    lua_pop(L, 1);
+    return 1;
+  }
+  lua_getfield(L, -1, "traceback");
+  if (!lua_isfunction(L, -1)) {
+    lua_pop(L, 2);
+    return 1;
+  }
+  lua_pushvalue(L, 1);
+  lua_pushinteger(L, 2);
+  lua_call(L, 2, 1);
+  return 1;
+}
+
+int LoadLuaAsset(lua_State* state, const ScriptFile& asset,
+                 int traceback_handler = INT_MAX) {
+  const char* name = asset.filename()->c_str();
+  StringBuffer<128> buf("@", name);
+  if (luaL_loadbuffer(state,
+                      reinterpret_cast<const char*>(asset.contents()->Data()),
+                      asset.contents()->size(), buf.str()) != 0) {
+    lua_error(state);
+    return 0;
+  }
+  if (traceback_handler != INT_MAX) {
+    if (lua_pcall(state, 0, 1, traceback_handler)) {
+      lua_error(state);
+    }
+  } else {
+    lua_call(state, 0, 1);
+  }
+  return 1;
+}
+
+int PackageLoader(lua_State* state) {
   const char* modname = luaL_checkstring(state, 1);
   StringBuffer<127> buf(modname, ".lua");
   const auto* asset = Registry<Assets>::Retrieve(state)->GetScript(buf.piece());
@@ -19,17 +57,7 @@ static int PackageLoader(lua_State* state) {
     luaL_error(state, "Could not find asset %s.lua", modname);
     return 0;
   }
-  const char* name = asset->filename()->c_str();
-  auto data = reinterpret_cast<const char*>(asset->contents()->Data());
-  if (luaL_loadbuffer(state, data, asset->contents()->size(), name)) {
-    luaL_error(state, "Failure in %s: %s", name, lua_tostring(state, -1));
-    return 0;
-  }
-  if (lua_pcall(state, 0, LUA_MULTRET, 0)) {
-    luaL_error(state, "Failure in %s: %s", name, lua_tostring(state, -1));
-    return 0;
-  }
-  return 1;
+  return LoadLuaAsset(state, *asset);
 }
 
 std::string_view GetLuaString(lua_State* state, int index) {
@@ -129,7 +157,9 @@ int LuaLogPrint(lua_State* state) {
   lua_getstack(state, 1, &ar);
   lua_getinfo(state, "nSl", &ar);
   int line = ar.currentline;
-  const char* file = ar.source;
+  // Filename starts with @ in the Lua source so that tracebacks
+  // work properly.
+  const char* file = ar.source + 1;
   lua_pop(state, 1);
   Log(file, line, buffer);
   return 0;
@@ -252,14 +282,21 @@ static const struct luaL_Reg kMouseLib[] = {
     {nullptr, nullptr}};
 
 static const struct luaL_Reg kSoundLib[] = {
-    {"play",
+    {"play_music",
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
        auto* sound = Registry<Sound>::Retrieve(state);
        int repeat = Sound::kLoop;
        const int num_args = lua_gettop(state);
        if (num_args == 2) repeat = luaL_checknumber(state, 2);
-       sound->Play(name.data(), repeat);
+       sound->PlayMusic(name.data(), repeat);
+       return 0;
+     }},
+    {"play_sfx",
+     [](lua_State* state) {
+       std::string_view name = GetLuaString(state, 1);
+       auto* sound = Registry<Sound>::Retrieve(state);
+       sound->PlaySoundEffect(name.data());
        return 0;
      }},
     {"stop",
@@ -268,7 +305,7 @@ static const struct luaL_Reg kSoundLib[] = {
        sound->Stop();
        return 0;
      }},
-    {"set_volume",
+    {"set_music_volume",
      [](lua_State* state) {
        const float volume = luaL_checknumber(state, 1);
        if (volume < 0 || volume > 1) {
@@ -276,7 +313,18 @@ static const struct luaL_Reg kSoundLib[] = {
          return 0;
        }
        auto* sound = Registry<Sound>::Retrieve(state);
-       sound->SetVolume(volume);
+       sound->SetMusicVolume(volume);
+       return 0;
+     }},
+    {"set_sfx_volume",
+     [](lua_State* state) {
+       const float volume = luaL_checknumber(state, 1);
+       if (volume < 0 || volume > 1) {
+         luaL_error(state, "Invalid volume %f must be in [0, 1)", volume);
+         return 0;
+       }
+       auto* sound = Registry<Sound>::Retrieve(state);
+       sound->SetSoundEffectVolume(volume);
        return 0;
      }},
     {nullptr, nullptr}};
@@ -449,60 +497,46 @@ static const struct luaL_Reg kClockLib[] = {
      }},
     {nullptr, nullptr}};
 
-struct LuaLine {
-  char file[128];
-  int line;
+struct LuaError {
+  std::string_view filename;
+  int line = 0;
+  std::string_view message;
 };
 
-std::string_view GetLuaLine(std::string_view line, LuaLine* result) {
-  enum State { PREAMBLE, FILE, POSTAMBLE, LINE, FINISH };
-  State state = PREAMBLE;
-  size_t pos = 0, p = 0, q = 0;
-  char buf[16] = {0};
-  for (; pos < line.size(); ++pos) {
-    const char c = line[pos];
+LuaError ParseLuaError(std::string_view message) {
+  enum State { FILE, LINE };
+  State state = FILE;
+  LuaError result;
+  for (size_t i = 0; i < message.size(); ++i) {
+    const char c = message[i];
     switch (state) {
-      case PREAMBLE:
-        if (c == '"') state = FILE;
-        break;
       case FILE:
-        if (c == '"') {
-          result->file[p] = '\0';
-          state = POSTAMBLE;
-        } else {
-          result->file[p++] = c;
-        }
-        break;
-      case POSTAMBLE:
-        if (isdigit(c)) {
-          buf[q++] = c;
+        if (c == ':') {
+          result.filename = message.substr(0, i);
           state = LINE;
         }
         break;
       case LINE:
-        if (!isdigit(c)) {
-          state = FINISH;
+        if (c == ':') {
+          result.message = message.substr(i + 2);
+          return result;
         } else {
-          buf[q++] = c;
+          result.line = 10 * result.line + (c - '0');
         }
         break;
-      case FINISH:
-        sscanf(buf, "%d", &result->line);
-        line.remove_prefix(pos + 1);
-        return line;
     }
   }
-  return std::string_view();
+  return result;
 }
 
 template <typename... Ts>
 void LuaCrash(lua_State* state, int idx, Ts... ts) {
-  LuaLine l;
-  auto message = GetLuaLine(luaL_checkstring(state, idx), &l);
+  std::string_view message = GetLuaString(state, idx);
+  LuaError e = ParseLuaError(message);
   if constexpr (sizeof...(ts) > 0) {
-    Crash(l.file, l.line, message, " (", std::forward<Ts>(ts)..., ")");
+    Crash(e.filename, e.line, e.message, " (", std::forward<Ts>(ts)..., ")");
   } else {
-    Crash(l.file, l.line, message);
+    Crash(e.filename, e.line, e.message);
   }
 }
 
@@ -528,35 +562,28 @@ Lua::Lua(const char* script_name, Assets* assets) {
     return 0;
   });
   Register(this);
-  {
-    TIMER("Basic Lua Setup");
-    luaL_newmetatable(state_, "physics_handle");
-    luaL_newmetatable(state_, "asset_subtexture_ptr");
-    lua_pop(state_, 2);
-    luaL_openlibs(state_);
-    lua_newtable(state_);
-    lua_pushcfunction(state_, [](lua_State* state) {
-      auto* lua = Registry<Lua>::Retrieve(state);
-      lua->Stop();
-      return 0;
-    });
-    lua_setfield(state_, -2, "quit");
-    lua_setglobal(state_, "G");
-    Register(assets);
-    AddLibrary(state_, "console", kConsoleLib);
-    AddLibrary(state_, "renderer", kRendererLib);
-    AddLibrary(state_, "input", kMouseLib);
-    AddLibrary(state_, "sound", kSoundLib);
-    AddLibrary(state_, "physics", kPhysicsLib);
-    AddLibrary(state_, "assets", kAssetsLib);
-    AddLibrary(state_, "clock", kClockLib);
-    lua_pushcfunction(state_, [](lua_State* state) {
-      const char* message = luaL_checkstring(state, 1);
-      luaL_traceback(state, state, message, 1);
-      return 1;
-    });
-    traceback_handler_ = lua_gettop(state_);
-  }
+  luaL_newmetatable(state_, "physics_handle");
+  luaL_newmetatable(state_, "asset_subtexture_ptr");
+  lua_pop(state_, 2);
+  luaL_openlibs(state_);
+  lua_newtable(state_);
+  lua_pushcfunction(state_, [](lua_State* state) {
+    auto* lua = Registry<Lua>::Retrieve(state);
+    lua->Stop();
+    return 0;
+  });
+  lua_setfield(state_, -2, "quit");
+  lua_setglobal(state_, "G");
+  Register(assets);
+  AddLibrary(state_, "console", kConsoleLib);
+  AddLibrary(state_, "renderer", kRendererLib);
+  AddLibrary(state_, "input", kMouseLib);
+  AddLibrary(state_, "sound", kSoundLib);
+  AddLibrary(state_, "physics", kPhysicsLib);
+  AddLibrary(state_, "assets", kAssetsLib);
+  AddLibrary(state_, "clock", kClockLib);
+  lua_pushcfunction(state_, Traceback);
+  traceback_handler_ = lua_gettop(state_);
   // Set print as G.console.log for consistency.
   lua_pushcfunction(state_, LuaLogPrint);
   lua_setglobal(state_, "print");
@@ -577,18 +604,6 @@ Lua::Lua(const char* script_name, Assets* assets) {
   }
 }
 
-void Lua::LoadAsset(const ScriptFile& asset) {
-  const char* name = asset.filename()->c_str();
-  if (luaL_loadbuffer(state_,
-                      reinterpret_cast<const char*>(asset.contents()->Data()),
-                      asset.contents()->size(), name) != 0) {
-    LuaCrash(state_, -1, "while loading ", name);
-  }
-  if (lua_pcall(state_, 0, LUA_MULTRET, traceback_handler_)) {
-    LuaCrash(state_, -1, "while running ", name);
-  }
-}
-
 void Lua::SetPackagePreload(std::string_view filename) {
   // We use a buffer to ensure that filename is null terminated.
   StringBuffer<127> buf(filename);
@@ -602,15 +617,47 @@ void Lua::SetPackagePreload(std::string_view filename) {
 
 void Lua::LoadMain(const ScriptFile& asset) {
   const char* name = asset.filename()->c_str();
-  LOG("Loading ", name);
-  LoadAsset(asset);
+  LoadLuaAsset(state_, asset, traceback_handler_);
   // Check all important functions are defined.
-  for (const char* fn : {"Init", "Update", "Render"}) {
-    lua_getglobal(state_, fn);
+  for (const char* fn : {"init", "update", "render"}) {
+    lua_getfield(state_, -1, fn);
     if (lua_isnil(state_, -1)) {
       DIE("Cannot run main code: ", fn, " is not defined in ", name);
     }
     lua_pop(state_, 1);
+  }
+  lua_setglobal(state_, "Game");
+}
+
+void Lua::Init() {
+  lua_getglobal(state_, "Game");
+  lua_getfield(state_, -1, "init");
+  lua_insert(state_, -2);
+  if (lua_pcall(state_, 1, LUA_MULTRET, traceback_handler_)) {
+    lua_error(state_);
+    return;
+  }
+}
+
+void Lua::Update(float t, float dt) {
+  lua_getglobal(state_, "Game");
+  lua_getfield(state_, -1, "update");
+  lua_insert(state_, -2);
+  lua_pushnumber(state_, t);
+  lua_pushnumber(state_, dt);
+  if (lua_pcall(state_, 3, 0, traceback_handler_)) {
+    lua_error(state_);
+    return;
+  }
+}
+
+void Lua::Render() {
+  lua_getglobal(state_, "Game");
+  lua_getfield(state_, -1, "render");
+  lua_insert(state_, -2);
+  if (lua_pcall(state_, 1, 0, traceback_handler_)) {
+    lua_error(state_);
+    return;
   }
 }
 

@@ -50,43 +50,22 @@ class Lua {
     Registry<T>::Register(state_, t);
   }
 
-  void Init() {
-    TIMER();
-    lua_getglobal(state_, "Init");
-    if (lua_pcall(state_, 0, LUA_MULTRET, traceback_handler_)) {
-      lua_error(state_);
-    }
-  }
+  void Init();
 
-  void Update(float t, float dt) {
-    lua_getglobal(state_, "Update");
-    lua_pushnumber(state_, t);
-    lua_pushnumber(state_, dt);
-    if (lua_pcall(state_, 2, LUA_MULTRET, traceback_handler_)) {
-      lua_error(state_);
-    }
-  }
+  void Update(float t, float dt);
 
-  void Render() {
-    lua_getglobal(state_, "Render");
-    if (lua_pcall(state_, 0, LUA_MULTRET, traceback_handler_)) {
-      lua_error(state_);
-    }
-  }
+  void Render();
 
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }
 
  private:
-  void LoadAsset(const ScriptFile& asset);
-
   void LoadMain(const ScriptFile& asset);
   void SetPackagePreload(std::string_view filename);
 
   lua_State* state_ = nullptr;
-  // Index of the traceback handler.
-  int traceback_handler_;
   bool stopped_ = false;
+  int traceback_handler_;
 };
 
 }  // namespace G

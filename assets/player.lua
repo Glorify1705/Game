@@ -1,24 +1,12 @@
-Object = require "classic"
-Vec2 = require 'vector2d'
-Physics = require 'physics'
-
-Status = {
-    ACCELERATING = 0,
-    FULL_SPEED = 1,
-    DECELERATING = 2,
-    STOPPED = 3
-}
+Entity = require 'entity'
 
 FORCE = 50.000
 ANGLE_DELTA = 20
 
-Player = Object:extend()
+Player = Entity:extend()
 
 function Player:new(x, y)
-    self.image = "playerShip1_green"
-    self.angle = 0
-    local info = G.assets.subtexture_info(self.image)
-    self.physics = Physics(x, y, x + info.width, y + info.height, self.angle)
+    Player.super.new(self, x, y, 0, "playerShip1_green", "player")
 end
 
 function Player:update(dt)
@@ -39,12 +27,6 @@ function Player:update(dt)
     G.console.watch("Player Position", self.physics:position())
     G.console.watch("Player Angle", self.physics:angle())
     G.console.watch("Player Force", self.force)
-end
-
-function Player:render()
-    local v = self.physics:position()
-    local angle = self.physics:angle()
-    G.renderer.draw_sprite(self.image, v.x, v.y, angle)
 end
 
 function Player:center_camera()

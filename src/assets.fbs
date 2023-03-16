@@ -28,7 +28,7 @@ table ScriptFile {
     contents: [uint8];
 }
 
-enum SoundType : uint8 { OGG }
+enum SoundType : uint8 { OGG, WAV }
 
 table SoundFile {
     filename: string;

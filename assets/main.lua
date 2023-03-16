@@ -1,41 +1,38 @@
 local Player = require "player"
 local Meteor = require "meteor"
 
-local player
-local stars = {}
-local meteors = {}
+local Game = {}
 
-function Init()
-    local vx, vy = G.renderer.viewport()
-    player = Player(100, 100)
-    stars = {}
-    for i = 0, 10 do
-        table.insert(stars, { x = math.random() * vx, y = math.random() * vy })
-    end
-    table.insert(meteors, Meteor(300, 300))
-    table.insert(meteors, Meteor(600, 600))
-    G.sound.set_volume(0.1)
-    G.sound.play("music.ogg")
+function Game:init()
+    self.entities = {}
+    self.score = 0
+    table.insert(self.entities, Player(100, 100))
+    table.insert(self.entities, Meteor(300, 300))
+    table.insert(self.entities, Meteor(600, 600))
+    G.sound.set_music_volume(0.1)
+    G.sound.set_sfx_volume(0.1)
+    G.sound.play_music("music.ogg")
 end
 
-function Update(t, dt)
+function Game:update(t, dt)
     if G.input.is_key_pressed('q') then
         G.quit()
     end
-    for _, meteor in ipairs(meteors) do
-        meteor:update(dt)
+    if G.input.is_mouse_pressed(0) then
+        G.sound.play_sfx("laser.wav")
     end
-    player:update(dt)
+    for _, entity in ipairs(self.entities) do
+        entity:update(dt)
+    end
 end
 
-function Render()
-    for _, pos in ipairs(stars) do
-        G.renderer.draw_sprite("star1", pos.x, pos.y)
+function Game:render()
+    for _, entity in ipairs(self.entities) do
+        entity:render()
     end
-    for _, meteor in ipairs(meteors) do
-        meteor:render()
-    end
-    player:render()
     local mx, my = G.input.mouse_position()
     G.renderer.draw_sprite("numeralX", mx, my)
+    G.renderer.draw_text("Score: " .. self.score, 0, 0)
 end
+
+return Game

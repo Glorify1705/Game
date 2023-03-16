@@ -1,24 +1,16 @@
-Object = require "classic"
-Vec2 = require 'vector2d'
-Physics = require 'physics'
+Entity = require 'entity'
 
-Meteor = Object:extend()
+Meteor = Entity:extend()
+
+local count = 0
 
 function Meteor:new(x, y)
-    self.image = "meteorBrown_big1"
-    self.angle = 0
-    local info = G.assets.subtexture_info(self.image)
-    self.physics = Physics(x, y, x + info.width, y + info.height, self.angle)
+    Meteor.super.new(self, x, y, 0, "meteorBrown_big1", "meteor" .. count)
+    count = count + 1
 end
 
 function Meteor:update(dt)
     self.physics:rotate(0.2)
-end
-
-function Meteor:render()
-    local v = self.physics:position()
-    local angle = self.physics:angle()
-    G.renderer.draw_sprite(self.image, v.x, v.y, angle)
 end
 
 return Meteor

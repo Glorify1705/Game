@@ -179,6 +179,12 @@ class Packer {
                                       fbs_.CreateVector(buf, size)));
   }
 
+  void HandleWavSound(const char* filename, uint8_t* buf, size_t size) {
+    sounds_.push_back(CreateSoundFile(fbs_, fbs_.CreateString(filename),
+                                      SoundType::WAV,
+                                      fbs_.CreateVector(buf, size)));
+  }
+
   void HandleFont(const char* filename, uint8_t* buf, size_t size) {
     fonts_.push_back(CreateFontFile(fbs_, fbs_.CreateString(filename),
                                     fbs_.CreateVector(buf, size)));
@@ -210,8 +216,7 @@ struct FileHandler {
 FileHandler kHandlers[] = {
     {".lua", &Packer::HandleScript},      {".qoi", &Packer::HandleImage},
     {".xml", &Packer::HandleSpritesheet}, {".ogg", &Packer::HandleOggSound},
-    {".ttf", &Packer::HandleFont},
-};
+    {".ttf", &Packer::HandleFont},        {".wav", &Packer::HandleWavSound}};
 
 }  // namespace
 
