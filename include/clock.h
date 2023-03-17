@@ -19,7 +19,9 @@ class LogTimer {
 
   LogTimer(const char* file, int line, const char* func, Buf buf)
       : file_(file), line_(line), func_(func), start_(NowInSeconds()) {
-    buf_ = buf.str();
+    auto s = buf.piece();
+    std::memcpy(buf_, s.data(), s.size());
+    buf_[s.size()] = '\0';
   }
 
   ~LogTimer() {
@@ -33,7 +35,7 @@ class LogTimer {
   int line_;
   const char* func_;
 
-  const char* buf_;
+  char buf_[kMaxLogLineLength + 1];
 
   double start_;
 };
