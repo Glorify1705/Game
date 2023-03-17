@@ -93,6 +93,7 @@ class QuadRenderer {
       batch.rgba_color = prev.rgba_color;
       batch.transform = prev.transform;
     } else {
+      batch.texture_unit = 0;
       batch.transform = FMat4x4::Identity();
       batch.rgba_color = FVec(1, 1, 1, 1);
     }

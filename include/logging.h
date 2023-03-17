@@ -61,7 +61,7 @@ void Log(std::string_view file, int line, T... ts) {
 #define LOG(...) G::Log(__FILE__, __LINE__, ##__VA_ARGS__)
 
 #ifndef GAME_WITH_ASSERTS
-#define DCHECK(...)
+#define DCHECK(expr, ...) expr
 #else
 #define DCHECK(...) CHECK(__VA_ARGS__)
 #endif

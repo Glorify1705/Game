@@ -82,7 +82,7 @@ Controllers::Controllers() {
   // Load controllers.
   const int controllers = SDL_NumJoysticks();
   CHECK(controllers >= 0, "Failed to get joysticks: ", SDL_GetError());
-  DCHECK(controllers < controllers_.size());
+  DCHECK(static_cast<size_t>(controllers) < controllers_.size());
   LOG("Found ", controllers, " joysticks");
   for (int i = 0; i < controllers; ++i) {
     if (!SDL_IsGameController(i)) {

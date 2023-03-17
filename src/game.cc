@@ -316,7 +316,7 @@ class DebugUi {
     });
     buffer[pos] = '\0';
     SDL_SetClipboardText(buffer);
-    delete buffer;
+    delete[] buffer;
   }
   void RenderTopWidget() {
     ImGuiWindowFlags window_flags =

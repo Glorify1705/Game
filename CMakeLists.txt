@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8...3.25)
+cmake_minimum_required(VERSION 3.8...3.26)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -7,8 +7,6 @@ set(SDL2_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/SDL2/cmake")
 set(SDL2_mixer_DIR  
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/SDL2_mixer/cmake")
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DGAME_WITH_ASSERTS -ggdb -Wall -Wextra -Werror -Wno-sign-compare")
 
 project(Game 
     VERSION 0.1 
@@ -85,22 +83,22 @@ set(PACKER_SRCS
     src/allocators.cc
     src/qoi.cc
     src/strings.cc
-    ${CMAKE_CURRENT_BINARY_DIR}/assets_generated.h)
+    ${PROJECT_BINARY_DIR}/assets_generated.h)
 
 set(ASSETS
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/classic.lua
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/lume.lua
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/main.lua
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/physics.lua
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/entity.lua
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/meteor.lua
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/player.lua
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/sheet.qoi
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/vector2d.lua
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/sheet.xml
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/terminus.ttf
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/music.ogg
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets/laser.wav)
+    ${PROJECT_SOURCE_DIR}/assets/classic.lua
+    ${PROJECT_SOURCE_DIR}/assets/lume.lua
+    ${PROJECT_SOURCE_DIR}/assets/main.lua
+    ${PROJECT_SOURCE_DIR}/assets/physics.lua
+    ${PROJECT_SOURCE_DIR}/assets/entity.lua
+    ${PROJECT_SOURCE_DIR}/assets/meteor.lua
+    ${PROJECT_SOURCE_DIR}/assets/player.lua
+    ${PROJECT_SOURCE_DIR}/assets/sheet.qoi
+    ${PROJECT_SOURCE_DIR}/assets/vector2d.lua
+    ${PROJECT_SOURCE_DIR}/assets/sheet.xml
+    ${PROJECT_SOURCE_DIR}/assets/terminus.ttf
+    ${PROJECT_SOURCE_DIR}/assets/music.ogg
+    ${PROJECT_SOURCE_DIR}/assets/laser.wav)
 
 add_executable(Game "${GAME_SRCS}")
 add_executable(Packer "${PACKER_SRCS}")
@@ -111,11 +109,22 @@ target_include_directories(Game
                            "${CMAKE_CURRENT_SOURCE_DIR}/include"
                            "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua/src")
 
+set(SUPPORTS_GCC_FLAGS $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>)
+set(GCC_AND_CLANG_FLAGS -Wall -Wextra -Werror -g -O1 -DGAME_WITH_ASSERTS)
+set(MSVC_FLAGS /W4 /WX /DGAME_WITH_ASSERTS)
+
+set(COMPILER_FLAGS 
+    $<${SUPPORTS_GCC_FLAGS}:${GCC_AND_CLANG_FLAGS}> $<$<CXX_COMPILER_ID:MSVC>:${MSVC_FLAGS}>)
+
+target_compile_options(Game PRIVATE ${COMPILER_FLAGS})
+
 target_include_directories(Packer
                            PRIVATE 
-                           "${CMAKE_CURRENT_BINARY_DIR}" 
-                           "${CMAKE_CURRENT_SOURCE_DIR}/include"
-                           "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua/src")
+                           "${PROJECT_BINARY_DIR}" 
+                           "${PROJECT_SOURCE_DIR}/include"
+                           "${PROJECT_SOURCE_DIR}/vendor/lua/src")
+
+target_compile_options(Packer PRIVATE ${COMPILER_FLAGS})
 
 add_custom_command(
     OUTPUT Assets
