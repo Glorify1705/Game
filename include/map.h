@@ -53,6 +53,8 @@ class LookupTable {
     return false;
   }
 
+  size_t size() const { return elements_; }
+
   std::string_view Insert(std::string_view key, T value) {
     const uint64_t h = internal::Hash(key.data(), key.size());
     for (int32_t i = h;;) {

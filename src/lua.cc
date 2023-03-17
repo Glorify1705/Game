@@ -379,7 +379,8 @@ static const struct luaL_Reg kPhysicsLib[] = {
            lua_newuserdata(state, sizeof(Physics::Handle)));
        luaL_getmetatable(state, "physics_handle");
        lua_setmetatable(state, -2);
-       *handle = physics->AddBox(FVec(tx, ty), FVec(bx, by), angle);
+       *handle = physics->AddBox(FVec(tx, ty), FVec(bx, by), angle,
+                                 GetLuaString(state, 6));
        return 1;
      }},
     {"position",

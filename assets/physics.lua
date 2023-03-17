@@ -3,8 +3,8 @@ Vec2 = require 'vector2d'
 
 Physics = Object:extend()
 
-function Physics:new(tx, ty, bx, by, angle)
-    self.handle = G.physics.add_box(tx, ty, bx, by, angle)
+function Physics:new(tx, ty, bx, by, angle, id)
+    self.handle = G.physics.add_box(tx, ty, bx, by, angle, id)
 end
 
 function Physics:position()
