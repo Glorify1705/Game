@@ -57,10 +57,13 @@ function Game:update(t, dt)
 end
 
 function Game:draw()
+    G.renderer.set_color(1, 1, 1, 1)
     self.entities:draw()
     local mx, my = G.input.mouse_position()
     G.renderer.draw_sprite("numeralX", mx, my)
-    G.renderer.draw_text("Score: " .. self.score, 0, 0)
+    G.renderer.draw_text("Score: " .. self.score, 10, 10)
+    G.renderer.set_color(1, 0, 1, 1)
+    G.renderer.draw_circle(100, 100, 50)
 end
 
 return Game

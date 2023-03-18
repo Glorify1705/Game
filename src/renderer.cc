@@ -67,7 +67,7 @@ size_t ByteSize(const std::vector<T>& v) {
 
 }  // namespace
 
-QuadRenderer::QuadRenderer(IVec2 viewport)
+BatchRenderer::BatchRenderer(IVec2 viewport)
     : vertex_shader_(compiler_.CompileOrDie(ShaderType::kVertex, "quad.vert",
                                             kVertexShader.data(),
                                             kVertexShader.size())),
@@ -87,13 +87,13 @@ QuadRenderer::QuadRenderer(IVec2 viewport)
   LoadTexture(&white_pixels, /*width=*/32, /*height=*/32);
 }
 
-QuadRenderer::~QuadRenderer() {
+BatchRenderer::~BatchRenderer() {
   glDeleteBuffers(1, &vbo_);
   glDeleteBuffers(1, &ebo_);
 }
 
-GLuint QuadRenderer::LoadTexture(const void* data, size_t width,
-                                 size_t height) {
+GLuint BatchRenderer::LoadTexture(const void* data, size_t width,
+                                  size_t height) {
   CHECK(unit_ < tex_.size(), "Out of texture units");
   glGenTextures(1, &tex_[unit_]);
   glActiveTexture(GL_TEXTURE0 + unit_);
@@ -110,8 +110,8 @@ GLuint QuadRenderer::LoadTexture(const void* data, size_t width,
   return unit_++;
 }
 
-void QuadRenderer::PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1,
-                            FVec2 origin, float angle) {
+void BatchRenderer::PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1,
+                             FVec2 origin, float angle) {
   auto& batch = batches_.back();
   size_t current = vertices_.size();
   vertices_.Push({.position = FVec2(p0.x, p1.y),
@@ -132,7 +132,24 @@ void QuadRenderer::PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1,
   }
 }
 
-void QuadRenderer::Render() {
+void BatchRenderer::PushTriangle(FVec2 p0, FVec2 p1, FVec2 p2, FVec2 q0,
+                                 FVec2 q1, FVec2 q2, FVec2 origin,
+                                 float angle) {
+  auto& batch = batches_.back();
+  size_t current = vertices_.size();
+  vertices_.Push(
+      {.position = p0, .tex_coords = q0, .origin = origin, .angle = angle});
+  vertices_.Push(
+      {.position = p1, .tex_coords = q1, .origin = origin, .angle = angle});
+  vertices_.Push(
+      {.position = p2, .tex_coords = q2, .origin = origin, .angle = angle});
+  for (int i : {0, 1, 2}) {
+    indices_.Push(current + i);
+    batch.indices_count++;
+  }
+}
+
+void BatchRenderer::Render() {
   glViewport(0, 0, viewport_.x, viewport_.y);
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -204,7 +221,8 @@ void QuadRenderer::Render() {
   }
 }
 
-SpriteSheetRenderer::SpriteSheetRenderer(Assets* assets, QuadRenderer* renderer)
+SpriteSheetRenderer::SpriteSheetRenderer(Assets* assets,
+                                         BatchRenderer* renderer)
     : renderer_(renderer) {
   TIMER();
   for (size_t i = 0; i < assets->spritesheets(); ++i) {
@@ -279,9 +297,25 @@ void SpriteSheetRenderer::Draw(FVec2 position, float angle,
 
 void SpriteSheetRenderer::DrawRect(FVec2 top_left, FVec2 bottom_right,
                                    float angle) {
+  renderer_->SetActiveTexture(0);
   const FVec2 center = (top_left + bottom_right) / 2;
   renderer_->PushQuad(top_left, bottom_right, FVec2(0, 0), FVec2(1, 1),
                       /*origin=*/center, angle);
+}
+
+void SpriteSheetRenderer::DrawCircle(FVec2 center, float radius) {
+  renderer_->SetActiveTexture(0);
+  constexpr size_t kTriangles = 30;
+  auto for_index = [&](int index) {
+    const int i = index % kTriangles;
+    return FVec(center.x + radius * std::cos(2 * i * M_PI / kTriangles),
+                center.y + radius * std::sin(2 * i * M_PI / kTriangles));
+  };
+  for (size_t i = 0; i < kTriangles; ++i) {
+    renderer_->PushTriangle(center, for_index(i), for_index(i + 1), FVec(0, 0),
+                            FVec(1, 0), FVec(1, 1), center,
+                            /*angle=*/0);
+  }
 }
 
 }  // namespace G

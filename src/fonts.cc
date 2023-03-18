@@ -14,7 +14,7 @@ struct Quadformatter {
   }
 };
 
-FontRenderer::FontRenderer(const Assets* assets, QuadRenderer* renderer)
+FontRenderer::FontRenderer(const Assets* assets, BatchRenderer* renderer)
     : assets_(assets), renderer_(renderer) {}
 
 FontRenderer::FontInfo* FontRenderer::LoadFont(std::string_view font_name,

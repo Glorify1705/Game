@@ -84,6 +84,25 @@ static const struct luaL_Reg kRendererLib[] = {
        }
        return 0;
      }},
+    {"set_color",
+     [](lua_State* state) {
+       const float r = luaL_checknumber(state, 1);
+       const float g = luaL_checknumber(state, 2);
+       const float b = luaL_checknumber(state, 3);
+       const float a = luaL_checknumber(state, 4);
+       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       renderer->SetColor(FVec(r, g, b, a));
+       return 0;
+     }},
+    {"draw_circle",
+     [](lua_State* state) {
+       const float x = luaL_checknumber(state, 1);
+       const float y = luaL_checknumber(state, 2);
+       const float radius = luaL_checknumber(state, 3);
+       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       renderer->DrawCircle(FVec2(x, y), radius);
+       return 0;
+     }},
     {"draw_text",
      [](lua_State* state) {
        auto* renderer = Registry<FontRenderer>::Retrieve(state);

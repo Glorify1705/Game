@@ -13,7 +13,7 @@ namespace G {
 
 class FontRenderer {
  public:
-  FontRenderer(const Assets* assets, QuadRenderer* renderer);
+  FontRenderer(const Assets* assets, BatchRenderer* renderer);
 
   void DrawText(std::string_view font, float pixel_size, std::string_view str,
                 FVec2 position);
@@ -35,7 +35,7 @@ class FontRenderer {
   FontInfo* LoadFont(std::string_view font_name, float pixel_height);
 
   const Assets* const assets_ = nullptr;
-  QuadRenderer* renderer_ = nullptr;
+  BatchRenderer* renderer_ = nullptr;
   LookupTable<FontInfo*> font_table_;
   std::array<FontInfo, 32> fonts_;
   size_t font_count_ = 0;

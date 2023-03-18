@@ -129,7 +129,7 @@ struct EngineModules {
 
  public:
   Assets assets;
-  QuadRenderer quad_renderer;
+  BatchRenderer batch_renderer;
   Keyboard keyboard;
   Mouse mouse;
   Controllers controllers;
@@ -144,10 +144,10 @@ struct EngineModules {
                 const GameParams& params)
       : assets_buf_(ReadAssets(arguments)),
         assets(assets_buf_),
-        quad_renderer(IVec2(params.screen_width, params.screen_height)),
+        batch_renderer(IVec2(params.screen_width, params.screen_height)),
         sound(&assets),
-        font_renderer(&assets, &quad_renderer),
-        sprite_sheet_renderer(&assets, &quad_renderer),
+        font_renderer(&assets, &batch_renderer),
+        sprite_sheet_renderer(&assets, &batch_renderer),
         lua("main.lua", &assets),
         physics(FVec(params.screen_width, params.screen_height),
                 Physics::kPixelsPerMeter) {
@@ -162,7 +162,7 @@ struct EngineModules {
   }
 
   void StartFrame() {
-    quad_renderer.Clear();
+    batch_renderer.Clear();
     mouse.InitForFrame();
     keyboard.InitForFrame();
     controllers.InitForFrame();
@@ -172,7 +172,7 @@ struct EngineModules {
     if (event.type == SDL_WINDOWEVENT) {
       if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
         IVec2 new_viewport(event.window.data1, event.window.data2);
-        quad_renderer.SetViewport(new_viewport);
+        batch_renderer.SetViewport(new_viewport);
       }
     }
     keyboard.PushEvent(event);
@@ -184,7 +184,7 @@ struct EngineModules {
     sprite_sheet_renderer.BeginFrame();
     lua.Draw();
     sprite_sheet_renderer.FlushFrame();
-    quad_renderer.Render();
+    batch_renderer.Render();
   }
 
   ~EngineModules() { delete[] assets_buf_; }
@@ -425,7 +425,7 @@ class Game {
         e_->HandleEvent(event);
         if (event.type == SDL_KEYDOWN) {
           if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
-            e_->quad_renderer.ToggleDebugRender();
+            e_->batch_renderer.ToggleDebugRender();
             debug_ui_->Toggle();
           }
         }

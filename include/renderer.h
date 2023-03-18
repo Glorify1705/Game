@@ -14,10 +14,10 @@
 
 namespace G {
 
-class QuadRenderer {
+class BatchRenderer {
  public:
-  QuadRenderer(IVec2 viewport);
-  ~QuadRenderer();
+  BatchRenderer(IVec2 viewport);
+  ~BatchRenderer();
 
   GLuint LoadTexture(const ImageFile& image) {
     return LoadTexture(image.contents()->Data(), image.width(), image.height());
@@ -50,6 +50,9 @@ class QuadRenderer {
 
   void PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1, FVec2 origin,
                 float angle);
+  void PushTriangle(FVec2 p0, FVec2 p1, FVec2 p2, FVec2 q0, FVec2 q1, FVec2 q2,
+                    FVec2 origin, float angle);
+
   void Clear() {
     batches_.Clear();
     indices_.Clear();
@@ -118,7 +121,7 @@ class QuadRenderer {
 
 class SpriteSheetRenderer {
  public:
-  SpriteSheetRenderer(Assets* assets, QuadRenderer* renderer);
+  SpriteSheetRenderer(Assets* assets, BatchRenderer* renderer);
 
   void BeginFrame();
   void FlushFrame() {}
@@ -127,6 +130,7 @@ class SpriteSheetRenderer {
 
   void SetColor(FVec4 color);
   void DrawRect(FVec2 top_left, FVec2 bottom_right, float angle);
+  void DrawCircle(FVec2 center, float radius);
 
   const Subtexture* sub_texture(std::string_view name) const;
   IVec2 viewport() const { return renderer_->GetViewport(); }
@@ -156,7 +160,7 @@ class SpriteSheetRenderer {
   LookupTable<const Subtexture*> subtexts_;
   const Subtexture* texture_current_ = nullptr;
   Sheet current_;
-  QuadRenderer* renderer_;
+  BatchRenderer* renderer_;
 };
 
 }  // namespace G
