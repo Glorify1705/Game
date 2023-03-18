@@ -26,7 +26,6 @@ function Player:update(dt)
 
     G.console.watch("Player Position", self.physics:position())
     G.console.watch("Player Angle", self.physics:angle())
-    G.console.watch("Player Force", self.force)
 end
 
 function Player:center_camera()
