@@ -59,7 +59,6 @@ set(GAME_SRCS
     src/imgui_tables.cc
     src/imgui.cc
     src/imgui_widgets.cc
-    src/fonts.cc
     src/lua.cc
     src/controller_db.cc
     src/physics.cc

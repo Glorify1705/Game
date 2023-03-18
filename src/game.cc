@@ -16,7 +16,6 @@
 #include "circular_buffer.h"
 #include "clock.h"
 #include "console.h"
-#include "fonts.h"
 #include "glad.h"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
@@ -134,8 +133,7 @@ struct EngineModules {
   Mouse mouse;
   Controllers controllers;
   Sound sound;
-  FontRenderer font_renderer;
-  SpriteSheetRenderer sprite_sheet_renderer;
+  Renderer sprite_sheet_renderer;
   Lua lua;
   Physics physics;
 
@@ -145,8 +143,7 @@ struct EngineModules {
         assets(assets_buf_),
         batch_renderer(IVec2(params.screen_width, params.screen_height)),
         sound(&assets),
-        font_renderer(&assets, &batch_renderer),
-        sprite_sheet_renderer(&assets, &batch_renderer),
+        sprite_sheet_renderer(assets, &batch_renderer),
         lua("main.lua", &assets),
         physics(FVec(params.screen_width, params.screen_height),
                 Physics::kPixelsPerMeter) {
@@ -154,7 +151,6 @@ struct EngineModules {
     lua.Register(&keyboard);
     lua.Register(&mouse);
     lua.Register(&controllers);
-    lua.Register(&font_renderer);
     lua.Register(&sound);
     lua.Register(&physics);
   }

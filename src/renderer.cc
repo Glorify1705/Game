@@ -221,61 +221,35 @@ void BatchRenderer::Render() {
   }
 }
 
-SpriteSheetRenderer::SpriteSheetRenderer(Assets* assets,
-                                         BatchRenderer* renderer)
+Renderer::Renderer(const Assets& assets, BatchRenderer* renderer)
     : renderer_(renderer) {
   TIMER();
-  for (size_t i = 0; i < assets->spritesheets(); ++i) {
-    auto* sheet = assets->GetSpritesheetByIndex(i);
-    for (const auto* texture : *sheet->sub_texture()) {
-      std::string_view spritesheet(texture->spritesheet()->c_str(),
-                                   texture->spritesheet()->size());
-      if (!sheet_info_.Lookup(spritesheet)) {
-        const char* image_name = sheet->image_name()->c_str();
-        auto* image = assets->GetImage(image_name);
-        CHECK(image != nullptr, "Unknown image ", image_name,
-              " for spritesheet ", spritesheet);
-        Sheet info = {.texture = renderer->LoadTexture(*image),
-                      .width = image->width(),
-                      .height = image->height()};
-        LOG("Loaded spritesheet ", spritesheet);
-        sheet_info_.Insert(spritesheet, info);
-      }
-      std::string_view subtexture_name(texture->name()->c_str(),
-                                       texture->name()->size());
-      subtexts_.Insert(subtexture_name, texture);
-    }
-  }
+  LoadSpreadsheets(assets);
+  LoadFonts(assets, kFontSize);
 }
 
-void SpriteSheetRenderer::BeginFrame() {
+void Renderer::BeginFrame() {
   transform_stack_.Clear();
   transform_stack_.Push(FMat4x4::Identity());
   ApplyTransform(FMat4x4::Identity());
 }
 
-const Subtexture* SpriteSheetRenderer::sub_texture(
-    std::string_view name) const {
+const Subtexture* Renderer::sub_texture(std::string_view name) const {
   const Subtexture* result = nullptr;
   if (!subtexts_.Lookup(name, &result)) return nullptr;
   return result;
 }
 
-void SpriteSheetRenderer::Push() {
-  transform_stack_.Push(transform_stack_.back());
-}
+void Renderer::Push() { transform_stack_.Push(transform_stack_.back()); }
 
-void SpriteSheetRenderer::Pop() {
+void Renderer::Pop() {
   transform_stack_.Pop();
   renderer_->SetActiveTransform(transform_stack_.back());
 }
 
-void SpriteSheetRenderer::SetColor(FVec4 color) {
-  renderer_->SetActiveColor(color);
-}
+void Renderer::SetColor(FVec4 color) { renderer_->SetActiveColor(color); }
 
-void SpriteSheetRenderer::Draw(FVec2 position, float angle,
-                               const Subtexture& texture) {
+void Renderer::Draw(FVec2 position, float angle, const Subtexture& texture) {
   if (texture_current_ != &texture) {
     std::string_view spritesheet(texture.spritesheet()->c_str(),
                                  texture.spritesheet()->size());
@@ -295,15 +269,14 @@ void SpriteSheetRenderer::Draw(FVec2 position, float angle,
   renderer_->PushQuad(p0, p1, q0, q1, position, angle);
 }
 
-void SpriteSheetRenderer::DrawRect(FVec2 top_left, FVec2 bottom_right,
-                                   float angle) {
+void Renderer::DrawRect(FVec2 top_left, FVec2 bottom_right, float angle) {
   renderer_->SetActiveTexture(0);
   const FVec2 center = (top_left + bottom_right) / 2;
   renderer_->PushQuad(top_left, bottom_right, FVec2(0, 0), FVec2(1, 1),
                       /*origin=*/center, angle);
 }
 
-void SpriteSheetRenderer::DrawCircle(FVec2 center, float radius) {
+void Renderer::DrawCircle(FVec2 center, float radius) {
   renderer_->SetActiveTexture(0);
   constexpr size_t kTriangles = 30;
   auto for_index = [&](int index) {
@@ -315,6 +288,84 @@ void SpriteSheetRenderer::DrawCircle(FVec2 center, float radius) {
     renderer_->PushTriangle(center, for_index(i), for_index(i + 1), FVec(0, 0),
                             FVec(1, 0), FVec(1, 1), center,
                             /*angle=*/0);
+  }
+}
+
+void Renderer::LoadSpreadsheets(const Assets& assets) {
+  for (size_t i = 0; i < assets.spritesheets(); ++i) {
+    auto* sheet = assets.GetSpritesheetByIndex(i);
+    for (const auto* texture : *sheet->sub_texture()) {
+      std::string_view spritesheet(texture->spritesheet()->c_str(),
+                                   texture->spritesheet()->size());
+      if (!sheet_info_.Lookup(spritesheet)) {
+        const char* image_name = sheet->image_name()->c_str();
+        auto* image = assets.GetImage(image_name);
+        CHECK(image != nullptr, "Unknown image ", image_name,
+              " for spritesheet ", spritesheet);
+        Sheet info = {.texture = renderer_->LoadTexture(*image),
+                      .width = image->width(),
+                      .height = image->height()};
+        LOG("Loaded spritesheet ", spritesheet);
+        sheet_info_.Insert(spritesheet, info);
+      }
+      std::string_view subtexture_name(texture->name()->c_str(),
+                                       texture->name()->size());
+      subtexts_.Insert(subtexture_name, texture);
+    }
+  }
+}
+
+void Renderer::LoadFonts(const Assets& assets, float pixel_height) {
+  DCHECK(assets.fonts() < fonts_.size(), "Too many fonts");
+  for (size_t i = 0; i < assets.fonts(); ++i) {
+    FontInfo& font = fonts_[i];
+    const FontFile& font_file = *assets.GetFontByIndex(i);
+    const uint8_t* font_buffer = font_file.contents()->data();
+    CHECK(stbtt_InitFont(&font.font_info, font_buffer,
+                         stbtt_GetFontOffsetForIndex(font_buffer, 0)),
+          "Could not initialize ", FlatbufferStringview(font_file.filename()));
+    font.scale = stbtt_ScaleForPixelHeight(&font.font_info, pixel_height);
+    stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
+                          &font.line_gap);
+    stbtt_PackBegin(&font.context, font.atlas.data(), kAtlasWidth, kAtlasHeight,
+                    kAtlasWidth, 1, nullptr);
+    stbtt_PackSetOversampling(&font.context, 2, 2);
+    CHECK(stbtt_PackFontRange(&font.context, font_buffer, 0, pixel_height, 0,
+                              256, font.chars.data()) == 1,
+          "Could not load font");
+    stbtt_PackEnd(&font.context);
+    uint8_t* buffer = new uint8_t[4 * font.atlas.size()];
+    for (size_t i = 0, j = 0; j < font.atlas.size(); j++, i += 4) {
+      std::memset(&buffer[i], font.atlas[j], 4);
+    }
+    font.texture = renderer_->LoadTexture(buffer, kAtlasWidth, kAtlasHeight);
+    delete[] buffer;
+    font_table_.Insert(FlatbufferStringview(font_file.filename()), &font);
+  }
+}
+
+void Renderer::DrawText(std::string_view font, float size, std::string_view str,
+                        FVec2 position) {
+  FontInfo* info = nullptr;
+  CHECK(font_table_.Lookup(font, &info), "No font called ", font);
+  renderer_->SetActiveTexture(info->texture);
+  FVec2 p = position;
+  p.y += info->scale * (info->ascent - info->descent);
+  for (char c : str) {
+    if (c == '\n') {
+      p.x = position.x;
+      p.y += info->scale * (info->ascent - info->descent);
+    } else if (c == '\t') {
+      p.x += size * 2;
+    } else {
+      stbtt_aligned_quad q;
+      stbtt_GetPackedQuad(info->chars.data(), kAtlasWidth, kAtlasHeight, c,
+                          &p.x, &p.y, &q,
+                          /*align_to_integer=*/true);
+      renderer_->PushQuad(FVec2(q.x0, q.y1), FVec2(q.x1, q.y0),
+                          FVec2(q.s0, q.t1), FVec2(q.s1, q.t0), FVec2(0, 0),
+                          /*angle=*/0);
+    }
   }
 }
 

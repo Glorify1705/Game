@@ -1,6 +1,5 @@
 #include "clock.h"
 #include "console.h"
-#include "fonts.h"
 #include "input.h"
 #include "lua.h"
 #include "physics.h"
@@ -75,7 +74,7 @@ static const struct luaL_Reg kRendererLib[] = {
        const float y = luaL_checknumber(state, 3);
        float angle = 0;
        if (parameters == 4) angle = luaL_checknumber(state, 4);
-       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        if (auto* sub_texture = renderer->sub_texture(texture);
            sub_texture != nullptr) {
          renderer->Draw(FVec2(x, y), angle, *sub_texture);
@@ -90,7 +89,7 @@ static const struct luaL_Reg kRendererLib[] = {
        const float g = luaL_checknumber(state, 2);
        const float b = luaL_checknumber(state, 3);
        const float a = luaL_checknumber(state, 4);
-       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->SetColor(FVec(r, g, b, a));
        return 0;
      }},
@@ -99,13 +98,13 @@ static const struct luaL_Reg kRendererLib[] = {
        const float x = luaL_checknumber(state, 1);
        const float y = luaL_checknumber(state, 2);
        const float radius = luaL_checknumber(state, 3);
-       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->DrawCircle(FVec2(x, y), radius);
        return 0;
      }},
     {"draw_text",
      [](lua_State* state) {
-       auto* renderer = Registry<FontRenderer>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        std::string_view text = GetLuaString(state, 1);
        const float x = luaL_checknumber(state, 2);
        const float y = luaL_checknumber(state, 3);
@@ -114,7 +113,7 @@ static const struct luaL_Reg kRendererLib[] = {
      }},
     {"viewport",
      [](lua_State* state) {
-       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        IVec2 viewport = renderer->viewport();
        lua_pushnumber(state, viewport.x);
        lua_pushnumber(state, viewport.y);
@@ -122,31 +121,31 @@ static const struct luaL_Reg kRendererLib[] = {
      }},
     {"push",
      [](lua_State* state) {
-       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->Push();
        return 0;
      }},
     {"pop",
      [](lua_State* state) {
-       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->Pop();
        return 0;
      }},
     {"rotate",
      [](lua_State* state) {
-       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->Rotate(luaL_checknumber(state, 1));
        return 0;
      }},
     {"scale",
      [](lua_State* state) {
-       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->Scale(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
        return 0;
      }},
     {"translate",
      [](lua_State* state) {
-       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->Translate(luaL_checknumber(state, 1),
                            luaL_checknumber(state, 2));
        return 0;
@@ -351,7 +350,7 @@ static const struct luaL_Reg kAssetsLib[] = {
     {"subtexture",
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
-       auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        auto* subtexture = renderer->sub_texture(name);
        if (subtexture == nullptr) {
          luaL_error(state, "Could not find a subtexture %s", name);
@@ -365,7 +364,7 @@ static const struct luaL_Reg kAssetsLib[] = {
      [](lua_State* state) {
        const Subtexture* ptr = nullptr;
        if (lua_isstring(state, 1)) {
-         auto* renderer = Registry<SpriteSheetRenderer>::Retrieve(state);
+         auto* renderer = Registry<Renderer>::Retrieve(state);
          std::string_view name = GetLuaString(state, 1);
          ptr = renderer->sub_texture(name);
          if (ptr == nullptr) {

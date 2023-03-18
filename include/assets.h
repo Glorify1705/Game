@@ -14,6 +14,11 @@
 
 namespace G {
 
+inline std::string_view FlatbufferStringview(const flatbuffers::String* s) {
+  if (s == nullptr) return std::string_view("", 0);
+  return std::string_view(s->data(), s->size());
+}
+
 class Assets {
  public:
   Assets(const uint8_t* buffer) : assets_(GetAssetsPack(buffer)) {
@@ -34,6 +39,9 @@ class Assets {
   }
   const FontFile* GetFont(std::string_view name) const;
   size_t fonts() const { return assets_->fonts()->size(); }
+  const FontFile* GetFontByIndex(size_t idx) const {
+    return assets_->fonts()->Get(idx);
+  }
 
  private:
   const AssetsPack* assets_;
