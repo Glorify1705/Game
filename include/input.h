@@ -9,7 +9,7 @@
 
 #include "SDL.h"
 #include "circular_buffer.h"
-#include "map.h"
+#include "lookup_table.h"
 #include "vec.h"
 
 namespace G {

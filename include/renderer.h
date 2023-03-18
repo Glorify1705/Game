@@ -6,7 +6,7 @@
 
 #include "array.h"
 #include "assets.h"
-#include "map.h"
+#include "lookup_table.h"
 #include "mat.h"
 #include "shaders.h"
 #include "stb_truetype.h"

@@ -5,7 +5,7 @@
 #include "SDL_mixer.h"
 #include "array.h"
 #include "assets.h"
-#include "map.h"
+#include "lookup_table.h"
 
 namespace G {
 

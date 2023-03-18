@@ -9,7 +9,7 @@
 #include "allocators.h"
 #include "array.h"
 #include "circular_buffer.h"
-#include "map.h"
+#include "lookup_table.h"
 #include "strings.h"
 
 namespace G {

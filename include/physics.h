@@ -4,7 +4,7 @@
 
 #include "array.h"
 #include "box2d/box2d.h"
-#include "map.h"
+#include "lookup_table.h"
 #include "math.h"
 #include "vec.h"
 

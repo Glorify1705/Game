@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _GAME_MAP_H
-#define _GAME_MAP_H
+#ifndef _GAME_LOOKUP_TABLE_H
+#define _GAME_LOOKUP_TABLE_H
 
 #include <algorithm>
 #include <array>
@@ -13,6 +13,7 @@
 
 namespace G {
 namespace internal {
+
 // MSI probe and hash from https://nullprogram.com/blog/2022/08/08/.
 // Does not need to be very good, just fast.
 inline uint64_t Hash(const char* s, size_t len) {
@@ -59,6 +60,8 @@ class LookupTable {
     return result;
   }
 
+  bool Contains(std::string_view key) const { return Lookup(key, nullptr); }
+
   size_t size() const { return elements_; }
 
   std::string_view Insert(std::string_view key, T value) {
@@ -94,4 +97,4 @@ class LookupTable {
 
 }  // namespace G
 
-#endif  // _GAME_MAP_H
+#endif  // _GAME_LOOKUP_TABLE_H
