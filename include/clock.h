@@ -17,7 +17,7 @@ class LogTimer {
  public:
   using Buf = StringBuffer<kMaxLogLineLength>;
 
-  LogTimer(const char* file, int line, const char* func, Buf buf)
+  LogTimer(const char* file, int line, const char* func, Buf&& buf = {})
       : file_(file), line_(line), func_(func), start_(NowInSeconds()) {
     auto s = buf.piece();
     std::memcpy(buf_, s.data(), s.size());
@@ -83,9 +83,10 @@ class Events {
   }
 
  private:
-  FixedArray<double, 1024> timer_;
-  FixedArray<QueueCall, 1024> calls_;
-  FixedArray<void*, 1024> userdata_;
+  inline static constexpr size_t kMaxEvents = 1024;
+  FixedArray<double, kMaxEvents> timer_;
+  FixedArray<QueueCall, kMaxEvents> calls_;
+  FixedArray<void*, kMaxEvents> userdata_;
   double t_ = 0;
 };
 
