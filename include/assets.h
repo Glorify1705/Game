@@ -25,21 +25,21 @@ class Assets {
     CHECK(assets_ != nullptr, "Failed to build assets from buffer");
   }
 
-  const ImageFile* GetImage(std::string_view name) const;
-  const ScriptFile* GetScript(std::string_view name) const;
+  const ImageAsset* GetImage(std::string_view name) const;
+  const ScriptAsset* GetScript(std::string_view name) const;
   size_t scripts() const { return assets_->scripts()->size(); }
-  const ScriptFile* GetScriptByIndex(size_t idx) const {
+  const ScriptAsset* GetScriptByIndex(size_t idx) const {
     return assets_->scripts()->Get(idx);
   }
-  const SpritesheetFile* GetSpritesheet(std::string_view name) const;
-  const SoundFile* GetSound(std::string_view name) const;
+  const SpritesheetAsset* GetSpritesheet(std::string_view name) const;
+  const SoundAsset* GetSound(std::string_view name) const;
   size_t spritesheets() const { return assets_->sprite_sheets()->size(); }
-  const SpritesheetFile* GetSpritesheetByIndex(size_t idx) const {
+  const SpritesheetAsset* GetSpritesheetByIndex(size_t idx) const {
     return assets_->sprite_sheets()->Get(idx);
   }
-  const FontFile* GetFont(std::string_view name) const;
+  const FontAsset* GetFont(std::string_view name) const;
   size_t fonts() const { return assets_->fonts()->size(); }
-  const FontFile* GetFontByIndex(size_t idx) const {
+  const FontAsset* GetFontByIndex(size_t idx) const {
     return assets_->fonts()->Get(idx);
   }
 

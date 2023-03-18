@@ -60,7 +60,7 @@ class Lua {
   bool Stopped() const { return stopped_; }
 
  private:
-  void LoadMain(const ScriptFile& asset);
+  void LoadMain(const ScriptAsset& asset);
   void SetPackagePreload(std::string_view filename);
 
   lua_State* state_ = nullptr;

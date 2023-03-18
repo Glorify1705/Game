@@ -8,7 +8,7 @@ function Entity:new(x, y, angle, image, id)
     self.y = y
     self.image = image
     self.entity_id = id
-    local info = G.assets.subtexture_info(self.image)
+    local info = G.assets.sprite_info(self.image)
     self.physics = Physics(x, y, x + info.width, y + info.height, angle, self)
 end
 

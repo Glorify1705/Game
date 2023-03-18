@@ -27,7 +27,7 @@ int Traceback(lua_State* L) {
   return 1;
 }
 
-int LoadLuaAsset(lua_State* state, const ScriptFile& asset,
+int LoadLuaAsset(lua_State* state, const ScriptAsset& asset,
                  int traceback_handler = INT_MAX) {
   const char* name = asset.filename()->c_str();
   StringBuffer<128> buf("@", name);
@@ -69,17 +69,16 @@ static const struct luaL_Reg kRendererLib[] = {
     {"draw_sprite",
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
-       std::string_view texture = GetLuaString(state, 1);
+       std::string_view spritename = GetLuaString(state, 1);
        const float x = luaL_checknumber(state, 2);
        const float y = luaL_checknumber(state, 3);
        float angle = 0;
        if (parameters == 4) angle = luaL_checknumber(state, 4);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       if (auto* sub_texture = renderer->sub_texture(texture);
-           sub_texture != nullptr) {
-         renderer->Draw(FVec2(x, y), angle, *sub_texture);
+       if (auto* sprite = renderer->sprite(spritename); sprite != nullptr) {
+         renderer->Draw(FVec2(x, y), angle, *sprite);
        } else {
-         luaL_error(state, "unknown texture %s", texture);
+         luaL_error(state, "unknown sprite %s", sprite);
        }
        return 0;
      }},
@@ -347,32 +346,32 @@ static const struct luaL_Reg kSoundLib[] = {
     {nullptr, nullptr}};
 
 static const struct luaL_Reg kAssetsLib[] = {
-    {"subtexture",
+    {"sprite",
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       auto* subtexture = renderer->sub_texture(name);
+       auto* subtexture = renderer->sprite(name);
        if (subtexture == nullptr) {
          luaL_error(state, "Could not find a subtexture %s", name);
        }
        lua_pushlightuserdata(state, renderer);
-       lua_getfield(state, LUA_REGISTRYINDEX, "asset_subtexture_ptr");
+       lua_getfield(state, LUA_REGISTRYINDEX, "asset_sprite_ptr");
        lua_setmetatable(state, -2);
        return 1;
      }},
-    {"subtexture_info",
+    {"sprite_info",
      [](lua_State* state) {
-       const Subtexture* ptr = nullptr;
+       const SpriteAsset* ptr = nullptr;
        if (lua_isstring(state, 1)) {
          auto* renderer = Registry<Renderer>::Retrieve(state);
          std::string_view name = GetLuaString(state, 1);
-         ptr = renderer->sub_texture(name);
+         ptr = renderer->sprite(name);
          if (ptr == nullptr) {
            luaL_error(state, "Could not find an image called %s", name);
          }
        } else {
-         ptr = reinterpret_cast<const Subtexture*>(
-             luaL_checkudata(state, 1, "asset_subtexture_ptr"));
+         ptr = reinterpret_cast<const SpriteAsset*>(
+             luaL_checkudata(state, 1, "asset_sprite_ptr"));
        }
        lua_newtable(state);
        lua_pushnumber(state, ptr->width());
@@ -623,7 +622,7 @@ void Lua::SetPackagePreload(std::string_view filename) {
   lua_pop(state_, 2);
 }
 
-void Lua::LoadMain(const ScriptFile& asset) {
+void Lua::LoadMain(const ScriptAsset& asset) {
   const char* name = asset.filename()->c_str();
   LoadLuaAsset(state_, asset, traceback_handler_);
   // Check all important functions are defined.

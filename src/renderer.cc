@@ -234,9 +234,9 @@ void Renderer::BeginFrame() {
   ApplyTransform(FMat4x4::Identity());
 }
 
-const Subtexture* Renderer::sub_texture(std::string_view name) const {
-  const Subtexture* result = nullptr;
-  if (!subtexts_.Lookup(name, &result)) return nullptr;
+const SpriteAsset* Renderer::sprite(std::string_view name) const {
+  const SpriteAsset* result = nullptr;
+  if (!sprites_.Lookup(name, &result)) return nullptr;
   return result;
 }
 
@@ -249,23 +249,19 @@ void Renderer::Pop() {
 
 void Renderer::SetColor(FVec4 color) { renderer_->SetActiveColor(color); }
 
-void Renderer::Draw(FVec2 position, float angle, const Subtexture& texture) {
-  if (texture_current_ != &texture) {
-    std::string_view spritesheet(texture.spritesheet()->c_str(),
-                                 texture.spritesheet()->size());
-    CHECK(sheet_info_.Lookup(spritesheet, &current_),
+void Renderer::Draw(FVec2 position, float angle, const SpriteAsset& sprite) {
+  std::string_view spritesheet = FlatbufferStringview(sprite.spritesheet());
+  if (current_spritesheet_ != spritesheet) {
+    CHECK(spritesheet_info_.Lookup(spritesheet, &current_),
           "could not find texture [", spritesheet, "]");
-    renderer_->SetActiveTexture(current_.texture);
-    texture_current_ = &texture;
   }
-  const FVec2 p0(position -
-                 FVec2(texture.width() / 2.0, texture.height() / 2.0));
-  const FVec2 p1(position +
-                 FVec2(texture.width() / 2.0, texture.height() / 2.0));
-  const FVec2 q0(FVec2(1.0 * texture.x() / current_.width,
-                       1.0 * texture.y() / current_.height));
-  const FVec2 q1(1.0 * (texture.x() + texture.width()) / current_.width,
-                 1.0 * (texture.y() + texture.height()) / current_.height);
+  renderer_->SetActiveTexture(current_.texture);
+  const FVec2 p0(position - FVec2(sprite.width() / 2.0, sprite.height() / 2.0));
+  const FVec2 p1(position + FVec2(sprite.width() / 2.0, sprite.height() / 2.0));
+  const FVec2 q0(FVec2(1.0 * sprite.x() / current_.width,
+                       1.0 * sprite.y() / current_.height));
+  const FVec2 q1(1.0 * (sprite.x() + sprite.width()) / current_.width,
+                 1.0 * (sprite.y() + sprite.height()) / current_.height);
   renderer_->PushQuad(p0, p1, q0, q1, position, angle);
 }
 
@@ -294,23 +290,22 @@ void Renderer::DrawCircle(FVec2 center, float radius) {
 void Renderer::LoadSpreadsheets(const Assets& assets) {
   for (size_t i = 0; i < assets.spritesheets(); ++i) {
     auto* sheet = assets.GetSpritesheetByIndex(i);
-    for (const auto* texture : *sheet->sub_texture()) {
-      std::string_view spritesheet(texture->spritesheet()->c_str(),
-                                   texture->spritesheet()->size());
-      if (!sheet_info_.Lookup(spritesheet)) {
+    for (const SpriteAsset* sprite : *sheet->sprites()) {
+      std::string_view spritesheet =
+          FlatbufferStringview(sprite->spritesheet());
+      if (!spritesheet_info_.Lookup(spritesheet)) {
         const char* image_name = sheet->image_name()->c_str();
         auto* image = assets.GetImage(image_name);
         CHECK(image != nullptr, "Unknown image ", image_name,
               " for spritesheet ", spritesheet);
-        Sheet info = {.texture = renderer_->LoadTexture(*image),
-                      .width = image->width(),
-                      .height = image->height()};
+        SheetTexture info = {.texture = renderer_->LoadTexture(*image),
+                             .width = image->width(),
+                             .height = image->height()};
         LOG("Loaded spritesheet ", spritesheet);
-        sheet_info_.Insert(spritesheet, info);
+        spritesheet_info_.Insert(spritesheet, info);
       }
-      std::string_view subtexture_name(texture->name()->c_str(),
-                                       texture->name()->size());
-      subtexts_.Insert(subtexture_name, texture);
+      std::string_view sprite_name = FlatbufferStringview(sprite->name());
+      sprites_.Insert(sprite_name, sprite);
     }
   }
 }
@@ -319,11 +314,11 @@ void Renderer::LoadFonts(const Assets& assets, float pixel_height) {
   DCHECK(assets.fonts() < fonts_.size(), "Too many fonts");
   for (size_t i = 0; i < assets.fonts(); ++i) {
     FontInfo& font = fonts_[i];
-    const FontFile& font_file = *assets.GetFontByIndex(i);
-    const uint8_t* font_buffer = font_file.contents()->data();
+    const FontAsset& font_asset = *assets.GetFontByIndex(i);
+    const uint8_t* font_buffer = font_asset.contents()->data();
     CHECK(stbtt_InitFont(&font.font_info, font_buffer,
                          stbtt_GetFontOffsetForIndex(font_buffer, 0)),
-          "Could not initialize ", FlatbufferStringview(font_file.filename()));
+          "Could not initialize ", FlatbufferStringview(font_asset.filename()));
     font.scale = stbtt_ScaleForPixelHeight(&font.font_info, pixel_height);
     stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
                           &font.line_gap);
@@ -340,7 +335,7 @@ void Renderer::LoadFonts(const Assets& assets, float pixel_height) {
     }
     font.texture = renderer_->LoadTexture(buffer, kAtlasWidth, kAtlasHeight);
     delete[] buffer;
-    font_table_.Insert(FlatbufferStringview(font_file.filename()), &font);
+    font_table_.Insert(FlatbufferStringview(font_asset.filename()), &font);
   }
 }
 

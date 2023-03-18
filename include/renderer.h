@@ -20,7 +20,7 @@ class BatchRenderer {
   BatchRenderer(IVec2 viewport);
   ~BatchRenderer();
 
-  GLuint LoadTexture(const ImageFile& image) {
+  GLuint LoadTexture(const ImageAsset& image) {
     return LoadTexture(image.contents()->Data(), image.width(), image.height());
   }
 
@@ -127,7 +127,7 @@ class Renderer {
   void BeginFrame();
   void FlushFrame() {}
 
-  void Draw(FVec2 position, float angle, const Subtexture& texture);
+  void Draw(FVec2 position, float angle, const SpriteAsset& texture);
 
   void SetColor(FVec4 color);
   void DrawRect(FVec2 top_left, FVec2 bottom_right, float angle);
@@ -135,7 +135,7 @@ class Renderer {
   void DrawText(std::string_view font, float size, std::string_view str,
                 FVec2 position);
 
-  const Subtexture* sub_texture(std::string_view name) const;
+  const SpriteAsset* sprite(std::string_view name) const;
   IVec2 viewport() const { return renderer_->GetViewport(); }
 
   void Push();
@@ -151,7 +151,7 @@ class Renderer {
   inline static constexpr size_t kAtlasHeight = 4096;
   inline static constexpr size_t kFontSize = 32;
 
-  struct Sheet {
+  struct SheetTexture {
     GLuint texture;
     uint32_t width, height;
   };
@@ -176,10 +176,10 @@ class Renderer {
 
   FixedArray<FMat4x4, 128> transform_stack_;
 
-  LookupTable<Sheet> sheet_info_;
-  LookupTable<const Subtexture*> subtexts_;
-  const Subtexture* texture_current_ = nullptr;
-  Sheet current_;
+  LookupTable<SheetTexture> spritesheet_info_;
+  LookupTable<const SpriteAsset*> sprites_;
+  std::string_view current_spritesheet_;
+  SheetTexture current_;
   BatchRenderer* renderer_;
 
   LookupTable<FontInfo*> font_table_;

@@ -18,22 +18,22 @@ const T* Search(const flatbuffers::Vector<flatbuffers::Offset<T>>& v,
 
 }  // namespace
 
-const ImageFile* Assets::GetImage(std::string_view name) const {
+const ImageAsset* Assets::GetImage(std::string_view name) const {
   return Search(*assets_->images(), name);
 }
 
-const ScriptFile* Assets::GetScript(std::string_view name) const {
+const ScriptAsset* Assets::GetScript(std::string_view name) const {
   return Search(*assets_->scripts(), name);
 }
-const SpritesheetFile* Assets::GetSpritesheet(std::string_view name) const {
+const SpritesheetAsset* Assets::GetSpritesheet(std::string_view name) const {
   return Search(*assets_->sprite_sheets(), name);
 }
 
-const SoundFile* Assets::GetSound(std::string_view name) const {
+const SoundAsset* Assets::GetSound(std::string_view name) const {
   return Search(*assets_->sounds(), name);
 }
 
-const FontFile* Assets::GetFont(std::string_view name) const {
+const FontAsset* Assets::GetFont(std::string_view name) const {
   return Search(*assets_->fonts(), name);
 }
 

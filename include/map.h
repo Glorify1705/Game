@@ -53,6 +53,12 @@ class LookupTable {
     return false;
   }
 
+  T* LookupOrDie(std::string_view key) const {
+    T* result;
+    CHECK(Lookup(key, &result), "No key ", key);
+    return result;
+  }
+
   size_t size() const { return elements_; }
 
   std::string_view Insert(std::string_view key, T value) {
