@@ -168,7 +168,6 @@ int LuaLogPrint(lua_State* state) {
       return luaL_error(state, "'tostring' did not return string");
     }
     buffer.Append(std::string_view(s, length));
-    if (i + 1 < num_args) buffer.Append(" ");
     lua_pop(state, 1);
   }
   lua_pop(state, 1);
@@ -505,52 +504,13 @@ static const struct luaL_Reg kPhysicsLib[] = {
      }},
     {nullptr, nullptr}};
 
-// TODO: Allocate these with a bitmap.
-struct Context {
-  lua_State* state;
-  int func;
-  int times;
-  double dt;
-};
-
-void QueueRun(void* ptr) {
-  auto* context = static_cast<Context*>(ptr);
-  auto* events = Registry<Events>::Retrieve(context->state);
-  lua_rawgeti(context->state, LUA_REGISTRYINDEX, context->func);
-  lua_pcall(context->state, 0, LUA_MULTRET, 0);
-  if (context->times == -1 || --context->times > 0) {
-    events->QueueIn(context->dt, QueueRun, ptr);
-    return;
-  }
-  luaL_unref(context->state, LUA_REGISTRYINDEX, context->func);
-  delete context;
-}
-
-static const struct luaL_Reg kClockLib[] = {
-    {"call_in",
-     [](lua_State* state) {
-       auto* events = Registry<Events>::Retrieve(state);
-       auto* context =
-           new Context{state, luaL_ref(state, LUA_REGISTRYINDEX), 1, 0};
-       events->QueueIn(context->dt, QueueRun, context);
-       return 0;
-     }},
-    {"repeat_call",
-     [](lua_State* state) {
-       auto* events = Registry<Events>::Retrieve(state);
-       double dt = luaL_checknumber(state, 1);
-       int times = luaL_checknumber(state, 2);
-       auto* context =
-           new Context{state, luaL_ref(state, LUA_REGISTRYINDEX), times, dt};
-       events->QueueIn(context->dt, QueueRun, context);
-       return 0;
-     }},
-    {"now",
-     [](lua_State* state) {
-       lua_pushnumber(state, NowInSeconds());
-       return 1;
-     }},
-    {nullptr, nullptr}};
+static const struct luaL_Reg kClockLib[] = {{"now",
+                                             [](lua_State* state) {
+                                               lua_pushnumber(state,
+                                                              NowInSeconds());
+                                               return 1;
+                                             }},
+                                            {nullptr, nullptr}};
 
 struct LuaError {
   std::string_view filename;

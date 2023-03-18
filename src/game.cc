@@ -138,7 +138,6 @@ struct EngineModules {
   SpriteSheetRenderer sprite_sheet_renderer;
   Lua lua;
   Physics physics;
-  Events events;
 
   EngineModules(const std::vector<const char*> arguments,
                 const GameParams& params)
@@ -158,7 +157,6 @@ struct EngineModules {
     lua.Register(&font_renderer);
     lua.Register(&sound);
     lua.Register(&physics);
-    lua.Register(&events);
   }
 
   void StartFrame() {
@@ -444,7 +442,6 @@ class Game {
   void Update(double t, double dt) {
     WATCH_VAR(t);
     WATCH_VAR(dt);
-    e_->events.Fire(dt);
     e_->physics.Update(dt);
     e_->lua.Update(t, dt);
     WATCH_EXPR("Mouse Position ", e_->mouse.GetPosition());

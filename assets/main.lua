@@ -1,5 +1,6 @@
 local Player = require "player"
 local Meteor = require "meteor"
+local Timer = require "timer"
 
 local Game = {}
 
@@ -35,6 +36,7 @@ end
 function Game:init()
     self.entities = Entities()
     self.score = 0
+    self.timer = Timer()
     self.entities:add(Player(100, 100))
     self.entities:add(Meteor(300, 300))
     self.entities:add(Meteor(600, 600))
@@ -47,6 +49,7 @@ function Game:init()
 end
 
 function Game:update(t, dt)
+    self.timer:update(dt)
     if G.input.is_key_pressed('q') then
         G.quit()
     end
