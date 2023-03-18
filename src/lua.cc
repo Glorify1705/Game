@@ -379,9 +379,44 @@ static const struct luaL_Reg kPhysicsLib[] = {
            lua_newuserdata(state, sizeof(Physics::Handle)));
        luaL_getmetatable(state, "physics_handle");
        lua_setmetatable(state, -2);
+       lua_pushvalue(state, 6);
        *handle = physics->AddBox(FVec(tx, ty), FVec(bx, by), angle,
-                                 GetLuaString(state, 6));
+                                 luaL_ref(state, LUA_REGISTRYINDEX));
        return 1;
+     }},
+    {"destroy_handle",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       physics->DestroyHandle(*handle);
+       return 0;
+     }},
+    {"set_collision_callback",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       if (lua_gettop(state) != 1) {
+         luaL_error(state, "Must pass a function as collision callback");
+         return 0;
+       }
+       struct CollisionContext {
+         lua_State* state;
+         int func_index;
+       };
+       lua_pushvalue(state, 1);
+       auto* context =
+           new CollisionContext{state, luaL_ref(state, LUA_REGISTRYINDEX)};
+       physics->SetContactCallback(
+           [](uintptr_t lhs, uintptr_t rhs, void* userdata) {
+             auto context = reinterpret_cast<CollisionContext*>(userdata);
+             lua_rawgeti(context->state, LUA_REGISTRYINDEX,
+                         context->func_index);
+             lua_rawgeti(context->state, LUA_REGISTRYINDEX, lhs);
+             lua_rawgeti(context->state, LUA_REGISTRYINDEX, rhs);
+             lua_call(context->state, 2, 0);
+           },
+           context);
+       return 0;
      }},
     {"position",
      [](lua_State* state) {
@@ -556,7 +591,6 @@ void AddLibrary(lua_State* state, const char* name, const luaL_Reg* funcs) {
 }  // namespace
 
 Lua::Lua(const char* script_name, Assets* assets) {
-  TIMER();
   state_ = luaL_newstate();
   lua_atpanic(state_, [](lua_State* state) {
     LuaCrash(state, 1);
@@ -591,24 +625,19 @@ Lua::Lua(const char* script_name, Assets* assets) {
   for (size_t i = 0; i < assets->scripts(); ++i) {
     auto* script = assets->GetScriptByIndex(i);
     std::string_view asset_name(script->filename()->c_str());
-    TIMER("Loading script ", asset_name);
     ConsumeSuffix(&asset_name, ".lua");
     if (asset_name != "main") {
       SetPackagePreload(asset_name);
     }
   }
-  {
-    TIMER("Loading Main");
-    auto* main = assets->GetScript(script_name);
-    CHECK(main != nullptr, "Unknown script ", script_name);
-    LoadMain(*main);
-  }
+  auto* main = assets->GetScript(script_name);
+  CHECK(main != nullptr, "Unknown script ", script_name);
+  LoadMain(*main);
 }
 
 void Lua::SetPackagePreload(std::string_view filename) {
   // We use a buffer to ensure that filename is null terminated.
   StringBuffer<127> buf(filename);
-  LOG("Setting package preload for ", buf);
   lua_getglobal(state_, "package");
   lua_getfield(state_, -1, "preload");
   lua_pushcfunction(state_, &PackageLoader);
@@ -620,7 +649,7 @@ void Lua::LoadMain(const ScriptFile& asset) {
   const char* name = asset.filename()->c_str();
   LoadLuaAsset(state_, asset, traceback_handler_);
   // Check all important functions are defined.
-  for (const char* fn : {"init", "update", "render"}) {
+  for (const char* fn : {"init", "update", "draw"}) {
     lua_getfield(state_, -1, fn);
     if (lua_isnil(state_, -1)) {
       DIE("Cannot run main code: ", fn, " is not defined in ", name);
@@ -652,9 +681,9 @@ void Lua::Update(float t, float dt) {
   }
 }
 
-void Lua::Render() {
+void Lua::Draw() {
   lua_getglobal(state_, "Game");
-  lua_getfield(state_, -1, "render");
+  lua_getfield(state_, -1, "draw");
   lua_insert(state_, -2);
   if (lua_pcall(state_, 1, 0, traceback_handler_)) {
     lua_error(state_);

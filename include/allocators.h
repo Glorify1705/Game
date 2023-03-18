@@ -54,30 +54,25 @@ class FixedArena {
   Allocator allocator_;
 };
 
-template <size_t unit_size, size_t units>
-class BitmapAllocator {
+template <typename T, size_t units>
+class ObjectPool {
  public:
-  explicit BitmapAllocator(const void* memory, size_t size)
-      : ptr_(reinterpret_cast<uintptr_t>(memory)) {}
-
-  void* Alloc(size_t size, size_t align) {
-    DCHECK(size == unit_size && align == align);
+  T* Alloc() {
+    DCHECK(!used_.all(), "OOM");
     for (size_t i = 0; i < used_.size(); ++i) {
-      if (!used_[i]) {
-        used_[i] = true;
-        return ptr_ + unit_size * i;
-      }
+      if (!used_[i]) return &units_[i];
     }
     return nullptr;
   }
 
-  void Dealloc(void* ptr, size_t /*size*/) {
-    used_[(reinterpret_cast<uint8_t>(ptr) - ptr_) / unit_size] = false;
+  void Dealloc(T* ptr) {
+    const size_t index = static_cast<ptrdiff_t>(ptr - &units_[0]) / sizeof(T);
+    used_[index] = false;
   }
 
  private:
   std::bitset<units> used_;
-  uintptr_t ptr_;
+  std::array<T, units> units_;
 };
 
 template <class T, class Allocator>
@@ -100,7 +95,7 @@ class STLAllocatorWrapper {
   STLAllocatorWrapper(Allocator* allocator = nullptr)
       : allocator_(*allocator) {}
 
-  BumpAllocator& allocator() const { return allocator_; }
+  Allocator& allocator() const { return allocator_; }
 
   pointer address(reference x) const { return &x; }
   const_pointer address(const_reference x) const { return &x; }

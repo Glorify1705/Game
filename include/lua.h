@@ -54,7 +54,7 @@ class Lua {
 
   void Update(float t, float dt);
 
-  void Render();
+  void Draw();
 
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }

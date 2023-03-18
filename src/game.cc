@@ -97,9 +97,13 @@ const uint8_t* ReadAssets(const std::vector<const char*>& arguments) {
         " as a zip file: ", zip_error_strerror(&zip_error));
   }
   const int64_t num_entries = zip_get_num_entries(zip_file, ZIP_FL_UNCHANGED);
-  LOG("Zip file has ", num_entries, " entries");
+  if (num_entries == 0) LOG("Zip file has no entries");
+  CHECK(num_entries == 1, "Expected one file");
+  const char* filename = zip_get_name(zip_file, 0, ZIP_FL_ENC_RAW);
+  CHECK(!std::strcmp(filename, kAssetFileName), "Expected a file named ",
+        kAssetFileName, " found ", filename);
   for (int i = 0; i < num_entries; ++i) {
-    LOG("Found file: ", zip_get_name(zip_file, i, ZIP_FL_ENC_RAW),
+    LOG("Found file ", zip_get_name(zip_file, i, ZIP_FL_ENC_RAW),
         " in zip file");
   }
   zip_stat_t stat;
@@ -147,7 +151,6 @@ struct EngineModules {
         lua("main.lua", &assets),
         physics(FVec(params.screen_width, params.screen_height),
                 Physics::kPixelsPerMeter) {
-    TIMER();
     lua.Register(&sprite_sheet_renderer);
     lua.Register(&keyboard);
     lua.Register(&mouse);
@@ -179,7 +182,7 @@ struct EngineModules {
 
   void Render() {
     sprite_sheet_renderer.BeginFrame();
-    lua.Render();
+    lua.Draw();
     sprite_sheet_renderer.FlushFrame();
     quad_renderer.Render();
   }
@@ -368,6 +371,7 @@ class DebugUi {
 class Game {
  public:
   Game(int argc, const char* argv[]) : arguments_(argv + 1, argv + argc) {
+    TIMER("Setup");
     // Initialize the debug console.
     DebugConsole::instance();
     InitializeSDL();

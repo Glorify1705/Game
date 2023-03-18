@@ -15,12 +15,16 @@ class Physics final : public b2ContactListener {
   inline static constexpr float kPixelsPerMeter = 60;
   struct Handle {
     b2Body *handle;
+    uintptr_t userdata;
   };
 
   explicit Physics(FVec2 pixel_dimensions, float pixels_per_meter);
 
-  using ContactCallback = void (*)(std::string_view, std::string_view);
-  void SetContactCallback(ContactCallback contact_callback);
+  using ContactCallback = void (*)(uintptr_t, uintptr_t, void *);
+  void SetContactCallback(ContactCallback contact_callback, void *userdata);
+
+  using DestroyCallback = void (*)(uintptr_t, void *);
+  void SetDestroyCallback(DestroyCallback destroy_callback, void *userdata);
 
   void Update(float dt);
   void SetOrigin(FVec2 origin);
@@ -30,7 +34,9 @@ class Physics final : public b2ContactListener {
   void EndContact(b2Contact *);
 
   Handle AddBox(FVec2 top_left, FVec2 top_right, float angle,
-                std::string_view id);
+                uintptr_t userdata);
+
+  void DestroyHandle(Handle handle);
 
   void ApplyLinearImpulse(Handle handle, FVec2 v);
 
@@ -45,22 +51,23 @@ class Physics final : public b2ContactListener {
   float GetAngle(Handle handle) const;
 
  private:
-  inline static constexpr size_t kMaxIdsLenLog = 20;
-  inline static constexpr size_t kMaxIdsLength = 1 << 20;
+  static void DefaultDestroy(uintptr_t, void *) {}
+
+  static void DefaultContact(uintptr_t, uintptr_t, void *) {}
 
   FVec2 From(b2Vec2 v) const;
   b2Vec2 To(FVec2 v) const;
-
-  uintptr_t AddId(std::string_view id);
-  std::string_view Convert(uintptr_t encoded) const;
 
   const float pixels_per_meter_;
   FVec2 world_dimensions_;
   b2World world_;
   b2Body *ground_;
-  void (*contact_callback_)(std::string_view, std::string_view) = nullptr;
-  char ids_[kMaxIdsLength];
-  size_t ids_pos_ = 0;
+
+  ContactCallback contact_callback_ = DefaultContact;
+  void *contact_userdata_ = this;
+
+  DestroyCallback destroy_callback_ = DefaultDestroy;
+  void *destroy_userdata_ = this;
 };
 
 }  // namespace G

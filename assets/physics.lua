@@ -11,6 +11,10 @@ function Physics:position()
     return Vec2(G.physics.position(self.handle))
 end
 
+function Physics:__gc()
+    G.physics.destroy_handle(self.handle)
+end
+
 function Physics:angle()
     return G.physics.angle(self.handle)
 end

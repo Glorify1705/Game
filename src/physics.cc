@@ -6,9 +6,7 @@
 namespace G {
 namespace {
 
-void DefaultContactCallback(std::string_view lhs, std::string_view rhs) {
-  LOG("Collision between ", lhs, " and ", rhs);
-}
+static const uintptr_t* kLevelId = kLevelId;
 
 }  // namespace
 
@@ -17,15 +15,13 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter)
       world_dimensions_(pixel_dimensions.x / pixels_per_meter,
                         pixel_dimensions.y / pixels_per_meter),
       world_(b2Vec2(0, 0)) {
-  WATCH_EXPR("World", world_dimensions_);
-  SetContactCallback(DefaultContactCallback);
-
   world_.SetGravity(b2Vec2(0, 0));
   world_.SetContactListener(this);
 
   b2BodyDef bd;
+  bd.type = b2_staticBody;
   bd.position.Set(0.0f, 0.0f);
-  bd.userData.pointer = AddId("walls");
+  bd.userData.pointer = reinterpret_cast<uintptr_t>(kLevelId);
   ground_ = world_.CreateBody(&bd);
 
   b2EdgeShape shape;
@@ -48,39 +44,36 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter)
   ground_->CreateFixture(&sd);
 }
 
+void Physics::SetDestroyCallback(DestroyCallback callback, void* userdata) {
+  destroy_callback_ = callback;
+  destroy_userdata_ = userdata;
+}
+
 void Physics::BeginContact(b2Contact* c) {
-  const uintptr_t a = c->GetFixtureA()->GetBody()->GetUserData().pointer;
-  const uintptr_t b = c->GetFixtureB()->GetBody()->GetUserData().pointer;
-  contact_callback_(Convert(a), Convert(b));
+  auto* a = c->GetFixtureA()->GetBody();
+  auto* b = c->GetFixtureB()->GetBody();
+  if (a->GetType() == b2_staticBody || b->GetType() == b2_staticBody) {
+    return;
+  }
+  contact_callback_(a->GetUserData().pointer, b->GetUserData().pointer,
+                    contact_userdata_);
 }
 
 void Physics::EndContact(b2Contact*) {}
 
-void Physics::SetContactCallback(ContactCallback callback) {
+void Physics::SetContactCallback(ContactCallback callback, void* userdata) {
   contact_callback_ = callback;
-}
-
-uintptr_t Physics::AddId(std::string_view id) {
-  DCHECK(ids_pos_ + id.size() < kMaxIdsLength, "OOM ids_pos_ = ", ids_pos_);
-  std::memcpy(&ids_[ids_pos_], id.data(), id.size());
-  size_t pos = ids_pos_;
-  ids_pos_ += id.size();
-  return (id.size() << kMaxIdsLenLog) | pos;
-}
-
-std::string_view Physics::Convert(uintptr_t encoded) const {
-  const size_t index = encoded & (kMaxIdsLength - 1);
-  return std::string_view(&ids_[index], encoded >> kMaxIdsLenLog);
+  contact_userdata_ = userdata;
 }
 
 Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
-                                std::string_view id) {
+                                uintptr_t userdata) {
   const b2Vec2 tl = To(top_left);
   const b2Vec2 br = To(bottom_right);
   b2BodyDef def;
   def.type = b2_dynamicBody;
   def.position.Set((tl.x + br.x) / 2, (tl.y + br.y) / 2);
-  def.userData.pointer = AddId(id);
+  def.userData.pointer = userdata;
   b2PolygonShape box;
   box.SetAsBox((br.x - tl.x) / 2, (br.y - tl.y) / 2, b2Vec2(0, 0), angle);
   b2Body* body = world_.CreateBody(&def);
@@ -88,9 +81,6 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
   fixture.shape = &box;
   fixture.density = 2.0f;
   fixture.friction = 0.3f;
-  if (id.empty()) {
-    fixture.isSensor = true;
-  }
   body->CreateFixture(&fixture);
   b2FrictionJointDef jd;
   float I = body->GetInertia();
@@ -105,10 +95,15 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
   jd.maxForce = 0.5f * mass * gravity;
   jd.maxTorque = 0.2f * mass * radius * gravity;
   world_.CreateJoint(&jd);
-  return Handle{body};
+  return Handle{body, userdata};
 }
 
 void Physics::SetOrigin(FVec2 origin) { world_.ShiftOrigin(To(origin)); }
+
+void Physics::DestroyHandle(Handle handle) {
+  destroy_callback_(handle.userdata, destroy_userdata_);
+  world_.DestroyBody(handle.handle);
+}
 
 void Physics::Rotate(Handle handle, float angle) {
   auto* body = handle.handle;

@@ -53,14 +53,11 @@ void Mouse::PushEvent(const SDL_Event& event) {
 }
 
 Controllers::Controllers() {
-  {
-    TIMER("Processing Joystick Database");
-    std::string_view db = ControllerDB();
-    SDL_RWops* rwops = SDL_RWFromMem(
-        const_cast<void*>(static_cast<const void*>(db.data())), db.size());
-    CHECK(SDL_GameControllerAddMappingsFromRW(rwops, /*freerw=*/true) > 0,
-          "Could not add Joystick database: ", SDL_GetError());
-  }
+  std::string_view db = ControllerDB();
+  SDL_RWops* rwops = SDL_RWFromMem(
+      const_cast<void*>(static_cast<const void*>(db.data())), db.size());
+  CHECK(SDL_GameControllerAddMappingsFromRW(rwops, /*freerw=*/true) > 0,
+        "Could not add Joystick database: ", SDL_GetError());
   // Button table.
   button_table_.Insert("a", SDL_CONTROLLER_BUTTON_A);
   button_table_.Insert("b", SDL_CONTROLLER_BUTTON_B);
@@ -83,7 +80,7 @@ Controllers::Controllers() {
   const int controllers = SDL_NumJoysticks();
   CHECK(controllers >= 0, "Failed to get joysticks: ", SDL_GetError());
   DCHECK(static_cast<size_t>(controllers) < controllers_.size());
-  LOG("Found ", controllers, " joysticks");
+  if (controllers == 0) LOG("Found no joysticks");
   for (int i = 0; i < controllers; ++i) {
     if (!SDL_IsGameController(i)) {
       LOG("Skipping controller ", i);
