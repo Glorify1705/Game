@@ -110,7 +110,7 @@ target_include_directories(Game
                            "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua/src")
 
 set(SUPPORTS_GCC_FLAGS $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>)
-set(GCC_AND_CLANG_FLAGS -Wall -Wextra -Werror -g -O2 -DNDEBUG -DGAME_WITH_ASSERTS)
+set(GCC_AND_CLANG_FLAGS -Wall -Wextra -Werror -ggdb -O2 -DNDEBUG -DGAME_WITH_ASSERTS)
 set(MSVC_FLAGS /W4 /WX /DGAME_WITH_ASSERTS /O2 /DEBUG /NDEBUG)
 
 set(COMPILER_FLAGS 

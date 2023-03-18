@@ -17,3 +17,4 @@
 - [ ] Screenshots.  
 - [X] Collision.
 - [ ] Draw circles and colored squares.
+- [ ] Integrate icculus/physfs for hot code reloading.

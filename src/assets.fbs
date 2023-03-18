@@ -41,12 +41,18 @@ table FontFile {
     contents: [uint8];
 }
 
+table ShaderFile {
+    filename: string;
+    contents: string;
+}
+
 table AssetsPack {
     images: [ImageFile];
     sprite_sheets: [SpritesheetFile];
     scripts: [ScriptFile];
     sounds: [SoundFile];
     fonts: [FontFile];
+    shaders: [ShaderFile];
 }
 
 root_type AssetsPack;

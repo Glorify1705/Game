@@ -85,7 +85,8 @@ class Packer {
         scripts_(allocator_),
         spritesheets_(allocator_),
         sounds_(allocator_),
-        fonts_(allocator_) {}
+        fonts_(allocator_),
+        shaders_(allocator_) {}
 
   static void Init() {
     SetQoiAlloc(GlobalAllocate, GlobalDeallocate);
@@ -98,12 +99,14 @@ class Packer {
     auto sprite_sheets_vec = fbs_.CreateVector(spritesheets_);
     auto sounds_vec = fbs_.CreateVector(sounds_);
     auto fonts_vec = fbs_.CreateVector(fonts_);
+    auto shaders_vec = fbs_.CreateVector(shaders_);
     AssetsPackBuilder assets(fbs_);
     assets.add_images(image_vec);
     assets.add_scripts(scripts_vec);
     assets.add_sprite_sheets(sprite_sheets_vec);
     assets.add_sounds(sounds_vec);
     assets.add_fonts(fonts_vec);
+    assets.add_shaders(shaders_vec);
     fbs_.Finish(assets.Finish());
     zip_error_t zip_error;
     int zip_error_code;
@@ -190,6 +193,12 @@ class Packer {
                                     fbs_.CreateVector(buf, size)));
   }
 
+  void HandleShader(const char* filename, uint8_t* buf, size_t size) {
+    shaders_.push_back(CreateShaderFile(
+        fbs_, fbs_.CreateString(filename),
+        fbs_.CreateString(reinterpret_cast<const char*>(buf), size)));
+  }
+
  private:
   int64_t start_ms_;
   BumpAllocator* allocator_;
@@ -207,6 +216,8 @@ class Packer {
       sounds_;
   WithAllocator<std::vector<flatbuffers::Offset<FontFile>>, BumpAllocator>
       fonts_;
+  WithAllocator<std::vector<flatbuffers::Offset<ShaderFile>>, BumpAllocator>
+      shaders_;
 };
 
 struct FileHandler {
@@ -216,7 +227,8 @@ struct FileHandler {
 FileHandler kHandlers[] = {
     {".lua", &Packer::HandleScript},      {".qoi", &Packer::HandleImage},
     {".xml", &Packer::HandleSpritesheet}, {".ogg", &Packer::HandleOggSound},
-    {".ttf", &Packer::HandleFont},        {".wav", &Packer::HandleWavSound}};
+    {".ttf", &Packer::HandleFont},        {".wav", &Packer::HandleWavSound},
+    {".frag", &Packer::HandleShader}};
 
 }  // namespace
 
