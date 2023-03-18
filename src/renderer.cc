@@ -2,6 +2,8 @@
 #include <vector>
 
 #include "clock.h"
+#include "console.h"
+#include "qoi.h"
 #include "renderer.h"
 #include "transformations.h"
 
@@ -85,6 +87,18 @@ BatchRenderer::BatchRenderer(IVec2 viewport)
   uint8_t white_pixels[32 * 32 * 4];
   std::memset(white_pixels, 255, sizeof(white_pixels));
   LoadTexture(&white_pixels, /*width=*/32, /*height=*/32);
+}
+
+GLuint BatchRenderer::LoadTexture(const ImageAsset& image) {
+  TIMER("Decoding ", FlatbufferStringview(image.filename()));
+  qoi_desc desc;
+  // TODO: Use an arena for this.
+  auto* image_bytes =
+      qoi_decode(image.contents()->Data(), image.contents()->size(), &desc,
+                 /*channels=*/4);
+  GLuint texture = LoadTexture(image_bytes, image.width(), image.height());
+  free(image_bytes);
+  return texture;
 }
 
 BatchRenderer::~BatchRenderer() {
@@ -190,6 +204,7 @@ void BatchRenderer::Render() {
                         reinterpret_cast<void*>(offsetof(VertexData, angle)));
   glEnableVertexAttribArray(angle_attribute);
   for (const auto& batch : batches_) {
+    if (batch.indices_count == 0) continue;
     shader_program_.SetUniform("tex", batch.texture_unit);
     shader_program_.SetUniform("projection",
                                Ortho(0, viewport_.x, 0, viewport_.y));

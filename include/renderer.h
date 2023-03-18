@@ -20,9 +20,7 @@ class BatchRenderer {
   BatchRenderer(IVec2 viewport);
   ~BatchRenderer();
 
-  GLuint LoadTexture(const ImageAsset& image) {
-    return LoadTexture(image.contents()->Data(), image.width(), image.height());
-  }
+  GLuint LoadTexture(const ImageAsset& image);
 
   GLuint LoadTexture(const void* data, size_t width, size_t height);
 
@@ -35,7 +33,7 @@ class BatchRenderer {
   }
 
   void SetActiveColor(FVec4 rgba_color) {
-    if (batches_.empty() && (batches_.back().indices_count &&
+    if (batches_.empty() || (batches_.back().indices_count &&
                              rgba_color != batches_.back().rgba_color)) {
       FlushBatch();
     }

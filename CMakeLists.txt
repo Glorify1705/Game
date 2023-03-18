@@ -81,6 +81,7 @@ set(PACKER_SRCS
     src/assets.cc
     src/allocators.cc
     src/qoi.cc
+    src/stb_image.cc
     src/strings.cc
     ${PROJECT_BINARY_DIR}/assets_generated.h)
 
@@ -97,6 +98,8 @@ set(ASSETS
     ${PROJECT_SOURCE_DIR}/assets/timer.lua
     ${PROJECT_SOURCE_DIR}/assets/sheet.xml
     ${PROJECT_SOURCE_DIR}/assets/terminus.ttf
+    ${PROJECT_SOURCE_DIR}/assets/sheet2.xml
+    ${PROJECT_SOURCE_DIR}/assets/sheet2.png
     ${PROJECT_SOURCE_DIR}/assets/music.ogg
     ${PROJECT_SOURCE_DIR}/assets/laser.wav)
 

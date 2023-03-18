@@ -12,7 +12,7 @@ end
 
 function Entities:on_collision(fn)
     G.physics.set_collision_callback(function(a, b)
-        print("Collision between", a:id(), "and", b:id())
+        print("Collision between ", a:id(), " and ", b:id())
         fn(a, b)
     end)
 end
@@ -46,8 +46,6 @@ function Game:init()
     G.sound.set_music_volume(0.1)
     G.sound.set_sfx_volume(0.1)
     G.sound.play_music("music.ogg")
-    self.circle = { radius = 50 }
-    self.timer:tween(6, self.circle, { radius = 100 }, 'in-out-cubic')
 end
 
 function Game:update(t, dt)
@@ -67,8 +65,6 @@ function Game:draw()
     local mx, my = G.input.mouse_position()
     G.renderer.draw_sprite("numeralX", mx, my)
     G.renderer.draw_text("Score: " .. self.score, 10, 10)
-    G.renderer.set_color(1, 0, 1, 1)
-    G.renderer.draw_circle(100, 100, self.circle.radius)
 end
 
 return Game

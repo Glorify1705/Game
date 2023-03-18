@@ -13,10 +13,13 @@
 #include "logging.h"
 #include "pugixml.h"
 #include "qoi.h"
+#include "stb_image.h"
 #include "zip.h"
 
 namespace G {
 namespace {
+
+// TODO: Switch STB image and QOI encoder to use the bump allocator.
 
 using Clock = std::chrono::high_resolution_clock;
 using Time = std::chrono::time_point<Clock>;
@@ -53,13 +56,20 @@ void* GlobalAllocate(size_t s) {
 
 void GlobalDeallocate(void*) {}
 
-const char* Basename(const char* p) {
-  size_t pos = std::strlen(p) - 1;
-  const char* c;
-  for (c = p + pos; c != p && *c != '/';) {
-    c--;
+std::string_view Basename(std::string_view p) {
+  size_t pos = p.size() - 1;
+  for (; pos != 0 && p[pos] != '/';) {
+    pos--;
   }
-  return *c == '/' ? ++c : c;
+  return p[pos] == '/' ? p.substr(pos + 1) : p;
+}
+
+std::string_view WithoutExt(std::string_view p) {
+  size_t pos = p.size() - 1;
+  for (; pos != 0 && p[pos] != '.';) {
+    pos--;
+  }
+  return p[pos] == '.' ? p.substr(0, pos) : p;
 }
 
 std::pair<uint8_t*, size_t> ReadWholeFile(const char* path) {
@@ -138,61 +148,87 @@ class Packer {
                 100.0 * allocator_->used() / allocator_->total());
   }
 
-  void HandleImage(const char* filename, uint8_t* buf, size_t size) {
+  void HandleQoiImage(std::string_view filename, uint8_t* buf, size_t size) {
     qoi_desc desc;
-    const auto* data = reinterpret_cast<const uint8_t*>(
-        qoi_decode(buf, size, &desc, /*components=*/4));
-    images_.push_back(CreateImageAsset(
-        fbs_, fbs_.CreateString(filename), desc.width, desc.height,
-        desc.channels,
-        fbs_.CreateVector(data,
-                          1ULL * desc.width * desc.height * desc.channels)));
+    qoi_decode(buf, size, &desc, /*components=*/4);
+    images_.push_back(CreateImageAsset(fbs_, fbs_.CreateString(filename),
+                                       desc.width, desc.height, desc.channels,
+                                       fbs_.CreateVector(buf, size)));
   }
-  void HandleScript(const char* filename, uint8_t* buf, size_t size) {
+
+  void HandleNonQoiImage(std::string_view filename, uint8_t* buf, size_t size) {
+    int width, height, channels;
+    const uint8_t* img =
+        stbi_load_from_memory(buf, size, &width, &height, &channels, 4);
+    CHECK(img != nullptr, "Could not decode image ", filename);
+    qoi_desc desc;
+    desc.width = width;
+    desc.height = height;
+    desc.channels = 4;
+    desc.colorspace = QOI_SRGB;
+    int out = 0;
+    const uint8_t* data = reinterpret_cast<const uint8_t*>(
+        qoi_encode(reinterpret_cast<const void*>(img), &desc, &out));
+    CHECK(data != nullptr, "Could not encode image ", filename, " as QOI");
+    CHECK(out > 0, "Could not encode image ", filename, " as qoi");
+    std::string_view s = WithoutExt(Basename(filename));
+    char qoi_filename[256];
+    std::strncpy(qoi_filename, s.data(), s.size());
+    qoi_filename[s.size()] = '\0';
+    std::strcat(qoi_filename, ".qoi");
+    images_.push_back(CreateImageAsset(fbs_, fbs_.CreateString(qoi_filename),
+                                       desc.width, desc.height, desc.channels,
+                                       fbs_.CreateVector(data, out)));
+  }
+
+  void HandleScript(std::string_view filename, uint8_t* buf, size_t size) {
     scripts_.push_back(CreateScriptAsset(fbs_, fbs_.CreateString(filename),
                                          fbs_.CreateVector(buf, size)));
   }
 
-  void HandleSpritesheet(const char* filename, uint8_t* buf, size_t size) {
+  void HandleSpritesheet(std::string_view filename, uint8_t* buf, size_t size) {
     pugi::xml_document doc;
     pugi::xml_parse_result result = doc.load_buffer_inplace(buf, size);
     CHECK(result, "Could not parse ", filename, ": ", result.status);
-    pugi::xml_node root = doc.child("TextureAtlas");
-    WithAllocator<std::vector<flatbuffers::Offset<SpriteAsset>>, BumpAllocator>
-        sprites(allocator_);
-    auto str = fbs_.CreateString(root.attribute("imagePath").value());
-    for (const auto& sub_texture : root) {
-      uint32_t x, y, w, h;
-      sscanf(sub_texture.attribute("width").value(), "%u", &w);
-      sscanf(sub_texture.attribute("height").value(), "%u", &h);
-      sscanf(sub_texture.attribute("x").value(), "%u", &x);
-      sscanf(sub_texture.attribute("y").value(), "%u", &y);
-      sprites.push_back(CreateSpriteAsset(
-          fbs_, fbs_.CreateString(sub_texture.attribute("name").value()), str,
-          x, y, w, h));
+    pugi::xml_node root = doc.child("TextureAtlases");
+    for (const auto& atlas : root) {
+      WithAllocator<std::vector<flatbuffers::Offset<SpriteAsset>>,
+                    BumpAllocator>
+          sprites(allocator_);
+      auto str = fbs_.CreateString(atlas.attribute("imagePath").value());
+      for (const auto& sprite : atlas) {
+        uint32_t x, y, w, h;
+        sscanf(sprite.attribute("width").value(), "%u", &w);
+        sscanf(sprite.attribute("height").value(), "%u", &h);
+        sscanf(sprite.attribute("x").value(), "%u", &x);
+        sscanf(sprite.attribute("y").value(), "%u", &y);
+        sprites.push_back(CreateSpriteAsset(
+            fbs_, fbs_.CreateString(sprite.attribute("name").value()), str, x,
+            y, w, h));
+      }
+      spritesheets_.push_back(CreateSpritesheetAsset(
+          fbs_, fbs_.CreateString(filename), str, fbs_.CreateVector(sprites)));
     }
-    spritesheets_.push_back(CreateSpritesheetAsset(
-        fbs_, fbs_.CreateString(filename), str, fbs_.CreateVector(sprites)));
   }
 
-  void HandleOggSound(const char* filename, uint8_t* buf, size_t size) {
+  void HandleOggSound(std::string_view filename, uint8_t* buf, size_t size) {
     sounds_.push_back(CreateSoundAsset(fbs_, fbs_.CreateString(filename),
                                        SoundType::OGG,
                                        fbs_.CreateVector(buf, size)));
   }
 
-  void HandleWavSound(const char* filename, uint8_t* buf, size_t size) {
+  void HandleWavSound(std::string_view filename, uint8_t* buf, size_t size) {
     sounds_.push_back(CreateSoundAsset(fbs_, fbs_.CreateString(filename),
                                        SoundType::WAV,
                                        fbs_.CreateVector(buf, size)));
   }
 
-  void HandleFont(const char* filename, uint8_t* buf, size_t size) {
+  void HandleFont(std::string_view filename, uint8_t* buf, size_t size) {
     fonts_.push_back(CreateFontAsset(fbs_, fbs_.CreateString(filename),
                                      fbs_.CreateVector(buf, size)));
   }
 
-  void HandleShader(const char* filename, uint8_t* buf, size_t size) {
+  void HandleShader(std::string_view filename, uint8_t* buf, size_t size) {
     shaders_.push_back(CreateShaderAsset(
         fbs_, fbs_.CreateString(filename),
         fbs_.CreateString(reinterpret_cast<const char*>(buf), size)));
@@ -220,14 +256,15 @@ class Packer {
 };
 
 struct FileHandler {
-  const char* extension;
-  void (Packer::*method)(const char* filename, uint8_t* buf, size_t size);
+  std::string_view extension;
+  void (Packer::*method)(std::string_view filename, uint8_t* buf, size_t size);
 };
 FileHandler kHandlers[] = {
-    {".lua", &Packer::HandleScript},      {".qoi", &Packer::HandleImage},
+    {".lua", &Packer::HandleScript},      {".qoi", &Packer::HandleQoiImage},
     {".xml", &Packer::HandleSpritesheet}, {".ogg", &Packer::HandleOggSound},
     {".ttf", &Packer::HandleFont},        {".wav", &Packer::HandleWavSound},
-    {".frag", &Packer::HandleShader}};
+    {".frag", &Packer::HandleShader},     {".png", &Packer::HandleNonQoiImage},
+    {".jpg", &Packer::HandleNonQoiImage}, {".bmp", &Packer::HandleNonQoiImage}};
 
 }  // namespace
 
@@ -235,7 +272,7 @@ void PackerMain(const char* output_file, const std::vector<const char*> paths) {
   Packer::Init();
   Packer packer;
   for (const char* path : paths) {
-    const char* fname = Basename(path);
+    std::string_view fname = Basename(path);
     bool handled = false;
     for (auto& handler : kHandlers) {
       if (HasSuffix(path, handler.extension)) {

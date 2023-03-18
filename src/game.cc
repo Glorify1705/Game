@@ -46,7 +46,9 @@ struct GameParams {
 void SdlCrash(const char* message) {
 #ifndef _INTERNAL_GAME_TRAP
 #if __has_builtin(__builtin_debugtrap)
-#define _INTERNAL_GAME_TRAP __builtin__debugtrap
+#define _INTERNAL_GAME_TRAP __builtin_debugtrap
+#elif __has_builtin(__builtin_trap)
+#define _INTERNAL_GAME_TRAP __builtin_trap
 #elif _MSC_VER
 #define _INTERNAL_GAME_TRAP __debugbreak
 #else
@@ -55,6 +57,7 @@ void SdlCrash(const char* message) {
 #endif
   SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Unrecoverable error", message,
                            /*window=*/nullptr);
+  _INTERNAL_GAME_TRAP();
 }
 
 void LogToSDL(LogLevel level, const char* message) {
