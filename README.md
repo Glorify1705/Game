@@ -18,3 +18,4 @@
 - [X] Collision.
 - [ ] Draw circles and colored squares.
 - [ ] Integrate icculus/physfs for hot code reloading.
+- [ ] Use https://github.com/Cyan4973/xxHash for the lookup table.

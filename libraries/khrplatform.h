@@ -1,4 +1,3 @@
-#pragma once
 #ifndef __khrplatform_h_
 #define __khrplatform_h_
 

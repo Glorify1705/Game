@@ -249,8 +249,14 @@ SDL_GLContext CreateOpenglContext(SDL_Window* window) {
         "Could not load GLAD");
   CHECK(SDL_GL_SetSwapInterval(1) == 0, "Could not set up VSync: ",
         SDL_GetError());  // Sync update with monitor vertical.
-  glEnable(GL_DEBUG_OUTPUT);
-  glDebugMessageCallback(OpenglMessageCallback, /*userParam=*/nullptr);
+  const bool supports_opengl_debug = GLAD_GL_VERSION_4_3 && GLAD_GL_KHR_debug;
+  if (supports_opengl_debug) {
+    LOG("OpenGL Debug Callback Support is enabled!");
+    glEnable(GL_DEBUG_OUTPUT);
+    glDebugMessageCallback(OpenglMessageCallback, /*userParam=*/nullptr);
+  } else {
+    LOG("OpenGL Debug Callback Support is disabled");
+  }
   return context;
 }
 
