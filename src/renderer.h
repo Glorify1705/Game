@@ -33,10 +33,8 @@ class BatchRenderer {
   }
 
   void SetActiveColor(FVec4 rgba_color) {
-    if (batches_.empty() || (batches_.back().indices_count &&
-                             rgba_color != batches_.back().rgba_color)) {
-      FlushBatch();
-    }
+    // We do not need to flush on color changes because they are
+    // put on vertex data.
     batches_.back().rgba_color = rgba_color;
   }
   void SetActiveTransform(const FMat4x4& transform) {
@@ -70,12 +68,13 @@ class BatchRenderer {
   struct VertexData {
     FVec2 position;
     FVec2 tex_coords;
-    // We duplicate the origin and angle for every vertex in the quad
-    // to avoid having to reset a uniform on drawing every rotated quad,
+    // We duplicate the origin angle and color for every vertex in the quad
+    // to avoid having to reset a uniform on drawing every colored rotated quad,
     // which would require an OpenGL context switch. This way we trade a bit
     // more computation and GPU RAM for less driver + OpenGL flushes.
     FVec2 origin;
     float angle;
+    FVec4 color;
   };
   struct Batch {
     GLuint texture_unit;

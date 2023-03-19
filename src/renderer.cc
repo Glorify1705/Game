@@ -17,10 +17,12 @@ constexpr std::string_view kVertexShader = R"(
     layout (location = 1) in vec2 input_tex_coord;
     layout (location = 2) in vec2 origin;
     layout (location = 3) in float angle;
+    layout (location = 4) in vec4 color;
         
     uniform mat4x4 projection;
-    uniform mat4x4 transform;
-    uniform vec4 color;
+    uniform mat4x4 transform;    
+    uniform vec4 global_color;
+
 
     out vec2 tex_coord;
     out vec4 out_color;
@@ -45,7 +47,7 @@ constexpr std::string_view kVertexShader = R"(
         mat4 rotation = Translate(origin) * RotateZ(angle) * Translate(-origin);
         gl_Position = projection * transform * rotation * vec4(input_position, 0.0, 1.0);
         tex_coord = input_tex_coord;
-        out_color = color;
+        out_color = global_color * color;
     }
   )";
 constexpr std::string_view kFragmentShader = R"(
@@ -131,15 +133,23 @@ void BatchRenderer::PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1,
   vertices_.Push({.position = FVec2(p0.x, p1.y),
                   .tex_coords = FVec2(q0.x, q1.y),
                   .origin = origin,
-                  .angle = angle});
-  vertices_.Push(
-      {.position = p1, .tex_coords = q1, .origin = origin, .angle = angle});
+                  .angle = angle,
+                  .color = batch.rgba_color});
+  vertices_.Push({.position = p1,
+                  .tex_coords = q1,
+                  .origin = origin,
+                  .angle = angle,
+                  .color = batch.rgba_color});
   vertices_.Push({.position = FVec2(p1.x, p0.y),
                   .tex_coords = FVec2(q1.x, q0.y),
                   .origin = origin,
-                  .angle = angle});
-  vertices_.Push(
-      {.position = p0, .tex_coords = q0, .origin = origin, .angle = angle});
+                  .angle = angle,
+                  .color = batch.rgba_color});
+  vertices_.Push({.position = p0,
+                  .tex_coords = q0,
+                  .origin = origin,
+                  .angle = angle,
+                  .color = batch.rgba_color});
   for (int i : {0, 1, 3, 1, 2, 3}) {
     indices_.Push(current + i);
     batch.indices_count++;
@@ -151,12 +161,21 @@ void BatchRenderer::PushTriangle(FVec2 p0, FVec2 p1, FVec2 p2, FVec2 q0,
                                  float angle) {
   auto& batch = batches_.back();
   size_t current = vertices_.size();
-  vertices_.Push(
-      {.position = p0, .tex_coords = q0, .origin = origin, .angle = angle});
-  vertices_.Push(
-      {.position = p1, .tex_coords = q1, .origin = origin, .angle = angle});
-  vertices_.Push(
-      {.position = p2, .tex_coords = q2, .origin = origin, .angle = angle});
+  vertices_.Push({.position = p0,
+                  .tex_coords = q0,
+                  .origin = origin,
+                  .angle = angle,
+                  .color = batch.rgba_color});
+  vertices_.Push({.position = p1,
+                  .tex_coords = q1,
+                  .origin = origin,
+                  .angle = angle,
+                  .color = batch.rgba_color});
+  vertices_.Push({.position = p2,
+                  .tex_coords = q2,
+                  .origin = origin,
+                  .angle = angle,
+                  .color = batch.rgba_color});
   for (int i : {0, 1, 2}) {
     indices_.Push(current + i);
     batch.indices_count++;
@@ -203,12 +222,18 @@ void BatchRenderer::Render() {
                         sizeof(VertexData),
                         reinterpret_cast<void*>(offsetof(VertexData, angle)));
   glEnableVertexAttribArray(angle_attribute);
+  const GLint color_attribute =
+      glGetAttribLocation(shader_program_.id(), "color");
+  glVertexAttribPointer(color_attribute, FVec4::kCardinality, GL_FLOAT,
+                        GL_FALSE, sizeof(VertexData),
+                        reinterpret_cast<void*>(offsetof(VertexData, color)));
+  glEnableVertexAttribArray(color_attribute);
+  shader_program_.SetUniform("global_color", FVec4(1, 1, 1, 1));
   for (const auto& batch : batches_) {
     if (batch.indices_count == 0) continue;
     shader_program_.SetUniform("tex", batch.texture_unit);
     shader_program_.SetUniform("projection",
                                Ortho(0, viewport_.x, 0, viewport_.y));
-    shader_program_.SetUniform("color", batch.rgba_color);
     shader_program_.SetUniform("transform", batch.transform);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
     glBindTexture(GL_TEXTURE_2D, tex_[batch.texture_unit]);
@@ -219,9 +244,12 @@ void BatchRenderer::Render() {
                             reinterpret_cast<void*>(indices_start), 1);
   }
   if (!debug_render_) return;
+  WATCH_EXPR("Batches", batches_.size());
+  WATCH_EXPR("Vertex Memory", vertices_.bytes());
+  WATCH_EXPR("Batch used memory", batches_.bytes());
   // Draw a red semi transparent quad for all quads.
   shader_program_.SetUniform("tex", 0);
-  shader_program_.SetUniform("color", FVec4(1, 0, 0, 0.2));
+  shader_program_.SetUniform("global_color", FVec4(1, 0, 0, 0.2));
   for (const auto& batch : batches_) {
     shader_program_.SetUniform("projection",
                                Ortho(0, viewport_.x, 0, viewport_.y));
