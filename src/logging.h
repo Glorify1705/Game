@@ -37,17 +37,17 @@ LogSink SetCrashHandler();
 std::string_view TrimPath(std::string_view f);
 
 template <typename... T>
-[[noreturn]] void Crash(std::string_view file, int line, T... ts) {
+[[noreturn]] void Crash(std::string_view file, int line, T&&... ts) {
   StringBuffer<kMaxLogLineLength> buf("[", TrimPath(file), ":", line, "] ");
-  buf.Append(std::forward<T>(ts)...);
+  buf.Append<T...>(std::forward<T>(ts)...);
   GetLogSink()(LOG_LEVEL_FATAL, buf.str());
   Crash(buf.str());
 }
 
 template <typename... T>
-void Log(std::string_view file, int line, T... ts) {
+void Log(std::string_view file, int line, T&&... ts) {
   StringBuffer<kMaxLogLineLength> buf("[", TrimPath(file), ":", line, "] ");
-  buf.Append(std::forward<T>(ts)...);
+  buf.Append<T...>(std::forward<T>(ts)...);
   GetLogSink()(LOG_LEVEL_INFO, buf.str());
 }
 
