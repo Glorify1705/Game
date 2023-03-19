@@ -45,7 +45,7 @@ void Stats::AppendToString(char* buf, size_t len) const {
                  "min = %.2lf, max = %.2lf, avg = %.2lf, stdev = "
                  "%.2lf, p50 = %.2f, p90 = %.2f, p99 = %.2f FPS = %.2f",
                  min_, max_, avg_, std::sqrt(stdev_), Percentile(50),
-                 Percentile(90), Percentile(99), 1000.0 / avg_);
+                 Percentile(90), Percentile(99), 1.0 / avg_);
     CHECK(written >= 0 && written < 128, "wrote ", written, " to buffer");
   }
 }
