@@ -8,7 +8,7 @@
 #include <ostream>
 #include <string>
 
-#include "glad.h"
+#include "libraries/glad.h"
 
 namespace G {
 

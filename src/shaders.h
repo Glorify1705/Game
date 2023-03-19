@@ -2,7 +2,7 @@
 #ifndef _GAME_SHADERS_H
 #define _GAME_SHADERS_H
 
-#include "glad.h"
+#include "libraries/glad.h"
 #include "logging.h"
 
 namespace G {

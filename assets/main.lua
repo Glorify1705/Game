@@ -11,10 +11,7 @@ function Entities:new()
 end
 
 function Entities:on_collision(fn)
-    G.physics.set_collision_callback(function(a, b)
-        print("Collision between ", a:id(), " and ", b:id())
-        fn(a, b)
-    end)
+    G.physics.set_collision_callback(fn)
 end
 
 function Entities:add(entity)

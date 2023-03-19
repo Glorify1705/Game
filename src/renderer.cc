@@ -3,7 +3,7 @@
 
 #include "clock.h"
 #include "console.h"
-#include "qoi.h"
+#include "image.h"
 #include "renderer.h"
 #include "transformations.h"
 

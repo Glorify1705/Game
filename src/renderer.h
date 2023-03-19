@@ -6,10 +6,10 @@
 
 #include "array.h"
 #include "assets.h"
+#include "libraries/stb_truetype.h"
 #include "lookup_table.h"
 #include "mat.h"
 #include "shaders.h"
-#include "stb_truetype.h"
 #include "transformations.h"
 #include "vec.h"
 

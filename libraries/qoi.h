@@ -214,8 +214,6 @@ Header - Public functions */
 #ifndef QOI_H
 #define QOI_H
 
-#include "logging.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -308,11 +306,11 @@ Implementation */
 #endif
 
 #define QOI_OP_INDEX 0x00 /* 00xxxxxx */
-#define QOI_OP_DIFF 0x40  /* 01xxxxxx */
-#define QOI_OP_LUMA 0x80  /* 10xxxxxx */
-#define QOI_OP_RUN 0xc0   /* 11xxxxxx */
-#define QOI_OP_RGB 0xfe   /* 11111110 */
-#define QOI_OP_RGBA 0xff  /* 11111111 */
+#define QOI_OP_DIFF 0x40 /* 01xxxxxx */
+#define QOI_OP_LUMA 0x80 /* 10xxxxxx */
+#define QOI_OP_RUN 0xc0 /* 11xxxxxx */
+#define QOI_OP_RGB 0xfe /* 11111110 */
+#define QOI_OP_RGBA 0xff /* 11111111 */
 
 #define QOI_MASK_2 0xc0 /* 11000000 */
 
@@ -493,9 +491,6 @@ void *qoi_decode(const void *data, int size, qoi_desc *desc, int channels) {
   if (desc->width == 0 || desc->height == 0 || desc->channels < 3 ||
       desc->channels > 4 || desc->colorspace > 1 || header_magic != QOI_MAGIC ||
       desc->height >= QOI_PIXELS_MAX / desc->width) {
-    LOG("Invalid QOI data to decode: ", header_magic, " ", QOI_MAGIC, " ",
-        desc->width, " ", desc->height, " ", desc->channels, " ",
-        desc->colorspace, " ", desc->height);
     return NULL;
   }
 
@@ -620,9 +615,3 @@ void *qoi_read(const char *filename, qoi_desc *desc, int channels) {
 
 #endif /* QOI_NO_STDIO */
 #endif /* QOI_IMPLEMENTATION */
-
-namespace G {
-
-void SetQoiAlloc(void *(*alloc)(size_t size), void (*dealloc)(void *ptr));
-
-}  // namespace G

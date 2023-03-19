@@ -30,7 +30,6 @@ class Physics final : public b2ContactListener {
   void SetOrigin(FVec2 origin);
 
   void BeginContact(b2Contact *c);
-
   void EndContact(b2Contact *);
 
   Handle AddBox(FVec2 top_left, FVec2 top_right, float angle,

@@ -10,16 +10,13 @@
 #include "assets_generated.h"
 #include "flatbuffers/flatbuffers.h"
 #include "flatbuffers/idl.h"
+#include "image.h"
+#include "libraries/pugixml.h"
 #include "logging.h"
-#include "pugixml.h"
-#include "qoi.h"
-#include "stb_image.h"
 #include "zip.h"
 
 namespace G {
 namespace {
-
-// TODO: Switch STB image and QOI encoder to use the bump allocator.
 
 using Clock = std::chrono::high_resolution_clock;
 using Time = std::chrono::time_point<Clock>;
@@ -50,11 +47,15 @@ static BumpAllocator* GlobalBumpAllocator() {
   return &allocator;
 }
 
-void* GlobalAllocate(size_t s) {
+void* GlobalAlloc(size_t s) {
   return GlobalBumpAllocator()->Alloc(s, /*align=*/1);
 }
 
-void GlobalDeallocate(void*) {}
+void GlobalDealloc(void*) {}
+
+void* GlobalRealloc(void* p, size_t old_size, size_t new_size) {
+  return GlobalBumpAllocator()->Realloc(p, old_size, new_size);
+}
 
 std::string_view Basename(std::string_view p) {
   size_t pos = p.size() - 1;
@@ -99,8 +100,10 @@ class Packer {
         shaders_(allocator_) {}
 
   static void Init() {
-    SetQoiAlloc(GlobalAllocate, GlobalDeallocate);
-    pugi::set_memory_management_functions(GlobalAllocate, GlobalDeallocate);
+    SetImageAlloc(GlobalAlloc);
+    SetImageFree(GlobalDealloc);
+    SetImageRealloc(GlobalRealloc);
+    pugi::set_memory_management_functions(GlobalAlloc, GlobalDealloc);
   }
 
   void Finish(const char* output_file) {

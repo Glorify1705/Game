@@ -40,68 +40,66 @@ find_package(SDL2_mixer REQUIRED)
 
 add_custom_command(
         OUTPUT assets_generated.h
-        COMMAND flatc -o ${CMAKE_CURRENT_BINARY_DIR} --cpp-std c++17 --cpp-static-reflection --cpp
-                ${CMAKE_CURRENT_SOURCE_DIR}/src/assets.fbs
+        COMMAND flatc -o "${CMAKE_CURRENT_BINARY_DIR}" --cpp-std c++17 --cpp-static-reflection --cpp
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/assets.fbs"
         DEPENDS flatc src/assets.fbs)
 
 set(GAME_SRCS
-    src/logging.cc 
-    src/allocators.cc
-    src/assets.cc
-    src/clock.cc
-    src/game.cc
-    src/console.cc
-    src/glad.cc
-    src/input.cc
-    src/imgui_impl_opengl3.cc
-    src/imgui_impl_sdl2.cc
-    src/imgui_draw.cc
-    src/imgui_tables.cc
-    src/imgui.cc
-    src/imgui_widgets.cc
-    src/lua.cc
-    src/controller_db.cc
-    src/physics.cc
-    src/qoi.cc
-    src/renderer.cc
-    src/shaders.cc
-    src/stb_rect_pack.cc
-    src/sound.cc
-    src/stats.cc
-    src/stb_truetype.cc
-    src/stb_rect_pack.cc
-    src/strings.cc
-    src/transformations.cc
-    ${CMAKE_CURRENT_BINARY_DIR}/assets_generated.h)
+    "src/logging.cc" 
+    "src/allocators.cc"
+    "src/assets.cc"
+    "src/clock.cc"
+    "src/game.cc"
+    "src/console.cc"
+    "libraries/glad.cc"
+    "src/input.cc"
+    "libraries/imgui_impl_opengl3.cc"
+    "libraries/imgui_impl_sdl2.cc"
+    "libraries/imgui_draw.cc"
+    "libraries/imgui_tables.cc"
+    "libraries/imgui.cc"
+    "libraries/imgui_widgets.cc"
+    "src/lua.cc"
+    "src/controller_db.cc"
+    "src/physics.cc"
+    "src/image.cc"
+    "src/renderer.cc"
+    "src/shaders.cc"
+    "src/sound.cc"
+    "src/stats.cc"
+    "libraries/stb_truetype.cc"
+    "libraries/stb_rect_pack.cc"
+    "src/strings.cc"
+    "src/transformations.cc"
+    "${CMAKE_CURRENT_BINARY_DIR}/assets_generated.h")
 
 set(PACKER_SRCS
-    src/logging.cc
-    src/packer.cc
-    src/pugixml.cc
-    src/assets.cc
-    src/allocators.cc
-    src/qoi.cc
-    src/stb_image.cc
-    src/strings.cc
-    ${PROJECT_BINARY_DIR}/assets_generated.h)
+    "src/logging.cc"
+    "src/packer.cc"
+    "libraries/pugixml.cc"
+    "src/assets.cc"
+    "src/allocators.cc"
+    "src/image.cc"
+    "src/strings.cc"
+    "${PROJECT_BINARY_DIR}/assets_generated.h")
 
 set(ASSETS
-    ${PROJECT_SOURCE_DIR}/assets/classic.lua
-    ${PROJECT_SOURCE_DIR}/assets/lume.lua
-    ${PROJECT_SOURCE_DIR}/assets/main.lua
-    ${PROJECT_SOURCE_DIR}/assets/physics.lua
-    ${PROJECT_SOURCE_DIR}/assets/entity.lua
-    ${PROJECT_SOURCE_DIR}/assets/meteor.lua
-    ${PROJECT_SOURCE_DIR}/assets/player.lua
-    ${PROJECT_SOURCE_DIR}/assets/sheet.qoi
-    ${PROJECT_SOURCE_DIR}/assets/vector2d.lua
-    ${PROJECT_SOURCE_DIR}/assets/timer.lua
-    ${PROJECT_SOURCE_DIR}/assets/sheet.xml
-    ${PROJECT_SOURCE_DIR}/assets/terminus.ttf
-    ${PROJECT_SOURCE_DIR}/assets/sheet2.xml
-    ${PROJECT_SOURCE_DIR}/assets/sheet2.png
-    ${PROJECT_SOURCE_DIR}/assets/music.ogg
-    ${PROJECT_SOURCE_DIR}/assets/laser.wav)
+    "${PROJECT_SOURCE_DIR}/assets/classic.lua"
+    "${PROJECT_SOURCE_DIR}/assets/lume.lua"
+    "${PROJECT_SOURCE_DIR}/assets/main.lua"
+    "${PROJECT_SOURCE_DIR}/assets/physics.lua"
+    "${PROJECT_SOURCE_DIR}/assets/entity.lua"
+    "${PROJECT_SOURCE_DIR}/assets/meteor.lua"
+    "${PROJECT_SOURCE_DIR}/assets/player.lua"
+    "${PROJECT_SOURCE_DIR}/assets/sheet.qoi"
+    "${PROJECT_SOURCE_DIR}/assets/vector2d.lua"
+    "${PROJECT_SOURCE_DIR}/assets/timer.lua"
+    "${PROJECT_SOURCE_DIR}/assets/sheet.xml"
+    "${PROJECT_SOURCE_DIR}/assets/terminus.ttf"
+    "${PROJECT_SOURCE_DIR}/assets/sheet2.xml"
+    "${PROJECT_SOURCE_DIR}/assets/sheet2.png"
+    "${PROJECT_SOURCE_DIR}/assets/music.ogg"
+    "${PROJECT_SOURCE_DIR}/assets/laser.wav")
 
 add_executable(Game "${GAME_SRCS}")
 add_executable(Packer "${PACKER_SRCS}")
@@ -109,8 +107,8 @@ add_executable(Packer "${PACKER_SRCS}")
 target_include_directories(Game 
                            PRIVATE 
                            "${CMAKE_CURRENT_BINARY_DIR}" 
-                           "${CMAKE_CURRENT_SOURCE_DIR}/include"
-                           "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua/src")
+                           "${PROJECT_SOURCE_DIR}"
+                           "${PROJECT_SOURCE_DIR}/vendor/lua/src")
 
 set(SUPPORTS_GCC_FLAGS $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>)
 set(GCC_AND_CLANG_FLAGS -Wall -Wextra -Werror -ggdb -O2 -DNDEBUG -DGAME_WITH_ASSERTS)
@@ -123,19 +121,18 @@ target_compile_options(Game PRIVATE ${COMPILER_FLAGS})
 
 target_include_directories(Packer
                            PRIVATE 
-                           "${PROJECT_BINARY_DIR}" 
-                           "${PROJECT_SOURCE_DIR}/include"
-                           "${PROJECT_SOURCE_DIR}/vendor/lua/src")
+                           "${CMAKE_CURRENT_BINARY_DIR}"
+                           "${PROJECT_SOURCE_DIR}")
 
 target_compile_options(Packer PRIVATE ${COMPILER_FLAGS})
 
 add_custom_command(
     OUTPUT Assets
-    COMMAND Packer ARGS ${CMAKE_CURRENT_BINARY_DIR}/assets.zip ${ASSETS}
+    COMMAND Packer ARGS "${CMAKE_CURRENT_BINARY_DIR}/assets.zip" ${ASSETS}
     DEPENDS Packer ${ASSETS})
 
 add_custom_target(Run
-                  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/Game ${CMAKE_CURRENT_BINARY_DIR}/assets.zip
+                  COMMAND "${CMAKE_CURRENT_BINARY_DIR}/Game" "${CMAKE_CURRENT_BINARY_DIR}/assets.zip"
                   DEPENDS Game Assets
                   VERBATIM COMMAND_EXPAND_LISTS)
 

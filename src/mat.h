@@ -8,7 +8,7 @@
 #include <iostream>
 #include <ostream>
 
-#include "glad.h"
+#include "libraries/glad.h"
 #include "strings.h"
 #include "vec.h"
 

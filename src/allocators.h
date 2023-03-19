@@ -32,6 +32,8 @@ class BumpAllocator {
 
   void Dealloc(void* /*ptr*/, size_t /*size*/) {}
 
+  void* Realloc(void* p, size_t old_size, size_t new_size);
+
   void Reset() { pos_ = ptr_; }
 
   size_t used() const { return pos_ - ptr_; }
