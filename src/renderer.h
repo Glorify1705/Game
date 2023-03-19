@@ -20,17 +20,19 @@ class BatchRenderer {
   BatchRenderer(IVec2 viewport);
   ~BatchRenderer();
 
-  GLuint LoadTexture(const ImageAsset& image);
+  size_t LoadTexture(const ImageAsset& image);
 
-  GLuint LoadTexture(const void* data, size_t width, size_t height);
+  size_t LoadTexture(const void* data, size_t width, size_t height);
 
-  void SetActiveTexture(GLuint texture) {
+  void SetActiveTexture(size_t texture_unit) {
     if (batches_.empty() || (batches_.back().indices_count &&
-                             texture != batches_.back().texture_unit)) {
+                             texture_unit != batches_.back().texture_unit)) {
       FlushBatch();
     }
-    batches_.back().texture_unit = texture;
+    batches_.back().texture_unit = texture_unit;
   }
+
+  void ClearTexture() { SetActiveTexture(tex_[noop_texture_]); }
 
   void SetActiveColor(FVec4 rgba_color) {
     // We do not need to flush on color changes because they are
@@ -129,13 +131,13 @@ class BatchRenderer {
   FixedArray<VertexData, 1 << 24> vertices_;
   FixedArray<GLuint, 1 << 24> indices_;
   ShaderCompiler compiler_;
-  ShaderId vertex_shader_;
-  ShaderId fragment_shader_;
-  ShaderProgram shader_program_;
+  FixedArray<ShaderProgram, 64> shader_programs_;
   FixedArray<Batch, 1 << 24> batches_;
-  std::array<GLuint, 64> tex_;
+  FixedArray<GLuint, 64> tex_;
   GLuint ebo_, vao_, vbo_;
-  GLuint unit_ = 0;
+  size_t noop_texture_;
+  GLuint screen_quad_vao_, screen_quad_vbo_;
+  GLuint render_target_, render_texture_;
   IVec2 viewport_;
   bool debug_render_ = false;
 };
@@ -172,7 +174,7 @@ class Renderer {
   inline static constexpr size_t kFontSize = 32;
 
   struct SheetTexture {
-    GLuint texture;
+    size_t texture_index;
     uint32_t width, height;
   };
 

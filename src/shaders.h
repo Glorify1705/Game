@@ -69,10 +69,10 @@ class ShaderProgram {
 
 class ShaderCompiler {
  public:
-  ShaderId CompileOrDie(ShaderType type, const char* name, const char* data,
-                        size_t size);
+  ShaderId CompileOrDie(ShaderType type, std::string_view name,
+                        std::string_view glsl);
 
-  ShaderProgram LinkOrDie(const ShaderId& vertex_shader,
+  ShaderProgram LinkOrDie(std::string_view name, const ShaderId& vertex_shader,
                           const ShaderId& fragment_shader);
 };
 

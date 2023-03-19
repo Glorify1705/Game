@@ -23,7 +23,6 @@ constexpr std::string_view kVertexShader = R"(
     uniform mat4x4 transform;    
     uniform vec4 global_color;
 
-
     out vec2 tex_coord;
     out vec4 out_color;
 
@@ -64,56 +63,127 @@ constexpr std::string_view kFragmentShader = R"(
     }
   )";
 
-template <typename T>
-size_t ByteSize(const std::vector<T>& v) {
-  return v.size() * sizeof(T);
-}
+constexpr std::string_view kPostPassVertexShader = R"(
+  #version 460 core
+  layout (location = 0) in vec2 input_position;
+  layout (location = 1) in vec2 input_tex_coord;
+
+  out vec2 tex_coord;
+
+  void main()
+  {
+      gl_Position = vec4(input_position.x, input_position.y, 0.0, 1.0); 
+      tex_coord = input_tex_coord;
+  }  
+  )";
+
+constexpr std::string_view kPostPassFragmentShader = R"(
+  #version 460 core
+  out vec4 frag_color;
+    
+  in vec2 tex_coord;
+
+  uniform sampler2D screen_texture;
+
+  void main() { 
+      frag_color = texture(screen_texture, tex_coord);
+  }
+)";
 
 }  // namespace
 
-BatchRenderer::BatchRenderer(IVec2 viewport)
-    : vertex_shader_(compiler_.CompileOrDie(ShaderType::kVertex, "quad.vert",
-                                            kVertexShader.data(),
-                                            kVertexShader.size())),
-      fragment_shader_(compiler_.CompileOrDie(
-          ShaderType::kFragment, "quad.frag", kFragmentShader.data(),
-          kFragmentShader.size())),
-      shader_program_(compiler_.LinkOrDie(vertex_shader_, fragment_shader_)),
-      viewport_(viewport) {
+BatchRenderer::BatchRenderer(IVec2 viewport) : viewport_(viewport) {
   TIMER();
+  // Add the pre pass and post pass shader programs.
+  shader_programs_.Push(compiler_.LinkOrDie(
+      "pre_pass",
+      compiler_.CompileOrDie(ShaderType::kVertex, "pre_pass.vert",
+                             kVertexShader),
+      compiler_.CompileOrDie(ShaderType::kFragment, "pre_pass.frag",
+                             kFragmentShader)));
+  shader_programs_.Push(compiler_.LinkOrDie(
+      "post_pass",
+      compiler_.CompileOrDie(ShaderType::kVertex, "post_pass.vert",
+                             kPostPassVertexShader),
+      compiler_.CompileOrDie(ShaderType::kFragment, "post_pass.frag",
+                             kPostPassFragmentShader)));
   glGenVertexArrays(1, &vao_);
   glGenBuffers(1, &vbo_);
   glGenBuffers(1, &ebo_);
+  // Generate the quad for the post pass step.
+  glGenVertexArrays(1, &screen_quad_vao_);
+  glGenBuffers(1, &screen_quad_vbo_);
+  glBindVertexArray(screen_quad_vao_);
+  std::array<float, 24> screen_quad_vertices = {
+      // Vertex position and Tex coord in Normalized Device Coordinates.
+      -1.0f, 1.0f,  0.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f,
+      1.0f,  -1.0f, 1.0f, 0.0f, -1.0f, 1.0f,  0.0f, 1.0f,
+      1.0f,  -1.0f, 1.0f, 0.0f, 1.0f,  1.0f,  1.0f, 1.0f};
+  glBindBuffer(GL_ARRAY_BUFFER, screen_quad_vbo_);
+  glBufferData(GL_ARRAY_BUFFER, screen_quad_vertices.size() * sizeof(float),
+               screen_quad_vertices.data(), GL_STATIC_DRAW);
+  ShaderProgram& post_pass_program = shader_programs_[1];
+  const GLint pos_attribute =
+      glGetAttribLocation(post_pass_program.id(), "input_position");
+  glEnableVertexAttribArray(pos_attribute);
+  glVertexAttribPointer(pos_attribute, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                        (void*)0);
+  const GLint tex_attribute =
+      glGetAttribLocation(post_pass_program.id(), "input_tex_coord");
+  glEnableVertexAttribArray(tex_attribute);
+  glVertexAttribPointer(tex_attribute, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                        (void*)(2 * sizeof(float)));
+  // Create a render target for the viewport.
+  glGenFramebuffers(1, &render_target_);
+  glBindFramebuffer(GL_FRAMEBUFFER, render_target_);
+  glGenTextures(1, &render_texture_);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, render_texture_);
+  glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport.x, viewport.y,
+               /*border=*/0, GL_RGBA, GL_UNSIGNED_BYTE, /*pixels=*/nullptr);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         render_texture_, /*level=*/0);
+  CHECK(!glGetError(), "Could generate texture: ", glGetError());
+  CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  tex_.Push(render_texture_);
   // Load an empty texture, just white pixels, to be able to draw colors without
   // if statements in the shader.
   uint8_t white_pixels[32 * 32 * 4];
   std::memset(white_pixels, 255, sizeof(white_pixels));
-  LoadTexture(&white_pixels, /*width=*/32, /*height=*/32);
+  noop_texture_ = LoadTexture(&white_pixels, /*width=*/32, /*height=*/32);
 }
 
-GLuint BatchRenderer::LoadTexture(const ImageAsset& image) {
+size_t BatchRenderer::LoadTexture(const ImageAsset& image) {
   TIMER("Decoding ", FlatbufferStringview(image.filename()));
   qoi_desc desc;
   // TODO: Use an arena for this.
   auto* image_bytes =
       qoi_decode(image.contents()->Data(), image.contents()->size(), &desc,
                  /*channels=*/4);
-  GLuint texture = LoadTexture(image_bytes, image.width(), image.height());
+  size_t index = LoadTexture(image_bytes, image.width(), image.height());
   free(image_bytes);
-  return texture;
+  return index;
 }
 
 BatchRenderer::~BatchRenderer() {
   glDeleteBuffers(1, &vbo_);
   glDeleteBuffers(1, &ebo_);
+  glDeleteBuffers(1, &screen_quad_vbo_);
+  glDeleteVertexArrays(1, &vao_);
+  glDeleteVertexArrays(1, &screen_quad_vbo_);
+  glDeleteTextures(tex_.size(), tex_.data());
 }
 
-GLuint BatchRenderer::LoadTexture(const void* data, size_t width,
+size_t BatchRenderer::LoadTexture(const void* data, size_t width,
                                   size_t height) {
-  CHECK(unit_ < tex_.size(), "Out of texture units");
-  glGenTextures(1, &tex_[unit_]);
-  glActiveTexture(GL_TEXTURE0 + unit_);
-  glBindTexture(GL_TEXTURE_2D, tex_[unit_]);
+  GLuint tex;
+  const size_t index = tex_.size();
+  glGenTextures(1, &tex);
+  glActiveTexture(GL_TEXTURE0 + index);
+  glBindTexture(GL_TEXTURE_2D, tex);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
@@ -123,7 +193,8 @@ GLuint BatchRenderer::LoadTexture(const void* data, size_t width,
                GL_UNSIGNED_BYTE, data);
   glGenerateMipmap(GL_TEXTURE_2D);
   CHECK(!glGetError(), "Could generate texture: ", glGetError());
-  return unit_++;
+  tex_.Push(tex);
+  return index;
 }
 
 void BatchRenderer::PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1,
@@ -184,6 +255,8 @@ void BatchRenderer::PushTriangle(FVec2 p0, FVec2 p1, FVec2 p2, FVec2 q0,
 
 void BatchRenderer::Render() {
   glViewport(0, 0, viewport_.x, viewport_.y);
+  // Ensure we render to the off screen frame buffer.
+  glBindFramebuffer(GL_FRAMEBUFFER, render_target_);
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glClearColor(0.f, 0.f, 0.f, 0.f);
@@ -195,46 +268,47 @@ void BatchRenderer::Render() {
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_.bytes(), indices_.data(),
                GL_STATIC_DRAW);
-  shader_program_.Use();
+  ShaderProgram& pre_pass_program = shader_programs_[0];
+  pre_pass_program.Use();
   const GLint pos_attribute =
-      glGetAttribLocation(shader_program_.id(), "input_position");
+      glGetAttribLocation(pre_pass_program.id(), "input_position");
   glVertexAttribPointer(
       pos_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
       sizeof(VertexData),
       reinterpret_cast<void*>(offsetof(VertexData, position)));
   glEnableVertexAttribArray(pos_attribute);
   const GLint tex_coord_attribute =
-      glGetAttribLocation(shader_program_.id(), "input_tex_coord");
+      glGetAttribLocation(pre_pass_program.id(), "input_tex_coord");
   glVertexAttribPointer(
       tex_coord_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
       sizeof(VertexData),
       reinterpret_cast<void*>(offsetof(VertexData, tex_coords)));
   glEnableVertexAttribArray(tex_coord_attribute);
   const GLint origin_attribute =
-      glGetAttribLocation(shader_program_.id(), "origin");
+      glGetAttribLocation(pre_pass_program.id(), "origin");
   glVertexAttribPointer(origin_attribute, FVec2::kCardinality, GL_FLOAT,
                         GL_FALSE, sizeof(VertexData),
                         reinterpret_cast<void*>(offsetof(VertexData, origin)));
   glEnableVertexAttribArray(origin_attribute);
   const GLint angle_attribute =
-      glGetAttribLocation(shader_program_.id(), "angle");
+      glGetAttribLocation(pre_pass_program.id(), "angle");
   glVertexAttribPointer(angle_attribute, 1, GL_FLOAT, GL_FALSE,
                         sizeof(VertexData),
                         reinterpret_cast<void*>(offsetof(VertexData, angle)));
   glEnableVertexAttribArray(angle_attribute);
   const GLint color_attribute =
-      glGetAttribLocation(shader_program_.id(), "color");
+      glGetAttribLocation(pre_pass_program.id(), "color");
   glVertexAttribPointer(color_attribute, FVec4::kCardinality, GL_FLOAT,
                         GL_FALSE, sizeof(VertexData),
                         reinterpret_cast<void*>(offsetof(VertexData, color)));
   glEnableVertexAttribArray(color_attribute);
-  shader_program_.SetUniform("global_color", FVec4(1, 1, 1, 1));
+  pre_pass_program.SetUniform("global_color", FVec4(1, 1, 1, 1));
   for (const auto& batch : batches_) {
     if (batch.indices_count == 0) continue;
-    shader_program_.SetUniform("tex", batch.texture_unit);
-    shader_program_.SetUniform("projection",
-                               Ortho(0, viewport_.x, 0, viewport_.y));
-    shader_program_.SetUniform("transform", batch.transform);
+    pre_pass_program.SetUniform("tex", batch.texture_unit);
+    pre_pass_program.SetUniform("projection",
+                                Ortho(0, viewport_.x, 0, viewport_.y));
+    pre_pass_program.SetUniform("transform", batch.transform);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
     glBindTexture(GL_TEXTURE_2D, tex_[batch.texture_unit]);
     const auto indices_start =
@@ -245,14 +319,14 @@ void BatchRenderer::Render() {
   }
   if (debug_render_) {
     // Draw a red semi transparent quad for all quads.
-    shader_program_.SetUniform("tex", 0);
-    shader_program_.SetUniform("global_color", FVec4(1, 0, 0, 0.2));
+    pre_pass_program.SetUniform("tex", noop_texture_);
+    pre_pass_program.SetUniform("global_color", FVec4(1, 0, 0, 0.2));
     for (const auto& batch : batches_) {
-      shader_program_.SetUniform("projection",
-                                 Ortho(0, viewport_.x, 0, viewport_.y));
-      shader_program_.SetUniform("transform", batch.transform);
+      pre_pass_program.SetUniform("projection",
+                                  Ortho(0, viewport_.x, 0, viewport_.y));
+      pre_pass_program.SetUniform("transform", batch.transform);
       glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-      glBindTexture(GL_TEXTURE_2D, 0);
+      glBindTexture(GL_TEXTURE_2D, tex_[noop_texture_]);
       const auto indices_start =
           reinterpret_cast<uintptr_t>(&indices_[batch.indices_start]) -
           reinterpret_cast<uintptr_t>(&indices_[0]);
@@ -264,6 +338,16 @@ void BatchRenderer::Render() {
   WATCH_EXPR("Batches", batches_.size());
   WATCH_EXPR("Vertex Memory", vertices_.bytes());
   WATCH_EXPR("Batch used memory", batches_.bytes());
+  // Second pass
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glClearColor(0.f, 0.f, 0.f, 0.f);
+  glClear(GL_COLOR_BUFFER_BIT);
+  ShaderProgram& post_pass_shader = shader_programs_[1];
+  post_pass_shader.Use();
+  post_pass_shader.SetUniform("screen_texture", 0);
+  glBindVertexArray(screen_quad_vao_);
+  glBindTexture(GL_TEXTURE_2D, render_texture_);
+  glDrawArrays(GL_TRIANGLES, 0, 6);
   TakeScreenshots();
 }
 
@@ -346,7 +430,7 @@ void Renderer::Draw(FVec2 position, float angle, const SpriteAsset& sprite) {
     CHECK(spritesheet_info_.Lookup(spritesheet, &current_),
           "could not find texture [", spritesheet, "]");
   }
-  renderer_->SetActiveTexture(current_.texture);
+  renderer_->SetActiveTexture(current_.texture_index);
   const FVec2 p0(position - FVec2(sprite.width() / 2.0, sprite.height() / 2.0));
   const FVec2 p1(position + FVec2(sprite.width() / 2.0, sprite.height() / 2.0));
   const FVec2 q0(FVec2(1.0 * sprite.x() / current_.width,
@@ -357,14 +441,14 @@ void Renderer::Draw(FVec2 position, float angle, const SpriteAsset& sprite) {
 }
 
 void Renderer::DrawRect(FVec2 top_left, FVec2 bottom_right, float angle) {
-  renderer_->SetActiveTexture(0);
+  renderer_->ClearTexture();
   const FVec2 center = (top_left + bottom_right) / 2;
   renderer_->PushQuad(top_left, bottom_right, FVec2(0, 0), FVec2(1, 1),
                       /*origin=*/center, angle);
 }
 
 void Renderer::DrawCircle(FVec2 center, float radius) {
-  renderer_->SetActiveTexture(0);
+  renderer_->ClearTexture();
   constexpr size_t kTriangles = 30;
   auto for_index = [&](int index) {
     const int i = index % kTriangles;
@@ -389,7 +473,7 @@ void Renderer::LoadSpreadsheets(const Assets& assets) {
         auto* image = assets.GetImage(image_name);
         CHECK(image != nullptr, "Unknown image ", image_name,
               " for spritesheet ", spritesheet);
-        SheetTexture info = {.texture = renderer_->LoadTexture(*image),
+        SheetTexture info = {.texture_index = renderer_->LoadTexture(*image),
                              .width = image->width(),
                              .height = image->height()};
         LOG("Loaded spritesheet ", spritesheet);

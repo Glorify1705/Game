@@ -1,6 +1,9 @@
-vec4 effect(vec4 color, Image texture, vec2 texture_coords,
-            vec2 screen_coords) {
-  vec4 pixel =
-      Texel(texture, texture_coords);  // This is the current pixel color
-  return pixel * color;
-}
+#version 460 core
+out vec4 frag_color;
+
+in vec2 tex_coord;
+in vec4 out_color;
+
+uniform sampler2D tex;
+
+void main() { frag_color = texture(tex, tex_coord) * out_color; }
