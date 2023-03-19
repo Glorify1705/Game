@@ -25,6 +25,7 @@ class BumpAllocator {
       : ptr_(reinterpret_cast<uintptr_t>(ptr)), pos_(ptr_), end_(ptr_ + size) {}
 
   void* Alloc(size_t size, size_t align);
+
   template <typename T>
   T* AllocArray(size_t size) {
     return reinterpret_cast<T*>(Alloc(size * sizeof(T), alignof(T)));
