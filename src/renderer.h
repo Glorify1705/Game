@@ -74,8 +74,6 @@ class BatchRenderer {
     // to avoid having to reset a uniform on drawing every rotated quad,
     // which would require an OpenGL context switch. This way we trade a bit
     // more computation and GPU RAM for less driver + OpenGL flushes.
-    //
-    // TODO: Create a separate array for the rotated quads (e.g. for text).
     FVec2 origin;
     float angle;
   };
