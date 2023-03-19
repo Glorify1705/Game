@@ -41,7 +41,6 @@ struct GameParams {
   int screen_height = 1024;
 };
 
-void SdlCrash(const char* message) {
 #ifndef _INTERNAL_GAME_TRAP
 #if __has_builtin(__builtin_debugtrap)
 #define _INTERNAL_GAME_TRAP __builtin_debugtrap
@@ -53,6 +52,8 @@ void SdlCrash(const char* message) {
 #define _INTERNAL_GAME_TRAP std::abort
 #endif
 #endif
+
+void SdlCrash(const char* message) {
   SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Unrecoverable error", message,
                            /*window=*/nullptr);
   _INTERNAL_GAME_TRAP();
@@ -76,6 +77,7 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
   if (type == GL_DEBUG_TYPE_ERROR) {
     LOG("GL ERROR ", " type = ", type, " severity = ", severity,
         " message = ", message);
+    _INTERNAL_GAME_TRAP();
   }
 }
 
@@ -253,6 +255,7 @@ SDL_GLContext CreateOpenglContext(SDL_Window* window) {
   if (supports_opengl_debug) {
     LOG("OpenGL Debug Callback Support is enabled!");
     glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageCallback(OpenglMessageCallback, /*userParam=*/nullptr);
   } else {
     LOG("OpenGL Debug Callback Support is disabled");
