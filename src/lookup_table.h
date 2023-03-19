@@ -10,19 +10,13 @@
 #include <string_view>
 
 #include "allocators.h"
+#include "xxhash.h"
 
 namespace G {
 namespace internal {
 
-// MSI probe and hash from https://nullprogram.com/blog/2022/08/08/.
-// Does not need to be very good, just fast.
 inline uint64_t Hash(const char* s, size_t len) {
-  uint64_t h = 0x100;
-  for (size_t i = 0; i < len; i++) {
-    h ^= s[i] & 255;
-    h *= 1111111111111111111;
-  }
-  return h;
+  return XXH64(s, len, 0xC0DE15D474);
 }
 
 inline int32_t MSIProbe(uint64_t hash, int exp, int32_t idx) {
