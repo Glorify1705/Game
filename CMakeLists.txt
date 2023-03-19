@@ -127,9 +127,14 @@ target_include_directories(Packer
 target_compile_options(Packer PRIVATE ${COMPILER_FLAGS})
 
 add_custom_command(
-    OUTPUT Assets
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/assets.zip"
     COMMAND Packer ARGS "${CMAKE_CURRENT_BINARY_DIR}/assets.zip" ${ASSETS}
     DEPENDS Packer ${ASSETS})
+
+add_custom_target(
+    Assets
+    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/assets.zip"
+)
 
 add_custom_target(Run
                   COMMAND "${CMAKE_CURRENT_BINARY_DIR}/Game" "${CMAKE_CURRENT_BINARY_DIR}/assets.zip"
