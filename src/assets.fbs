@@ -41,9 +41,19 @@ table FontAsset {
     contents: [uint8];
 }
 
+enum ShaderUniformType : uint8 {
+    FLOAT, VEC2, VEC3, VEC4, MAT4x4, MAT3x3, MAT2x2
+}
+
+table ShaderUniform {
+    type: ShaderUniformType;
+    name: string;
+}
+
 table ShaderAsset {
     filename: string;
     contents: string;
+    uniforms: [ShaderUniform];
 }
 
 table AssetsPack {
