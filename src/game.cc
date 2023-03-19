@@ -146,6 +146,7 @@ struct EngineModules {
       : assets_buf_(ReadAssets(arguments)),
         assets(assets_buf_),
         batch_renderer(IVec2(params.screen_width, params.screen_height)),
+        controllers(assets),
         sound(&assets),
         sprite_sheet_renderer(assets, &batch_renderer),
         lua("main.lua", &assets),

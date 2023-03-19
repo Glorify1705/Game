@@ -97,7 +97,8 @@ class Packer {
         spritesheets_(allocator_),
         sounds_(allocator_),
         fonts_(allocator_),
-        shaders_(allocator_) {}
+        shaders_(allocator_),
+        text_files_(allocator_) {}
 
   static void Init() {
     SetImageAlloc(GlobalAlloc);
@@ -113,6 +114,7 @@ class Packer {
     auto sounds_vec = fbs_.CreateVector(sounds_);
     auto fonts_vec = fbs_.CreateVector(fonts_);
     auto shaders_vec = fbs_.CreateVector(shaders_);
+    auto text_files_vec = fbs_.CreateVector(text_files_);
     AssetsPackBuilder assets(fbs_);
     assets.add_images(image_vec);
     assets.add_scripts(scripts_vec);
@@ -120,6 +122,7 @@ class Packer {
     assets.add_sounds(sounds_vec);
     assets.add_fonts(fonts_vec);
     assets.add_shaders(shaders_vec);
+    assets.add_texts(text_files_vec);
     fbs_.Finish(assets.Finish());
     zip_error_t zip_error;
     int zip_error_code;
@@ -237,6 +240,11 @@ class Packer {
         fbs_.CreateString(reinterpret_cast<const char*>(buf), size)));
   }
 
+  void HandleTextFile(std::string_view filename, uint8_t* buf, size_t size) {
+    text_files_.push_back(CreateTextFileAsset(fbs_, fbs_.CreateString(filename),
+                                              fbs_.CreateVector(buf, size)));
+  }
+
  private:
   int64_t start_ms_;
   BumpAllocator* allocator_;
@@ -256,6 +264,8 @@ class Packer {
       fonts_;
   WithAllocator<std::vector<flatbuffers::Offset<ShaderAsset>>, BumpAllocator>
       shaders_;
+  WithAllocator<std::vector<flatbuffers::Offset<TextFileAsset>>, BumpAllocator>
+      text_files_;
 };
 
 struct FileHandler {
@@ -267,7 +277,8 @@ FileHandler kHandlers[] = {
     {".xml", &Packer::HandleSpritesheet}, {".ogg", &Packer::HandleOggSound},
     {".ttf", &Packer::HandleFont},        {".wav", &Packer::HandleWavSound},
     {".frag", &Packer::HandleShader},     {".png", &Packer::HandleNonQoiImage},
-    {".jpg", &Packer::HandleNonQoiImage}, {".bmp", &Packer::HandleNonQoiImage}};
+    {".jpg", &Packer::HandleNonQoiImage}, {".bmp", &Packer::HandleNonQoiImage},
+    {".txt", &Packer::HandleTextFile}};
 
 }  // namespace
 

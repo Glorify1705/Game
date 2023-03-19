@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "SDL.h"
+#include "assets.h"
 #include "circular_buffer.h"
 #include "lookup_table.h"
 #include "vec.h"
@@ -89,7 +90,7 @@ class Mouse {
 
 class Controllers {
  public:
-  Controllers();
+  Controllers(const Assets& assets);
   ~Controllers();
 
   void PushEvent(const SDL_Event& event);

@@ -60,7 +60,6 @@ set(GAME_SRCS
     "libraries/imgui.cc"
     "libraries/imgui_widgets.cc"
     "src/lua.cc"
-    "src/controller_db.cc"
     "src/physics.cc"
     "src/image.cc"
     "src/renderer.cc"
@@ -99,6 +98,7 @@ set(ASSETS
     "${PROJECT_SOURCE_DIR}/assets/sheet2.xml"
     "${PROJECT_SOURCE_DIR}/assets/sheet2.png"
     "${PROJECT_SOURCE_DIR}/assets/music.ogg"
+    "${PROJECT_SOURCE_DIR}/assets/gamecontrollerdb.txt"
     "${PROJECT_SOURCE_DIR}/assets/laser.wav")
 
 add_executable(Game "${GAME_SRCS}")

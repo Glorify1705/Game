@@ -37,4 +37,8 @@ const FontAsset* Assets::GetFont(std::string_view name) const {
   return Search(*assets_->fonts(), name);
 }
 
+const TextFileAsset* Assets::GetText(std::string_view name) const {
+  return Search(*assets_->texts(), name);
+}
+
 }  // namespace G

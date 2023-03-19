@@ -1,7 +1,6 @@
 #include <algorithm>
 
 #include "clock.h"
-#include "controller_db.h"
 #include "input.h"
 
 namespace G {
@@ -52,10 +51,12 @@ void Mouse::PushEvent(const SDL_Event& event) {
   }
 }
 
-Controllers::Controllers() {
-  std::string_view db = ControllerDB();
+Controllers::Controllers(const Assets& assets) {
+  const TextFileAsset* asset = assets.GetText("gamecontrollerdb.txt");
+  CHECK(asset != nullptr, "Could not find game controller database");
   SDL_RWops* rwops = SDL_RWFromMem(
-      const_cast<void*>(static_cast<const void*>(db.data())), db.size());
+      const_cast<void*>(static_cast<const void*>(asset->contents()->Data())),
+      asset->contents()->size());
   CHECK(SDL_GameControllerAddMappingsFromRW(rwops, /*freerw=*/true) > 0,
         "Could not add Joystick database: ", SDL_GetError());
   // Button table.

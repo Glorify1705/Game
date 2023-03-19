@@ -42,6 +42,7 @@ class Assets {
   const FontAsset* GetFontByIndex(size_t idx) const {
     return assets_->fonts()->Get(idx);
   }
+  const TextFileAsset* GetText(std::string_view name) const;
 
  private:
   const AssetsPack* assets_;
