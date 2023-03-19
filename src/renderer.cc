@@ -243,25 +243,73 @@ void BatchRenderer::Render() {
     glDrawElementsInstanced(GL_TRIANGLES, batch.indices_count, GL_UNSIGNED_INT,
                             reinterpret_cast<void*>(indices_start), 1);
   }
-  if (!debug_render_) return;
+  if (debug_render_) {
+    // Draw a red semi transparent quad for all quads.
+    shader_program_.SetUniform("tex", 0);
+    shader_program_.SetUniform("global_color", FVec4(1, 0, 0, 0.2));
+    for (const auto& batch : batches_) {
+      shader_program_.SetUniform("projection",
+                                 Ortho(0, viewport_.x, 0, viewport_.y));
+      shader_program_.SetUniform("transform", batch.transform);
+      glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+      glBindTexture(GL_TEXTURE_2D, 0);
+      const auto indices_start =
+          reinterpret_cast<uintptr_t>(&indices_[batch.indices_start]) -
+          reinterpret_cast<uintptr_t>(&indices_[0]);
+      glDrawElementsInstanced(GL_TRIANGLES, batch.indices_count,
+                              GL_UNSIGNED_INT,
+                              reinterpret_cast<void*>(indices_start), 1);
+    }
+  }
   WATCH_EXPR("Batches", batches_.size());
   WATCH_EXPR("Vertex Memory", vertices_.bytes());
   WATCH_EXPR("Batch used memory", batches_.bytes());
-  // Draw a red semi transparent quad for all quads.
-  shader_program_.SetUniform("tex", 0);
-  shader_program_.SetUniform("global_color", FVec4(1, 0, 0, 0.2));
-  for (const auto& batch : batches_) {
-    shader_program_.SetUniform("projection",
-                               Ortho(0, viewport_.x, 0, viewport_.y));
-    shader_program_.SetUniform("transform", batch.transform);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    const auto indices_start =
-        reinterpret_cast<uintptr_t>(&indices_[batch.indices_start]) -
-        reinterpret_cast<uintptr_t>(&indices_[0]);
-    glDrawElementsInstanced(GL_TRIANGLES, batch.indices_count, GL_UNSIGNED_INT,
-                            reinterpret_cast<void*>(indices_start), 1);
+  TakeScreenshots();
+}
+
+void BatchRenderer::RequestScreenshot(
+    uint8_t* pixels, size_t width, size_t height,
+    void (*callback)(uint8_t*, size_t, size_t, void*), void* userdata) {
+  ScreenshotRequest req;
+  req.out_buffer = pixels;
+  req.width = width;
+  req.height = height;
+  req.callback = callback;
+  req.userdata = userdata;
+  screenshots_.Push(req);
+}
+
+void BatchRenderer::TakeScreenshots() {
+  if (screenshots_.empty()) return;
+  // TODO: use an arena.
+  struct RGBA {
+    uint8_t r, g, b, a;
+  };
+  const size_t width = viewport_.x;
+  const size_t height = viewport_.y;
+  auto* buffer = new RGBA[width * height];
+  auto* flipped = new RGBA[width * height];
+  glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+  for (size_t i = 0; i < width * height; ++i) buffer[i].a = 255;
+  {
+    // OpenGL reads memory in reverse row order. Flip the rows.
+    auto* ptr = flipped;
+    for (size_t r = 0; r < height; ++r) {
+      std::memcpy(ptr, &buffer[(height - 1 - r) * width], width * sizeof(RGBA));
+      ptr += width;
+    }
   }
+  for (const ScreenshotRequest& req : screenshots_) {
+    auto* ptr = req.out_buffer;
+    for (size_t r = 0; r < req.height; ++r) {
+      std::memcpy(ptr, &flipped[r * width], req.width * sizeof(RGBA));
+      ptr += req.width * sizeof(RGBA);
+    }
+    req.callback(req.out_buffer, req.width, req.height, req.userdata);
+  }
+  delete[] buffer;
+  delete[] flipped;
+  screenshots_.Clear();
 }
 
 Renderer::Renderer(const Assets& assets, BatchRenderer* renderer)

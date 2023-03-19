@@ -64,6 +64,21 @@ class BatchRenderer {
 
   void ToggleDebugRender() { debug_render_ = !debug_render_; }
 
+  void RequestScreenshot(uint8_t* pixels, size_t width, size_t height,
+                         void (*callback)(uint8_t*, size_t, size_t, void*),
+                         void* userdata);
+
+  template <typename T>
+  void RequestScreenshot(uint8_t* pixels, size_t width, size_t height, T* ptr) {
+    RequestScreenshot(
+        pixels, width, height,
+        [](uint8_t* pixels, size_t width, size_t height, void* userdata) {
+          reinterpret_cast<T*>(userdata)->HandleScreenshot(pixels, width,
+                                                           height);
+        },
+        ptr);
+  }
+
  private:
   struct VertexData {
     FVec2 position;
@@ -101,6 +116,16 @@ class BatchRenderer {
     batches_.Push(std::move(batch));
   }
 
+  struct ScreenshotRequest {
+    uint8_t* out_buffer;
+    size_t width, height;
+    void (*callback)(uint8_t*, size_t, size_t, void*);
+    void* userdata = nullptr;
+  };
+
+  void TakeScreenshots();
+
+  FixedArray<ScreenshotRequest, 32> screenshots_;
   FixedArray<VertexData, 1 << 24> vertices_;
   FixedArray<GLuint, 1 << 24> indices_;
   ShaderCompiler compiler_;

@@ -16,6 +16,7 @@
 #include "circular_buffer.h"
 #include "clock.h"
 #include "console.h"
+#include "image.h"
 #include "input.h"
 #include "libraries/glad.h"
 #include "libraries/imgui.h"
@@ -172,8 +173,13 @@ struct EngineModules {
         batch_renderer.SetViewport(new_viewport);
       }
     }
-    keyboard.PushEvent(event);
-    mouse.PushEvent(event);
+    ImGuiIO& io = ImGui::GetIO();
+    if (!io.WantCaptureKeyboard) {
+      keyboard.PushEvent(event);
+    }
+    if (!io.WantCaptureMouse) {
+      mouse.PushEvent(event);
+    }
     controllers.PushEvent(event);
   }
 
@@ -298,7 +304,16 @@ class DebugUi {
       ImGui::EndChild();
       ImGui::TreePop();
     }
-    if (ImGui::Button("Copy")) CopyToClipboard();
+    if (ImGui::Button("Copy", ImVec2(ImGui::GetWindowSize().x, 0.0f))) {
+      CopyToClipboard();
+    }
+    ImGui::InputText("Screenshot filename", screenshot_filename_,
+                     sizeof(screenshot_filename_));
+    if (ImGui::Button("Take Screenshot")) {
+      const IVec2 viewport = modules_->batch_renderer.GetViewport();
+      modules_->batch_renderer.RequestScreenshot(screenshot_, viewport.x,
+                                                 viewport.y, this);
+    }
     ImGui::End();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -306,6 +321,16 @@ class DebugUi {
 
   void ProcessEvent(const SDL_Event& event) {
     ImGui_ImplSDL2_ProcessEvent(&event);
+  }
+
+  void HandleScreenshot(uint8_t* buffer, size_t width, size_t height) {
+    TIMER("Screenshot");
+    qoi_desc desc;
+    desc.width = width;
+    desc.height = height;
+    desc.channels = 4;
+    CHECK(qoi_write(screenshot_filename_, buffer, &desc));
+    LOG("Wrote screenshot with width ", width, " and height ", height);
   }
 
  private:
@@ -370,6 +395,8 @@ class DebugUi {
   LookupTable<const char*> expression_table_;
   bool show_ = false;
   int frame_stats_location_ = 1;
+  char screenshot_filename_[256];
+  uint8_t screenshot_[4096 * 4096 * 4];
 };
 
 class Game {
