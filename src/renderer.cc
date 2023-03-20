@@ -8,105 +8,11 @@
 #include "transformations.h"
 
 namespace G {
-namespace {
+namespace {}  // namespace
 
-constexpr std::string_view kVertexShader = R"(
-    #version 460 core
-
-    layout (location = 0) in vec2 input_position;
-    layout (location = 1) in vec2 input_tex_coord;
-    layout (location = 2) in vec2 origin;
-    layout (location = 3) in float angle;
-    layout (location = 4) in vec4 color;
-        
-    uniform mat4x4 projection;
-    uniform mat4x4 transform;    
-    uniform vec4 global_color;
-
-    out vec2 tex_coord;
-    out vec4 out_color;
-
-    mat4 RotateZ(float angle) {
-      mat4 result = mat4(1.0);
-      result[0][0] = cos(angle);
-      result[1][0] = -sin(angle);
-      result[0][1] = sin(angle);
-      result[1][1] = cos(angle);
-      return result;
-    }
-
-    mat4 Translate(vec2 pos) {
-      mat4 result = mat4(1.0);
-      result[3][0] = pos.x;
-      result[3][1] = pos.y;
-      return result;
-    }
-
-    void main() {
-        mat4 rotation = Translate(origin) * RotateZ(angle) * Translate(-origin);
-        gl_Position = projection * transform * rotation * vec4(input_position, 0.0, 1.0);
-        tex_coord = input_tex_coord;
-        out_color = global_color * color;
-    }
-  )";
-constexpr std::string_view kFragmentShader = R"(
-    #version 460 core
-    out vec4 frag_color;
-
-    in vec2 tex_coord;
-    in vec4 out_color;
-
-    uniform sampler2D tex;
-
-    void main() {
-        frag_color = texture(tex, tex_coord) * out_color;
-    }
-  )";
-
-constexpr std::string_view kPostPassVertexShader = R"(
-  #version 460 core
-  layout (location = 0) in vec2 input_position;
-  layout (location = 1) in vec2 input_tex_coord;
-
-  out vec2 tex_coord;
-
-  void main()
-  {
-      gl_Position = vec4(input_position.x, input_position.y, 0.0, 1.0); 
-      tex_coord = input_tex_coord;
-  }  
-  )";
-
-constexpr std::string_view kPostPassFragmentShader = R"(
-  #version 460 core
-  out vec4 frag_color;
-    
-  in vec2 tex_coord;
-
-  uniform sampler2D screen_texture;
-
-  void main() { 
-      frag_color = texture(screen_texture, tex_coord);
-  }
-)";
-
-}  // namespace
-
-BatchRenderer::BatchRenderer(IVec2 viewport) : viewport_(viewport) {
+BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders)
+    : shaders_(shaders), viewport_(viewport) {
   TIMER();
-  // Add the pre pass and post pass shader programs.
-  shader_programs_.Push(compiler_.LinkOrDie(
-      "pre_pass",
-      compiler_.CompileOrDie(ShaderType::kVertex, "pre_pass.vert",
-                             kVertexShader),
-      compiler_.CompileOrDie(ShaderType::kFragment, "pre_pass.frag",
-                             kFragmentShader)));
-  shader_programs_.Push(compiler_.LinkOrDie(
-      "post_pass",
-      compiler_.CompileOrDie(ShaderType::kVertex, "post_pass.vert",
-                             kPostPassVertexShader),
-      compiler_.CompileOrDie(ShaderType::kFragment, "post_pass.frag",
-                             kPostPassFragmentShader)));
   glGenVertexArrays(1, &vao_);
   glGenBuffers(1, &vbo_);
   glGenBuffers(1, &ebo_);
@@ -122,14 +28,12 @@ BatchRenderer::BatchRenderer(IVec2 viewport) : viewport_(viewport) {
   glBindBuffer(GL_ARRAY_BUFFER, screen_quad_vbo_);
   glBufferData(GL_ARRAY_BUFFER, screen_quad_vertices.size() * sizeof(float),
                screen_quad_vertices.data(), GL_STATIC_DRAW);
-  ShaderProgram& post_pass_program = shader_programs_[1];
-  const GLint pos_attribute =
-      glGetAttribLocation(post_pass_program.id(), "input_position");
+  shaders_->UseProgram("post_pass");
+  const GLint pos_attribute = shaders_->AttributeLocation("input_position");
   glEnableVertexAttribArray(pos_attribute);
   glVertexAttribPointer(pos_attribute, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
                         (void*)0);
-  const GLint tex_attribute =
-      glGetAttribLocation(post_pass_program.id(), "input_tex_coord");
+  const GLint tex_attribute = shaders_->AttributeLocation("input_tex_coord");
   glEnableVertexAttribArray(tex_attribute);
   glVertexAttribPointer(tex_attribute, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
                         (void*)(2 * sizeof(float)));
@@ -268,47 +172,41 @@ void BatchRenderer::Render() {
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_.bytes(), indices_.data(),
                GL_STATIC_DRAW);
-  ShaderProgram& pre_pass_program = shader_programs_[0];
-  pre_pass_program.Use();
-  const GLint pos_attribute =
-      glGetAttribLocation(pre_pass_program.id(), "input_position");
+  shaders_->UseProgram("pre_pass");
+  const GLint pos_attribute = shaders_->AttributeLocation("input_position");
   glVertexAttribPointer(
       pos_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
       sizeof(VertexData),
       reinterpret_cast<void*>(offsetof(VertexData, position)));
   glEnableVertexAttribArray(pos_attribute);
   const GLint tex_coord_attribute =
-      glGetAttribLocation(pre_pass_program.id(), "input_tex_coord");
+      shaders_->AttributeLocation("input_tex_coord");
   glVertexAttribPointer(
       tex_coord_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
       sizeof(VertexData),
       reinterpret_cast<void*>(offsetof(VertexData, tex_coords)));
   glEnableVertexAttribArray(tex_coord_attribute);
-  const GLint origin_attribute =
-      glGetAttribLocation(pre_pass_program.id(), "origin");
+  const GLint origin_attribute = shaders_->AttributeLocation("origin");
   glVertexAttribPointer(origin_attribute, FVec2::kCardinality, GL_FLOAT,
                         GL_FALSE, sizeof(VertexData),
                         reinterpret_cast<void*>(offsetof(VertexData, origin)));
   glEnableVertexAttribArray(origin_attribute);
-  const GLint angle_attribute =
-      glGetAttribLocation(pre_pass_program.id(), "angle");
+  const GLint angle_attribute = shaders_->AttributeLocation("angle");
   glVertexAttribPointer(angle_attribute, 1, GL_FLOAT, GL_FALSE,
                         sizeof(VertexData),
                         reinterpret_cast<void*>(offsetof(VertexData, angle)));
   glEnableVertexAttribArray(angle_attribute);
-  const GLint color_attribute =
-      glGetAttribLocation(pre_pass_program.id(), "color");
+  const GLint color_attribute = shaders_->AttributeLocation("color");
   glVertexAttribPointer(color_attribute, FVec4::kCardinality, GL_FLOAT,
                         GL_FALSE, sizeof(VertexData),
                         reinterpret_cast<void*>(offsetof(VertexData, color)));
   glEnableVertexAttribArray(color_attribute);
-  pre_pass_program.SetUniform("global_color", FVec4(1, 1, 1, 1));
+  shaders_->SetUniform("global_color", FVec4(1, 1, 1, 1));
   for (const auto& batch : batches_) {
     if (batch.indices_count == 0) continue;
-    pre_pass_program.SetUniform("tex", batch.texture_unit);
-    pre_pass_program.SetUniform("projection",
-                                Ortho(0, viewport_.x, 0, viewport_.y));
-    pre_pass_program.SetUniform("transform", batch.transform);
+    shaders_->SetUniform("tex", batch.texture_unit);
+    shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
+    shaders_->SetUniform("transform", batch.transform);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
     glBindTexture(GL_TEXTURE_2D, tex_[batch.texture_unit]);
     const auto indices_start =
@@ -319,12 +217,11 @@ void BatchRenderer::Render() {
   }
   if (debug_render_) {
     // Draw a red semi transparent quad for all quads.
-    pre_pass_program.SetUniform("tex", noop_texture_);
-    pre_pass_program.SetUniform("global_color", FVec4(1, 0, 0, 0.2));
+    shaders_->SetUniform("tex", noop_texture_);
+    shaders_->SetUniform("global_color", FVec4(1, 0, 0, 0.2));
     for (const auto& batch : batches_) {
-      pre_pass_program.SetUniform("projection",
-                                  Ortho(0, viewport_.x, 0, viewport_.y));
-      pre_pass_program.SetUniform("transform", batch.transform);
+      shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
+      shaders_->SetUniform("transform", batch.transform);
       glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
       glBindTexture(GL_TEXTURE_2D, tex_[noop_texture_]);
       const auto indices_start =
@@ -342,9 +239,8 @@ void BatchRenderer::Render() {
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glClearColor(0.f, 0.f, 0.f, 0.f);
   glClear(GL_COLOR_BUFFER_BIT);
-  ShaderProgram& post_pass_shader = shader_programs_[1];
-  post_pass_shader.Use();
-  post_pass_shader.SetUniform("screen_texture", 0);
+  shaders_->UseProgram("post_pass");
+  shaders_->SetUniform("screen_texture", 0);
   glBindVertexArray(screen_quad_vao_);
   glBindTexture(GL_TEXTURE_2D, render_texture_);
   glDrawArrays(GL_TRIANGLES, 0, 6);

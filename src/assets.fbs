@@ -45,6 +45,10 @@ enum ShaderUniformType : uint8 {
     FLOAT, VEC2, VEC3, VEC4, MAT4x4, MAT3x3, MAT2x2
 }
 
+enum ShaderType : uint8 {
+    VERTEX, FRAGMENT
+}
+
 table ShaderUniform {
     type: ShaderUniformType;
     name: string;
@@ -52,6 +56,7 @@ table ShaderUniform {
 
 table ShaderAsset {
     filename: string;
+    type: ShaderType;
     contents: string;
     uniforms: [ShaderUniform];
 }

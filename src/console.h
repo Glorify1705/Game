@@ -45,8 +45,7 @@ class DebugConsole {
     }
     auto* linebuffer = buffers_->AllocArray<Linebuffer>(1);
     CopyToBuffer(buf.piece(), linebuffer);
-    auto inserted_key = watcher_values_.Insert(key, linebuffer);
-    watcher_keys_.Push(inserted_key);
+    watcher_keys_.Push(watcher_values_.Insert(key, linebuffer).map_key);
   }
 
   template <typename Fn>

@@ -41,4 +41,8 @@ const TextFileAsset* Assets::GetText(std::string_view name) const {
   return Search(*assets_->texts(), name);
 }
 
+const ShaderAsset* Assets::GetShader(std::string_view name) const {
+  return Search(*assets_->shaders(), name);
+}
+
 }  // namespace G

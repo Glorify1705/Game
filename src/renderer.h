@@ -17,7 +17,7 @@ namespace G {
 
 class BatchRenderer {
  public:
-  BatchRenderer(IVec2 viewport);
+  BatchRenderer(IVec2 viewport, Shaders* shaders);
   ~BatchRenderer();
 
   size_t LoadTexture(const ImageAsset& image);
@@ -130,10 +130,9 @@ class BatchRenderer {
   FixedArray<ScreenshotRequest, 32> screenshots_;
   FixedArray<VertexData, 1 << 24> vertices_;
   FixedArray<GLuint, 1 << 24> indices_;
-  ShaderCompiler compiler_;
-  FixedArray<ShaderProgram, 64> shader_programs_;
   FixedArray<Batch, 1 << 24> batches_;
   FixedArray<GLuint, 64> tex_;
+  Shaders* shaders_;
   GLuint ebo_, vao_, vbo_;
   size_t noop_texture_;
   GLuint screen_quad_vao_, screen_quad_vbo_;

@@ -132,6 +132,7 @@ struct EngineModules {
 
  public:
   Assets assets;
+  Shaders shaders;
   BatchRenderer batch_renderer;
   Keyboard keyboard;
   Mouse mouse;
@@ -145,7 +146,9 @@ struct EngineModules {
                 const GameParams& params)
       : assets_buf_(ReadAssets(arguments)),
         assets(assets_buf_),
-        batch_renderer(IVec2(params.screen_width, params.screen_height)),
+        shaders(assets),
+        batch_renderer(IVec2(params.screen_width, params.screen_height),
+                       &shaders),
         controllers(assets),
         sound(&assets),
         sprite_sheet_renderer(assets, &batch_renderer),

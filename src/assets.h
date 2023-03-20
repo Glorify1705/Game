@@ -43,6 +43,11 @@ class Assets {
     return assets_->fonts()->Get(idx);
   }
   const TextFileAsset* GetText(std::string_view name) const;
+  size_t shaders() const { return assets_->shaders()->size(); }
+  const ShaderAsset* GetShaderByIndex(size_t idx) const {
+    return assets_->shaders()->Get(idx);
+  }
+  const ShaderAsset* GetShader(std::string_view) const;
 
  private:
   const AssetsPack* assets_;

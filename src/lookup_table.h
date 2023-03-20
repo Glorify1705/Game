@@ -10,6 +10,7 @@
 #include <string_view>
 
 #include "allocators.h"
+#include "uninitialized.h"
 #include "xxhash.h"
 
 namespace G {
@@ -58,7 +59,12 @@ class LookupTable {
 
   size_t size() const { return elements_; }
 
-  std::string_view Insert(std::string_view key, T value) {
+  struct Insertion {
+    std::string_view map_key;
+    T* ptr = nullptr;
+  };
+
+  Insertion Insert(std::string_view key, T value) {
     const uint64_t h = internal::Hash(key.data(), key.size());
     for (int32_t i = h;;) {
       i = internal::MSIProbe(h, kLogTableSize, i);
@@ -72,7 +78,8 @@ class LookupTable {
         values_[i] = std::move(value);
         key_lengths_[i] = key.size();
         elements_++;
-        return std::string_view(keys_[i], key_lengths_[i]);
+        return {.map_key = std::string_view(keys_[i], key_lengths_[i]),
+                .ptr = &values_[i]};
       }
     }
     DIE("OOM");
@@ -85,7 +92,7 @@ class LookupTable {
   size_t pos_ = 0;
   std::array<const char*, 1 << kLogTableSize> keys_;
   std::array<size_t, 1 << kLogTableSize> key_lengths_;
-  std::array<T, 1 << kLogTableSize> values_;
+  UninitializedArray<T, 1 << kLogTableSize> values_;
   size_t elements_ = 0;
 };
 

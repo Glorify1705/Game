@@ -234,9 +234,17 @@ class Packer {
                                      fbs_.CreateVector(buf, size)));
   }
 
-  void HandleShader(std::string_view filename, uint8_t* buf, size_t size) {
+  void HandleVertexShader(std::string_view filename, uint8_t* buf,
+                          size_t size) {
     shaders_.push_back(CreateShaderAsset(
-        fbs_, fbs_.CreateString(filename),
+        fbs_, fbs_.CreateString(filename), ShaderType::VERTEX,
+        fbs_.CreateString(reinterpret_cast<const char*>(buf), size)));
+  }
+
+  void HandleFragmentShader(std::string_view filename, uint8_t* buf,
+                            size_t size) {
+    shaders_.push_back(CreateShaderAsset(
+        fbs_, fbs_.CreateString(filename), ShaderType::FRAGMENT,
         fbs_.CreateString(reinterpret_cast<const char*>(buf), size)));
   }
 
@@ -272,13 +280,18 @@ struct FileHandler {
   std::string_view extension;
   void (Packer::*method)(std::string_view filename, uint8_t* buf, size_t size);
 };
-FileHandler kHandlers[] = {
-    {".lua", &Packer::HandleScript},      {".qoi", &Packer::HandleQoiImage},
-    {".xml", &Packer::HandleSpritesheet}, {".ogg", &Packer::HandleOggSound},
-    {".ttf", &Packer::HandleFont},        {".wav", &Packer::HandleWavSound},
-    {".frag", &Packer::HandleShader},     {".png", &Packer::HandleNonQoiImage},
-    {".jpg", &Packer::HandleNonQoiImage}, {".bmp", &Packer::HandleNonQoiImage},
-    {".txt", &Packer::HandleTextFile}};
+FileHandler kHandlers[] = {{".lua", &Packer::HandleScript},
+                           {".qoi", &Packer::HandleQoiImage},
+                           {".xml", &Packer::HandleSpritesheet},
+                           {".ogg", &Packer::HandleOggSound},
+                           {".ttf", &Packer::HandleFont},
+                           {".wav", &Packer::HandleWavSound},
+                           {".vert", &Packer::HandleVertexShader},
+                           {".frag", &Packer::HandleFragmentShader},
+                           {".png", &Packer::HandleNonQoiImage},
+                           {".jpg", &Packer::HandleNonQoiImage},
+                           {".bmp", &Packer::HandleNonQoiImage},
+                           {".txt", &Packer::HandleTextFile}};
 
 }  // namespace
 
