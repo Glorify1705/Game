@@ -98,6 +98,7 @@ set(ASSETS
     "${PROJECT_SOURCE_DIR}/assets/terminus.ttf"
     "${PROJECT_SOURCE_DIR}/assets/sheet2.xml"
     "${PROJECT_SOURCE_DIR}/assets/sheet2.png"
+    "${PROJECT_SOURCE_DIR}/assets/basic.frag"
     "${PROJECT_SOURCE_DIR}/assets/music.ogg"
     "${PROJECT_SOURCE_DIR}/assets/gamecontrollerdb.txt"
     "${PROJECT_SOURCE_DIR}/assets/laser.wav")

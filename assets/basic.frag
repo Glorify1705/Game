@@ -2,8 +2,9 @@
 out vec4 frag_color;
 
 in vec2 tex_coord;
-in vec4 out_color;
 
-uniform sampler2D tex;
+uniform sampler2D screen_texture;
 
-void main() { frag_color = texture(tex, tex_coord) * out_color; }
+void main() {
+  frag_color = vec4(texture(screen_texture, tex_coord).x, 0, 0, 1);
+}
