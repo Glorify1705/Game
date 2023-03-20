@@ -2,78 +2,64 @@
 #ifndef _GAME_SHADERS_H
 #define _GAME_SHADERS_H
 
+#include "assets.h"
 #include "libraries/glad.h"
 #include "logging.h"
+#include "lookup_table.h"
 
 namespace G {
 
-enum class ShaderType { kVertex, kFragment };
-
-class ShaderId {
+class Shaders {
  public:
-  ShaderId(ShaderType type, unsigned int id) : type_(type), id_(id) {}
+  Shaders(const Assets& assets);
 
-  ShaderId(const ShaderId&) = delete;
-  ShaderId& operator=(ShaderId&) = delete;
+  bool Compile(ShaderType type, std::string_view name, std::string_view glsl);
 
-  static ShaderId Make(ShaderType type);
+  bool Link(std::string_view name, std::string_view vertex_shader,
+            std::string_view fragment_shader);
 
-  ShaderId(ShaderId&& other) : type_(other.type_), id_(other.id_) {
-    other.id_ = 0;
+  void UseProgram(std::string_view program) {
+    GLuint program_id;
+    CHECK(compiled_programs_.Lookup(program, &program_id),
+          " could not find program ", program);
+    current_program_ = program_id;
+    glUseProgram(current_program_);
   }
 
-  ~ShaderId() {
-    if (id_) glDeleteShader(id_);
-  }
-
-  ShaderType type() const { return type_; }
-  GLuint id() const { return id_; }
-
- private:
-  ShaderType type_;
-  GLuint id_;
-};
-
-class ShaderProgram {
- public:
-  ShaderProgram(GLuint id) : id_(id) {}
-
-  GLuint id() { return id_; }
-  void Use() { glUseProgram(id_); }
-
-  ShaderProgram(const ShaderProgram&) = delete;
-  ShaderProgram& operator=(ShaderProgram&) = delete;
-
-  ShaderProgram(ShaderProgram&& other) : id_(other.id_) { other.id_ = 0; }
+  std::string_view LastError() const { return last_error_.piece(); };
 
   template <typename T, typename = std::void_t<decltype(T::kCardinality)>>
   void SetUniform(const char* name, const T& value) {
-    const GLint uniform = glGetUniformLocation(id_, name);
+    DCHECK(current_program_, "No program set");
+    const GLint uniform = glGetUniformLocation(current_program_, name);
     CHECK(uniform != -1, "No uniform named ", name);
     value.AsOpenglUniform(uniform);
   }
 
   void SetUniform(const char* name, int value) {
-    const GLint uniform = glGetUniformLocation(id_, name);
+    DCHECK(current_program_, "No program set");
+    const GLint uniform = glGetUniformLocation(current_program_, name);
     CHECK(uniform != -1, "No uniform named ", name);
     glUniform1i(uniform, value);
   }
 
-  ~ShaderProgram() {
-    if (id_) glDeleteProgram(id_);
+  GLint AttributeLocation(const char* name) const {
+    DCHECK(current_program_, "No program set");
+
+    return glGetAttribLocation(current_program_, name);
   }
 
  private:
-  GLuint id_;
-};
+  template <typename... Ts>
+  bool FillError(Ts... ts) {
+    last_error_.Append(std::forward<Ts>(ts)...);
+    return false;
+  }
 
-class ShaderCompiler {
- public:
-  ShaderId CompileOrDie(ShaderType type, std::string_view name,
-                        std::string_view glsl);
-
-  ShaderProgram LinkOrDie(std::string_view name, const ShaderId& vertex_shader,
-                          const ShaderId& fragment_shader);
+  LookupTable<GLuint> compiled_shaders_;
+  LookupTable<GLuint> compiled_programs_;
+  StringBuffer<512> last_error_;
+  GLuint current_program_ = 0;
 };
 
 }  // namespace G
