@@ -24,7 +24,7 @@ class DebugConsole {
 
   template <typename... Ts>
   void Log(Ts... ts) {
-    StringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
+    FixedStringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
     LogLine(buf.piece());
   }
 
@@ -38,7 +38,7 @@ class DebugConsole {
 
   template <typename... Ts>
   void AddWatcher(std::string_view key, Ts... ts) {
-    StringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
+    FixedStringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
     if (Linebuffer * linebuffer; watcher_values_.Lookup(key, &linebuffer)) {
       CopyToBuffer(buf.piece(), linebuffer);
       return;

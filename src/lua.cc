@@ -30,7 +30,7 @@ int Traceback(lua_State* L) {
 int LoadLuaAsset(lua_State* state, const ScriptAsset& asset,
                  int traceback_handler = INT_MAX) {
   const char* name = asset.filename()->c_str();
-  StringBuffer<128> buf("@", name);
+  FixedStringBuffer<128> buf("@", name);
   if (luaL_loadbuffer(state,
                       reinterpret_cast<const char*>(asset.contents()->Data()),
                       asset.contents()->size(), buf.str()) != 0) {
@@ -49,7 +49,7 @@ int LoadLuaAsset(lua_State* state, const ScriptAsset& asset,
 
 int PackageLoader(lua_State* state) {
   const char* modname = luaL_checkstring(state, 1);
-  StringBuffer<127> buf(modname, ".lua");
+  FixedStringBuffer<127> buf(modname, ".lua");
   const auto* asset = Registry<Assets>::Retrieve(state)->GetScript(buf.piece());
   LOG("Loading package ", modname, " from file ", buf);
   if (asset == nullptr) {
@@ -178,7 +178,7 @@ static const struct luaL_Reg kRendererLib[] = {
 
 int LuaLogPrint(lua_State* state) {
   const int num_args = lua_gettop(state);
-  StringBuffer<kMaxLogLineLength> buffer;
+  FixedStringBuffer<kMaxLogLineLength> buffer;
   lua_getglobal(state, "tostring");
   for (int i = 0; i < num_args; ++i) {
     // Call tostring to print the value of the argument.
@@ -639,7 +639,7 @@ Lua::Lua(const char* script_name, Assets* assets) {
 
 void Lua::SetPackagePreload(std::string_view filename) {
   // We use a buffer to ensure that filename is null terminated.
-  StringBuffer<127> buf(filename);
+  FixedStringBuffer<127> buf(filename);
   lua_getglobal(state_, "package");
   lua_getfield(state_, -1, "preload");
   lua_pushcfunction(state_, &PackageLoader);

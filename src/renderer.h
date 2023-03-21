@@ -141,7 +141,7 @@ class BatchRenderer {
   GLuint render_target_, render_texture_;
   IVec2 viewport_;
   bool debug_render_ = false;
-  StringBuffer<128> program_name_;
+  FixedStringBuffer<128> program_name_;
 };
 
 class Renderer {

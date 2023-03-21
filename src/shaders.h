@@ -58,7 +58,7 @@ class Shaders {
 
   LookupTable<GLuint> compiled_shaders_;
   LookupTable<GLuint> compiled_programs_;
-  StringBuffer<512> last_error_;
+  FixedStringBuffer<512> last_error_;
   GLuint current_program_ = 0;
 };
 

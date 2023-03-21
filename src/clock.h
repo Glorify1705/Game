@@ -15,7 +15,7 @@ double NowInSeconds();
 
 class LogTimer {
  public:
-  using Buf = StringBuffer<kMaxLogLineLength>;
+  using Buf = FixedStringBuffer<kMaxLogLineLength>;
 
   LogTimer(const char* file, int line, const char* func, Buf&& buf = {})
       : file_(file), line_(line), func_(func), start_(NowInSeconds()) {

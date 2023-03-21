@@ -104,11 +104,11 @@ void StrAppend(std::string* buf, T... ts) {
 }
 
 template <size_t N>
-class StringBuffer {
+class FixedStringBuffer {
  public:
-  StringBuffer() = default;
+  FixedStringBuffer() = default;
   template <typename... Ts>
-  explicit StringBuffer(Ts... ts) {
+  explicit FixedStringBuffer(Ts... ts) {
     Append(std::forward<Ts>(ts)...);
   }
 
