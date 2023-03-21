@@ -149,6 +149,31 @@ static const struct luaL_Reg kRendererLib[] = {
                            luaL_checknumber(state, 2));
        return 0;
      }},
+    {"new_shader",
+     [](lua_State* state) {
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       std::string_view name = GetLuaString(state, 1);
+       std::string_view code = GetLuaString(state, 2);
+       const bool compiles = shaders->Compile(
+           HasSuffix(name, ".vert") ? ShaderType::VERTEX : ShaderType::FRAGMENT,
+           name, code);
+       if (!compiles) {
+         luaL_error(state, "Could not compile shader %s: %s", name,
+                    shaders->LastError());
+       }
+       return 0;
+     }},
+    {"attach_shader",
+     [](lua_State* state) {
+       auto* renderer = Registry<BatchRenderer>::Retrieve(state);
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       std::string_view name = GetLuaString(state, 1);
+       if (!renderer->SwitchShader(name)) {
+         luaL_error(state, "Could not switch shader %s: %s", name,
+                    shaders->LastError());
+       }
+       return 0;
+     }},
     {nullptr, nullptr}};
 
 int LuaLogPrint(lua_State* state) {

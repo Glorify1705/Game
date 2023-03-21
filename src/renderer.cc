@@ -5,6 +5,7 @@
 #include "console.h"
 #include "image.h"
 #include "renderer.h"
+#include "strings.h"
 #include "transformations.h"
 
 namespace G {
@@ -28,7 +29,8 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders)
   glBindBuffer(GL_ARRAY_BUFFER, screen_quad_vbo_);
   glBufferData(GL_ARRAY_BUFFER, screen_quad_vertices.size() * sizeof(float),
                screen_quad_vertices.data(), GL_STATIC_DRAW);
-  shaders_->UseProgram("post_pass");
+  program_name_.Append("post_pass");
+  shaders_->UseProgram(program_name_.piece());
   const GLint pos_attribute = shaders_->AttributeLocation("input_position");
   glEnableVertexAttribArray(pos_attribute);
   glVertexAttribPointer(pos_attribute, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
@@ -239,7 +241,7 @@ void BatchRenderer::Render() {
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glClearColor(0.f, 0.f, 0.f, 0.f);
   glClear(GL_COLOR_BUFFER_BIT);
-  shaders_->UseProgram("post_pass");
+  shaders_->UseProgram(program_name_.piece());
   shaders_->SetUniform("screen_texture", 0);
   glBindVertexArray(screen_quad_vao_);
   glBindTexture(GL_TEXTURE_2D, render_texture_);
@@ -290,6 +292,16 @@ void BatchRenderer::TakeScreenshots() {
   delete[] buffer;
   delete[] flipped;
   screenshots_.Clear();
+}
+
+bool BatchRenderer::SwitchShader(std::string_view fragment_shader_name) {
+  std::string_view program_name = fragment_shader_name;
+  const bool linked =
+      shaders_->Link(program_name, "post_pass.vert", fragment_shader_name);
+  if (linked) {
+    program_name_.Set(program_name);
+  }
+  return linked;
 }
 
 Renderer::Renderer(const Assets& assets, BatchRenderer* renderer)

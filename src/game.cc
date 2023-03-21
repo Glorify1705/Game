@@ -138,7 +138,7 @@ struct EngineModules {
   Mouse mouse;
   Controllers controllers;
   Sound sound;
-  Renderer sprite_sheet_renderer;
+  Renderer renderer;
   Lua lua;
   Physics physics;
 
@@ -151,14 +151,17 @@ struct EngineModules {
                        &shaders),
         controllers(assets),
         sound(&assets),
-        sprite_sheet_renderer(assets, &batch_renderer),
+        renderer(assets, &batch_renderer),
         lua("main.lua", &assets),
         physics(FVec(params.screen_width, params.screen_height),
                 Physics::kPixelsPerMeter) {
-    lua.Register(&sprite_sheet_renderer);
+    lua.Register(&shaders);
+    lua.Register(&batch_renderer);
+    lua.Register(&renderer);
     lua.Register(&keyboard);
     lua.Register(&mouse);
     lua.Register(&controllers);
+    lua.Register(&shaders);
     lua.Register(&sound);
     lua.Register(&physics);
   }
@@ -188,9 +191,9 @@ struct EngineModules {
   }
 
   void Render() {
-    sprite_sheet_renderer.BeginFrame();
+    renderer.BeginFrame();
     lua.Draw();
-    sprite_sheet_renderer.FlushFrame();
+    renderer.FlushFrame();
     batch_renderer.Render();
   }
 

@@ -81,6 +81,8 @@ class BatchRenderer {
         ptr);
   }
 
+  bool SwitchShader(std::string_view fragment_shader_name);
+
  private:
   struct VertexData {
     FVec2 position;
@@ -139,6 +141,7 @@ class BatchRenderer {
   GLuint render_target_, render_texture_;
   IVec2 viewport_;
   bool debug_render_ = false;
+  StringBuffer<128> program_name_;
 };
 
 class Renderer {

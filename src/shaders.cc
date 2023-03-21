@@ -108,7 +108,10 @@ Shaders::Shaders(const Assets& assets) {
 
 bool Shaders::Compile(ShaderType type, std::string_view name,
                       std::string_view glsl) {
-  CHECK(!compiled_shaders_.Contains(name), "Duplicate shader ", name);
+  if (compiled_shaders_.Contains(name)) {
+    LOG("Ignoring already processed shader ", name);
+    return true;
+  }
   const GLuint shader_type =
       type == ShaderType::VERTEX ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
   const GLuint shader = glCreateShader(shader_type);
@@ -132,14 +135,14 @@ bool Shaders::Compile(ShaderType type, std::string_view name,
 
 bool Shaders::Link(std::string_view name, std::string_view vertex_shader,
                    std::string_view fragment_shader) {
-  CHECK(!compiled_programs_.Contains(name), "Duplicate program ", name);
+  if (compiled_programs_.Contains(name)) return true;
   GLuint shader_program = glCreateProgram();
   GLuint vertex, fragment;
   if (!compiled_shaders_.Lookup(vertex_shader, &vertex)) {
     return FillError("Could not find vertex shader ", vertex_shader);
   }
   if (!compiled_shaders_.Lookup(fragment_shader, &fragment)) {
-    return FillError("Could not find vertex shader ", vertex_shader);
+    return FillError("Could not find fragment shader ", fragment_shader);
   }
   CHECK(shader_program != 0, "Could not link shaders into ", name);
   glAttachShader(shader_program, vertex);

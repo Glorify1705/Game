@@ -119,13 +119,22 @@ class StringBuffer {
     }({internal_strings::Alphanumeric(ts).piece()...});
   }
 
+  template <typename... T>
+  void Set(T... ts) {
+    pos_ = 0;
+    Append(std::forward<T>(ts)...);
+  }
+
   const char* str() const { return buf_; }
 
   operator const char*() const { return buf_; }
 
-  size_t length() const { return pos_; }
+  size_t size() const { return pos_; }
 
-  std::string_view piece() const { return std::string_view(str(), length()); }
+  std::string_view piece() const { return std::string_view(str(), size()); }
+
+  void Clear() { pos_ = 0; }
+  bool empty() const { return pos_ == 0; }
 
  private:
   void AppendStr(std::string_view s) {
