@@ -15,6 +15,16 @@
 
 namespace G {
 
+struct Color {
+  uint8_t r, g, b, a;
+
+  FVec4 ToFloat() const {
+    return FVec(r / 255.0, g / 255.0, b / 255.0, a / 255.0);
+  }
+
+  static Color White() { return {255, 255, 255, 255}; }
+};
+
 class BatchRenderer {
  public:
   BatchRenderer(IVec2 viewport, Shaders* shaders);
@@ -34,7 +44,7 @@ class BatchRenderer {
 
   void ClearTexture() { SetActiveTexture(tex_[noop_texture_]); }
 
-  void SetActiveColor(FVec4 rgba_color) {
+  void SetActiveColor(Color rgba_color) {
     // We do not need to flush on color changes because they are
     // put on vertex data.
     batches_.back().rgba_color = rgba_color;
@@ -93,11 +103,11 @@ class BatchRenderer {
     // more computation and GPU RAM for less driver + OpenGL flushes.
     FVec2 origin;
     float angle;
-    FVec4 color;
+    Color color;
   };
   struct Batch {
     GLuint texture_unit;
-    FVec4 rgba_color;
+    Color rgba_color;
     FMat4x4 transform;
     size_t indices_start;
     size_t indices_count;
@@ -113,7 +123,7 @@ class BatchRenderer {
     } else {
       batch.texture_unit = 0;
       batch.transform = FMat4x4::Identity();
-      batch.rgba_color = FVec(1, 1, 1, 1);
+      batch.rgba_color = Color::White();
     }
     batch.indices_start = indices_.size();
     batch.indices_count = 0;
@@ -153,7 +163,7 @@ class Renderer {
 
   void Draw(FVec2 position, float angle, const SpriteAsset& texture);
 
-  void SetColor(FVec4 color);
+  void SetColor(Color color);
   void DrawRect(FVec2 top_left, FVec2 bottom_right, float angle);
   void DrawCircle(FVec2 center, float radius);
   void DrawText(std::string_view font, float size, std::string_view str,

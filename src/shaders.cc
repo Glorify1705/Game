@@ -39,7 +39,7 @@ constexpr std::string_view kPrePassVertexShader = R"(
         mat4 rotation = Translate(origin) * RotateZ(angle) * Translate(-origin);
         gl_Position = projection * transform * rotation * vec4(input_position, 0.0, 1.0);
         tex_coord = input_tex_coord;
-        out_color = global_color * color;
+        out_color = global_color * (color / 255.0);
     }
   )";
 

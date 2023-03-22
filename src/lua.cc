@@ -89,7 +89,10 @@ static const struct luaL_Reg kRendererLib[] = {
        const float b = luaL_checknumber(state, 3);
        const float a = luaL_checknumber(state, 4);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->SetColor(FVec(r, g, b, a));
+       auto clamp = [](float f) -> uint8_t {
+         return std::clamp(f, 0.0f, 255.0f);
+       };
+       renderer->SetColor(Color{clamp(r), clamp(g), clamp(b), clamp(a)});
        return 0;
      }},
     {"draw_circle",

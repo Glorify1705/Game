@@ -138,13 +138,13 @@ class FixedStringBuffer {
 
  private:
   void AppendStr(std::string_view s) {
-    const size_t length = cap(s.size());
+    const size_t length = capacity(s.size());
     std::memcpy(buf_ + pos_, s.data(), length);
     pos_ += length;
   }
 
   size_t remaining() const { return pos_ >= N ? 0 : (N - pos_); }
-  size_t cap(size_t cs) const { return std::min(cs, remaining()); }
+  size_t capacity(size_t cs) const { return std::min(cs, remaining()); }
 
   char buf_[N + 1] = {0};
   size_t pos_ = 0;

@@ -199,7 +199,7 @@ void BatchRenderer::Render() {
                         reinterpret_cast<void*>(offsetof(VertexData, angle)));
   glEnableVertexAttribArray(angle_attribute);
   const GLint color_attribute = shaders_->AttributeLocation("color");
-  glVertexAttribPointer(color_attribute, FVec4::kCardinality, GL_FLOAT,
+  glVertexAttribPointer(color_attribute, sizeof(Color), GL_UNSIGNED_BYTE,
                         GL_FALSE, sizeof(VertexData),
                         reinterpret_cast<void*>(offsetof(VertexData, color)));
   glEnableVertexAttribArray(color_attribute);
@@ -330,7 +330,7 @@ void Renderer::Pop() {
   renderer_->SetActiveTransform(transform_stack_.back());
 }
 
-void Renderer::SetColor(FVec4 color) { renderer_->SetActiveColor(color); }
+void Renderer::SetColor(Color color) { renderer_->SetActiveColor(color); }
 
 void Renderer::Draw(FVec2 position, float angle, const SpriteAsset& sprite) {
   std::string_view spritesheet = FlatbufferStringview(sprite.spritesheet());
