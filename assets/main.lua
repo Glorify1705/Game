@@ -31,6 +31,17 @@ function Entities:draw()
 end
 
 function Game:init()
+    G.graphics.new_shader("red.frag", [[
+        #version 460 core
+        out vec4 frag_color;
+
+        in vec2 tex_coord;
+
+        uniform sampler2D screen_texture;
+
+        void main() { frag_color = vec4(texture(screen_texture, tex_coord).x, 0, 0, 1); }
+    ]])
+    G.graphics.attach_shader("tuvieja.frag")
     self.entities = Entities()
     self.score = 0
     self.timer = Timer()
@@ -40,19 +51,9 @@ function Game:init()
     Entities:on_collision(function(a, b)
         self.score = self.score + 10
     end)
-    G.renderer.new_shader("red.frag", [[
-        #version 460 core
-        out vec4 frag_color;
-
-        in vec2 tex_coord;
-
-        uniform sampler2D screen_texture;
-
-        void main() { frag_color = vec4(0, texture(screen_texture, tex_coord).x, 0, 1); }
-    ]])
-    G.sound.set_music_volume(0.1)
-    G.sound.set_sfx_volume(0.1)
-    G.sound.play_music("music.ogg")
+    --    G.sound.set_music_volume(0.1)
+    --    G.sound.set_sfx_volume(0.1)
+    --    G.sound.play_music("music.ogg")
 end
 
 function Game:update(t, dt)
@@ -67,11 +68,10 @@ function Game:update(t, dt)
 end
 
 function Game:draw()
-    G.renderer.attach_shader("red.frag")
     self.entities:draw()
     local mx, my = G.input.mouse_position()
-    G.renderer.draw_sprite("numeralX", mx, my)
-    G.renderer.draw_text("Score: " .. self.score, 10, 10)
+    G.graphics.draw_sprite("numeralX", mx, my)
+    G.graphics.draw_text("Score: " .. self.score, 10, 10)
 end
 
 return Game

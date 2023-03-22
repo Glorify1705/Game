@@ -65,7 +65,7 @@ std::string_view GetLuaString(lua_State* state, int index) {
   return std::string_view(data, len);
 }
 
-static const struct luaL_Reg kRendererLib[] = {
+static const struct luaL_Reg kGraphicsLib[] = {
     {"draw_sprite",
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
@@ -170,11 +170,24 @@ static const struct luaL_Reg kRendererLib[] = {
      [](lua_State* state) {
        auto* renderer = Registry<BatchRenderer>::Retrieve(state);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       std::string_view name = GetLuaString(state, 1);
-       if (!renderer->SwitchShader(name)) {
-         luaL_error(state, "Could not switch shader %s: %s", name,
-                    shaders->LastError());
+       std::string_view fragment_shader = GetLuaString(state, 1);
+       std::string_view program_name = fragment_shader;
+       FixedStringBuffer<128> buf(fragment_shader);
+       if (!ConsumeSuffix(&program_name, ".frag")) {
+         luaL_error(state,
+                    "Could not switch shader %s: not a fragment shader (i.e. "
+                    "name does not end in .frag)",
+                    buf, shaders->LastError());
+         return 0;
        }
+       const bool linked =
+           shaders->Link(program_name, "post_pass.vert", fragment_shader);
+       if (!linked) {
+         luaL_error(state, "Could not switch shader %s: %s", buf,
+                    shaders->LastError().data());
+         return 0;
+       }
+       renderer->SwitchShaderProgram(program_name);
        return 0;
      }},
     {nullptr, nullptr}};
@@ -616,7 +629,7 @@ Lua::Lua(const char* script_name, Assets* assets) {
   lua_setglobal(state_, "G");
   Register(assets);
   AddLibrary(state_, "console", kConsoleLib);
-  AddLibrary(state_, "renderer", kRendererLib);
+  AddLibrary(state_, "graphics", kGraphicsLib);
   AddLibrary(state_, "input", kMouseLib);
   AddLibrary(state_, "sound", kSoundLib);
   AddLibrary(state_, "physics", kPhysicsLib);

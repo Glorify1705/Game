@@ -117,6 +117,7 @@ class FixedStringBuffer {
     [&](std::initializer_list<std::string_view> ss) {
       for (auto& s : ss) AppendStr(s);
     }({internal_strings::Alphanumeric(ts).piece()...});
+    buf_[pos_] = '\0';
   }
 
   template <typename... T>
@@ -146,7 +147,7 @@ class FixedStringBuffer {
   size_t remaining() const { return pos_ >= N ? 0 : (N - pos_); }
   size_t capacity(size_t cs) const { return std::min(cs, remaining()); }
 
-  char buf_[N + 1] = {0};
+  char buf_[N + 1];
   size_t pos_ = 0;
 };
 

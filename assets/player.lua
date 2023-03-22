@@ -29,16 +29,16 @@ function Player:update(dt)
 end
 
 function Player:center_camera()
-    local vx, vy = G.renderer.viewport()
+    local vx, vy = G.graphics.viewport()
     local x, y = G.physics.position(self.physics)
     local angle = G.physics.angle(self.physics)
-    G.renderer.translate(-x, -y)
+    G.graphics.translate(-x, -y)
     local mx, my = G.input.mouse_wheel()
     local factor = 0.4 + my * 0.9;
-    G.renderer.scale(factor, factor)
-    G.renderer.rotate(-angle)
-    G.renderer.translate(x, y)
-    G.renderer.translate(vx / 2 - x, vy / 2 - y)
+    G.graphics.scale(factor, factor)
+    G.graphics.rotate(-angle)
+    G.graphics.translate(x, y)
+    G.graphics.translate(vx / 2 - x, vy / 2 - y)
 end
 
 return Player

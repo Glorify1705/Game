@@ -294,14 +294,8 @@ void BatchRenderer::TakeScreenshots() {
   screenshots_.Clear();
 }
 
-bool BatchRenderer::SwitchShader(std::string_view fragment_shader_name) {
-  std::string_view program_name = fragment_shader_name;
-  const bool linked =
-      shaders_->Link(program_name, "post_pass.vert", fragment_shader_name);
-  if (linked) {
-    program_name_.Set(program_name);
-  }
-  return linked;
+void BatchRenderer::SwitchShaderProgram(std::string_view program_name) {
+  program_name_.Set(program_name);
 }
 
 Renderer::Renderer(const Assets& assets, BatchRenderer* renderer)

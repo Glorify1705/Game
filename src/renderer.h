@@ -91,7 +91,7 @@ class BatchRenderer {
         ptr);
   }
 
-  bool SwitchShader(std::string_view fragment_shader_name);
+  void SwitchShaderProgram(std::string_view fragment_shader_name);
 
  private:
   struct VertexData {

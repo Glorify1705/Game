@@ -15,7 +15,7 @@ end
 function Entity:draw()
     local v = self.physics:position()
     local angle = self.physics:angle()
-    G.renderer.draw_sprite(self.image, v.x, v.y, angle)
+    G.graphics.draw_sprite(self.image, v.x, v.y, angle)
 end
 
 function Entity:id()
