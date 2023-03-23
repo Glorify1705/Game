@@ -31,17 +31,6 @@ function Entities:draw()
 end
 
 function Game:init()
-    G.graphics.new_shader("red.frag", [[
-        #version 460 core
-        out vec4 frag_color;
-
-        in vec2 tex_coord;
-
-        uniform sampler2D screen_texture;
-
-        void main() { frag_color = vec4(texture(screen_texture, tex_coord).x, 0, 0, 1); }
-    ]])
-    G.graphics.attach_shader("tuvieja.frag")
     self.entities = Entities()
     self.score = 0
     self.timer = Timer()

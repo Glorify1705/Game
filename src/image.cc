@@ -1,6 +1,8 @@
 #include <cstddef>
 #include <cstdlib>
 
+#include "logging.h"
+
 void* BadRealloc(void* ptr, size_t /*old_size*/, size_t new_size) {
   return std::realloc(ptr, new_size);
 }
@@ -37,6 +39,16 @@ void SetImageFree(void (*free)(void*)) { g_Free = free; }
 
 void SetImageRealloc(void* (*realloc)(void*, size_t, size_t)) {
   g_Realloc = realloc;
+}
+
+bool WritePixelsToImage(const char* filename, uint8_t* data, size_t width,
+                        size_t height) {
+  CHECK(HasSuffix(filename, ".qoi"));
+  qoi_desc desc;
+  desc.width = width;
+  desc.height = height;
+  desc.channels = 4;
+  return qoi_write(filename, data, &desc);
 }
 
 }  // namespace G

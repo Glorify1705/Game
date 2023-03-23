@@ -12,6 +12,7 @@ namespace G {
 class Shaders {
  public:
   Shaders(const Assets& assets);
+  ~Shaders();
 
   bool Compile(ShaderType type, std::string_view name, std::string_view glsl);
 

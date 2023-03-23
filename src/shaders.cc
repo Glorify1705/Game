@@ -106,6 +106,13 @@ Shaders::Shaders(const Assets& assets) {
   CHECK(Link("post_pass", "post_pass.vert", "post_pass.frag"), LastError());
 }
 
+Shaders::~Shaders() {
+  compiled_shaders_.ForAll(
+      [](std::string_view, GLuint shader) { glDeleteShader(shader); });
+  compiled_programs_.ForAll(
+      [](std::string_view, GLuint program) { glDeleteProgram(program); });
+}
+
 bool Shaders::Compile(ShaderType type, std::string_view name,
                       std::string_view glsl) {
   if (compiled_shaders_.Contains(name)) {

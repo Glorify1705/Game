@@ -85,6 +85,13 @@ class LookupTable {
     DIE("OOM");
   }
 
+  template <typename Fn>
+  void ForAll(Fn&& fn) {
+    for (size_t i = 0; i < key_lengths_.size(); ++i) {
+      if (key_lengths_[i] > 0) fn(keys_[i], values_[i]);
+    }
+  }
+
  private:
   inline static constexpr size_t kLogTableSize = 15;
   inline static constexpr size_t kKeysSize = 1 << 20;

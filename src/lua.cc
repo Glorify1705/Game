@@ -1,5 +1,6 @@
 #include "clock.h"
 #include "console.h"
+#include "image.h"
 #include "input.h"
 #include "lua.h"
 #include "physics.h"
@@ -152,6 +153,35 @@ static const struct luaL_Reg kGraphicsLib[] = {
                            luaL_checknumber(state, 2));
        return 0;
      }},
+    {"take_screenshot",
+     [](lua_State* state) {
+       auto* renderer = Registry<BatchRenderer>::Retrieve(state);
+       struct Context {
+         lua_State* state;
+         FixedStringBuffer<127> output_file;
+         uint8_t* buffer;
+         size_t width, height;
+
+         void HandleScreenshot(uint8_t* pixels, size_t width, size_t height) {
+           LOG("Writing screenshot");
+           if (!WritePixelsToImage(output_file.str(), pixels, width, height)) {
+             luaL_error(state, "Could not write image %s to disk",
+                        output_file.str(), state);
+           }
+           delete this;
+         }
+       };
+       auto* context = new Context;
+       IVec2 viewport = renderer->GetViewport();
+       context->state = state;
+       context->output_file.Set(GetLuaString(state, 1));
+       context->width = viewport.x;
+       context->height = viewport.y;
+       context->buffer = new uint8_t[context->width * context->height * 4];
+       renderer->RequestScreenshot(context->buffer, context->width,
+                                   context->height, context);
+       return 0;
+     }},
     {"new_shader",
      [](lua_State* state) {
        auto* shaders = Registry<Shaders>::Retrieve(state);
@@ -180,9 +210,7 @@ static const struct luaL_Reg kGraphicsLib[] = {
                     buf, shaders->LastError());
          return 0;
        }
-       const bool linked =
-           shaders->Link(program_name, "post_pass.vert", fragment_shader);
-       if (!linked) {
+       if (!shaders->Link(program_name, "post_pass.vert", fragment_shader)) {
          luaL_error(state, "Could not switch shader %s: %s", buf,
                     shaders->LastError().data());
          return 0;
