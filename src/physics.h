@@ -20,6 +20,8 @@ class Physics final : public b2ContactListener {
 
   explicit Physics(FVec2 pixel_dimensions, float pixels_per_meter);
 
+  void UpdateDimensions(IVec2 pixel_dimensions);
+
   using ContactCallback = void (*)(uintptr_t, uintptr_t, void *);
   void SetContactCallback(ContactCallback contact_callback, void *userdata);
 
@@ -50,6 +52,8 @@ class Physics final : public b2ContactListener {
   float GetAngle(Handle handle) const;
 
  private:
+  void CreateGround();
+
   static void DefaultDestroy(uintptr_t, void *) {}
 
   static void DefaultContact(uintptr_t, uintptr_t, void *) {}
@@ -60,7 +64,7 @@ class Physics final : public b2ContactListener {
   const float pixels_per_meter_;
   FVec2 world_dimensions_;
   b2World world_;
-  b2Body *ground_;
+  b2Body *ground_ = nullptr;
 
   ContactCallback contact_callback_ = DefaultContact;
   void *contact_userdata_ = this;

@@ -12,18 +12,27 @@ static const uintptr_t* kLevelId = kLevelId;
 
 Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter)
     : pixels_per_meter_(pixels_per_meter),
-      world_dimensions_(pixel_dimensions.x / pixels_per_meter,
-                        pixel_dimensions.y / pixels_per_meter),
+      world_dimensions_(pixel_dimensions / pixels_per_meter),
       world_(b2Vec2(0, 0)) {
-  world_.SetGravity(b2Vec2(0, 0));
   world_.SetContactListener(this);
+  CreateGround();
+}
 
-  b2BodyDef bd;
-  bd.type = b2_staticBody;
-  bd.position.Set(0.0f, 0.0f);
-  bd.userData.pointer = reinterpret_cast<uintptr_t>(kLevelId);
-  ground_ = world_.CreateBody(&bd);
-
+void Physics::CreateGround() {
+  if (ground_ == nullptr) {
+    b2BodyDef bd;
+    bd.type = b2_staticBody;
+    bd.position.Set(0.0f, 0.0f);
+    bd.userData.pointer = reinterpret_cast<uintptr_t>(kLevelId);
+    ground_ = world_.CreateBody(&bd);
+  } else {
+    auto* fixture = ground_->GetFixtureList();
+    while (fixture) {
+      auto* ptr = fixture;
+      fixture = fixture->GetNext();
+      ground_->DestroyFixture(ptr);
+    }
+  }
   b2EdgeShape shape;
 
   b2FixtureDef sd;
@@ -42,6 +51,12 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter)
   ground_->CreateFixture(&sd);
   shape.SetTwoSided(b2Vec2(0, 0), b2Vec2(world_dimensions_.x, 0));
   ground_->CreateFixture(&sd);
+}
+
+void Physics::UpdateDimensions(IVec2 pixel_dimensions) {
+  world_dimensions_ =
+      FVec(pixel_dimensions.x, pixel_dimensions.y) / pixels_per_meter_;
+  CreateGround();
 }
 
 void Physics::SetDestroyCallback(DestroyCallback callback, void* userdata) {

@@ -68,7 +68,7 @@ class BatchRenderer {
     vertices_.Clear();
   }
 
-  void SetViewport(IVec2 viewport) { viewport_ = viewport; }
+  void SetViewport(IVec2 viewport);
 
   IVec2 GetViewport() const { return viewport_; }
 

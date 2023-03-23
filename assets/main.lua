@@ -50,6 +50,9 @@ function Game:update(t, dt)
     if G.input.is_key_pressed('q') then
         G.quit()
     end
+    if G.input.is_key_pressed('f') then
+        G.graphics.set_fullscreen()
+    end
     if G.input.is_mouse_pressed(0) then
         G.sound.play_sfx("laser.wav")
     end

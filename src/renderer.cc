@@ -62,6 +62,16 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders)
   noop_texture_ = LoadTexture(&white_pixels, /*width=*/32, /*height=*/32);
 }
 
+void BatchRenderer::SetViewport(IVec2 viewport) {
+  if (viewport_ != viewport) {
+    // Rebind texture to the size.
+    glBindTexture(GL_TEXTURE_2D, render_texture_);
+    glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport.x, viewport.y,
+                 /*border=*/0, GL_RGBA, GL_UNSIGNED_BYTE, /*pixels=*/nullptr);
+    viewport_ = viewport;
+  }
+}
+
 size_t BatchRenderer::LoadTexture(const ImageAsset& image) {
   TIMER("Decoding ", FlatbufferStringview(image.filename()));
   qoi_desc desc;
@@ -269,6 +279,8 @@ void BatchRenderer::TakeScreenshots() {
   };
   const size_t width = viewport_.x;
   const size_t height = viewport_.y;
+  // TODO: The renderer already asks for memory, we should use the provided
+  // one and flip the rows in place.
   auto* buffer = new RGBA[width * height];
   auto* flipped = new RGBA[width * height];
   glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer);

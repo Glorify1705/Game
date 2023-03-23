@@ -10,10 +10,21 @@ extern "C" {
 #include "lualib.h"
 }
 
+#include "SDL.h"
 #include "assets.h"
 #include "clock.h"
 
 namespace G {
+
+template <typename T>
+constexpr const char* Typename() {
+  return typeid(T).name();
+}
+
+template <>
+constexpr const char* Typename<SDL_Window>() {
+  return "SDL_Window";
+}
 
 template <typename T>
 class Registry {
@@ -30,7 +41,7 @@ class Registry {
     auto* result = static_cast<T*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
     if (result == nullptr) {
-      luaL_error(state, "Could not find a module for %s", typeid(T).name());
+      luaL_error(state, "Could not find a module for %s", Typename<T>());
       return nullptr;
     }
     return result;

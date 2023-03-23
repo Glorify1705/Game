@@ -21,6 +21,7 @@ Keyboard::Keyboard() {
   table_.Insert("s", SDL_SCANCODE_S);
   table_.Insert("d", SDL_SCANCODE_D);
   table_.Insert("z", SDL_SCANCODE_Z);
+  table_.Insert("f", SDL_SCANCODE_F);
   table_.Insert("q", SDL_SCANCODE_Q);
   table_.Insert("lshift", SDL_SCANCODE_LSHIFT);
   table_.Insert("rshift", SDL_SCANCODE_RSHIFT);

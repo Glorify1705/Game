@@ -143,7 +143,7 @@ struct EngineModules {
   Physics physics;
 
   EngineModules(const std::vector<const char*> arguments,
-                const GameParams& params)
+                const GameParams& params, SDL_Window* window)
       : assets_buf_(ReadAssets(arguments)),
         assets(assets_buf_),
         shaders(assets),
@@ -158,6 +158,7 @@ struct EngineModules {
     lua.Register(&shaders);
     lua.Register(&batch_renderer);
     lua.Register(&renderer);
+    lua.Register(window);
     lua.Register(&keyboard);
     lua.Register(&mouse);
     lua.Register(&controllers);
@@ -178,6 +179,7 @@ struct EngineModules {
       if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
         IVec2 new_viewport(event.window.data1, event.window.data2);
         batch_renderer.SetViewport(new_viewport);
+        physics.UpdateDimensions(new_viewport);
       }
     }
     ImGuiIO& io = ImGui::GetIO();
@@ -433,7 +435,7 @@ class Game {
 
   void Init() {
     TIMER("Game Initialization");
-    e_ = std::make_unique<EngineModules>(arguments_, params_);
+    e_ = std::make_unique<EngineModules>(arguments_, params_, window_);
     debug_ui_ = std::make_unique<DebugUi>(window_, context_, &stats_, e_.get());
     e_->lua.Register(&DebugConsole::instance());
     e_->lua.Init();

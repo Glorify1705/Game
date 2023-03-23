@@ -1,3 +1,4 @@
+#include "SDL.h"
 #include "clock.h"
 #include "console.h"
 #include "image.h"
@@ -225,6 +226,25 @@ static const struct luaL_Reg kGraphicsLib[] = {
          return 0;
        }
        renderer->SwitchShaderProgram(program_name);
+       return 0;
+     }},
+    {"set_fullscreen",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
+       return 0;
+     }},
+    {"set_borderless",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+       return 0;
+     }},
+    {"set_windowed",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       // 0 means we use windowed mode.
+       SDL_SetWindowFullscreen(window, 0);
        return 0;
      }},
     {nullptr, nullptr}};
