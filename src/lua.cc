@@ -229,6 +229,14 @@ static const struct luaL_Reg kGraphicsLib[] = {
      }},
     {nullptr, nullptr}};
 
+static const struct luaL_Reg kSystemLib[] = {{"operating_system",
+                                              [](lua_State* state) {
+                                                lua_pushstring(
+                                                    state, SDL_GetPlatform());
+                                                return 1;
+                                              }},
+                                             {nullptr, nullptr}};
+
 int LuaLogPrint(lua_State* state) {
   const int num_args = lua_gettop(state);
   FixedStringBuffer<kMaxLogLineLength> buffer;
@@ -672,6 +680,7 @@ Lua::Lua(const char* script_name, Assets* assets) {
   AddLibrary(state_, "physics", kPhysicsLib);
   AddLibrary(state_, "assets", kAssetsLib);
   AddLibrary(state_, "clock", kClockLib);
+  AddLibrary(state_, "system", kSystemLib);
   lua_pushcfunction(state_, Traceback);
   traceback_handler_ = lua_gettop(state_);
   // Set print as G.console.log for consistency.
