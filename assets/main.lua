@@ -43,6 +43,9 @@ function Game:init()
     --    G.sound.set_music_volume(0.1)
     --    G.sound.set_sfx_volume(0.1)
     --    G.sound.play_music("music.ogg")
+    self.timer:after(5, function()
+        G.graphics.take_screenshot("C:\\Users\\juamp\\Pictures\\Screenshots\\WithTimer.qoi")
+    end)
 end
 
 function Game:update(t, dt)

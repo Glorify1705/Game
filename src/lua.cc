@@ -155,31 +155,40 @@ static const struct luaL_Reg kGraphicsLib[] = {
      }},
     {"take_screenshot",
      [](lua_State* state) {
-       auto* renderer = Registry<BatchRenderer>::Retrieve(state);
-       struct Context {
-         lua_State* state;
-         FixedStringBuffer<127> output_file;
-         uint8_t* buffer;
-         size_t width, height;
+       class Context {
+        public:
+         Context(lua_State* state) : state_(state) {
+           output_file_.Set(GetLuaString(state, 1));
+           renderer_ = Registry<BatchRenderer>::Retrieve(state);
+           const IVec2 viewport = renderer_->GetViewport();
+           width_ = viewport.x;
+           height_ = viewport.y;
+           buffer_ = new uint8_t[width_ * height_ * 4];
+         }
+         ~Context() { delete[] buffer_; }
+
+         void RequestScreenshot() {
+           renderer_->RequestScreenshot(buffer_, width_, height_, this);
+         }
 
          void HandleScreenshot(uint8_t* pixels, size_t width, size_t height) {
            LOG("Writing screenshot");
-           if (!WritePixelsToImage(output_file.str(), pixels, width, height)) {
-             luaL_error(state, "Could not write image %s to disk",
-                        output_file.str(), state);
+           if (!WritePixelsToImage(output_file_.str(), pixels, width, height)) {
+             luaL_error(state_, "Could not write image %s to disk",
+                        output_file_.str(), state_);
            }
            delete this;
          }
+
+        private:
+         BatchRenderer* renderer_;
+         lua_State* state_;
+         FixedStringBuffer<127> output_file_;
+         uint8_t* buffer_;
+         size_t width_, height_;
        };
-       auto* context = new Context;
-       IVec2 viewport = renderer->GetViewport();
-       context->state = state;
-       context->output_file.Set(GetLuaString(state, 1));
-       context->width = viewport.x;
-       context->height = viewport.y;
-       context->buffer = new uint8_t[context->width * context->height * 4];
-       renderer->RequestScreenshot(context->buffer, context->width,
-                                   context->height, context);
+       auto* context = new Context(state);
+       context->RequestScreenshot();
        return 0;
      }},
     {"new_shader",
