@@ -37,6 +37,7 @@ function Game:init()
     self.entities:add(Player(100, 100))
     self.entities:add(Meteor(300, 300))
     self.entities:add(Meteor(600, 600))
+    self.fullscreen = false
     Entities:on_collision(function(a, b)
         self.score = self.score + 10
     end)
@@ -51,7 +52,13 @@ function Game:update(t, dt)
         G.quit()
     end
     if G.input.is_key_pressed('f') then
-        G.graphics.set_fullscreen()
+        if not self.fullscreen then
+            G.graphics.set_fullscreen()
+            self.fullscreen = true
+        else
+            G.graphics.set_windowed()
+            self.fullscreen = false
+        end
     end
     if G.input.is_mouse_pressed(0) then
         G.sound.play_sfx("laser.wav")
