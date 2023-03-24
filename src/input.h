@@ -45,8 +45,6 @@ class Keyboard {
   inline static constexpr size_t kKeyboardTable = SDL_NUM_SCANCODES;
   using Event = char;
 
-  FixedCircularBuffer<Event, kQueueSize> keyup_events_;
-  FixedCircularBuffer<Event, kQueueSize> keydown_events_;
   std::bitset<kKeyboardTable + 1> pressed_;
   std::bitset<kKeyboardTable + 1> previous_pressed_;
   LookupTable<SDL_Scancode> table_;

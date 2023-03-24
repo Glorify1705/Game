@@ -30,7 +30,6 @@ Keyboard::Keyboard() {
 void Keyboard::PushEvent(const SDL_Event& event) {
   if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
     const SDL_Scancode c = event.key.keysym.scancode;
-    keydown_events_.Push(c);
     pressed_[c] = event.type == SDL_KEYDOWN;
   }
 }
