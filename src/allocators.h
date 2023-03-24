@@ -31,7 +31,12 @@ class BumpAllocator {
     return reinterpret_cast<T*>(Alloc(size * sizeof(T), alignof(T)));
   }
 
-  void Dealloc(void* /*ptr*/, size_t /*size*/) {}
+  void Dealloc(void* ptr, size_t size) {
+    auto pos = reinterpret_cast<uintptr_t>(ptr);
+    if (pos + size == pos_) {
+      pos_ -= size;
+    }
+  }
 
   void* Realloc(void* p, size_t old_size, size_t new_size);
 
