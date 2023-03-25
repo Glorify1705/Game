@@ -30,18 +30,28 @@ class Shaders {
   std::string_view LastError() const { return last_error_.piece(); };
 
   template <typename T, typename = std::void_t<decltype(T::kCardinality)>>
-  void SetUniform(const char* name, const T& value) {
-    DCHECK(current_program_, "No program set");
+  bool SetUniform(const char* name, const T& value) {
+    if (!current_program_) return FillError("No program set");
     const GLint uniform = glGetUniformLocation(current_program_, name);
-    CHECK(uniform != -1, "No uniform named ", name);
+    if (uniform == -1) return FillError("No uniform named ", name);
     value.AsOpenglUniform(uniform);
+    return true;
   }
 
-  void SetUniform(const char* name, int value) {
-    DCHECK(current_program_, "No program set");
+  bool SetUniform(const char* name, int value) {
+    if (!current_program_) return FillError("No program set");
     const GLint uniform = glGetUniformLocation(current_program_, name);
-    CHECK(uniform != -1, "No uniform named ", name);
+    if (uniform == -1) return FillError("No uniform named ", name);
     glUniform1i(uniform, value);
+    return true;
+  }
+
+  bool SetUniformF(const char* name, float value) {
+    if (!current_program_) return FillError("No program set");
+    const GLint uniform = glGetUniformLocation(current_program_, name);
+    if (uniform == -1) return FillError("No uniform named ", name);
+    glUniform1f(uniform, value);
+    return true;
   }
 
   GLint AttributeLocation(const char* name) const {

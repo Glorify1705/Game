@@ -6,7 +6,7 @@ namespace {
 constexpr std::string_view kPrePassVertexShader = R"(
     #version 460 core
 
-    layout (location = 0) in vec2 input_position;
+    layout (location = 0) in vec3 input_position;
     layout (location = 1) in vec2 input_tex_coord;
     layout (location = 2) in vec2 origin;
     layout (location = 3) in float angle;
@@ -37,7 +37,7 @@ constexpr std::string_view kPrePassVertexShader = R"(
 
     void main() {
         mat4 rotation = Translate(origin) * RotateZ(angle) * Translate(-origin);
-        gl_Position = projection * transform * rotation * vec4(input_position, 0.0, 1.0);
+        gl_Position = projection * transform * rotation * vec4(input_position, 1.0);
         tex_coord = input_tex_coord;
         out_color = global_color * (color / 255.0);
     }

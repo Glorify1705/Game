@@ -1,14 +1,10 @@
 #include "console.h"
+#include "lua.h"
 #include "mat.h"
 #include "physics.h"
 #include "transformations.h"
 
 namespace G {
-namespace {
-
-static const uintptr_t* kLevelId = kLevelId;
-
-}  // namespace
 
 Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter)
     : pixels_per_meter_(pixels_per_meter),
@@ -23,7 +19,7 @@ void Physics::CreateGround() {
     b2BodyDef bd;
     bd.type = b2_staticBody;
     bd.position.Set(0.0f, 0.0f);
-    bd.userData.pointer = reinterpret_cast<uintptr_t>(kLevelId);
+    bd.userData.pointer = 0;
     ground_ = world_.CreateBody(&bd);
   } else {
     auto* fixture = ground_->GetFixtureList();
@@ -65,11 +61,9 @@ void Physics::SetDestroyCallback(DestroyCallback callback, void* userdata) {
 }
 
 void Physics::BeginContact(b2Contact* c) {
-  auto* a = c->GetFixtureA()->GetBody();
-  auto* b = c->GetFixtureB()->GetBody();
-  if (a->GetType() == b2_staticBody || b->GetType() == b2_staticBody) {
-    return;
-  }
+  b2Body* a = c->GetFixtureA()->GetBody();
+  b2Body* b = c->GetFixtureB()->GetBody();
+  if (a->GetType() == b2_staticBody && b->GetType() == b2_staticBody) return;
   contact_callback_(a->GetUserData().pointer, b->GetUserData().pointer,
                     contact_userdata_);
 }

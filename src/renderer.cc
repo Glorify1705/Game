@@ -52,6 +52,12 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders)
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
                          render_texture_, /*level=*/0);
   CHECK(!glGetError(), "Could generate texture: ", glGetError());
+  glGenRenderbuffers(1, &depth_buffer_);
+  glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, viewport.x,
+                        viewport.y);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+                            GL_RENDERBUFFER, depth_buffer_);
   CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   tex_.Push(render_texture_);
@@ -64,10 +70,12 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders)
 
 void BatchRenderer::SetViewport(IVec2 viewport) {
   if (viewport_ != viewport) {
-    // Rebind texture to the size.
+    // Rebind texture and depth buffer to the size.
     glBindTexture(GL_TEXTURE_2D, render_texture_);
     glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport.x, viewport.y,
                  /*border=*/0, GL_RGBA, GL_UNSIGNED_BYTE, /*pixels=*/nullptr);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, viewport.x,
+                          viewport.y);
     viewport_ = viewport;
   }
 }
@@ -85,9 +93,10 @@ size_t BatchRenderer::LoadTexture(const ImageAsset& image) {
 }
 
 BatchRenderer::~BatchRenderer() {
-  glDeleteBuffers(1, &vbo_);
-  glDeleteBuffers(1, &ebo_);
-  glDeleteBuffers(1, &screen_quad_vbo_);
+  std::array<GLuint, 4> buffers = {vbo_, ebo_, screen_quad_vbo_};
+  glDeleteBuffers(buffers.size(), buffers.data());
+  glDeleteFramebuffers(1, &render_target_);
+  glDeleteRenderbuffers(1, &depth_buffer_);
   glDeleteVertexArrays(1, &vao_);
   glDeleteVertexArrays(1, &screen_quad_vbo_);
   glDeleteTextures(tex_.size(), tex_.data());
@@ -117,22 +126,23 @@ void BatchRenderer::PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1,
                              FVec2 origin, float angle) {
   auto& batch = batches_.back();
   size_t current = vertices_.size();
-  vertices_.Push({.position = FVec2(p0.x, p1.y),
-                  .tex_coords = FVec2(q0.x, q1.y),
+  const float depth = current * 0.01;
+  vertices_.Push({.position = FVec(p0.x, p1.y, depth),
+                  .tex_coords = FVec(q0.x, q1.y),
                   .origin = origin,
                   .angle = angle,
                   .color = batch.rgba_color});
-  vertices_.Push({.position = p1,
+  vertices_.Push({.position = FVec(p1.x, p1.y, depth),
                   .tex_coords = q1,
                   .origin = origin,
                   .angle = angle,
                   .color = batch.rgba_color});
-  vertices_.Push({.position = FVec2(p1.x, p0.y),
+  vertices_.Push({.position = FVec(p1.x, p0.y, depth),
                   .tex_coords = FVec2(q1.x, q0.y),
                   .origin = origin,
                   .angle = angle,
                   .color = batch.rgba_color});
-  vertices_.Push({.position = p0,
+  vertices_.Push({.position = FVec(p0.x, p0.y, depth),
                   .tex_coords = q0,
                   .origin = origin,
                   .angle = angle,
@@ -148,17 +158,18 @@ void BatchRenderer::PushTriangle(FVec2 p0, FVec2 p1, FVec2 p2, FVec2 q0,
                                  float angle) {
   auto& batch = batches_.back();
   size_t current = vertices_.size();
-  vertices_.Push({.position = p0,
+  const float depth = current * 0.01;
+  vertices_.Push({.position = FVec(p0.x, p0.y, depth),
                   .tex_coords = q0,
                   .origin = origin,
                   .angle = angle,
                   .color = batch.rgba_color});
-  vertices_.Push({.position = p1,
+  vertices_.Push({.position = FVec(p1.x, p1.y, depth),
                   .tex_coords = q1,
                   .origin = origin,
                   .angle = angle,
                   .color = batch.rgba_color});
-  vertices_.Push({.position = p2,
+  vertices_.Push({.position = FVec(p2.x, p2.y, depth),
                   .tex_coords = q2,
                   .origin = origin,
                   .angle = angle,
@@ -176,7 +187,10 @@ void BatchRenderer::Render() {
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glClearColor(0.f, 0.f, 0.f, 0.f);
-  glClear(GL_COLOR_BUFFER_BIT);
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LEQUAL);
+  glClearDepth(1.0);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glBindVertexArray(vao_);
   glBindBuffer(GL_ARRAY_BUFFER, vbo_);
   glBufferData(GL_ARRAY_BUFFER, vertices_.bytes(), vertices_.data(),
@@ -187,7 +201,7 @@ void BatchRenderer::Render() {
   shaders_->UseProgram("pre_pass");
   const GLint pos_attribute = shaders_->AttributeLocation("input_position");
   glVertexAttribPointer(
-      pos_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
+      pos_attribute, FVec3::kCardinality, GL_FLOAT, GL_FALSE,
       sizeof(VertexData),
       reinterpret_cast<void*>(offsetof(VertexData, position)));
   glEnableVertexAttribArray(pos_attribute);
@@ -228,9 +242,10 @@ void BatchRenderer::Render() {
                             reinterpret_cast<void*>(indices_start), 1);
   }
   if (debug_render_) {
+    glDisable(GL_DEPTH_TEST);
     // Draw a red semi transparent quad for all quads.
     shaders_->SetUniform("tex", noop_texture_);
-    shaders_->SetUniform("global_color", FVec4(1, 0, 0, 0.2));
+    shaders_->SetUniform("global_color", FVec4(1, 0, 0, 0.7));
     for (const auto& batch : batches_) {
       shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
       shaders_->SetUniform("transform", batch.transform);
@@ -248,6 +263,7 @@ void BatchRenderer::Render() {
   WATCH_EXPR("Vertex Memory", vertices_.bytes());
   WATCH_EXPR("Batch used memory", batches_.bytes());
   // Second pass
+  glDisable(GL_DEPTH_TEST);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glClearColor(0.f, 0.f, 0.f, 0.f);
   glClear(GL_COLOR_BUFFER_BIT);

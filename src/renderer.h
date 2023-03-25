@@ -42,7 +42,7 @@ class BatchRenderer {
     batches_.back().texture_unit = texture_unit;
   }
 
-  void ClearTexture() { SetActiveTexture(tex_[noop_texture_]); }
+  void ClearTexture() { SetActiveTexture(noop_texture_); }
 
   void SetActiveColor(Color rgba_color) {
     // We do not need to flush on color changes because they are
@@ -95,7 +95,8 @@ class BatchRenderer {
 
  private:
   struct VertexData {
-    FVec2 position;
+    // The position contains a Z to do ordering.
+    FVec3 position;
     FVec2 tex_coords;
     // We duplicate the origin angle and color for every vertex in the quad
     // to avoid having to reset a uniform on drawing every colored rotated quad,
@@ -148,7 +149,7 @@ class BatchRenderer {
   GLuint ebo_, vao_, vbo_;
   size_t noop_texture_;
   GLuint screen_quad_vao_, screen_quad_vbo_;
-  GLuint render_target_, render_texture_;
+  GLuint render_target_, render_texture_, depth_buffer_;
   IVec2 viewport_;
   bool debug_render_ = false;
   FixedStringBuffer<128> program_name_;

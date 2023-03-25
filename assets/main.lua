@@ -20,7 +20,7 @@ end
 
 function Entities:update(dt)
     for _, entity in pairs(self.entities) do
-        entity:update()
+        entity:update(dt)
     end
 end
 
@@ -32,14 +32,19 @@ end
 
 function Game:init()
     self.entities = Entities()
-    self.score = 0
     self.timer = Timer()
-    self.entities:add(Player(100, 100))
+    self.player = Player(100, 100)
+    self.entities:add(self.player)
     self.entities:add(Meteor(300, 300))
     self.entities:add(Meteor(600, 600))
     self.fullscreen = false
     Entities:on_collision(function(a, b)
-        self.score = self.score + 10
+        if a then
+            a:on_collision(b)
+        end
+        if b then
+            b:on_collision(a)
+        end
     end)
     --    G.sound.set_music_volume(0.1)
     --    G.sound.set_sfx_volume(0.1)
@@ -53,10 +58,10 @@ function Game:update(t, dt)
     end
     if G.input.is_key_pressed('f') then
         if not self.fullscreen then
-            G.graphics.set_fullscreen()
+            G.window.set_fullscreen()
             self.fullscreen = true
         else
-            G.graphics.set_windowed()
+            G.window.set_windowed()
             self.fullscreen = false
         end
     end
@@ -69,8 +74,12 @@ end
 function Game:draw()
     self.entities:draw()
     local mx, my = G.input.mouse_position()
+    G.graphics.set_color(255, 0, 0, 255)
+    G.graphics.draw_rect(300 * self.player:get_health() / 100, 10, 300, 20)
+    G.graphics.set_color(0, 255, 0, 255)
+    G.graphics.draw_rect(10, 10, 300, 20)
+    G.graphics.set_color(255, 255, 255, 255)
     G.graphics.draw_sprite("numeralX", mx, my)
-    G.graphics.draw_text("Score: " .. self.score, 10, 10)
 end
 
 return Game

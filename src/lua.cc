@@ -11,6 +11,21 @@
 namespace G {
 namespace {
 
+template <typename T>
+T FromLuaTable(lua_State* state, int index) {
+  T result;
+  if (!lua_istable(state, index)) {
+    luaL_error(state, "Not a table");
+    return result;
+  }
+  for (size_t i = 0; i < T::kCardinality; ++i) {
+    lua_rawgeti(state, index, i + 1);
+    result.v[i] = luaL_checknumber(state, -1);
+    lua_pop(state, 1);
+  }
+  return result;
+}
+
 int Traceback(lua_State* L) {
   if (!lua_isstring(L, 1)) return 1;
   lua_getfield(L, LUA_GLOBALSINDEX, "debug");
@@ -67,7 +82,7 @@ std::string_view GetLuaString(lua_State* state, int index) {
   return std::string_view(data, len);
 }
 
-static const struct luaL_Reg kGraphicsLib[] = {
+const struct luaL_Reg kGraphicsLib[] = {
     {"draw_sprite",
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
@@ -82,6 +97,19 @@ static const struct luaL_Reg kGraphicsLib[] = {
        } else {
          luaL_error(state, "unknown sprite %s", sprite);
        }
+       return 0;
+     }},
+    {"draw_rect",
+     [](lua_State* state) {
+       const int parameters = lua_gettop(state);
+       const float x1 = luaL_checknumber(state, 1);
+       const float y1 = luaL_checknumber(state, 2);
+       const float x2 = luaL_checknumber(state, 3);
+       const float y2 = luaL_checknumber(state, 4);
+       float angle = 0;
+       if (parameters == 5) angle = luaL_checknumber(state, 5);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawRect(FVec2(x1, y1), FVec2(x2, y2), angle);
        return 0;
      }},
     {"set_color",
@@ -114,14 +142,6 @@ static const struct luaL_Reg kGraphicsLib[] = {
        const float y = luaL_checknumber(state, 3);
        renderer->DrawText("terminus.ttf", 32, text, FVec2(x, y));
        return 0;
-     }},
-    {"viewport",
-     [](lua_State* state) {
-       auto* renderer = Registry<Renderer>::Retrieve(state);
-       IVec2 viewport = renderer->viewport();
-       lua_pushnumber(state, viewport.x);
-       lua_pushnumber(state, viewport.y);
-       return 2;
      }},
     {"push",
      [](lua_State* state) {
@@ -228,34 +248,85 @@ static const struct luaL_Reg kGraphicsLib[] = {
        renderer->SwitchShaderProgram(program_name);
        return 0;
      }},
-    {"set_fullscreen",
+    {"send_f1_uniform",
      [](lua_State* state) {
-       auto* window = Registry<SDL_Window>::Retrieve(state);
-       SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       const char* name = luaL_checkstring(state, 1);
+       if (!shaders->SetUniformF(name, luaL_checknumber(state, 2))) {
+         luaL_error(state, "Could not set uniform ", name, ": ",
+                    shaders->LastError());
+       }
        return 0;
      }},
-    {"set_borderless",
+    {"send_f2_uniform",
      [](lua_State* state) {
-       auto* window = Registry<SDL_Window>::Retrieve(state);
-       SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       const char* name = luaL_checkstring(state, 1);
+       if (!shaders->SetUniform(name, FromLuaTable<FVec2>(state, 2))) {
+         luaL_error(state, "Could not set uniform ", name, ": ",
+                    shaders->LastError());
+       }
        return 0;
      }},
-    {"set_windowed",
+    {"send_f3_uniform",
      [](lua_State* state) {
-       auto* window = Registry<SDL_Window>::Retrieve(state);
-       // 0 means we use windowed mode.
-       SDL_SetWindowFullscreen(window, 0);
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       const char* name = luaL_checkstring(state, 1);
+       if (!shaders->SetUniform(name, FromLuaTable<FVec3>(state, 2))) {
+         luaL_error(state, "Could not set uniform ", name, ": ",
+                    shaders->LastError());
+       }
+       return 0;
+     }},
+    {"send_f4_uniform",
+     [](lua_State* state) {
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       const char* name = luaL_checkstring(state, 1);
+       if (!shaders->SetUniform(name, FromLuaTable<FVec4>(state, 2))) {
+         luaL_error(state, "Could not set uniform ", name, ": ",
+                    shaders->LastError());
+       }
+       return 0;
+     }},
+    {"send_f2x2_uniform",
+     [](lua_State* state) {
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       const char* name = luaL_checkstring(state, 1);
+       if (!shaders->SetUniform(name, FromLuaTable<FMat2x2>(state, 2))) {
+         luaL_error(state, "Could not set uniform ", name, ": ",
+                    shaders->LastError());
+       }
+       return 0;
+     }},
+    {"send_f3x3_uniform",
+     [](lua_State* state) {
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       const char* name = luaL_checkstring(state, 1);
+       if (!shaders->SetUniform(name, FromLuaTable<FMat3x3>(state, 2))) {
+         luaL_error(state, "Could not set uniform ", name, ": ",
+                    shaders->LastError());
+       }
+       return 0;
+     }},
+    {"send_f4x4_uniform",
+     [](lua_State* state) {
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       const char* name = luaL_checkstring(state, 1);
+       if (!shaders->SetUniform(name, FromLuaTable<FMat4x4>(state, 2))) {
+         luaL_error(state, "Could not set uniform ", name, ": ",
+                    shaders->LastError());
+       }
        return 0;
      }},
     {nullptr, nullptr}};
 
-static const struct luaL_Reg kSystemLib[] = {{"operating_system",
-                                              [](lua_State* state) {
-                                                lua_pushstring(
-                                                    state, SDL_GetPlatform());
-                                                return 1;
-                                              }},
-                                             {nullptr, nullptr}};
+const struct luaL_Reg kSystemLib[] = {{"operating_system",
+                                       [](lua_State* state) {
+                                         lua_pushstring(state,
+                                                        SDL_GetPlatform());
+                                         return 1;
+                                       }},
+                                      {nullptr, nullptr}};
 
 int LuaLogPrint(lua_State* state) {
   const int num_args = lua_gettop(state);
@@ -287,7 +358,7 @@ int LuaLogPrint(lua_State* state) {
   return 0;
 }
 
-static const struct luaL_Reg kConsoleLib[] = {
+const struct luaL_Reg kConsoleLib[] = {
     {"log", LuaLogPrint},
     {"watch",
      [](lua_State* state) {
@@ -307,7 +378,7 @@ static const struct luaL_Reg kConsoleLib[] = {
      }},
     {nullptr, nullptr}};
 
-static const struct luaL_Reg kMouseLib[] = {
+const struct luaL_Reg kMouseLib[] = {
     {"mouse_position",
      [](lua_State* state) {
        const FVec2 pos = Mouse::GetPosition();
@@ -403,7 +474,7 @@ static const struct luaL_Reg kMouseLib[] = {
      }},
     {nullptr, nullptr}};
 
-static const struct luaL_Reg kSoundLib[] = {
+const struct luaL_Reg kSoundLib[] = {
     {"play_music",
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
@@ -451,7 +522,7 @@ static const struct luaL_Reg kSoundLib[] = {
      }},
     {nullptr, nullptr}};
 
-static const struct luaL_Reg kAssetsLib[] = {
+const struct luaL_Reg kAssetsLib[] = {
     {"sprite",
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
@@ -488,7 +559,7 @@ static const struct luaL_Reg kAssetsLib[] = {
      }},
     {nullptr, nullptr}};
 
-static const struct luaL_Reg kPhysicsLib[] = {
+const struct luaL_Reg kPhysicsLib[] = {
     {"add_box",
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
@@ -533,8 +604,16 @@ static const struct luaL_Reg kPhysicsLib[] = {
              auto context = reinterpret_cast<CollisionContext*>(userdata);
              lua_rawgeti(context->state, LUA_REGISTRYINDEX,
                          context->func_index);
-             lua_rawgeti(context->state, LUA_REGISTRYINDEX, lhs);
-             lua_rawgeti(context->state, LUA_REGISTRYINDEX, rhs);
+             if (lhs != 0) {
+               lua_rawgeti(context->state, LUA_REGISTRYINDEX, lhs);
+             } else {
+               lua_pushnil(context->state);
+             }
+             if (rhs != 0) {
+               lua_rawgeti(context->state, LUA_REGISTRYINDEX, rhs);
+             } else {
+               lua_pushnil(context->state);
+             }
              lua_call(context->state, 2, 0);
            },
            context);
@@ -608,13 +687,42 @@ static const struct luaL_Reg kPhysicsLib[] = {
      }},
     {nullptr, nullptr}};
 
-static const struct luaL_Reg kClockLib[] = {{"now",
-                                             [](lua_State* state) {
-                                               lua_pushnumber(state,
-                                                              NowInSeconds());
-                                               return 1;
-                                             }},
-                                            {nullptr, nullptr}};
+const struct luaL_Reg kWindowLib[] = {
+    {"dimensions",
+     [](lua_State* state) {
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       IVec2 viewport = renderer->viewport();
+       lua_pushnumber(state, viewport.x);
+       lua_pushnumber(state, viewport.y);
+       return 2;
+     }},
+    {"set_fullscreen",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
+       return 0;
+     }},
+    {"set_borderless",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+       return 0;
+     }},
+    {"set_windowed",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       // 0 means we use windowed mode.
+       SDL_SetWindowFullscreen(window, 0);
+       return 0;
+     }},
+    {nullptr, nullptr}};
+
+const struct luaL_Reg kClockLib[] = {{"now",
+                                      [](lua_State* state) {
+                                        lua_pushnumber(state, NowInSeconds());
+                                        return 1;
+                                      }},
+                                     {nullptr, nullptr}};
 
 struct LuaError {
   std::string_view filename;
@@ -701,6 +809,7 @@ Lua::Lua(const char* script_name, Assets* assets) {
   AddLibrary(state_, "assets", kAssetsLib);
   AddLibrary(state_, "clock", kClockLib);
   AddLibrary(state_, "system", kSystemLib);
+  AddLibrary(state_, "window", kWindowLib);
   lua_pushcfunction(state_, Traceback);
   traceback_handler_ = lua_gettop(state_);
   // Set print as G.console.log for consistency.

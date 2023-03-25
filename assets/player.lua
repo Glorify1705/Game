@@ -7,9 +7,14 @@ Player = Entity:extend()
 
 function Player:new(x, y)
     Player.super.new(self, x, y, 0, "playerShip1_green", "player")
+    self.health = 100
+    self.cooldown = 0
 end
 
 function Player:update(dt)
+    self.cooldown = self.cooldown - dt
+    if self.cooldown < 0 then self.cooldown = 0 end
+
     if G.input.is_key_down('w') then
         self.physics:apply_force(0, -FORCE)
     elseif G.input.is_key_down('s') then
@@ -28,8 +33,23 @@ function Player:update(dt)
     G.console.watch("Player Angle", self.physics:angle())
 end
 
+function Player:on_collision(other)
+    if self.cooldown == 0 then
+        self.health = self.health - 10
+        self.cooldown = 3
+    end
+end
+
+function Player:is_player()
+    return true
+end
+
+function Player:get_health()
+    return self.health
+end
+
 function Player:center_camera()
-    local vx, vy = G.graphics.viewport()
+    local vx, vy = G.window.dimensions()
     local x, y = G.physics.position(self.physics)
     local angle = G.physics.angle(self.physics)
     G.graphics.translate(-x, -y)

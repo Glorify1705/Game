@@ -25,4 +25,11 @@ end
 function Entity:update(dt)
 end
 
+function Entity:is_player()
+    return false
+end
+
+function Entity:on_collision(other)
+end
+
 return Entity
