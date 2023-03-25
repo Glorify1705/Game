@@ -254,7 +254,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniformF(name, luaL_checknumber(state, 2))) {
          luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError());
+                    shaders->LastError().data());
        }
        return 0;
      }},
@@ -264,7 +264,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FVec2>(state, 2))) {
          luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError());
+                    shaders->LastError().data());
        }
        return 0;
      }},
@@ -274,7 +274,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FVec3>(state, 2))) {
          luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError());
+                    shaders->LastError().data());
        }
        return 0;
      }},
@@ -284,7 +284,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FVec4>(state, 2))) {
          luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError());
+                    shaders->LastError().data());
        }
        return 0;
      }},
@@ -294,7 +294,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FMat2x2>(state, 2))) {
          luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError());
+                    shaders->LastError().data());
        }
        return 0;
      }},
@@ -304,7 +304,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FMat3x3>(state, 2))) {
          luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError());
+                    shaders->LastError().data());
        }
        return 0;
      }},
@@ -314,7 +314,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FMat4x4>(state, 2))) {
          luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError());
+                    shaders->LastError().data());
        }
        return 0;
      }},

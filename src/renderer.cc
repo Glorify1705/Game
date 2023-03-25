@@ -324,6 +324,7 @@ void BatchRenderer::TakeScreenshots() {
 
 void BatchRenderer::SwitchShaderProgram(std::string_view program_name) {
   program_name_.Set(program_name);
+  shaders_->UseProgram(program_name);
 }
 
 Renderer::Renderer(const Assets& assets, BatchRenderer* renderer)
