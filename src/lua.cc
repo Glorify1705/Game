@@ -275,13 +275,18 @@ const struct luaL_Reg kGraphicsLib[] = {
      [](lua_State* state) {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
+       if (lua_isnumber(state, 2)) {
+         if (!shaders->SetUniformF(name, luaL_checknumber(state, 2))) {
+           luaL_error(state, "Could not set uniform ", name, ": ",
+                      shaders->LastError().data());
+         }
+         return 0;
+       }
+       if (!lua_istable(state, 2)) {
+         luaL_error(state, "Not a table");
+         return 0;
+       }
        switch (lua_objlen(state, 2)) {
-         case 0:
-           if (!shaders->SetUniformF(name, luaL_checknumber(state, 2))) {
-             luaL_error(state, "Could not set uniform ", name, ": ",
-                        shaders->LastError().data());
-           };
-           break;
          case 2:
            if (!shaders->SetUniform(name, FromLuaTable<FVec2>(state, 2))) {
              luaL_error(state, "Could not set uniform ", name, ": ",
