@@ -26,6 +26,29 @@ T FromLuaTable(lua_State* state, int index) {
   return result;
 }
 
+template <typename T>
+T FromLuaMatrix(lua_State* state, int index) {
+  T result;
+  if (!lua_istable(state, index)) {
+    luaL_error(state, "Not a table");
+    return result;
+  }
+  for (size_t i = 0; i < T::kDimension; ++i) {
+    lua_rawgeti(state, index, i + 1);
+    if (!lua_istable(state, index)) {
+      luaL_error(state, "Not a table");
+      return result;
+    }
+    for (size_t j = 0; j < T::kDimension; ++j) {
+      lua_rawgeti(state, -1, j + 1);
+      result.v[i] = luaL_checknumber(state, -1);
+      lua_pop(state, 1);
+    }
+    lua_pop(state, 1);
+  }
+  return result;
+}
+
 int Traceback(lua_State* L) {
   if (!lua_isstring(L, 1)) return 1;
   lua_getfield(L, LUA_GLOBALSINDEX, "debug");
@@ -248,13 +271,36 @@ const struct luaL_Reg kGraphicsLib[] = {
        renderer->SwitchShaderProgram(program_name);
        return 0;
      }},
-    {"send_f1_uniform",
+    {"send_uniform",
      [](lua_State* state) {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
-       if (!shaders->SetUniformF(name, luaL_checknumber(state, 2))) {
-         luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError().data());
+       switch (lua_objlen(state, 2)) {
+         case 0:
+           if (!shaders->SetUniformF(name, luaL_checknumber(state, 2))) {
+             luaL_error(state, "Could not set uniform ", name, ": ",
+                        shaders->LastError().data());
+           };
+           break;
+         case 2:
+           if (!shaders->SetUniform(name, FromLuaTable<FVec2>(state, 2))) {
+             luaL_error(state, "Could not set uniform ", name, ": ",
+                        shaders->LastError().data());
+           };
+           break;
+         case 3:
+           if (!shaders->SetUniform(name, FromLuaTable<FVec3>(state, 2))) {
+             luaL_error(state, "Could not set uniform ", name, ": ",
+                        shaders->LastError().data());
+           };
+           break;
+         case 4:
+           if (!shaders->SetUniform(name, FromLuaTable<FVec4>(state, 2))) {
+             luaL_error(state, "Could not set uniform ", name, ": ",
+                        shaders->LastError().data());
+           }
+
+           break;
        }
        return 0;
      }},
