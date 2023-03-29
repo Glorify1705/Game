@@ -39,11 +39,6 @@ find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(SDL2_mixer REQUIRED)
 
-enable_testing()
-add_subdirectory(tests)
-
-add_test(NAME Tests COMMAND $<TARGET_FILE:GameTests>)
-
 add_custom_command(
         OUTPUT assets_generated.h
         COMMAND flatc -o "${CMAKE_CURRENT_BINARY_DIR}" --cpp-std c++17 --cpp-static-reflection --cpp
@@ -164,3 +159,33 @@ if (WIN32)
         VERBATIM
     )
 endif()
+
+enable_testing()
+
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+add_subdirectory(libraries/googletest)
+
+set(TEST_SRCS
+    "src/allocators.cc"
+    "src/strings.cc"
+    "src/stats.cc"
+    "src/logging.cc"
+    "tests/test.cc")
+
+add_executable(Tests "${TEST_SRCS}")
+      
+target_compile_options(Tests PRIVATE ${COMPILER_FLAGS})
+
+target_include_directories(Tests
+                           PRIVATE 
+                           "${CMAKE_CURRENT_BINARY_DIR}"
+                           "${PROJECT_SOURCE_DIR}/src")
+
+target_link_libraries(
+  Tests
+  GTest::gtest_main
+  xxHash::xxhash
+)
+
+include(GoogleTest)
+gtest_discover_tests(Tests)
