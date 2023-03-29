@@ -157,6 +157,90 @@ struct WrapAllocator<C<T1, T2, A>, Allocator> {
 template <class C, class Allocator>
 using WithAllocator = typename WrapAllocator<C, Allocator>::type;
 
+class Allocator {
+ public:
+  void* Alloc(size_t /*size*/, size_t /*align*/) { return nullptr; }
+
+  void Dealloc(void* /*ptr*/, size_t /*sz*/) {}
+
+  template <typename T>
+  T* Alloc(size_t n) {
+    return Alloc(n * sizeof(T), alignof(T));
+  }
+
+  template <typename T>
+  T* Alloc() {
+    return Alloc<T>(1);
+  }
+};
+
+class SystemAllocator : public Allocator {
+ public:
+  void* Alloc(size_t size, size_t align) {
+    return _aligned_malloc(size, align);
+  }
+
+  void Dealloc(void* p, size_t /*sz*/) { return _aligned_free(p); }
+
+  void Realloc(void* p, size_t /*old_size*/, size_t new_size, size_t align) {
+    _aligned_realloc(p, new_size, align);
+  }
+};
+
+class StackAllocator : public Allocator {
+ public:
+  StackAllocator(void* ptr, size_t size) {
+    ptr_ = reinterpret_cast<uintptr_t>(ptr);
+    end_ = ptr_ + size;
+    pos_ = ptr_;
+  }
+
+  void* Alloc(size_t size, size_t align) {
+    DCHECK(ptr_ + size < end_, "Out of memory");
+    pos_ = Align(pos_, align);
+    void* result = reinterpret_cast<void*>(pos_);
+    pos_ += size;
+    return result;
+  }
+
+  void Dealloc(void* p, size_t sz) {
+    auto pos = reinterpret_cast<uintptr_t>(p);
+    if (pos + sz == pos_) pos_ = pos;
+  }
+
+  void Realloc(void* p, size_t old_size, size_t new_size, size_t align) {
+    auto pos = reinterpret_cast<uintptr_t>(p);
+    if (pos + old_size == pos_) {
+      pos_ = pos + new_size;
+    } else {
+      pos_ = Align(pos_, align);
+      std::memcpy(reinterpret_cast<void*>(pos_), p, old_size);
+      pos_ += new_size;
+    }
+  }
+
+ private:
+  uintptr_t ptr_;
+  uintptr_t pos_;
+  uintptr_t end_;
+};
+
+template <size_t Size>
+class StaticAllocator : public Allocator {
+ public:
+  StaticAllocator() : alloc_(buffer_, Size) {}
+
+  void* Alloc(size_t size, size_t align) { return alloc_.Alloc(size, align); }
+  void Dealloc(void* p, size_t sz) { return alloc_.Dealloc(p, sz); }
+  void Realloc(void* p, size_t old_size, size_t new_size, size_t align) {
+    return alloc_.Realloc(p, old_size, new_size, align);
+  }
+
+ private:
+  uint8_t buffer_[Size];
+  StackAllocator alloc_;
+};
+
 }  // namespace G
 
 #endif
