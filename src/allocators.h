@@ -157,24 +157,14 @@ struct WrapAllocator<C<T1, T2, A>, Allocator> {
 template <class C, class Allocator>
 using WithAllocator = typename WrapAllocator<C, Allocator>::type;
 
-class Allocator {
+class TopAllocator {
  public:
   void* Alloc(size_t /*size*/, size_t /*align*/) { return nullptr; }
 
   void Dealloc(void* /*ptr*/, size_t /*sz*/) {}
-
-  template <typename T>
-  T* Alloc(size_t n) {
-    return Alloc(n * sizeof(T), alignof(T));
-  }
-
-  template <typename T>
-  T* Alloc() {
-    return Alloc<T>(1);
-  }
 };
 
-class SystemAllocator : public Allocator {
+class SystemAllocator : public TopAllocator {
  public:
   void* Alloc(size_t size, size_t align) {
     return _aligned_malloc(size, align);
@@ -187,7 +177,7 @@ class SystemAllocator : public Allocator {
   }
 };
 
-class StackAllocator : public Allocator {
+class StackAllocator : public TopAllocator {
  public:
   StackAllocator(void* ptr, size_t size) {
     ptr_ = reinterpret_cast<uintptr_t>(ptr);
@@ -196,7 +186,7 @@ class StackAllocator : public Allocator {
   }
 
   void* Alloc(size_t size, size_t align) {
-    DCHECK(ptr_ + size < end_, "Out of memory");
+    DCHECK(ptr_ + size <= end_, "Out of memory");
     pos_ = Align(pos_, align);
     void* result = reinterpret_cast<void*>(pos_);
     pos_ += size;
@@ -226,7 +216,7 @@ class StackAllocator : public Allocator {
 };
 
 template <size_t Size>
-class StaticAllocator : public Allocator {
+class StaticAllocator : public TopAllocator {
  public:
   StaticAllocator() : alloc_(buffer_, Size) {}
 
@@ -237,7 +227,7 @@ class StaticAllocator : public Allocator {
   }
 
  private:
-  uint8_t buffer_[Size];
+  alignas(std::max_align_t) uint8_t buffer_[Size];
   StackAllocator alloc_;
 };
 
