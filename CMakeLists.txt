@@ -39,6 +39,11 @@ find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(SDL2_mixer REQUIRED)
 
+enable_testing()
+add_subdirectory(tests)
+
+add_test(NAME Tests COMMAND $<TARGET_FILE:GameTests>)
+
 add_custom_command(
         OUTPUT assets_generated.h
         COMMAND flatc -o "${CMAKE_CURRENT_BINARY_DIR}" --cpp-std c++17 --cpp-static-reflection --cpp
