@@ -4,9 +4,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS True)
 set(SDL2_DIR  
-    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/SDL2/cmake")
+    "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2/cmake")
 set(SDL2_mixer_DIR  
-    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/SDL2_mixer/cmake")
+    "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2_mixer/cmake")
 
 project(Game 
     VERSION 0.1 
@@ -20,20 +20,20 @@ set(FLATBUFFERS_BUILD_FLATHASH OFF)
 set(FLATBUFFERS_INSTALL OFF)
 set(FLATBUFFERS_SKIP_MONSTER_EXTRA OFF)
 set(FLATBUFFERS_STRICT_MODE ON)
-add_subdirectory(vendor/flatbuffers EXCLUDE_FROM_ALL)
+add_subdirectory(libraries/flatbuffers EXCLUDE_FROM_ALL)
 
 set(BOX2D_BUILD_TESTBED OFF)
 set(BOX2D_BUILD_UNIT_TESTS OFF)
-add_subdirectory(vendor/box2d EXCLUDE_FROM_ALL)
+add_subdirectory(libraries/box2d EXCLUDE_FROM_ALL)
 
-add_subdirectory(vendor/lua EXCLUDE_FROM_ALL)
-add_subdirectory(vendor/xxHash/cmake_unofficial EXCLUDE_FROM_ALL)
+add_subdirectory(libraries/lua EXCLUDE_FROM_ALL)
+add_subdirectory(libraries/xxHash/cmake_unofficial EXCLUDE_FROM_ALL)
 
 set(BUILD_REGRESS OFF)
 set(BUILD_EXAMPLES OFF)
 set(BUILD_DOC OFF)
 set(BUILD_TOOLS OFF)
-add_subdirectory(vendor/libzip EXCLUDE_FROM_ALL)
+add_subdirectory(libraries/libzip EXCLUDE_FROM_ALL)
 
 find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
@@ -111,7 +111,7 @@ target_include_directories(Game
                            PRIVATE 
                            "${CMAKE_CURRENT_BINARY_DIR}" 
                            "${PROJECT_SOURCE_DIR}"
-                           "${PROJECT_SOURCE_DIR}/vendor/lua/src")
+                           "${PROJECT_SOURCE_DIR}/libraries/lua/src")
 
 set(SUPPORTS_GCC_FLAGS $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>)
 set(GCC_AND_CLANG_FLAGS -Wall -Wextra -Werror -ggdb -O2 -DNDEBUG -DGAME_WITH_ASSERTS)
