@@ -1,4 +1,3 @@
-// DO NOT EDIT - EDIT WITH vectors.py SCRIPT INSTEAD.
 #pragma once
 #ifndef _GAME_VEC_H
 #define _GAME_VEC_H
@@ -7,8 +6,6 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
-
-#include "libraries/glad.h"
 
 namespace G {
 
@@ -152,8 +149,6 @@ struct FVec2 {
     size_t len = snprintf(buf, sizeof(buf), "{ %.3f, %.3f }", v.x, v.y);
     sink.append(buf, len);
   }
-
-  void AsOpenglUniform(GLint location) const { glUniform2f(location, x, y); }
 };
 
 inline FVec2 FVec(float x, float y) { return FVec2(x, y); }
@@ -325,8 +320,6 @@ struct FVec3 {
         snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f }", v.x, v.y, v.z);
     sink.append(buf, len);
   }
-
-  void AsOpenglUniform(GLint location) const { glUniform3f(location, x, y, z); }
 };
 
 inline FVec3 FVec(float x, float y, float z) { return FVec3(x, y, z); }
@@ -512,10 +505,6 @@ struct FVec4 {
                           v.y, v.z, v.w);
     sink.append(buf, len);
   }
-
-  void AsOpenglUniform(GLint location) const {
-    glUniform4f(location, x, y, z, w);
-  }
 };
 
 inline FVec4 FVec(float x, float y, float z, float w) {
@@ -662,8 +651,6 @@ struct DVec2 {
     size_t len = snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf }", v.x, v.y);
     sink.append(buf, len);
   }
-
-  void AsOpenglUniform(GLint location) const { glUniform2d(location, x, y); }
 };
 
 inline DVec2 DVec(double x, double y) { return DVec2(x, y); }
@@ -835,8 +822,6 @@ struct DVec3 {
         snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf }", v.x, v.y, v.z);
     sink.append(buf, len);
   }
-
-  void AsOpenglUniform(GLint location) const { glUniform3d(location, x, y, z); }
 };
 
 inline DVec3 DVec(double x, double y, double z) { return DVec3(x, y, z); }
@@ -1022,10 +1007,6 @@ struct DVec4 {
                           v.x, v.y, v.z, v.w);
     sink.append(buf, len);
   }
-
-  void AsOpenglUniform(GLint location) const {
-    glUniform4d(location, x, y, z, w);
-  }
 };
 
 inline DVec4 DVec(double x, double y, double z, double w) {
@@ -1169,8 +1150,6 @@ struct IVec2 {
     size_t len = snprintf(buf, sizeof(buf), "{ %d, %d }", v.x, v.y);
     sink.append(buf, len);
   }
-
-  void AsOpenglUniform(GLint location) const { glUniform2f(location, x, y); }
 };
 
 inline IVec2 IVec(int x, int y) { return IVec2(x, y); }
@@ -1338,8 +1317,6 @@ struct IVec3 {
     size_t len = snprintf(buf, sizeof(buf), "{ %d, %d, %d }", v.x, v.y, v.z);
     sink.append(buf, len);
   }
-
-  void AsOpenglUniform(GLint location) const { glUniform3f(location, x, y, z); }
 };
 
 inline IVec3 IVec(int x, int y, int z) { return IVec3(x, y, z); }
@@ -1521,10 +1498,6 @@ struct IVec4 {
     size_t len =
         snprintf(buf, sizeof(buf), "{ %d, %d, %d, %d }", v.x, v.y, v.z, v.w);
     sink.append(buf, len);
-  }
-
-  void AsOpenglUniform(GLint location) const {
-    glUniform4f(location, x, y, z, w);
   }
 };
 

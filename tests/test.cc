@@ -1,6 +1,7 @@
 #include "array.h"
 #include "gtest/gtest.h"
 #include "lookup_table.h"
+#include "vec.h"
 
 namespace G {
 
@@ -34,6 +35,18 @@ TEST(Tests, FixedArrayWithAllocator) {
   EXPECT_EQ(array[0], 1);
   EXPECT_EQ(array[1], 2);
   EXPECT_EQ(array[2], 3);
+}
+
+TEST(Tests, Vectors) {
+  FVec3 v, w;
+  v = FVec3::Zero();
+  EXPECT_FLOAT_EQ(v.Dot(v), 0);
+  EXPECT_FLOAT_EQ(v.Length2(), 0);
+  v = FVec3(1, 2, 3);
+  w = FVec3(3, 2, 1);
+  EXPECT_FLOAT_EQ(v.Dot(w), 10);
+  EXPECT_FLOAT_EQ(v.Length2(), 14);
+  EXPECT_FLOAT_EQ(v.Length(), std::sqrt(14));
 }
 
 TEST(Tests, LookupTable) {

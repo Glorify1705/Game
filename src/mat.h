@@ -1,4 +1,3 @@
-// DO NOT EDIT - EDIT WITH matrices.py SCRIPT INSTEAD.
 #pragma once
 #ifndef _GAME_MATRICES_H
 #define _GAME_MATRICES_H
@@ -8,7 +7,6 @@
 #include <iostream>
 #include <ostream>
 
-#include "libraries/glad.h"
 #include "strings.h"
 #include "vec.h"
 
@@ -175,10 +173,6 @@ struct FMat2x2 {
     }
     sink.append(" }");
   }
-
-  void AsOpenglUniform(GLint location) const {
-    glUniformMatrix2fv(location, 1, GL_TRUE, v);
-  }
 };
 
 struct FMat3x3 {
@@ -341,10 +335,6 @@ struct FMat3x3 {
       if (row + 1 < kDimension) sink.append(", ");
     }
     sink.append(" }");
-  }
-
-  void AsOpenglUniform(GLint location) const {
-    glUniformMatrix3fv(location, 1, GL_TRUE, v);
   }
 };
 
@@ -509,10 +499,6 @@ struct FMat4x4 {
     }
     sink.append(" }");
   }
-
-  void AsOpenglUniform(GLint location) const {
-    glUniformMatrix4fv(location, 1, GL_TRUE, v);
-  }
 };
 
 struct DMat2x2 {
@@ -675,10 +661,6 @@ struct DMat2x2 {
       if (row + 1 < kDimension) sink.append(", ");
     }
     sink.append(" }");
-  }
-
-  void AsOpenglUniform(GLint location) const {
-    glUniformMatrix2dv(location, 1, GL_TRUE, v);
   }
 };
 
@@ -843,10 +825,6 @@ struct DMat3x3 {
     }
     sink.append(" }");
   }
-
-  void AsOpenglUniform(GLint location) const {
-    glUniformMatrix3dv(location, 1, GL_TRUE, v);
-  }
 };
 
 struct DMat4x4 {
@@ -1009,10 +987,6 @@ struct DMat4x4 {
       if (row + 1 < kDimension) sink.append(", ");
     }
     sink.append(" }");
-  }
-
-  void AsOpenglUniform(GLint location) const {
-    glUniformMatrix4dv(location, 1, GL_TRUE, v);
   }
 };
 
