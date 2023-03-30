@@ -216,19 +216,20 @@ class StackAllocator : public TopAllocator {
 };
 
 template <size_t Size>
-class StaticAllocator : public TopAllocator {
+class StaticAllocator : public StackAllocator {
  public:
-  StaticAllocator() : alloc_(buffer_, Size) {}
+  StaticAllocator() : StackAllocator(buffer_, Size) {}
 
-  void* Alloc(size_t size, size_t align) { return alloc_.Alloc(size, align); }
-  void Dealloc(void* p, size_t sz) { return alloc_.Dealloc(p, sz); }
+  void* Alloc(size_t size, size_t align) {
+    return StackAllocator::Alloc(size, align);
+  }
+  void Dealloc(void* p, size_t sz) { return StackAllocator::Dealloc(p, sz); }
   void Realloc(void* p, size_t old_size, size_t new_size, size_t align) {
-    return alloc_.Realloc(p, old_size, new_size, align);
+    return StackAllocator::Realloc(p, old_size, new_size, align);
   }
 
  private:
   alignas(std::max_align_t) uint8_t buffer_[Size];
-  StackAllocator alloc_;
 };
 
 }  // namespace G
