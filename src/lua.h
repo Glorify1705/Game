@@ -53,7 +53,7 @@ class Registry {
 
 class Lua {
  public:
-  Lua(const char* scriptname, Assets* assets);
+  Lua(std::string_view scriptname, Assets* assets);
   ~Lua() { lua_close(state_); }
 
   template <typename T>
@@ -71,12 +71,23 @@ class Lua {
   bool Stopped() const { return stopped_; }
 
  private:
+  inline static constexpr size_t kMaxMemory = 1 << 24;
+
   void LoadMain(const ScriptAsset& asset);
   void SetPackagePreload(std::string_view filename);
+
+  void* Alloc(void* ptr, size_t osize, size_t nsize);
+
+  static void* LuaAlloc(void* ud, void* ptr, size_t osize, size_t nsize) {
+    return static_cast<Lua*>(ud)->Alloc(ptr, osize, nsize);
+  }
 
   lua_State* state_ = nullptr;
   bool stopped_ = false;
   int traceback_handler_;
+
+  using Allocator = SystemAllocator;
+  Allocator memory_;
 };
 
 }  // namespace G

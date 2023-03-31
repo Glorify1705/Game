@@ -832,8 +832,20 @@ void AddLibrary(lua_State* state, const char* name, const luaL_Reg* funcs) {
 
 }  // namespace
 
-Lua::Lua(const char* script_name, Assets* assets) {
+void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
+  if (nsize == 0) {
+    if (ptr != nullptr) memory_.Dealloc(ptr, osize);
+    return nullptr;
+  }
+  if (ptr == nullptr) {
+    return memory_.Alloc(nsize, /*align=*/1);
+  }
+  return memory_.Realloc(ptr, osize, nsize, /*align=*/1);
+}
+
+Lua::Lua(std::string_view script_name, Assets* assets) {
   state_ = luaL_newstate();
+  lua_setallocf(state_, &Lua::LuaAlloc, this);
   lua_atpanic(state_, [](lua_State* state) {
     LuaCrash(state, 1);
     return 0;
