@@ -15,8 +15,6 @@ class Stats {
   friend void AppendToString(const Stats& stats, std::string& str);
 
  private:
-  static constexpr double kMax = 50.0;
-
   double Percentile(double percentile) const;
   void AppendToString(char* buf, size_t len) const;
 

@@ -6,6 +6,11 @@
 #include "stats.h"
 
 namespace G {
+namespace {
+
+static constexpr double kMax = 50.0;
+
+}  // namespace
 
 Stats::Stats() {
   std::memset(this, 0, sizeof(Stats));
