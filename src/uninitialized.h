@@ -12,18 +12,22 @@ namespace G {
 template <typename T>
 struct Uninitialized {
  public:
+  Uninitialized() = default;
+
   template <typename... Ts>
   void Init(Ts... ts) {
     ::new (mut()) T(std::forward<Ts>(ts)...);
   }
 
-  Uninitialized& operator=(T&& t) {
-    *mut() = std::move(t);
+  Uninitialized(Uninitialized&& u) { *mut() = u; }
+
+  Uninitialized& operator=(T&& u) {
+    *mut() = u;
     return *this;
   }
 
-  T* operator->() { return *mut(); }
-  const T* operator->() const { return *ref(); }
+  T* operator->() { return mut(); }
+  const T* operator->() const { return ref(); }
   T& operator*() { return *mut(); }
   const T& operator*() const { return *ref(); }
 

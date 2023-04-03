@@ -26,6 +26,7 @@
 #include "lua.h"
 #include "mat.h"
 #include "math.h"
+#include "memory_units.h"
 #include "physics.h"
 #include "renderer.h"
 #include "shaders.h"
@@ -82,9 +83,12 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
   }
 }
 
-static BumpAllocator* GlobalBumpAllocator() {
-  static BumpAllocator allocator(1 * 1024 * 1024 * 1024ULL);  // 1 Gigabytes.
-  return &allocator;
+constexpr size_t kAssetMemory = Gigabytes(1);
+using AssetAllocator = StaticAllocator<kAssetMemory>;
+
+static AssetAllocator* GlobalAssetAllocator() {
+  static auto* allocator = new AssetAllocator;
+  return allocator;
 }
 
 const uint8_t* ReadAssets(const std::vector<const char*>& arguments) {
@@ -118,7 +122,7 @@ const uint8_t* ReadAssets(const std::vector<const char*>& arguments) {
   if (assets_file == nullptr) {
     DIE("Failed to decompress ", output_file, ": ", zip_strerror(zip_file));
   }
-  auto* buffer = GlobalBumpAllocator()->AllocArray<uint8_t>(stat.size);
+  auto* buffer = GlobalAssetAllocator()->NewArray<uint8_t>(stat.size);
   if (zip_fread(assets_file, buffer, stat.size) == -1) {
     DIE("Failed to read decompressed file");
   }
@@ -198,8 +202,6 @@ struct EngineModules {
     renderer.FlushFrame();
     batch_renderer.Render();
   }
-
-  ~EngineModules() { delete[] assets_buf_; }
 };
 
 void InitializeSDL() {

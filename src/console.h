@@ -43,7 +43,7 @@ class DebugConsole {
       CopyToBuffer(buf.piece(), linebuffer);
       return;
     }
-    auto* linebuffer = buffers_->AllocArray<Linebuffer>(1);
+    auto* linebuffer = buffers_.New<Linebuffer>();
     CopyToBuffer(buf.piece(), linebuffer);
     watcher_keys_.Push(watcher_values_.Insert(key, linebuffer).map_key);
   }
@@ -79,7 +79,7 @@ class DebugConsole {
   void CopyToBuffer(std::string_view text, Linebuffer* buffer);
   void LogLine(std::string_view text);
 
-  FixedArena<2 * kMaxLines * sizeof(Linebuffer), BumpAllocator> buffers_;
+  StaticAllocator<2 * kMaxLines * sizeof(Linebuffer)> buffers_;
   FixedCircularBuffer<Linebuffer*, kMaxLines> lines_;
   SDL_LogOutputFunction log_fn_;
   void* log_fn_userdata_;

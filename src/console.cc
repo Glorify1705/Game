@@ -31,7 +31,7 @@ void DebugConsole::LogLine(std::string_view text) {
   if (lines_.full()) {
     buffer = lines_.Pop();
   } else {
-    buffer = buffers_->AllocArray<Linebuffer>(1);
+    buffer = buffers_.New<Linebuffer>();
   }
   CopyToBuffer(text, buffer);
   lines_.Push(buffer);

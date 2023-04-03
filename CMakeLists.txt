@@ -47,7 +47,6 @@ add_custom_command(
 
 set(GAME_SRCS
     "src/logging.cc" 
-    "src/allocators.cc"
     "src/assets.cc"
     "src/clock.cc"
     "src/game.cc"
@@ -78,7 +77,6 @@ set(PACKER_SRCS
     "src/packer.cc"
     "libraries/pugixml.cc"
     "src/assets.cc"
-    "src/allocators.cc"
     "src/image.cc"
     "src/strings.cc"
     "${PROJECT_BINARY_DIR}/assets_generated.h")
@@ -166,7 +164,6 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 add_subdirectory(libraries/googletest)
 
 set(TEST_SRCS
-    "src/allocators.cc"
     "src/strings.cc"
     "src/stats.cc"
     "src/logging.cc"

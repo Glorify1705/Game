@@ -13,6 +13,7 @@
 #include "image.h"
 #include "libraries/pugixml.h"
 #include "logging.h"
+#include "memory_units.h"
 #include "zip.h"
 
 namespace G {
@@ -42,19 +43,21 @@ class FlatbufferAllocator : public flatbuffers::Allocator {
   T* const allocator_ = nullptr;
 };
 
-static BumpAllocator* GlobalBumpAllocator() {
-  static BumpAllocator allocator(4 * 1024 * 1024 * 1024ULL);  // 4 Gigabytes.
-  return &allocator;
+constexpr size_t kMemorySize = Gigabytes(4);
+
+using PackerAllocator = StaticAllocator<kMemorySize>;
+
+static PackerAllocator* GlobalAllocator() {
+  static auto* allocator = new PackerAllocator;
+  return allocator;
 }
 
-void* GlobalAlloc(size_t s) {
-  return GlobalBumpAllocator()->Alloc(s, /*align=*/1);
-}
+void* GlobalAlloc(size_t s) { return GlobalAllocator()->Alloc(s, /*align=*/1); }
 
 void GlobalDealloc(void*) {}
 
 void* GlobalRealloc(void* p, size_t old_size, size_t new_size) {
-  return GlobalBumpAllocator()->Realloc(p, old_size, new_size);
+  return GlobalAllocator()->Realloc(p, old_size, new_size, /*align=*/1);
 }
 
 std::string_view Basename(std::string_view p) {
@@ -79,7 +82,7 @@ std::pair<uint8_t*, size_t> ReadWholeFile(const char* path) {
   std::fseek(f, 0, SEEK_END);
   const size_t fsize = std::ftell(f);
   std::fseek(f, 0, SEEK_SET);
-  auto* buffer = GlobalBumpAllocator()->AllocArray<uint8_t>(fsize);
+  auto* buffer = static_cast<uint8_t*>(GlobalAlloc(fsize));
   CHECK(std::fread(buffer, fsize, 1, f) == 1, " failed to read ", path);
   fclose(f);
   return {buffer, fsize};
@@ -89,7 +92,7 @@ class Packer {
  public:
   Packer()
       : start_ms_(NowInMillis()),
-        allocator_(GlobalBumpAllocator()),
+        allocator_(GlobalAllocator()),
         fbs_wrapper_(allocator_),
         fbs_(1024 * 1024 * 1024, &fbs_wrapper_),
         images_(allocator_),
@@ -150,8 +153,8 @@ class Packer {
     }
     std::printf("Elapsed %lldms\n", NowInMillis() - start_ms_);
     std::printf("Used %llud out of %llu memory (%.2lf %%)\n",
-                allocator_->used(), allocator_->total(),
-                100.0 * allocator_->used() / allocator_->total());
+                allocator_->used_memory(), allocator_->total_memory(),
+                100.0 * allocator_->used_memory() / allocator_->total_memory());
   }
 
   void HandleQoiImage(std::string_view filename, uint8_t* buf, size_t size) {
@@ -199,7 +202,7 @@ class Packer {
     pugi::xml_node root = doc.child("TextureAtlases");
     for (const auto& atlas : root) {
       WithAllocator<std::vector<flatbuffers::Offset<SpriteAsset>>,
-                    BumpAllocator>
+                    PackerAllocator>
           sprites(allocator_);
       auto str = fbs_.CreateString(atlas.attribute("imagePath").value());
       for (const auto& sprite : atlas) {
@@ -255,24 +258,25 @@ class Packer {
 
  private:
   int64_t start_ms_;
-  BumpAllocator* allocator_;
+  PackerAllocator* allocator_;
 
-  FlatbufferAllocator<BumpAllocator> fbs_wrapper_;
+  FlatbufferAllocator<PackerAllocator> fbs_wrapper_;
   flatbuffers::FlatBufferBuilder fbs_;
-  WithAllocator<std::vector<flatbuffers::Offset<ImageAsset>>, BumpAllocator>
+  WithAllocator<std::vector<flatbuffers::Offset<ImageAsset>>, PackerAllocator>
       images_;
-  WithAllocator<std::vector<flatbuffers::Offset<ScriptAsset>>, BumpAllocator>
+  WithAllocator<std::vector<flatbuffers::Offset<ScriptAsset>>, PackerAllocator>
       scripts_;
   WithAllocator<std::vector<flatbuffers::Offset<SpritesheetAsset>>,
-                BumpAllocator>
+                PackerAllocator>
       spritesheets_;
-  WithAllocator<std::vector<flatbuffers::Offset<SoundAsset>>, BumpAllocator>
+  WithAllocator<std::vector<flatbuffers::Offset<SoundAsset>>, PackerAllocator>
       sounds_;
-  WithAllocator<std::vector<flatbuffers::Offset<FontAsset>>, BumpAllocator>
+  WithAllocator<std::vector<flatbuffers::Offset<FontAsset>>, PackerAllocator>
       fonts_;
-  WithAllocator<std::vector<flatbuffers::Offset<ShaderAsset>>, BumpAllocator>
+  WithAllocator<std::vector<flatbuffers::Offset<ShaderAsset>>, PackerAllocator>
       shaders_;
-  WithAllocator<std::vector<flatbuffers::Offset<TextFileAsset>>, BumpAllocator>
+  WithAllocator<std::vector<flatbuffers::Offset<TextFileAsset>>,
+                PackerAllocator>
       text_files_;
 };
 
