@@ -44,10 +44,18 @@ class BatchRenderer {
 
   void ClearTexture() { SetActiveTexture(noop_texture_); }
 
-  void SetActiveColor(Color rgba_color) {
+  Color SetActiveColor(Color rgba_color) {
     // We do not need to flush on color changes because they are
     // put on vertex data.
+    Color previous;
+    if (!batches_.empty()) {
+      previous = batches_.back().rgba_color;
+    } else {
+      previous = Color::White();
+      FlushBatch();
+    }
     batches_.back().rgba_color = rgba_color;
+    return previous;
   }
   void SetActiveTransform(const FMat4x4& transform) {
     if (batches_.empty() || (batches_.back().indices_count &&
@@ -164,7 +172,9 @@ class Renderer {
 
   void Draw(FVec2 position, float angle, const SpriteAsset& texture);
 
-  void SetColor(Color color);
+  // Returns the previous color.
+  Color SetColor(Color color);
+
   void DrawRect(FVec2 top_left, FVec2 bottom_right, float angle);
   void DrawCircle(FVec2 center, float radius);
   void DrawText(std::string_view font, float size, std::string_view str,

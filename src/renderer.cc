@@ -184,9 +184,10 @@ void BatchRenderer::Render() {
   glViewport(0, 0, viewport_.x, viewport_.y);
   // Ensure we render to the off screen frame buffer.
   glBindFramebuffer(GL_FRAMEBUFFER, render_target_);
+  glClearColor(0.f, 0.f, 0.f, 0.f);
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glClearColor(0.f, 0.f, 0.f, 0.f);
+
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LEQUAL);
   glClearDepth(1.0);
@@ -353,7 +354,9 @@ void Renderer::Pop() {
   renderer_->SetActiveTransform(transform_stack_.back());
 }
 
-void Renderer::SetColor(Color color) { renderer_->SetActiveColor(color); }
+Color Renderer::SetColor(Color color) {
+  return renderer_->SetActiveColor(color);
+}
 
 void Renderer::Draw(FVec2 position, float angle, const SpriteAsset& sprite) {
   std::string_view spritesheet = FlatbufferStringview(sprite.spritesheet());

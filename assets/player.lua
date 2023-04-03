@@ -1,4 +1,5 @@
 Entity = require 'entity'
+Timer = require 'timer'
 
 FORCE = 50.000
 ANGLE_DELTA = 20
@@ -8,13 +9,12 @@ Player = Entity:extend()
 function Player:new(x, y)
     Player.super.new(self, x, y, 0, "playerShip1_green", "player")
     self.health = 100
-    self.cooldown = 0
+    self.timer = Timer()
+    self.cooldown = { v = 0, color = { 255, 255, 255, 255 } }
 end
 
 function Player:update(dt)
-    self.cooldown = self.cooldown - dt
-    if self.cooldown < 0 then self.cooldown = 0 end
-
+    self.timer:update(dt)
     if G.input.is_key_down('w') then
         self.physics:apply_force(0, -FORCE)
     elseif G.input.is_key_down('s') then
@@ -34,10 +34,22 @@ function Player:update(dt)
 end
 
 function Player:on_collision(other)
-    if self.cooldown == 0 then
+    if self.cooldown.v < 1e-8 then
         self.health = self.health - 10
-        self.cooldown = 3
+        self.cooldown.v = 1
+        self.cooldown.color = { 255, 0, 0, 255 }
+        self.timer:tween(5, self.cooldown, { v = 0, color = { 255, 255, 255, 255 } }, 'in-out-quad')
     end
+end
+
+function Player:draw()
+    local v = self.physics:position()
+    local angle = self.physics:angle()
+    if self.cooldown.v > 0 then
+        G.graphics.set_color(unpack(self.cooldown.color))
+    end
+    G.graphics.draw_sprite(self.image, v.x, v.y, angle)
+    G.graphics.set_color(255, 255, 255, 255)
 end
 
 function Player:is_player()

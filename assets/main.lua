@@ -74,8 +74,6 @@ end
 function Game:draw()
     self.entities:draw()
     local mx, my = G.input.mouse_position()
-    G.graphics.attach_shader("pixelate.frag")
-    G.graphics.send_uniform("pixels", 4096)
     G.graphics.set_color(255, 0, 0, 255)
     G.graphics.draw_rect(300 * self.player:get_health() / 100, 10, 300, 20)
     G.graphics.set_color(0, 255, 0, 255)

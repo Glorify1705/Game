@@ -53,7 +53,9 @@ constexpr std::string_view kPrePassFragmentShader = R"(
     uniform sampler2D tex;
 
     void main() {
-        frag_color = texture(tex, tex_coord) * out_color;
+        vec4 color = texture(tex, tex_coord) * out_color;
+        if(color.a < 0.5) discard;
+        frag_color = color;
     }
   )";
 

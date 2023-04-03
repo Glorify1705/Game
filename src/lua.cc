@@ -145,7 +145,17 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto clamp = [](float f) -> uint8_t {
          return std::clamp(f, 0.0f, 255.0f);
        };
-       renderer->SetColor(Color{clamp(r), clamp(g), clamp(b), clamp(a)});
+       const Color previous =
+           renderer->SetColor(Color{clamp(r), clamp(g), clamp(b), clamp(a)});
+       lua_newtable(state);
+       lua_pushnumber(state, previous.r);
+       lua_setfield(state, -2, "r");
+       lua_pushnumber(state, previous.g);
+       lua_setfield(state, -2, "g");
+       lua_pushnumber(state, previous.b);
+       lua_setfield(state, -2, "b");
+       lua_pushnumber(state, previous.a);
+       lua_setfield(state, -2, "a");
        return 0;
      }},
     {"draw_circle",
