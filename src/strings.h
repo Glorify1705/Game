@@ -154,6 +154,26 @@ class FixedStringBuffer {
 bool HasSuffix(std::string_view str, std::string_view suffix);
 bool ConsumeSuffix(std::string_view* str, std::string_view suffix);
 
+#if 0
+class String {
+  public:
+  private:
+    struct Ptr {
+      char* ptr;
+      size_t capacity;
+      size_t size;
+    };
+    struct Inline {
+      char buf[24];
+    };
+    union {
+      Ptr ptr;
+      Inline inl;
+    } rep;
+};
+
+#endif
+
 }  // namespace G
 
 #endif  // _GAME_STRINGS_H

@@ -109,12 +109,11 @@ class Dictionary {
 
   bool Lookup(std::string_view key, T* value = nullptr) const {
     const size_t hash = internal::Hash(key) & (hash_table_.size() - 1);
-    for (size_t i = hash;;) {
+    for (size_t i = hash, probes = 0;probes < max_probe_length_; ++probes) {
       if (hash_table_[i].probe_seq_length == 0) return false;
       if (hash_table_[i].key_size != key.size()) continue;
       if (Key(hash_table_[i]) == key) return &entry.value;
       i = (i + 1) & (hash_table_.size() - 1);
-      if (i == hash) return false;
     }
   }
 
@@ -142,7 +141,7 @@ class Dictionary {
         *hash_table_[i].Init(std::forward(args)...);
       }
       if (probes > hash_table_[i].probe_seq_length) {
-        
+        // Robin Hood hashing.
       }
       probes++;
       i = (i + 1) & (hash_table_.size() - 1);
