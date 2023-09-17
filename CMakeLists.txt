@@ -13,6 +13,8 @@ project(Game
     DESCRIPTION "The game"
     LANGUAGES CXX)
 
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+
 set(FLATBUFFERS_BUILD_TESTS OFF)
 set(FLATBUFFERS_BUILD_FLATLIB ON)
 set(FLATBUFFERS_BUILD_BENCHMARKS OFF)
@@ -142,7 +144,7 @@ add_custom_target(Run
                   DEPENDS Game Assets
                   VERBATIM COMMAND_EXPAND_LISTS)
 
-target_link_libraries(Game PRIVATE SDL2::SDL2 SDL2_mixer flatbuffers box2d lua zip xxHash::xxhash OpenGL::GL)
+target_link_libraries(Game PRIVATE SDL2::Main SDL2::Mixer flatbuffers box2d lua zip xxHash::xxhash OpenGL::GL)
 target_link_libraries(Packer PRIVATE flatbuffers zip)
 
 if (WIN32)
