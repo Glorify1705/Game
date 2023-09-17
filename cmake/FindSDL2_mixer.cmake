@@ -128,6 +128,15 @@ endif()
 
 set(SDL2_MIXER_PATH "" CACHE STRING "Custom SDL2_mixer Library path")
 
+if (WIN32)
+  if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+      set(SDL2_MIXER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2_mixer/i686-w64-mingw32")
+  elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+      set(SDL2_MIXER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2_mixer/x86_64-w64-mingw32")
+  endif()
+endif()
+
+
 set(_SDL2_MIXER_NO_DEFAULT_PATH OFF)
 if(SDL2_MIXER_PATH)
   set(_SDL2_MIXER_NO_DEFAULT_PATH ON)

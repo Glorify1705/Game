@@ -3,15 +3,17 @@ cmake_minimum_required(VERSION 3.8...3.26)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS True)
-set(SDL2_DIR  
-    "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2/cmake")
-set(SDL2_mixer_DIR  
-    "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2_mixer/cmake")
 
 project(Game 
     VERSION 0.1 
     DESCRIPTION "The game"
     LANGUAGES CXX)
+
+set(SDL2_DIR  
+    "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2/cmake")
+set(SDL2_mixer_DIR  
+    "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2_mixer/cmake")
+
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -150,12 +152,12 @@ target_link_libraries(Packer PRIVATE flatbuffers zip)
 if (WIN32)
     add_custom_command(
         TARGET Game POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:SDL2::SDL2>" "$<TARGET_FILE_DIR:Game>"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:SDL2::Core>" "$<TARGET_FILE_DIR:Game>"
         VERBATIM
     )
     add_custom_command(
         TARGET Game POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:SDL2_mixer::SDL2_mixer>" "$<TARGET_FILE_DIR:Game>"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:SDL2::Mixer>" "$<TARGET_FILE_DIR:Game>"
         VERBATIM
     )
 endif()
