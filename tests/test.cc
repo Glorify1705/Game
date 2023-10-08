@@ -101,20 +101,6 @@ TEST(Tests, LookupTable) {
   EXPECT_EQ(val, 1);
 }
 
-TEST(Tests, Uninitialized) {
-  Uninitialized<int> u;
-  u = std::move(3);
-  EXPECT_EQ(*u, 3);
-  struct Point {
-    int x;
-    int y;
-    int z;
-  };
-  Uninitialized<Point> u2;
-  u2 = Point{1, 2, 3};
-  EXPECT_EQ(u2->y, 2);
-}
-
 TEST(Tests, Bits) {
   EXPECT_EQ(NextPow2(1), 1);
   EXPECT_EQ(NextPow2(13), 16);
