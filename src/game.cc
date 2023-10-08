@@ -158,7 +158,7 @@ struct EngineModules {
         controllers(assets, allocator),
         sound(&assets, allocator),
         renderer(assets, &batch_renderer, allocator),
-        lua("main.lua", &assets),
+        lua("main.lua", &assets, SystemAllocator::Instance()),
         physics(FVec(params.screen_width, params.screen_height),
                 Physics::kPixelsPerMeter) {
     lua.Register(&shaders);
@@ -387,7 +387,13 @@ class DebugUi {
     }
     ImGui::SetNextWindowBgAlpha(0.35f);
     ImGui::Begin("Frame Stats", nullptr, window_flags);
-    ImGui::TextUnformatted(StrCat("Frame Stats: ", *stats_).c_str());
+    if (stats_->samples() > 1) {
+      ImGui::TextUnformatted(
+          StrCat("Frame Stats: ", *stats_, " FPS: ", 1.0 / stats_->avg())
+              .c_str());
+    }
+    ImGui::TextUnformatted(
+        StrCat("Lua Allocations: ", modules_->lua.AllocatorStats()).c_str());
     if (ImGui::BeginTable("Watchers", 2)) {
       DebugConsole::Instance().ForAllWatchers(
           [this](std::string_view key, std::string_view value) {

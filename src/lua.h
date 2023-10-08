@@ -13,6 +13,7 @@ extern "C" {
 #include "SDL.h"
 #include "assets.h"
 #include "clock.h"
+#include "stats.h"
 
 namespace G {
 
@@ -53,7 +54,7 @@ class Registry {
 
 class Lua {
  public:
-  Lua(std::string_view scriptname, Assets* assets);
+  Lua(std::string_view scriptname, Assets* assets, Allocator* allocator);
   ~Lua() { lua_close(state_); }
 
   template <typename T>
@@ -69,6 +70,8 @@ class Lua {
 
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }
+
+  Stats AllocatorStats() { return allocator_stats_; };
 
  private:
   inline static constexpr size_t kMaxMemory = 1 << 24;
@@ -86,8 +89,8 @@ class Lua {
   bool stopped_ = false;
   int traceback_handler_;
 
-  using Allocator = SystemAllocator;
-  Allocator memory_;
+  Allocator* allocator_;
+  Stats allocator_stats_;
 };
 
 }  // namespace G

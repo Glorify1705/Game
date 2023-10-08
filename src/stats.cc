@@ -1,4 +1,3 @@
-#include <cmath>
 #include <cstdlib>
 #include <limits>
 
@@ -27,7 +26,7 @@ void Stats::AddSample(double sample) {
   avg_ = ((samples_ - 1) * prev_avg + sample) / samples_;
   // Welford's algorithm.
   m2n_ += (sample - prev_avg) * (sample - avg_);
-  stdev_ = m2n_ / samples_;
+  stdev2_ = m2n_ / samples_;
   const double index =
       std::min(buckets_.size() - 1.0, buckets_.size() * sample / kMax);
   buckets_[std::floor(index)]++;
@@ -43,22 +42,13 @@ double Stats::Percentile(double percentile) const {
   return kMax;
 }
 
-void Stats::AppendToString(char* buf, size_t len) const {
-  if (samples_ > 1) {
-    int written =
-        snprintf(buf, len,
-                 "min = %.2lf, max = %.2lf, avg = %.2lf, stdev = "
-                 "%.2lf, p50 = %.2f, p90 = %.2f, p99 = %.2f FPS = %.2f",
-                 min_, max_, avg_, std::sqrt(stdev_), Percentile(50),
-                 Percentile(90), Percentile(99), 1.0 / avg_);
-    CHECK(written >= 0 && written < 128, "wrote ", written, " to buffer");
-  }
-}
-
 void AppendToString(const Stats& stats, std::string& str) {
-  char buf[128] = {0};
-  stats.AppendToString(buf, sizeof(buf));
-  str.append(buf);
+  if (stats.samples() > 1) {
+    StrAppend(&str, "min = ", stats.min(), " max = ", stats.max(),
+              " avg = ", stats.avg(), " stdev = ", stats.stdev(),
+              " p50 = ", stats.Percentile(50), " p90 = ", stats.Percentile(90),
+              " p99 = ", stats.Percentile(99));
+  }
 }
 
 }  // namespace G

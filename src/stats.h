@@ -3,6 +3,7 @@
 #define _GAME_STATS_H
 
 #include <array>
+#include <cmath>
 #include <string>
 
 namespace G {
@@ -14,11 +15,19 @@ class Stats {
 
   friend void AppendToString(const Stats& stats, std::string& str);
 
- private:
+  double min() const { return min_; }
+  double max() const { return max_; }
+  double avg() const { return avg_; }
+  double stdev2() const { return stdev2_; }
+  double stdev() const { return std::sqrt(stdev2_); }
+  double samples() const { return samples_; }
+
   double Percentile(double percentile) const;
+
+ private:
   void AppendToString(char* buf, size_t len) const;
 
-  double min_, max_, avg_, stdev_, samples_, sum_, m2n_;
+  double min_, max_, avg_, stdev2_, samples_, sum_, m2n_;
   std::array<size_t, 32> buckets_;
 };
 
