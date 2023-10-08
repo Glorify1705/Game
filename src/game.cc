@@ -160,7 +160,7 @@ struct EngineModules {
         renderer(assets, &batch_renderer, allocator),
         lua("main.lua", &assets, SystemAllocator::Instance()),
         physics(FVec(params.screen_width, params.screen_height),
-                Physics::kPixelsPerMeter) {
+                Physics::kPixelsPerMeter, allocator) {
     lua.Register(&shaders);
     lua.Register(&batch_renderer);
     lua.Register(&renderer);

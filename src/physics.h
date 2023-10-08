@@ -18,7 +18,8 @@ class Physics final : public b2ContactListener {
     uintptr_t userdata;
   };
 
-  explicit Physics(FVec2 pixel_dimensions, float pixels_per_meter);
+  explicit Physics(FVec2 pixel_dimensions, float pixels_per_meter,
+                   Allocator *allocator);
 
   void UpdateDimensions(IVec2 pixel_dimensions);
 

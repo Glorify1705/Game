@@ -5,11 +5,26 @@
 #include "transformations.h"
 
 namespace G {
+namespace {
 
-Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter)
+void* BoxAlloc(void* context, int32_t mem) {
+  LOG("Size = ", mem);
+  return reinterpret_cast<Allocator*>(context)->Alloc(mem, /*align=*/16);
+}
+
+void BoxDealloc(void* context, void* ptr) {
+  return reinterpret_cast<Allocator*>(context)->Dealloc(ptr, /*size=*/1);
+}
+
+}  // namespace
+
+Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
+                 Allocator* allocator)
     : pixels_per_meter_(pixels_per_meter),
       world_dimensions_(pixel_dimensions / pixels_per_meter),
       world_(b2Vec2(0, 0)) {
+  b2SetAllocFunction(BoxAlloc, allocator);
+  b2SetFreeFunction(BoxDealloc, allocator);
   world_.SetContactListener(this);
   CreateGround();
 }
