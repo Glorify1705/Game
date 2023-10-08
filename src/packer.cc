@@ -83,7 +83,8 @@ std::pair<uint8_t*, size_t> ReadWholeFile(const char* path) {
   const size_t fsize = std::ftell(f);
   std::fseek(f, 0, SEEK_SET);
   auto* buffer = static_cast<uint8_t*>(GlobalAlloc(fsize));
-  CHECK(std::fread(buffer, fsize, 1, f) == 1, " failed to read ", path);
+  CHECK(std::fread(buffer, fsize, 1, f) == 1, " failed to read ", path,
+        " ferror = ", strerror(ferror(f)));
   fclose(f);
   return {buffer, fsize};
 }

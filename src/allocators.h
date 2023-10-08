@@ -18,6 +18,39 @@ inline static size_t Align(size_t n, size_t m) {
   return (n + m - 1) & ~(m - 1);
 };
 
+class Allocator {
+ public:
+  virtual void* Alloc(size_t size, size_t align) = 0;
+
+  virtual void Dealloc(void* p, size_t sz) = 0;
+
+  virtual void* Realloc(void* p, size_t old_size, size_t new_size,
+                        size_t align) = 0;
+};
+
+template <typename T, typename... Args>
+T* New(Allocator* allocator) {
+  return reinterpret_cast<T*>(allocator->Alloc(sizeof(T), alignof(T)));
+}
+
+template <typename T>
+void Destroy(Allocator* allocator, T* ptr) {
+  ptr->~T();
+  allocator->Dealloc(ptr, sizeof(T));
+}
+
+template <typename T, typename... Args>
+T* DirectInit(Allocator* allocator, Args... args) {
+  auto* ptr = New<T>(allocator);
+  ::new (ptr) T(std::forward<Args>(args)...);
+  return ptr;
+}
+
+template <typename T>
+T* NewArray(size_t n, Allocator* allocator) {
+  return reinterpret_cast<T*>(allocator->Alloc(n * sizeof(T), alignof(T)));
+}
+
 template <class T, class Allocator>
 class STLAllocatorWrapper {
  public:
@@ -43,7 +76,7 @@ class STLAllocatorWrapper {
   pointer address(reference x) const { return &x; }
   const_pointer address(const_reference x) const { return &x; }
   pointer allocate(size_type n, const void* /*hint*/ = nullptr) {
-    return allocator_.template NewArray<T>(n);
+    return NewArray<T>(n, &allocator_);
   }
   void deallocate(T* p, std::size_t n) { allocator_.Dealloc(p, n); }
   size_type max_size() const {
@@ -72,30 +105,16 @@ class STLAllocatorWrapper {
   Allocator& allocator_;
 };
 
-template <typename BaseAllocator>
-class TopAllocator {
+class SystemAllocator final : public Allocator {
  public:
-  template <typename T>
-  T* New() {
-    return static_cast<T*>(
-        static_cast<BaseAllocator*>(this)->Alloc(sizeof(T), alignof(T)));
+  void* Alloc(size_t size, size_t /*align*/) override {
+    return std::malloc(size);
   }
 
-  template <typename T>
-  T* NewArray(size_t num) {
-    return static_cast<T*>(
-        static_cast<BaseAllocator*>(this)->Alloc(num * sizeof(T), alignof(T)));
-  }
-};
-
-class SystemAllocator : public TopAllocator<SystemAllocator> {
- public:
-  void* Alloc(size_t size, size_t /*align*/) { return std::malloc(size); }
-
-  void Dealloc(void* p, size_t /*sz*/) { std::free(p); }
+  void Dealloc(void* p, size_t /*sz*/) override { std::free(p); }
 
   void* Realloc(void* p, size_t /*old_size*/, size_t new_size,
-                size_t /*align*/) {
+                size_t /*align*/) override {
     return std::realloc(p, new_size);
   }
 
@@ -105,66 +124,32 @@ class SystemAllocator : public TopAllocator<SystemAllocator> {
   }
 };
 
-class StackAllocator : public TopAllocator<StackAllocator> {
+template <size_t Size>
+class StaticAllocator final : public Allocator {
  public:
-  StackAllocator(void* ptr, size_t size) {
-    ptr_ = reinterpret_cast<uintptr_t>(ptr);
-    end_ = ptr_ + size;
-    pos_ = ptr_;
-  }
-
-  void* Alloc(size_t size, size_t align) {
-    DCHECK(ptr_ + size <= end_, "Out of memory");
+  void* Alloc(size_t size, size_t align) override {
+    DCHECK(pos_ + size <= Size);
     pos_ = Align(pos_, align);
-    void* result = reinterpret_cast<void*>(pos_);
+    auto* result = reinterpret_cast<void*>(&buffer_[pos_]);
     pos_ += size;
     return result;
   }
-
-  void Dealloc(void* p, size_t sz) {
-    if (p == nullptr) return;
-    auto pos = reinterpret_cast<uintptr_t>(p);
-    if (pos + sz == pos_) pos_ = pos;
+  void Dealloc(void* /*p*/, size_t /*sz*/) override {
+    // Pass.
+  }
+  void* Realloc(void* p, size_t old_size, size_t new_size,
+                size_t align) override {
+    auto* res = Alloc(new_size, align);
+    std::memcpy(res, p, old_size);
+    return res;
   }
 
-  void* Realloc(void* p, size_t old_size, size_t new_size, size_t align) {
-    auto pos = reinterpret_cast<uintptr_t>(p);
-    if (pos + old_size == pos_) {
-      pos_ = pos + new_size;
-      return reinterpret_cast<void*>(pos);
-    } else {
-      pos_ = Align(pos_, align);
-      std::memcpy(reinterpret_cast<void*>(pos_), p, old_size);
-      auto* result = reinterpret_cast<void*>(pos_);
-      pos_ += new_size;
-      return result;
-    }
-  }
-
-  size_t used_memory() const { return pos_ - ptr_; }
-  size_t total_memory() const { return end_ - ptr_; }
-
- private:
-  uintptr_t ptr_;
-  uintptr_t pos_;
-  uintptr_t end_;
-};
-
-template <size_t Size>
-class StaticAllocator : public StackAllocator {
- public:
-  StaticAllocator() : StackAllocator(buffer_, Size) {}
-
-  void* Alloc(size_t size, size_t align) {
-    return StackAllocator::Alloc(size, align);
-  }
-  void Dealloc(void* p, size_t sz) { return StackAllocator::Dealloc(p, sz); }
-  void* Realloc(void* p, size_t old_size, size_t new_size, size_t align) {
-    return StackAllocator::Realloc(p, old_size, new_size, align);
-  }
+  size_t used_memory() const { return pos_; }
+  size_t total_memory() const { return Size; }
 
  private:
   alignas(std::max_align_t) uint8_t buffer_[Size];
+  size_t pos_ = 0;
 };
 
 template <class C, class Allocator>

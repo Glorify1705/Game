@@ -12,26 +12,36 @@
 
 namespace G {
 
-template <typename T, size_t Elements,
-          typename Allocator = StaticAllocator<Elements * sizeof(T)>>
+template <typename T, size_t N>
 class FixedArray {
  public:
-  inline static constexpr size_t TotalSize = Elements * sizeof(T);
+  inline static constexpr size_t TotalSize = N * sizeof(T);
 
-  FixedArray()
-      : buffer_(static_cast<T*>(allocator_.Alloc(TotalSize, alignof(T)))) {}
-  ~FixedArray() { allocator_.Dealloc(buffer_, TotalSize); }
+  FixedArray(Allocator* allocator) : allocator_(allocator) {
+    buffer_ = NewArray<T>(N, allocator);
+  }
+  ~FixedArray() { allocator_->Dealloc(buffer_, TotalSize); }
 
   void Push(T&& t) {
-    DCHECK(elems_ < Elements);
+    DCHECK(elems_ < N);
     ::new (&buffer_[elems_]) T(std::move(t));
     elems_++;
   }
   void Push(const T& t) {
-    DCHECK(elems_ < Elements);
+    DCHECK(elems_ < N);
     ::new (&buffer_[elems_]) T(t);
     elems_++;
   }
+
+  T* Insert(const T* ptr, size_t n) {
+    DCHECK(elems_ + n < N);
+    auto* result = &buffer_[elems_];
+    std::memcpy(result, ptr, n * sizeof(T));
+    elems_ += n;
+    return result;
+  }
+
+  void Reserve(size_t s) { elems_ = s; }
 
   void Pop() {
     DCHECK(elems_ > 0);
@@ -51,7 +61,7 @@ class FixedArray {
   }
   const T& operator[](size_t index) const {
     DCHECK(index < elems_, index, " vs ", elems_);
-    return *buffer_[index];
+    return buffer_[index];
   }
 
   T* data() { return buffer_; }
@@ -63,11 +73,11 @@ class FixedArray {
   const T* cend() const { return data() + elems_; }
 
   size_t size() const { return elems_; }
-  size_t capacity() const { return Elements; }
+  size_t capacity() const { return N; }
   size_t bytes() const { return elems_ * sizeof(T); }
 
  private:
-  Allocator allocator_;
+  Allocator* allocator_;
   T* buffer_;
   size_t elems_ = 0;
 };

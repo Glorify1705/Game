@@ -27,7 +27,8 @@ struct Color {
 
 class BatchRenderer {
  public:
-  BatchRenderer(IVec2 viewport, Shaders* shaders);
+  BatchRenderer(IVec2 viewport, Shaders* shaders, Allocator* allocator);
+
   ~BatchRenderer();
 
   size_t LoadTexture(const ImageAsset& image);
@@ -165,7 +166,7 @@ class BatchRenderer {
 
 class Renderer {
  public:
-  Renderer(const Assets& assets, BatchRenderer* renderer);
+  Renderer(const Assets& assets, BatchRenderer* renderer, Allocator* allocator);
 
   void BeginFrame();
   void FlushFrame() {}

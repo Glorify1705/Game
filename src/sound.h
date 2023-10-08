@@ -11,7 +11,12 @@ namespace G {
 
 class Sound {
  public:
-  explicit Sound(const Assets* assets) : assets_(assets) {}
+  explicit Sound(const Assets* assets, Allocator* allocator)
+      : assets_(assets),
+        chunks_(allocator),
+        musics_(allocator),
+        chunk_by_name_(allocator),
+        music_by_name_(allocator) {}
   ~Sound();
 
   inline static constexpr int kLoop = -1;

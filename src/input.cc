@@ -15,7 +15,7 @@ void Keyboard::InitForFrame() {
   }
 }
 
-Keyboard::Keyboard() {
+Keyboard::Keyboard(Allocator* allocator) : table_(allocator) {
   table_.Insert("a", SDL_SCANCODE_A);
   table_.Insert("b", SDL_SCANCODE_B);
   table_.Insert("c", SDL_SCANCODE_C);
@@ -88,7 +88,8 @@ void Mouse::PushEvent(const SDL_Event& event) {
   }
 }
 
-Controllers::Controllers(const Assets& assets) {
+Controllers::Controllers(const Assets& assets, Allocator* allocator)
+    : button_table_(allocator), axis_table_(allocator) {
   const TextFileAsset* asset = assets.GetText("gamecontrollerdb.txt");
   CHECK(asset != nullptr, "Could not find game controller database");
   SDL_RWops* rwops = SDL_RWFromMem(
