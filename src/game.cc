@@ -122,7 +122,7 @@ const uint8_t* ReadAssets(const std::vector<const char*>& arguments) {
   if (assets_file == nullptr) {
     DIE("Failed to decompress ", output_file, ": ", zip_strerror(zip_file));
   }
-  auto* buffer = GlobalAssetAllocator()->NewArray<uint8_t>(stat.size);
+  auto* buffer = NewArray<uint8_t>(stat.size, GlobalAssetAllocator());
   if (zip_fread(assets_file, buffer, stat.size) == -1) {
     DIE("Failed to read decompressed file");
   }
@@ -147,16 +147,18 @@ struct EngineModules {
   Physics physics;
 
   EngineModules(const std::vector<const char*> arguments,
-                const GameParams& params, SDL_Window* window)
+                const GameParams& params, SDL_Window* window,
+                Allocator* allocator)
       : assets_buf_(ReadAssets(arguments)),
         assets(assets_buf_),
-        shaders(assets),
+        shaders(assets, allocator),
         batch_renderer(IVec2(params.screen_width, params.screen_height),
-                       &shaders),
-        controllers(assets),
-        sound(&assets),
-        renderer(assets, &batch_renderer),
-        lua("main.lua", &assets),
+                       &shaders, allocator),
+        keyboard(allocator),
+        controllers(assets, allocator),
+        sound(&assets, allocator),
+        renderer(assets, &batch_renderer, allocator),
+        lua("main.lua", &assets, SystemAllocator::Instance()),
         physics(FVec(params.screen_width, params.screen_height),
                 Physics::kPixelsPerMeter) {
     lua.Register(&shaders);
@@ -283,8 +285,8 @@ SDL_GLContext CreateOpenglContext(SDL_Window* window) {
 class DebugUi {
  public:
   DebugUi(SDL_Window* window, SDL_GLContext context, Stats* frame_stats,
-          EngineModules* modules)
-      : stats_(frame_stats), modules_(modules) {
+          EngineModules* modules, Allocator* allocator)
+      : stats_(frame_stats), modules_(modules), expression_table_(allocator) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
@@ -309,7 +311,7 @@ class DebugUi {
     ImGui::Begin("Debug Information");
     if (ImGui::TreeNode("Console")) {
       ImGui::BeginChild("Scrolling");
-      DebugConsole::instance().ForAllLines([this](std::string_view line) {
+      DebugConsole::Instance().ForAllLines([this](std::string_view line) {
         ImGui::TextUnformatted(line.data(), line.end());
       });
       ImGui::EndChild();
@@ -358,7 +360,7 @@ class DebugUi {
  private:
   void CopyToClipboard() {
     size_t buffer_sz = 0, pos = 0;
-    auto& console = DebugConsole::instance();
+    auto& console = DebugConsole::Instance();
     console.ForAllLines([this, &buffer_sz](std::string_view line) {
       buffer_sz += line.size() + 1;
     });
@@ -396,9 +398,15 @@ class DebugUi {
     }
     ImGui::SetNextWindowBgAlpha(0.35f);
     ImGui::Begin("Frame Stats", nullptr, window_flags);
-    ImGui::TextUnformatted(StrCat("Frame Stats: ", *stats_).c_str());
+    if (stats_->samples() > 1) {
+      ImGui::TextUnformatted(
+          StrCat("Frame Stats: ", *stats_, " FPS: ", 1.0 / stats_->avg())
+              .c_str());
+    }
+    ImGui::TextUnformatted(
+        StrCat("Lua Allocations: ", modules_->lua.AllocatorStats()).c_str());
     if (ImGui::BeginTable("Watchers", 2)) {
-      DebugConsole::instance().ForAllWatchers(
+      DebugConsole::Instance().ForAllWatchers(
           [this](std::string_view key, std::string_view value) {
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
@@ -423,10 +431,11 @@ class DebugUi {
 
 class Game {
  public:
-  Game(int argc, const char* argv[]) : arguments_(argv + 1, argv + argc) {
+  Game(int argc, const char* argv[], Allocator* allocator)
+      : arguments_(argv + 1, argv + argc), allocator_(allocator) {
     TIMER("Setup");
     // Initialize the debug console.
-    DebugConsole::instance();
+    DebugConsole::Instance();
     InitializeSDL();
     window_ = CreateWindow(params_);
     context_ = CreateOpenglContext(window_);
@@ -434,8 +443,8 @@ class Game {
   }
 
   ~Game() {
-    e_.reset();
-    debug_ui_.reset();
+    Destroy(allocator_, e_);
+    Destroy(allocator_, debug_ui_);
     if (SDL_WasInit(SDL_INIT_HAPTIC) != 0) {
       SDL_QuitSubSystem(SDL_INIT_HAPTIC);
     }
@@ -448,9 +457,11 @@ class Game {
 
   void Init() {
     TIMER("Game Initialization");
-    e_ = std::make_unique<EngineModules>(arguments_, params_, window_);
-    debug_ui_ = std::make_unique<DebugUi>(window_, context_, &stats_, e_.get());
-    e_->lua.Register(&DebugConsole::instance());
+    e_ = DirectInit<EngineModules>(allocator_, arguments_, params_, window_,
+                                   allocator_);
+    debug_ui_ = DirectInit<DebugUi>(allocator_, window_, context_, &stats_, e_,
+                                    allocator_);
+    e_->lua.Register(&DebugConsole::Instance());
     e_->lua.Init();
   }
 
@@ -510,20 +521,31 @@ class Game {
 
  private:
   std::vector<const char*> arguments_;
+  Allocator* allocator_;
   GameParams params_;
   SDL_Window* window_ = nullptr;
   SDL_GLContext context_;
-  std::unique_ptr<DebugUi> debug_ui_;
-  std::unique_ptr<EngineModules> e_;
+  DebugUi* debug_ui_;
+  EngineModules* e_;
   Stats stats_;
 };
 
+constexpr size_t kEngineMemory = Gigabytes(4);
+using EngineAllocator = StaticAllocator<kEngineMemory>;
+
+static EngineAllocator* GlobalEngineAllocator() {
+  static auto* allocator = new EngineAllocator;
+  return allocator;
+}
+
 void GameMain(int argc, const char* argv[]) {
-  // Ensure we don't overflow the stack in any module by allocating Game on the
-  // heap.
-  auto g = std::make_unique<Game>(argc, argv);
+  auto* allocator = GlobalEngineAllocator();
+  // Ensure we don't overflow the stack in any module by allocating Game on
+  // the heap.
+  auto* g = DirectInit<Game>(allocator, argc, argv, allocator);
   g->Init();
   g->Run();
+  Destroy(allocator, g);
 }
 
 }  // namespace G

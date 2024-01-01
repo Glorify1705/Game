@@ -16,7 +16,10 @@ namespace G {
 
 class DebugConsole {
  public:
-  DebugConsole() {
+  DebugConsole(Allocator* allocator)
+      : allocator_(allocator),
+        watcher_keys_(allocator),
+        watcher_values_(allocator) {
     SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
     SDL_LogSetOutputFunction(LogWithConsole, this);
   }
@@ -43,7 +46,7 @@ class DebugConsole {
       CopyToBuffer(buf.piece(), linebuffer);
       return;
     }
-    auto* linebuffer = buffers_.New<Linebuffer>();
+    auto* linebuffer = New<Linebuffer>(allocator_);
     CopyToBuffer(buf.piece(), linebuffer);
     watcher_keys_.Push(watcher_values_.Insert(key, linebuffer).map_key);
   }
@@ -58,8 +61,8 @@ class DebugConsole {
     }
   }
 
-  static DebugConsole& instance() {
-    static DebugConsole console;
+  static DebugConsole& Instance() {
+    static DebugConsole console(SystemAllocator::Instance());
     return console;
   }
 
@@ -79,6 +82,7 @@ class DebugConsole {
   void CopyToBuffer(std::string_view text, Linebuffer* buffer);
   void LogLine(std::string_view text);
 
+  Allocator* allocator_;
   StaticAllocator<2 * kMaxLines * sizeof(Linebuffer)> buffers_;
   FixedCircularBuffer<Linebuffer*, kMaxLines> lines_;
   SDL_LogOutputFunction log_fn_;
@@ -94,7 +98,7 @@ class DebugConsole {
 
 #define WATCH_EXPR(str, ...)                                    \
   do {                                                          \
-    G::DebugConsole::instance().AddWatcher(str, ##__VA_ARGS__); \
+    G::DebugConsole::Instance().AddWatcher(str, ##__VA_ARGS__); \
   } while (0);
 #define WATCH_VAR(var) WATCH_EXPR(#var, var)
 

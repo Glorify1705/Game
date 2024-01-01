@@ -30,10 +30,20 @@ inline int32_t MSIProbe(uint64_t hash, int exp, int32_t idx) {
 
 // Intended for static tables with keys that exist for the whole lifetime of the
 // binary.
-template <typename T, typename Allocator = SystemAllocator>
+template <typename T>
 class LookupTable {
  public:
-  LookupTable() { std::fill(key_lengths_.begin(), key_lengths_.end(), 0); }
+  LookupTable(Allocator* allocator)
+      : allocator_(allocator),
+        keys_(allocator),
+        key_strs_(allocator),
+        key_lengths_(allocator),
+        values_(allocator) {
+    key_lengths_.Reserve(key_lengths_.capacity());
+    keys_.Reserve(keys_.capacity());
+    values_.Reserve(values_.capacity());
+    std::fill(key_lengths_.begin(), key_lengths_.end(), 0);
+  }
 
   bool Lookup(std::string_view key, T* value = nullptr) const {
     const uint64_t h = internal::Hash(key.data(), key.size());
@@ -70,8 +80,7 @@ class LookupTable {
       i = internal::MSIProbe(h, kLogTableSize, i);
       if (key_lengths_[i] == 0) {
         DCHECK(elements_ < keys_.size());
-        auto* str = static_cast<char*>(strbufs_.Alloc(key.size(), /*align=*/1));
-        std::memcpy(str, key.data(), key.size());
+        auto* str = key_strs_.Insert(key.data(), key.size());
         keys_[i] = str;
         values_[i] = std::move(value);
         key_lengths_[i] = key.size();
@@ -94,10 +103,11 @@ class LookupTable {
   inline static constexpr size_t kLogTableSize = 15;
   inline static constexpr size_t kKeysSize = 1 << 20;
 
-  StaticAllocator<kKeysSize> strbufs_;
-  std::array<const char*, 1 << kLogTableSize> keys_;
-  std::array<size_t, 1 << kLogTableSize> key_lengths_;
-  UninitializedArray<T, 1 << kLogTableSize> values_;
+  Allocator* allocator_;
+  FixedArray<char*, 1 << kLogTableSize> keys_;
+  FixedArray<char, kKeysSize> key_strs_;
+  FixedArray<size_t, 1 << kLogTableSize> key_lengths_;
+  FixedArray<T, 1 << kLogTableSize> values_;
   size_t elements_ = 0;
 };
 

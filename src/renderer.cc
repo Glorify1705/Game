@@ -11,8 +11,15 @@
 namespace G {
 namespace {}  // namespace
 
-BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders)
-    : shaders_(shaders), viewport_(viewport) {
+BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
+                             Allocator* allocator)
+    : screenshots_(allocator),
+      vertices_(allocator),
+      indices_(allocator),
+      batches_(allocator),
+      tex_(allocator),
+      shaders_(shaders),
+      viewport_(viewport) {
   TIMER();
   glGenVertexArrays(1, &vao_);
   glGenBuffers(1, &vbo_);
@@ -328,8 +335,13 @@ void BatchRenderer::SwitchShaderProgram(std::string_view program_name) {
   shaders_->UseProgram(program_name);
 }
 
-Renderer::Renderer(const Assets& assets, BatchRenderer* renderer)
-    : renderer_(renderer) {
+Renderer::Renderer(const Assets& assets, BatchRenderer* renderer,
+                   Allocator* allocator)
+    : transform_stack_(allocator),
+      spritesheet_info_(allocator),
+      sprites_(allocator),
+      renderer_(renderer),
+      font_table_(allocator) {
   TIMER();
   LoadSpreadsheets(assets);
   LoadFonts(assets, kFontSize);

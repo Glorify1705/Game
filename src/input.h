@@ -17,7 +17,7 @@ namespace G {
 
 class Keyboard {
  public:
-  Keyboard();
+  Keyboard(Allocator* allocator);
   bool IsDown(SDL_Scancode k) const { return pressed_[k]; }
 
   bool IsReleased(SDL_Scancode k) const {
@@ -88,7 +88,7 @@ class Mouse {
 
 class Controllers {
  public:
-  Controllers(const Assets& assets);
+  Controllers(const Assets& assets, Allocator* allocator);
   ~Controllers();
 
   void PushEvent(const SDL_Event& event);

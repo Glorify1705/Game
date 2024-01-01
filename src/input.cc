@@ -15,14 +15,51 @@ void Keyboard::InitForFrame() {
   }
 }
 
-Keyboard::Keyboard() {
-  table_.Insert("w", SDL_SCANCODE_W);
+Keyboard::Keyboard(Allocator* allocator) : table_(allocator) {
   table_.Insert("a", SDL_SCANCODE_A);
-  table_.Insert("s", SDL_SCANCODE_S);
+  table_.Insert("b", SDL_SCANCODE_B);
+  table_.Insert("c", SDL_SCANCODE_C);
   table_.Insert("d", SDL_SCANCODE_D);
-  table_.Insert("z", SDL_SCANCODE_Z);
+  table_.Insert("e", SDL_SCANCODE_E);
   table_.Insert("f", SDL_SCANCODE_F);
+  table_.Insert("g", SDL_SCANCODE_G);
+  table_.Insert("h", SDL_SCANCODE_H);
+  table_.Insert("i", SDL_SCANCODE_I);
+  table_.Insert("j", SDL_SCANCODE_J);
+  table_.Insert("k", SDL_SCANCODE_K);
+  table_.Insert("l", SDL_SCANCODE_L);
+  table_.Insert("m", SDL_SCANCODE_M);
+  table_.Insert("n", SDL_SCANCODE_N);
+  table_.Insert("o", SDL_SCANCODE_O);
+  table_.Insert("p", SDL_SCANCODE_P);
   table_.Insert("q", SDL_SCANCODE_Q);
+  table_.Insert("r", SDL_SCANCODE_R);
+  table_.Insert("s", SDL_SCANCODE_S);
+  table_.Insert("t", SDL_SCANCODE_T);
+  table_.Insert("u", SDL_SCANCODE_U);
+  table_.Insert("v", SDL_SCANCODE_V);
+  table_.Insert("w", SDL_SCANCODE_W);
+  table_.Insert("x", SDL_SCANCODE_X);
+  table_.Insert("y", SDL_SCANCODE_Y);
+  table_.Insert("z", SDL_SCANCODE_Z);
+  table_.Insert("0", SDL_SCANCODE_0);
+  table_.Insert("1", SDL_SCANCODE_1);
+  table_.Insert("2", SDL_SCANCODE_2);
+  table_.Insert("3", SDL_SCANCODE_3);
+  table_.Insert("4", SDL_SCANCODE_4);
+  table_.Insert("5", SDL_SCANCODE_5);
+  table_.Insert("6", SDL_SCANCODE_6);
+  table_.Insert("7", SDL_SCANCODE_7);
+  table_.Insert("8", SDL_SCANCODE_8);
+  table_.Insert("9", SDL_SCANCODE_9);
+  table_.Insert("tab", SDL_SCANCODE_TAB);
+  table_.Insert("backspace", SDL_SCANCODE_BACKSPACE);
+  table_.Insert("enter", SDL_SCANCODE_RETURN);
+  table_.Insert("return", SDL_SCANCODE_RETURN);
+  table_.Insert("lctrl", SDL_SCANCODE_LCTRL);
+  table_.Insert("rctrl", SDL_SCANCODE_RCTRL);
+  table_.Insert("lalt", SDL_SCANCODE_LALT);
+  table_.Insert("ralt", SDL_SCANCODE_RALT);
   table_.Insert("lshift", SDL_SCANCODE_LSHIFT);
   table_.Insert("rshift", SDL_SCANCODE_RSHIFT);
 }
@@ -51,7 +88,8 @@ void Mouse::PushEvent(const SDL_Event& event) {
   }
 }
 
-Controllers::Controllers(const Assets& assets) {
+Controllers::Controllers(const Assets& assets, Allocator* allocator)
+    : button_table_(allocator), axis_table_(allocator) {
   const TextFileAsset* asset = assets.GetText("gamecontrollerdb.txt");
   CHECK(asset != nullptr, "Could not find game controller database");
   SDL_RWops* rwops = SDL_RWFromMem(

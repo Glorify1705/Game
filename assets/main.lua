@@ -68,6 +68,9 @@ function Game:update(t, dt)
     if G.input.is_mouse_pressed(0) then
         G.sound.play_sfx("laser.wav")
     end
+    if G.input.is_key_pressed('m') then
+        G.sound.play_music("music.ogg")
+    end
     self.entities:update(dt)
 end
 
