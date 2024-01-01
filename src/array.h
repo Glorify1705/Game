@@ -198,14 +198,14 @@ class DynArray {
 
   template <typename Alloc>
   void CopyBuffer(const DynArray<T, Alloc>& other) {
-    buffer_ = allocator_->template NewArray<T>(other.capacity_);
+    buffer_ = NewArray<T>(other.capacity_, allocator_);
     std::memcpy(buffer_, other.buffer_, other.elems_ * sizeof(T));
   }
 
   void ResizeIfNeeded() {
     if (buffer_ == nullptr) {
       capacity_ = 16;
-      buffer_ = allocator_->template NewArray<T>(capacity_);
+      buffer_ = NewArray<T>(capacity_, allocator_);
     } else if (elems_ == capacity_) {
       const size_t new_capacity = capacity_ * 2;
       buffer_ = static_cast<T*>(

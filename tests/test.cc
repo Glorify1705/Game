@@ -1,5 +1,6 @@
 #include "array.h"
 #include "bits.h"
+#include "gport-shim.h"
 #include "gtest/gtest.h"
 #include "lookup_table.h"
 #include "uninitialized.h"
@@ -8,7 +9,7 @@
 namespace G {
 
 TEST(Tests, FixedArray) {
-  FixedArray<int, 3> array;
+  FixedArray<int, 3> array(SystemAllocator::Instance());
   EXPECT_EQ(array.size(), 0);
   array.Push(1);
   EXPECT_EQ(array.size(), 1);
@@ -24,7 +25,7 @@ TEST(Tests, FixedArray) {
 }
 
 TEST(Tests, FixedArrayWithAllocator) {
-  FixedArray<int, 3, SystemAllocator> array;
+  FixedArray<int, 3> array(SystemAllocator::Instance());
   EXPECT_EQ(array.size(), 0);
   array.Push(1);
   EXPECT_EQ(array.size(), 1);
@@ -92,7 +93,7 @@ TEST(Tests, Vectors) {
 }
 
 TEST(Tests, LookupTable) {
-  LookupTable<int> table;
+  LookupTable<int> table(SystemAllocator::Instance());
   table.Insert("foo", 1);
   table.Insert("bar", 2);
   EXPECT_EQ(table.size(), 2);
