@@ -6,9 +6,13 @@
 
 namespace G {
 
-inline constexpr size_t Kilobytes(size_t n) { return 1024 * n; }
-inline constexpr size_t Megabytes(size_t n) { return 1024 * Kilobytes(n); }
-inline constexpr size_t Gigabytes(size_t n) { return 1024 * Megabytes(n); }
+inline constexpr std::size_t Kilobytes(std::size_t n) { return 1024 * n; }
+inline constexpr std::size_t Megabytes(std::size_t n) {
+  return 1024 * Kilobytes(n);
+}
+inline constexpr std::size_t Gigabytes(std::size_t n) {
+  return 1024 * Megabytes(n);
+}
 
 }  // namespace G
 
