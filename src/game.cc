@@ -340,7 +340,18 @@ class DebugUi {
     desc.width = width;
     desc.height = height;
     desc.channels = 4;
-    CHECK(qoi_write(screenshot_filename_, buffer, &desc));
+    FILE* f = fopen(screenshot_filename_, "wb");
+    CHECK(f != nullptr, "Could not open file ", screenshot_filename_, ": ",
+          strerror(errno));
+    int size;
+    void* encoded = qoi_encode(buffer, &desc, &size);
+    CHECK(encoded != nullptr, "Could not encode buffer into ",
+          screenshot_filename_);
+    CHECK(fwrite(encoded, 1, size, f) == static_cast<size_t>(size),
+          "Could not write all bytes to ", screenshot_filename_, ": ",
+          strerror(errno));
+    fclose(f);
+    free(encoded);
     LOG("Wrote screenshot with width ", width, " and height ", height);
   }
 
