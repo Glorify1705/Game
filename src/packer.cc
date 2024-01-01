@@ -181,14 +181,11 @@ class Packer {
         qoi_encode(reinterpret_cast<const void*>(img), &desc, &out));
     CHECK(data != nullptr, "Could not encode image ", filename, " as QOI");
     CHECK(out > 0, "Could not encode image ", filename, " as qoi");
-    std::string_view s = WithoutExt(Basename(filename));
-    char qoi_filename[256];
-    std::strncpy(qoi_filename, s.data(), s.size());
-    qoi_filename[s.size()] = '\0';
-    std::strcat(qoi_filename, ".qoi");
-    images_.push_back(CreateImageAsset(fbs_, fbs_.CreateString(qoi_filename),
-                                       desc.width, desc.height, desc.channels,
-                                       fbs_.CreateVector(data, out)));
+    FixedStringBuffer<256> image_filename(WithoutExt(Basename(filename)),
+                                          ".qoi");
+    images_.push_back(CreateImageAsset(
+        fbs_, fbs_.CreateString(image_filename.str()), desc.width, desc.height,
+        desc.channels, fbs_.CreateVector(data, out)));
   }
 
   void HandleScript(std::string_view filename, uint8_t* buf, size_t size) {
