@@ -46,9 +46,9 @@ function Game:init()
             b:on_collision(a)
         end
     end)
-    --    G.sound.set_music_volume(0.1)
-    --    G.sound.set_sfx_volume(0.1)
-    --    G.sound.play_music("music.ogg")
+    G.sound.set_music_volume(0.2)
+    G.sound.set_sfx_volume(0.1)
+    G.sound.play_music("music.ogg")
 end
 
 function Game:update(t, dt)
