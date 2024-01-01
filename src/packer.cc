@@ -13,7 +13,7 @@
 #include "image.h"
 #include "libraries/pugixml.h"
 #include "logging.h"
-#include "memory_units.h"
+#include "units.h"
 #include "zip.h"
 
 namespace G {
