@@ -1,9 +1,10 @@
+#include "lua.h"
+
 #include "SDL.h"
 #include "clock.h"
 #include "console.h"
 #include "image.h"
 #include "input.h"
-#include "lua.h"
 #include "physics.h"
 #include "renderer.h"
 #include "sound.h"
@@ -381,13 +382,30 @@ const struct luaL_Reg kGraphicsLib[] = {
      }},
     {nullptr, nullptr}};
 
-const struct luaL_Reg kSystemLib[] = {{"operating_system",
-                                       [](lua_State* state) {
-                                         lua_pushstring(state,
-                                                        SDL_GetPlatform());
-                                         return 1;
-                                       }},
-                                      {nullptr, nullptr}};
+const struct luaL_Reg kSystemLib[] = {
+    {"operating_system",
+     [](lua_State* state) {
+       lua_pushstring(state, SDL_GetPlatform());
+       return 1;
+     }},
+    {"set_clipboard",
+     [](lua_State* state) {
+       const char* str = luaL_checkstring(state, 1);
+       SDL_SetClipboardText(str);
+       return 0;
+     }},
+    {"get_clipboard",
+     [](lua_State* state) {
+       char* result = SDL_GetClipboardText();
+       const size_t length = strlen(result);
+       if (length == 0) {
+         return luaL_error(state, "Failed to get the clipboard: %s",
+                           SDL_GetError());
+       }
+       lua_pushlstring(state, result, length);
+       return 1;
+     }},
+    {nullptr, nullptr}};
 
 int LuaLogPrint(lua_State* state) {
   const int num_args = lua_gettop(state);

@@ -71,6 +71,9 @@ function Game:update(t, dt)
     if G.input.is_key_pressed('m') then
         G.sound.play_music("music.ogg")
     end
+    if G.input.is_key_pressed('c') then
+        print("Clipboard says: " .. G.system.get_clipboard())
+    end
     self.entities:update(dt)
 end
 
