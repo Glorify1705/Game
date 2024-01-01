@@ -6,6 +6,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #define SDL_MAIN_HANDLED
@@ -311,7 +312,7 @@ class DebugUi {
     ImGui::Begin("Debug Information");
     if (ImGui::TreeNode("Console")) {
       ImGui::BeginChild("Scrolling");
-      DebugConsole::Instance().ForAllLines([this](std::string_view line) {
+      DebugConsole::Instance().ForAllLines([](std::string_view line) {
         ImGui::TextUnformatted(line.data(), line.end());
       });
       ImGui::EndChild();
@@ -361,11 +362,10 @@ class DebugUi {
   void CopyToClipboard() {
     size_t buffer_sz = 0, pos = 0;
     auto& console = DebugConsole::Instance();
-    console.ForAllLines([this, &buffer_sz](std::string_view line) {
-      buffer_sz += line.size() + 1;
-    });
+    console.ForAllLines(
+        [&buffer_sz](std::string_view line) { buffer_sz += line.size() + 1; });
     auto* buffer = new char[buffer_sz + 1];
-    console.ForAllLines([this, &buffer, &pos](std::string_view line) {
+    console.ForAllLines([&buffer, &pos](std::string_view line) {
       std::memcpy(&buffer[pos], line.data(), line.size());
       pos += line.size();
       buffer[pos++] = '\n';
@@ -399,15 +399,16 @@ class DebugUi {
     ImGui::SetNextWindowBgAlpha(0.35f);
     ImGui::Begin("Frame Stats", nullptr, window_flags);
     if (stats_->samples() > 1) {
-      ImGui::TextUnformatted(
-          StrCat("Frame Stats: ", *stats_, " FPS: ", 1.0 / stats_->avg())
-              .c_str());
+      FixedStringBuffer<kMaxLogLineLength> fps_line(
+          "Frame Stats: ", *stats_, " FPS: ", 1.0 / stats_->avg());
+      ImGui::TextUnformatted(fps_line.str());
     }
-    ImGui::TextUnformatted(
-        StrCat("Lua Allocations: ", modules_->lua.AllocatorStats()).c_str());
+    FixedStringBuffer<kMaxLogLineLength> allocs_line(
+        "Lua Allocations: ", modules_->lua.AllocatorStats());
+    ImGui::TextUnformatted(allocs_line.str());
     if (ImGui::BeginTable("Watchers", 2)) {
       DebugConsole::Instance().ForAllWatchers(
-          [this](std::string_view key, std::string_view value) {
+          [](std::string_view key, std::string_view value) {
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(key.data(), key.end());
@@ -421,7 +422,6 @@ class DebugUi {
 
   Stats* stats_;
   EngineModules* modules_;
-  char expressions_[1 << 20];
   LookupTable<const char*> expression_table_;
   bool show_ = false;
   int frame_stats_location_ = 1;

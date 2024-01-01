@@ -1,10 +1,11 @@
+#include "renderer.h"
+
 #include <cmath>
 #include <vector>
 
 #include "clock.h"
 #include "console.h"
 #include "image.h"
-#include "renderer.h"
 #include "strings.h"
 #include "transformations.h"
 

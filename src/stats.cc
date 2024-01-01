@@ -1,8 +1,9 @@
+#include "stats.h"
+
 #include <cstdlib>
 #include <limits>
 
 #include "logging.h"
-#include "stats.h"
 
 namespace G {
 namespace {
