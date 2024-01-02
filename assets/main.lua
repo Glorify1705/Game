@@ -52,6 +52,9 @@ function Game:init()
 end
 
 function Game:update(t, dt)
+    if not G.window.has_input_focus() then
+        return
+    end
     self.timer:update(dt)
     if G.input.is_key_pressed('q') then
         G.quit()

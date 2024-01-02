@@ -794,6 +794,20 @@ const struct luaL_Reg kWindowLib[] = {
        SDL_SetWindowFullscreen(window, 0);
        return 0;
      }},
+    {"has_input_focus",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       lua_pushboolean(state,
+                       SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
+       return 1;
+     }},
+    {"has_mouse_focus",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       lua_pushboolean(state,
+                       SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
+       return 1;
+     }},
     {nullptr, nullptr}};
 
 const struct luaL_Reg kClockLib[] = {{"now",
