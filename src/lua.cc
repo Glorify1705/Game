@@ -678,7 +678,7 @@ const struct luaL_Reg kPhysicsLib[] = {
        lua_pushvalue(state, 1);
        auto* context =
            new CollisionContext{state, luaL_ref(state, LUA_REGISTRYINDEX)};
-       physics->SetContactCallback(
+       physics->SetBeginContactCallback(
            [](uintptr_t lhs, uintptr_t rhs, void* userdata) {
              auto context = reinterpret_cast<CollisionContext*>(userdata);
              lua_rawgeti(context->state, LUA_REGISTRYINDEX,
