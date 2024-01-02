@@ -122,4 +122,15 @@ TEST(Tests, Bits) {
   EXPECT_EQ(NextPow2(2), 2);
 }
 
+TEST(Tests, FixedStringBufferTest) {
+  FixedStringBuffer<16> buffer;
+  EXPECT_STREQ(buffer.str(), "");
+  EXPECT_TRUE(buffer.empty());
+  buffer.Append("foo ");
+  buffer.Append("bar");
+  EXPECT_STREQ(buffer.str(), "foo bar");
+  EXPECT_EQ(buffer.size(), 7);
+  EXPECT_FALSE(buffer.empty());
+}
+
 }  // namespace G
