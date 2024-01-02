@@ -1,5 +1,7 @@
 #include "lua.h"
 
+#include <random>
+
 #include "SDL.h"
 #include "clock.h"
 #include "console.h"
@@ -851,6 +853,16 @@ const struct luaL_Reg kRandomLib[] = {
        auto* handle =
            static_cast<pcg32*>(lua_newuserdata(state, sizeof(pcg64)));
        handle->seed(luaL_checkinteger(state, 1));
+       luaL_getmetatable(state, "rng");
+       lua_setmetatable(state, -2);
+       return 1;
+     }},
+    {"non_deterministic",
+     [](lua_State* state) {
+       pcg_extras::seed_seq_from<std::random_device> seed_source;
+       auto* handle =
+           static_cast<pcg32*>(lua_newuserdata(state, sizeof(pcg64)));
+       handle->seed(seed_source);
        luaL_getmetatable(state, "rng");
        lua_setmetatable(state, -2);
        return 1;

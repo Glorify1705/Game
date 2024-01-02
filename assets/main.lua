@@ -55,7 +55,6 @@ function Game:init()
 end
 
 function Game:update(t, dt)
-    print("Next random: ", self.rnd:next())
     if not G.window.has_input_focus() then
         return
     end
