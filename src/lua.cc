@@ -657,6 +657,21 @@ const struct luaL_Reg kPhysicsLib[] = {
                                  luaL_ref(state, LUA_REGISTRYINDEX));
        return 1;
      }},
+    {"add_circle",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       const float tx = luaL_checknumber(state, 1);
+       const float ty = luaL_checknumber(state, 2);
+       const float radius = luaL_checknumber(state, 3);
+       auto* handle = static_cast<Physics::Handle*>(
+           lua_newuserdata(state, sizeof(Physics::Handle)));
+       luaL_getmetatable(state, "physics_handle");
+       lua_setmetatable(state, -2);
+       lua_pushvalue(state, 4);
+       *handle = physics->AddCircle(FVec(tx, ty), radius,
+                                    luaL_ref(state, LUA_REGISTRYINDEX));
+       return 1;
+     }},
     {"destroy_handle",
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);

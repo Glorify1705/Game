@@ -120,6 +120,38 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
   return Handle{body, userdata};
 }
 
+Physics::Handle Physics::AddCircle(FVec2 position, double radius,
+                                   uintptr_t userdata) {
+  const b2Vec2 p = To(position);
+  b2BodyDef def;
+  def.type = b2_dynamicBody;
+  def.position.Set(p.x, p.y);
+  def.userData.pointer = userdata;
+  b2CircleShape circle;
+  circle.m_p = def.position;
+  circle.m_radius = radius;
+  b2Body* body = world_.CreateBody(&def);
+  b2FixtureDef fixture;
+  fixture.shape = &circle;
+  fixture.density = 2.0f;
+  fixture.friction = 0.3f;
+  body->CreateFixture(&fixture);
+  b2FrictionJointDef jd;
+  float I = body->GetInertia();
+  float mass = body->GetMass();
+  jd.bodyA = ground_;
+  jd.bodyB = body;
+  jd.localAnchorA.SetZero();
+  jd.localAnchorB = body->GetLocalCenter();
+  jd.collideConnected = true;
+  const float gravity = 10.0f;
+  const float torque_radius = b2Sqrt(2.0f * I / mass);
+  jd.maxForce = 0.5f * mass * gravity;
+  jd.maxTorque = 0.2f * mass * torque_radius * gravity;
+  world_.CreateJoint(&jd);
+  return Handle{body, userdata};
+}
+
 void Physics::SetOrigin(FVec2 origin) { world_.ShiftOrigin(To(origin)); }
 
 void Physics::DestroyHandle(Handle handle) {

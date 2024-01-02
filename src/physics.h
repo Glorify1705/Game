@@ -38,6 +38,7 @@ class Physics final : public b2ContactListener {
 
   Handle AddBox(FVec2 top_left, FVec2 top_right, float angle,
                 uintptr_t userdata);
+  Handle AddCircle(FVec2 position, double radius, uintptr_t userdata);
 
   void DestroyHandle(Handle handle);
 
