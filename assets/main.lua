@@ -1,6 +1,7 @@
 local Player = require "player"
 local Meteor = require "meteor"
 local Timer = require "timer"
+local Random = require "random"
 
 local Game = {}
 
@@ -31,6 +32,7 @@ function Entities:draw()
 end
 
 function Game:init()
+    G.window.set_title("My awesome Lua game!")
     self.entities = Entities()
     self.timer = Timer()
     self.player = Player(100, 100)
@@ -49,9 +51,11 @@ function Game:init()
     G.sound.set_music_volume(0.2)
     G.sound.set_sfx_volume(0.1)
     G.sound.play_music("music.ogg")
+    self.rnd = Random()
 end
 
 function Game:update(t, dt)
+    print("Next random: ", self.rnd:next())
     if not G.window.has_input_focus() then
         return
     end

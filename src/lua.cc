@@ -5,6 +5,7 @@
 #include "console.h"
 #include "image.h"
 #include "input.h"
+#include "libraries/pcg_random.h"
 #include "physics.h"
 #include "renderer.h"
 #include "sound.h"
@@ -794,6 +795,18 @@ const struct luaL_Reg kWindowLib[] = {
        SDL_SetWindowFullscreen(window, 0);
        return 0;
      }},
+    {"set_title",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       SDL_SetWindowTitle(window, luaL_checkstring(state, 1));
+       return 0;
+     }},
+    {"get_title",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       lua_pushstring(state, SDL_GetWindowTitle(window));
+       return 1;
+     }},
     {"has_input_focus",
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
@@ -816,6 +829,25 @@ const struct luaL_Reg kClockLib[] = {{"now",
                                         return 1;
                                       }},
                                      {nullptr, nullptr}};
+
+const struct luaL_Reg kRandomLib[] = {
+    {"from_seed",
+     [](lua_State* state) {
+       auto* handle =
+           static_cast<pcg32*>(lua_newuserdata(state, sizeof(pcg64)));
+       handle->seed(luaL_checkinteger(state, 1));
+       luaL_getmetatable(state, "rng");
+       lua_setmetatable(state, -2);
+       return 1;
+     }},
+    {"random",
+     [](lua_State* state) {
+       auto* handle = static_cast<pcg32*>(luaL_checkudata(state, 1, "rng"));
+       lua_Number result = (*handle)();
+       lua_pushnumber(state, result);
+       return 1;
+     }},
+};
 
 struct LuaError {
   std::string_view filename;
@@ -897,6 +929,7 @@ Lua::Lua(std::string_view script_name, Assets* assets, Allocator* allocator)
   Register(this);
   luaL_newmetatable(state_, "physics_handle");
   luaL_newmetatable(state_, "asset_subtexture_ptr");
+  luaL_newmetatable(state_, "rng");
   lua_pop(state_, 2);
   luaL_openlibs(state_);
   lua_newtable(state_);
@@ -917,6 +950,7 @@ Lua::Lua(std::string_view script_name, Assets* assets, Allocator* allocator)
   AddLibrary(state_, "clock", kClockLib);
   AddLibrary(state_, "system", kSystemLib);
   AddLibrary(state_, "window", kWindowLib);
+  AddLibrary(state_, "random", kRandomLib);
   lua_pushcfunction(state_, Traceback);
   traceback_handler_ = lua_gettop(state_);
   // Set print as G.console.log for consistency.
