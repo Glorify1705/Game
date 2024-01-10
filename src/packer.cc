@@ -152,8 +152,8 @@ class Packer {
       DIE("Could not close archive ", output_file, ": ",
           zip_strerror(zip_file));
     }
-    std::printf("Elapsed %ldms\n", NowInMillis() - start_ms_);
-    std::printf("Used %lud out of %lu memory (%.2lf %%)\n",
+    std::printf("Elapsed %llums\n", NowInMillis() - start_ms_);
+    std::printf("Used %llud out of %llu memory (%.2lf %%)\n",
                 allocator_->used_memory(), allocator_->total_memory(),
                 100.0 * allocator_->used_memory() / allocator_->total_memory());
   }
