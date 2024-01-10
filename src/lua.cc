@@ -11,7 +11,6 @@
 #include "renderer.h"
 #include "sound.h"
 
-
 namespace G {
 namespace {
 
@@ -373,8 +372,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        }
        return 0;
      }},
-    {"send_f4x4_uniform",
-     [](lua_State* state) {
+    {"send_f4x4_uniform", [](lua_State* state) {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FMat4x4>(state, 2))) {
@@ -382,8 +380,7 @@ const struct luaL_Reg kGraphicsLib[] = {
                     shaders->LastError().data());
        }
        return 0;
-     }},
-    {nullptr, nullptr}};
+     }}};
 
 const struct luaL_Reg kSystemLib[] = {
     {"operating_system",
@@ -397,8 +394,7 @@ const struct luaL_Reg kSystemLib[] = {
        SDL_SetClipboardText(str);
        return 0;
      }},
-    {"get_clipboard",
-     [](lua_State* state) {
+    {"get_clipboard", [](lua_State* state) {
        char* result = SDL_GetClipboardText();
        const size_t length = strlen(result);
        if (length == 0) {
@@ -407,8 +403,7 @@ const struct luaL_Reg kSystemLib[] = {
        }
        lua_pushlstring(state, result, length);
        return 1;
-     }},
-    {nullptr, nullptr}};
+     }}};
 
 int LuaLogPrint(lua_State* state) {
   const int num_args = lua_gettop(state);
@@ -442,8 +437,7 @@ int LuaLogPrint(lua_State* state) {
 
 const struct luaL_Reg kConsoleLib[] = {
     {"log", LuaLogPrint},
-    {"watch",
-     [](lua_State* state) {
+    {"watch", [](lua_State* state) {
        auto* console = Registry<DebugConsole>::Retrieve(state);
        lua_getglobal(state, "tostring");
        const std::string_view key = GetLuaString(state, 1);
@@ -457,8 +451,7 @@ const struct luaL_Reg kConsoleLib[] = {
        }
        console->AddWatcher(key, std::string_view(s, length));
        return 0;
-     }},
-    {nullptr, nullptr}};
+     }}};
 
 const struct luaL_Reg kInputLib[] = {
     {"mouse_position",
@@ -547,14 +540,12 @@ const struct luaL_Reg kInputLib[] = {
                                              controllers->active_controller()));
        return 1;
      }},
-    {"is_mouse_down",
-     [](lua_State* state) {
+    {"is_mouse_down", [](lua_State* state) {
        auto* mouse = Registry<Mouse>::Retrieve(state);
        const auto button = luaL_checknumber(state, 1);
        lua_pushboolean(state, mouse->IsDown(button));
        return 1;
-     }},
-    {nullptr, nullptr}};
+     }}};
 
 const struct luaL_Reg kSoundLib[] = {
     {"play_music",
@@ -591,8 +582,7 @@ const struct luaL_Reg kSoundLib[] = {
        sound->SetMusicVolume(volume);
        return 0;
      }},
-    {"set_sfx_volume",
-     [](lua_State* state) {
+    {"set_sfx_volume", [](lua_State* state) {
        const float volume = luaL_checknumber(state, 1);
        if (volume < 0 || volume > 1) {
          luaL_error(state, "Invalid volume %f must be in [0, 1)", volume);
@@ -601,8 +591,7 @@ const struct luaL_Reg kSoundLib[] = {
        auto* sound = Registry<Sound>::Retrieve(state);
        sound->SetSoundEffectVolume(volume);
        return 0;
-     }},
-    {nullptr, nullptr}};
+     }}};
 
 const struct luaL_Reg kAssetsLib[] = {
     {"sprite",
@@ -618,8 +607,7 @@ const struct luaL_Reg kAssetsLib[] = {
        lua_setmetatable(state, -2);
        return 1;
      }},
-    {"sprite_info",
-     [](lua_State* state) {
+    {"sprite_info", [](lua_State* state) {
        const SpriteAsset* ptr = nullptr;
        if (lua_isstring(state, 1)) {
          auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -638,8 +626,7 @@ const struct luaL_Reg kAssetsLib[] = {
        lua_pushnumber(state, ptr->height());
        lua_setfield(state, -2, "height");
        return 1;
-     }},
-    {nullptr, nullptr}};
+     }}};
 
 const struct luaL_Reg kPhysicsLib[] = {
     {"add_box",
@@ -773,16 +760,14 @@ const struct luaL_Reg kPhysicsLib[] = {
        physics->ApplyTorque(*handle, x);
        return 0;
      }},
-    {"rotate",
-     [](lua_State* state) {
+    {"rotate", [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
        const float angle = luaL_checknumber(state, 2);
        physics->Rotate(*handle, angle);
        return 0;
-     }},
-    {nullptr, nullptr}};
+     }}};
 
 const struct luaL_Reg kWindowLib[] = {
     {"dimensions",
@@ -831,21 +816,17 @@ const struct luaL_Reg kWindowLib[] = {
                        SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
        return 1;
      }},
-    {"has_mouse_focus",
-     [](lua_State* state) {
+    {"has_mouse_focus", [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        lua_pushboolean(state,
                        SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
        return 1;
-     }},
-    {nullptr, nullptr}};
+     }}};
 
-const struct luaL_Reg kClockLib[] = {{"now",
-                                      [](lua_State* state) {
+const struct luaL_Reg kClockLib[] = {{"now", [](lua_State* state) {
                                         lua_pushnumber(state, NowInSeconds());
                                         return 1;
-                                      }},
-                                     {nullptr, nullptr}};
+                                      }}};
 
 const struct luaL_Reg kRandomLib[] = {
     {"from_seed",
@@ -919,10 +900,15 @@ void LuaCrash(lua_State* state, int idx, Ts... ts) {
   }
 }
 
-void AddLibrary(lua_State* state, const char* name, const luaL_Reg* funcs) {
+template <size_t N>
+void AddLibrary(lua_State* state, const char* name,
+                const luaL_Reg (&funcs)[N]) {
   lua_getglobal(state, "G");
   lua_newtable(state);
-  for (auto* func = funcs; func->name != nullptr; func++) {
+  for (size_t i = 0; i < N; ++i) {
+    CHECK(funcs[i].name != nullptr, "Invalid entry for library ", name, ": ",
+          i);
+    const auto* func = &funcs[i];
     lua_pushstring(state, func->name);
     lua_pushcfunction(state, func->func);
     lua_settable(state, -3);
