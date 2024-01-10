@@ -73,6 +73,8 @@ class Lua {
 
   Stats AllocatorStats() { return allocator_stats_; };
 
+  Allocator* allocator() const { return allocator_; }
+
  private:
   inline static constexpr size_t kMaxMemory = 1 << 24;
 

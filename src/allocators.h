@@ -28,7 +28,7 @@ class Allocator {
                         size_t align) = 0;
 };
 
-template <typename T, typename... Args>
+template <typename T>
 T* New(Allocator* allocator) {
   return reinterpret_cast<T*>(allocator->Alloc(sizeof(T), alignof(T)));
 }
@@ -43,6 +43,13 @@ template <typename T, typename... Args>
 T* DirectInit(Allocator* allocator, Args... args) {
   auto* ptr = New<T>(allocator);
   ::new (ptr) T(std::forward<Args>(args)...);
+  return ptr;
+}
+
+template <typename T, typename... Args>
+T* BraceInit(Allocator* allocator, Args... args) {
+  auto* ptr = New<T>(allocator);
+  ::new (ptr) T{std::forward<Args>(args)...};
   return ptr;
 }
 

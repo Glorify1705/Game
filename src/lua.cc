@@ -14,6 +14,10 @@
 namespace G {
 namespace {
 
+Allocator* GetAllocator(lua_State* state) {
+  return Registry<Lua>::Retrieve(state)->allocator();
+}
+
 template <typename T>
 T FromLuaTable(lua_State* state, int index) {
   T result;
@@ -214,15 +218,16 @@ const struct luaL_Reg kGraphicsLib[] = {
      [](lua_State* state) {
        class Context {
         public:
-         Context(lua_State* state) : state_(state) {
+         Context(lua_State* state, Allocator* allocator) : state_(state) {
            output_file_.Set(GetLuaString(state, 1));
            renderer_ = Registry<BatchRenderer>::Retrieve(state);
            const IVec2 viewport = renderer_->GetViewport();
            width_ = viewport.x;
            height_ = viewport.y;
-           buffer_ = new uint8_t[width_ * height_ * 4];
+           allocator_ = allocator;
+           buffer_ = NewArray<uint8_t>(size(), allocator_);
          }
-         ~Context() { delete[] buffer_; }
+         ~Context() { allocator_->Dealloc(buffer_, size()); }
 
          void RequestScreenshot() {
            renderer_->RequestScreenshot(buffer_, width_, height_, this);
@@ -234,17 +239,21 @@ const struct luaL_Reg kGraphicsLib[] = {
              luaL_error(state_, "Could not write image %s to disk",
                         output_file_.str(), state_);
            }
-           delete this;
+           allocator_->Dealloc(this, sizeof(*this));
          }
 
         private:
+         size_t size() const { return width_ * height_ * 4; }
+
          BatchRenderer* renderer_;
          lua_State* state_;
          FixedStringBuffer<127> output_file_;
          uint8_t* buffer_;
          size_t width_, height_;
+         Allocator* allocator_;
        };
-       auto* context = new Context(state);
+       auto* allocator = GetAllocator(state);
+       auto* context = DirectInit<Context>(allocator, state, allocator);
        context->RequestScreenshot();
        return 0;
      }},
@@ -679,13 +688,15 @@ const struct luaL_Reg kPhysicsLib[] = {
        struct CollisionContext {
          lua_State* state;
          int func_index;
+         Allocator* allocator;
        };
        lua_pushvalue(state, 1);
-       auto* context =
-           new CollisionContext{state, luaL_ref(state, LUA_REGISTRYINDEX)};
+       auto* allocator = GetAllocator(state);
+       auto* context = BraceInit<CollisionContext>(
+           allocator, state, luaL_ref(state, LUA_REGISTRYINDEX), allocator);
        physics->SetBeginContactCallback(
            [](uintptr_t lhs, uintptr_t rhs, void* userdata) {
-             auto context = reinterpret_cast<CollisionContext*>(userdata);
+             auto* context = reinterpret_cast<CollisionContext*>(userdata);
              lua_rawgeti(context->state, LUA_REGISTRYINDEX,
                          context->func_index);
              if (lhs != 0) {
