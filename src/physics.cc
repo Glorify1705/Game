@@ -1,15 +1,13 @@
-#include "physics.h"
-
 #include "console.h"
 #include "lua.h"
 #include "mat.h"
+#include "physics.h"
 #include "transformations.h"
 
 namespace G {
 namespace {
 
 void* BoxAlloc(void* context, int32_t mem) {
-  LOG("Size = ", mem);
   return reinterpret_cast<Allocator*>(context)->Alloc(mem, /*align=*/16);
 }
 
