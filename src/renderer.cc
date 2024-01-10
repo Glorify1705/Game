@@ -1,10 +1,11 @@
+#include "renderer.h"
+
 #include <cmath>
 #include <vector>
 
 #include "clock.h"
 #include "console.h"
 #include "image.h"
-#include "renderer.h"
 #include "strings.h"
 #include "transformations.h"
 
@@ -341,7 +342,8 @@ Renderer::Renderer(const Assets& assets, BatchRenderer* renderer,
       spritesheet_info_(allocator),
       sprites_(allocator),
       renderer_(renderer),
-      font_table_(allocator) {
+      font_table_(allocator),
+      fonts_(allocator) {
   TIMER();
   LoadSpreadsheets(assets);
   LoadFonts(assets, kFontSize);
@@ -432,7 +434,8 @@ void Renderer::LoadSpreadsheets(const Assets& assets) {
 }
 
 void Renderer::LoadFonts(const Assets& assets, float pixel_height) {
-  DCHECK(assets.fonts() < fonts_.size(), "Too many fonts");
+  DCHECK(assets.fonts() < fonts_.capacity(), "Too many fonts");
+  fonts_.Reserve(assets.fonts());
   for (size_t i = 0; i < assets.fonts(); ++i) {
     FontInfo& font = fonts_[i];
     const FontAsset& font_asset = *assets.GetFontByIndex(i);

@@ -24,7 +24,9 @@ class Physics final : public b2ContactListener {
   void UpdateDimensions(IVec2 pixel_dimensions);
 
   using ContactCallback = void (*)(uintptr_t, uintptr_t, void *);
-  void SetContactCallback(ContactCallback contact_callback, void *userdata);
+  void SetBeginContactCallback(ContactCallback contact_callback,
+                               void *userdata);
+  void SetEndContactCallback(ContactCallback contact_callback, void *userdata);
 
   using DestroyCallback = void (*)(uintptr_t, void *);
   void SetDestroyCallback(DestroyCallback destroy_callback, void *userdata);
@@ -37,6 +39,7 @@ class Physics final : public b2ContactListener {
 
   Handle AddBox(FVec2 top_left, FVec2 top_right, float angle,
                 uintptr_t userdata);
+  Handle AddCircle(FVec2 position, double radius, uintptr_t userdata);
 
   void DestroyHandle(Handle handle);
 
@@ -67,8 +70,11 @@ class Physics final : public b2ContactListener {
   b2World world_;
   b2Body *ground_ = nullptr;
 
-  ContactCallback contact_callback_ = DefaultContact;
-  void *contact_userdata_ = this;
+  ContactCallback begin_contact_callback_ = DefaultContact;
+  void *begin_contact_userdata_ = this;
+
+  ContactCallback end_contact_callback_ = DefaultContact;
+  void *end_contact_userdata_ = this;
 
   DestroyCallback destroy_callback_ = DefaultDestroy;
   void *destroy_userdata_ = this;

@@ -96,6 +96,7 @@ set(ASSETS
     "${PROJECT_SOURCE_DIR}/assets/sheet.qoi"
     "${PROJECT_SOURCE_DIR}/assets/vector2d.lua"
     "${PROJECT_SOURCE_DIR}/assets/timer.lua"
+    "${PROJECT_SOURCE_DIR}/assets/random.lua"
     "${PROJECT_SOURCE_DIR}/assets/sheet.xml"
     "${PROJECT_SOURCE_DIR}/assets/terminus.ttf"
     "${PROJECT_SOURCE_DIR}/assets/sheet2.xml"

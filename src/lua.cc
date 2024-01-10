@@ -1,9 +1,13 @@
+#include "lua.h"
+
+#include <random>
+
 #include "SDL.h"
 #include "clock.h"
 #include "console.h"
 #include "image.h"
 #include "input.h"
-#include "lua.h"
+#include "libraries/pcg_random.h"
 #include "physics.h"
 #include "renderer.h"
 #include "sound.h"
@@ -381,13 +385,30 @@ const struct luaL_Reg kGraphicsLib[] = {
      }},
     {nullptr, nullptr}};
 
-const struct luaL_Reg kSystemLib[] = {{"operating_system",
-                                       [](lua_State* state) {
-                                         lua_pushstring(state,
-                                                        SDL_GetPlatform());
-                                         return 1;
-                                       }},
-                                      {nullptr, nullptr}};
+const struct luaL_Reg kSystemLib[] = {
+    {"operating_system",
+     [](lua_State* state) {
+       lua_pushstring(state, SDL_GetPlatform());
+       return 1;
+     }},
+    {"set_clipboard",
+     [](lua_State* state) {
+       const char* str = luaL_checkstring(state, 1);
+       SDL_SetClipboardText(str);
+       return 0;
+     }},
+    {"get_clipboard",
+     [](lua_State* state) {
+       char* result = SDL_GetClipboardText();
+       const size_t length = strlen(result);
+       if (length == 0) {
+         return luaL_error(state, "Failed to get the clipboard: %s",
+                           SDL_GetError());
+       }
+       lua_pushlstring(state, result, length);
+       return 1;
+     }},
+    {nullptr, nullptr}};
 
 int LuaLogPrint(lua_State* state) {
   const int num_args = lua_gettop(state);
@@ -638,6 +659,21 @@ const struct luaL_Reg kPhysicsLib[] = {
                                  luaL_ref(state, LUA_REGISTRYINDEX));
        return 1;
      }},
+    {"add_circle",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       const float tx = luaL_checknumber(state, 1);
+       const float ty = luaL_checknumber(state, 2);
+       const float radius = luaL_checknumber(state, 3);
+       auto* handle = static_cast<Physics::Handle*>(
+           lua_newuserdata(state, sizeof(Physics::Handle)));
+       luaL_getmetatable(state, "physics_handle");
+       lua_setmetatable(state, -2);
+       lua_pushvalue(state, 4);
+       *handle = physics->AddCircle(FVec(tx, ty), radius,
+                                    luaL_ref(state, LUA_REGISTRYINDEX));
+       return 1;
+     }},
     {"destroy_handle",
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
@@ -660,7 +696,7 @@ const struct luaL_Reg kPhysicsLib[] = {
        lua_pushvalue(state, 1);
        auto* context =
            new CollisionContext{state, luaL_ref(state, LUA_REGISTRYINDEX)};
-       physics->SetContactCallback(
+       physics->SetBeginContactCallback(
            [](uintptr_t lhs, uintptr_t rhs, void* userdata) {
              auto context = reinterpret_cast<CollisionContext*>(userdata);
              lua_rawgeti(context->state, LUA_REGISTRYINDEX,
@@ -776,6 +812,32 @@ const struct luaL_Reg kWindowLib[] = {
        SDL_SetWindowFullscreen(window, 0);
        return 0;
      }},
+    {"set_title",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       SDL_SetWindowTitle(window, luaL_checkstring(state, 1));
+       return 0;
+     }},
+    {"get_title",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       lua_pushstring(state, SDL_GetWindowTitle(window));
+       return 1;
+     }},
+    {"has_input_focus",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       lua_pushboolean(state,
+                       SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
+       return 1;
+     }},
+    {"has_mouse_focus",
+     [](lua_State* state) {
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       lua_pushboolean(state,
+                       SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
+       return 1;
+     }},
     {nullptr, nullptr}};
 
 const struct luaL_Reg kClockLib[] = {{"now",
@@ -784,6 +846,35 @@ const struct luaL_Reg kClockLib[] = {{"now",
                                         return 1;
                                       }},
                                      {nullptr, nullptr}};
+
+const struct luaL_Reg kRandomLib[] = {
+    {"from_seed",
+     [](lua_State* state) {
+       auto* handle =
+           static_cast<pcg32*>(lua_newuserdata(state, sizeof(pcg64)));
+       handle->seed(luaL_checkinteger(state, 1));
+       luaL_getmetatable(state, "rng");
+       lua_setmetatable(state, -2);
+       return 1;
+     }},
+    {"non_deterministic",
+     [](lua_State* state) {
+       pcg_extras::seed_seq_from<std::random_device> seed_source;
+       auto* handle =
+           static_cast<pcg32*>(lua_newuserdata(state, sizeof(pcg64)));
+       handle->seed(seed_source);
+       luaL_getmetatable(state, "rng");
+       lua_setmetatable(state, -2);
+       return 1;
+     }},
+    {"random",
+     [](lua_State* state) {
+       auto* handle = static_cast<pcg32*>(luaL_checkudata(state, 1, "rng"));
+       lua_Number result = (*handle)();
+       lua_pushnumber(state, result);
+       return 1;
+     }},
+};
 
 struct LuaError {
   std::string_view filename;
@@ -865,6 +956,7 @@ Lua::Lua(std::string_view script_name, Assets* assets, Allocator* allocator)
   Register(this);
   luaL_newmetatable(state_, "physics_handle");
   luaL_newmetatable(state_, "asset_subtexture_ptr");
+  luaL_newmetatable(state_, "rng");
   lua_pop(state_, 2);
   luaL_openlibs(state_);
   lua_newtable(state_);
@@ -885,6 +977,7 @@ Lua::Lua(std::string_view script_name, Assets* assets, Allocator* allocator)
   AddLibrary(state_, "clock", kClockLib);
   AddLibrary(state_, "system", kSystemLib);
   AddLibrary(state_, "window", kWindowLib);
+  AddLibrary(state_, "random", kRandomLib);
   lua_pushcfunction(state_, Traceback);
   traceback_handler_ = lua_gettop(state_);
   // Set print as G.console.log for consistency.

@@ -209,7 +209,7 @@ std::basic_ostream<CharT, Traits>& operator<<(
 
 template <typename CharT, typename Traits>
 std::basic_istream<CharT, Traits>& operator>>(
-    std::basic_istream<CharT, Traits>& in, uint8_t target) {
+    std::basic_istream<CharT, Traits>& in, uint8_t /*target*/) {
   uint32_t value = 0xdecea5edU;
   in >> value;
   if (!in && value == 0xdecea5edU) return in;
@@ -217,7 +217,6 @@ std::basic_istream<CharT, Traits>& operator>>(
     in.setstate(std::ios::failbit);
     value = ~0U;
   }
-  target = uint8_t(value);
   return in;
 }
 
@@ -227,11 +226,11 @@ std::basic_istream<CharT, Traits>& operator>>(
  */
 
 inline std::ostream& operator<<(std::ostream& out, uint8_t value) {
-  return pcg_extras::operator<<<char>(out, value);
+  return pcg_extras::operator<< <char>(out, value);
 }
 
 inline std::istream& operator>>(std::istream& in, uint8_t& value) {
-  return pcg_extras::operator>><char>(in, value);
+  return pcg_extras::operator>> <char>(in, value);
 }
 
 /*

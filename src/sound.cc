@@ -56,7 +56,7 @@ void Sound::SetMusicVolume(float volume) {
 
 void Sound::SetSoundEffectVolume(float volume) {
   DCHECK(volume >= 0 && volume <= 1, "Invalid volume setting");
-  Mix_MasterVolume(std::clamp(static_cast<int>(volume * 128), 0, 128));
+  Mix_Volume(-1, std::clamp(static_cast<int>(volume * 128), 0, 128));
 }
 
 void Sound::Stop() {

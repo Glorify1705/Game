@@ -229,8 +229,7 @@ class Renderer {
   BatchRenderer* renderer_;
 
   LookupTable<FontInfo*> font_table_;
-  std::array<FontInfo, 32> fonts_;
-  size_t font_count_ = 0;
+  FixedArray<FontInfo, 32> fonts_;
 };
 
 }  // namespace G
