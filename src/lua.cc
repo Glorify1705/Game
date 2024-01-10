@@ -1,5 +1,3 @@
-#include "lua.h"
-
 #include <random>
 
 #include "SDL.h"
@@ -8,9 +6,11 @@
 #include "image.h"
 #include "input.h"
 #include "libraries/pcg_random.h"
+#include "lua.h"
 #include "physics.h"
 #include "renderer.h"
 #include "sound.h"
+
 
 namespace G {
 namespace {
@@ -460,7 +460,7 @@ const struct luaL_Reg kConsoleLib[] = {
      }},
     {nullptr, nullptr}};
 
-const struct luaL_Reg kMouseLib[] = {
+const struct luaL_Reg kInputLib[] = {
     {"mouse_position",
      [](lua_State* state) {
        const FVec2 pos = Mouse::GetPosition();
@@ -970,7 +970,7 @@ Lua::Lua(std::string_view script_name, Assets* assets, Allocator* allocator)
   Register(assets);
   AddLibrary(state_, "console", kConsoleLib);
   AddLibrary(state_, "graphics", kGraphicsLib);
-  AddLibrary(state_, "input", kMouseLib);
+  AddLibrary(state_, "input", kInputLib);
   AddLibrary(state_, "sound", kSoundLib);
   AddLibrary(state_, "physics", kPhysicsLib);
   AddLibrary(state_, "assets", kAssetsLib);
