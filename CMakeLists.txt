@@ -33,6 +33,8 @@ add_subdirectory(libraries/box2d EXCLUDE_FROM_ALL)
 add_subdirectory(libraries/lua EXCLUDE_FROM_ALL)
 add_subdirectory(libraries/xxHash/cmake_unofficial EXCLUDE_FROM_ALL)
 
+add_subdirectory(libraries/physfs EXCLUDE_FROM_ALL)
+
 set(BUILD_REGRESS OFF)
 set(BUILD_EXAMPLES OFF)
 set(BUILD_DOC OFF)
@@ -147,7 +149,7 @@ add_custom_target(Run
                   DEPENDS Game Assets
                   VERBATIM COMMAND_EXPAND_LISTS)
 
-target_link_libraries(Game PRIVATE SDL2::Main SDL2::Mixer flatbuffers box2d lua zip xxHash::xxhash OpenGL::GL)
+target_link_libraries(Game PRIVATE SDL2::Main SDL2::Mixer flatbuffers physfs-static box2d lua zip xxHash::xxhash OpenGL::GL)
 target_link_libraries(Packer PRIVATE flatbuffers zip)
 
 if (WIN32)
