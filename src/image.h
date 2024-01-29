@@ -2,19 +2,28 @@
 #ifndef _GAME_IMAGE_H
 #define _GAME_IMAGE_H
 
-#include "libraries/qoi.h"
-#include "libraries/stb_image.h"
+#include "allocators.h"
 
 namespace G {
 
-void SetImageAlloc(void* (*alloc)(size_t));
+#define QOI_SRGB 0
+#define QOI_LINEAR 1
 
-void SetImageFree(void (*free)(void*));
+struct QoiDesc {
+  unsigned int width;
+  unsigned int height;
+  unsigned char channels;
+  unsigned char colorspace;
+};
 
-void SetImageRealloc(void* (*realloc)(void*, size_t, size_t));
+void *QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
+                Allocator *allocator);
 
-bool WritePixelsToImage(const char* filename, uint8_t* data, size_t width,
-                        size_t height);
+void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
+                Allocator *allocator);
+
+bool WritePixelsToImage(const char *filename, uint8_t *data, size_t width,
+                        size_t height, Allocator *allocator);
 
 }  // namespace G
 

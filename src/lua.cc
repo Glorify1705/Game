@@ -235,7 +235,8 @@ const struct luaL_Reg kGraphicsLib[] = {
 
          void HandleScreenshot(uint8_t* pixels, size_t width, size_t height) {
            LOG("Writing screenshot");
-           if (!WritePixelsToImage(output_file_.str(), pixels, width, height)) {
+           if (!WritePixelsToImage(output_file_.str(), pixels, width, height,
+                                   allocator_)) {
              luaL_error(state_, "Could not write image %s to disk",
                         output_file_.str(), state_);
            }
@@ -943,8 +944,13 @@ void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
 }
 
 Lua::Lua(std::string_view script_name, Assets* assets, Allocator* allocator)
-    : allocator_(allocator) {
-  state_ = luaL_newstate();
+    : allocator_(allocator), assets_(assets) {
+  Load(script_name);
+}
+
+void Lua::Load(std::string_view script_name) {
+  if (state_ != nullptr) lua_close(state_);
+  state_ = lua_newstate(&Lua::LuaAlloc, this);
   lua_setallocf(state_, &Lua::LuaAlloc, this);
   lua_atpanic(state_, [](lua_State* state) {
     LuaCrash(state, 1);
@@ -964,7 +970,7 @@ Lua::Lua(std::string_view script_name, Assets* assets, Allocator* allocator)
   });
   lua_setfield(state_, -2, "quit");
   lua_setglobal(state_, "G");
-  Register(assets);
+  Register(assets_);
   AddLibrary(state_, "console", kConsoleLib);
   AddLibrary(state_, "graphics", kGraphicsLib);
   AddLibrary(state_, "input", kInputLib);
@@ -980,15 +986,15 @@ Lua::Lua(std::string_view script_name, Assets* assets, Allocator* allocator)
   // Set print as G.console.log for consistency.
   lua_pushcfunction(state_, LuaLogPrint);
   lua_setglobal(state_, "print");
-  for (size_t i = 0; i < assets->scripts(); ++i) {
-    auto* script = assets->GetScriptByIndex(i);
+  for (size_t i = 0; i < assets_->scripts(); ++i) {
+    auto* script = assets_->GetScriptByIndex(i);
     std::string_view asset_name(script->filename()->c_str());
     ConsumeSuffix(&asset_name, ".lua");
     if (asset_name != "main") {
       SetPackagePreload(asset_name);
     }
   }
-  auto* main = assets->GetScript(script_name);
+  auto* main = assets_->GetScript(script_name);
   CHECK(main != nullptr, "Unknown script ", script_name);
   LoadMain(*main);
 }

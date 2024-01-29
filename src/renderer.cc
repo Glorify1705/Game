@@ -90,13 +90,13 @@ void BatchRenderer::SetViewport(IVec2 viewport) {
 
 size_t BatchRenderer::LoadTexture(const ImageAsset& image) {
   TIMER("Decoding ", FlatbufferStringview(image.filename()));
-  qoi_desc desc;
-  // TODO: Use an arena for this.
+  QoiDesc desc;
+  constexpr int kChannels = 4;
   auto* image_bytes =
-      qoi_decode(image.contents()->Data(), image.contents()->size(), &desc,
-                 /*channels=*/4);
+      QoiDecode(image.contents()->Data(), image.contents()->size(), &desc,
+                kChannels, allocator_);
   size_t index = LoadTexture(image_bytes, image.width(), image.height());
-  free(image_bytes);
+  allocator_->Dealloc(image_bytes, image.width() * image.height() * kChannels);
   return index;
 }
 

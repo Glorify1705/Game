@@ -340,22 +340,8 @@ class DebugUi {
 
   void HandleScreenshot(uint8_t* buffer, size_t width, size_t height) {
     TIMER("Screenshot");
-    qoi_desc desc;
-    desc.width = width;
-    desc.height = height;
-    desc.channels = 4;
-    FILE* f = fopen(screenshot_filename_, "wb");
-    CHECK(f != nullptr, "Could not open file ", screenshot_filename_, ": ",
-          strerror(errno));
-    int size;
-    void* encoded = qoi_encode(buffer, &desc, &size);
-    CHECK(encoded != nullptr, "Could not encode buffer into ",
-          screenshot_filename_);
-    CHECK(fwrite(encoded, 1, size, f) == static_cast<size_t>(size),
-          "Could not write all bytes to ", screenshot_filename_, ": ",
-          strerror(errno));
-    fclose(f);
-    free(encoded);
+    CHECK(WritePixelsToImage(screenshot_filename_, buffer, width, height,
+                             &allocator_));
     LOG("Wrote screenshot with width ", width, " and height ", height);
   }
 
@@ -427,7 +413,12 @@ class DebugUi {
   bool show_ = false;
   int frame_stats_location_ = 1;
   char screenshot_filename_[256];
-  uint8_t screenshot_[4096 * 4096 * 4];
+  static constexpr size_t kWidth = 4096;
+  static constexpr size_t kHeight = 4096;
+  static constexpr size_t kChannels = 4;
+  static constexpr size_t kTotalSize = kWidth * kHeight * kChannels;
+  uint8_t screenshot_[kTotalSize];
+  StaticAllocator<kTotalSize> allocator_;
 };
 
 class Game {

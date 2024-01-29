@@ -65,6 +65,13 @@ void* GlobalRealloc(void* p, size_t old_size, size_t new_size) {
   return GlobalAllocator()->Realloc(p, old_size, new_size, /*align=*/1);
 }
 
+#define STBI_MALLOC GlobalAlloc
+#define STBI_FREE GlobalDealloc
+#define STBI_REALLOC_SIZED GlobalRealloc
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "libraries/stb_image.h"
+
 std::string_view Basename(std::string_view p) {
   size_t pos = p.size() - 1;
   for (; pos != 0 && p[pos] != '/';) {
@@ -110,9 +117,6 @@ class Packer {
         text_files_(allocator_) {}
 
   static void Init() {
-    SetImageAlloc(GlobalAlloc);
-    SetImageFree(GlobalDealloc);
-    SetImageRealloc(GlobalRealloc);
     pugi::set_memory_management_functions(GlobalAlloc, GlobalDealloc);
   }
 
@@ -164,8 +168,8 @@ class Packer {
   }
 
   void HandleQoiImage(std::string_view filename, uint8_t* buf, size_t size) {
-    qoi_desc desc;
-    qoi_decode(buf, size, &desc, /*components=*/4);
+    QoiDesc desc;
+    QoiDecode(buf, size, &desc, /*components=*/4, GlobalAllocator());
     images_.push_back(CreateImageAsset(fbs_, fbs_.CreateString(filename),
                                        desc.width, desc.height, desc.channels,
                                        fbs_.CreateVector(buf, size)));
@@ -176,14 +180,14 @@ class Packer {
     const uint8_t* img =
         stbi_load_from_memory(buf, size, &width, &height, &channels, 4);
     CHECK(img != nullptr, "Could not decode image ", filename);
-    qoi_desc desc;
+    QoiDesc desc;
     desc.width = width;
     desc.height = height;
     desc.channels = 4;
     desc.colorspace = QOI_SRGB;
     int out = 0;
-    const uint8_t* data = reinterpret_cast<const uint8_t*>(
-        qoi_encode(reinterpret_cast<const void*>(img), &desc, &out));
+    const uint8_t* data = reinterpret_cast<const uint8_t*>(QoiEncode(
+        reinterpret_cast<const void*>(img), &desc, &out, GlobalAllocator()));
     CHECK(data != nullptr, "Could not encode image ", filename, " as QOI");
     CHECK(out > 0, "Could not encode image ", filename, " as qoi");
     FixedStringBuffer<256> image_filename(WithoutExt(Basename(filename)),

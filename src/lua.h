@@ -78,6 +78,10 @@ class Lua {
  private:
   inline static constexpr size_t kMaxMemory = 1 << 24;
 
+  void LoadAssets();
+
+  void Load(std::string_view script_name);
+
   void LoadMain(const ScriptAsset& asset);
   void SetPackagePreload(std::string_view filename);
 
@@ -92,6 +96,8 @@ class Lua {
   int traceback_handler_;
 
   Allocator* allocator_;
+  Assets* assets_;
+
   Stats allocator_stats_;
 };
 
