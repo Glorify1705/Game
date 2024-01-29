@@ -17,6 +17,7 @@
 #include "circular_buffer.h"
 #include "clock.h"
 #include "console.h"
+#include "filesystem.h"
 #include "image.h"
 #include "input.h"
 #include "libraries/glad.h"
