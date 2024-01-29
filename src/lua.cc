@@ -227,7 +227,7 @@ const struct luaL_Reg kGraphicsLib[] = {
            allocator_ = allocator;
            buffer_ = NewArray<uint8_t>(size(), allocator_);
          }
-         ~Context() { allocator_->Dealloc(buffer_, size()); }
+         ~Context() { DeallocArray(buffer_, size(), allocator_); }
 
          void RequestScreenshot() {
            renderer_->RequestScreenshot(buffer_, width_, height_, this);
@@ -239,7 +239,7 @@ const struct luaL_Reg kGraphicsLib[] = {
              luaL_error(state_, "Could not write image %s to disk",
                         output_file_.str(), state_);
            }
-           allocator_->Dealloc(this, sizeof(*this));
+           Destroy(allocator_, this);
          }
 
         private:

@@ -149,6 +149,7 @@ class BatchRenderer {
 
   void TakeScreenshots();
 
+  Allocator* allocator_;
   FixedArray<ScreenshotRequest, 32> screenshots_;
   FixedArray<VertexData, 1 << 24> vertices_;
   FixedArray<GLuint, 1 << 24> indices_;
@@ -220,6 +221,7 @@ class Renderer {
     renderer_->SetActiveTransform(transform_stack_.back());
   }
 
+  Allocator* allocator_;
   FixedArray<FMat4x4, 128> transform_stack_;
 
   LookupTable<SheetTexture> spritesheet_info_;

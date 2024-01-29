@@ -58,6 +58,11 @@ T* NewArray(size_t n, Allocator* allocator) {
   return reinterpret_cast<T*>(allocator->Alloc(n * sizeof(T), alignof(T)));
 }
 
+template <typename T>
+void DeallocArray(T* ptr, size_t n, Allocator* allocator) {
+  allocator->Dealloc(ptr, n * sizeof(T));
+}
+
 template <class T, class Allocator>
 class STLAllocatorWrapper {
  public:

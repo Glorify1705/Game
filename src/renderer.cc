@@ -1,11 +1,10 @@
-#include "renderer.h"
-
 #include <cmath>
 #include <vector>
 
 #include "clock.h"
 #include "console.h"
 #include "image.h"
+#include "renderer.h"
 #include "strings.h"
 #include "transformations.h"
 
@@ -14,7 +13,8 @@ namespace {}  // namespace
 
 BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
                              Allocator* allocator)
-    : screenshots_(allocator),
+    : allocator_(allocator),
+      screenshots_(allocator),
       vertices_(allocator),
       indices_(allocator),
       batches_(allocator),
@@ -306,8 +306,9 @@ void BatchRenderer::TakeScreenshots() {
   const size_t height = viewport_.y;
   // TODO: The renderer already asks for memory, we should use the provided
   // one and flip the rows in place.
-  auto* buffer = new RGBA[width * height];
-  auto* flipped = new RGBA[width * height];
+  const size_t elements = width * height;
+  auto* buffer = NewArray<RGBA>(elements, allocator_);
+  auto* flipped = NewArray<RGBA>(elements, allocator_);
   glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
   for (size_t i = 0; i < width * height; ++i) buffer[i].a = 255;
   {
@@ -326,8 +327,8 @@ void BatchRenderer::TakeScreenshots() {
     }
     req.callback(req.out_buffer, req.width, req.height, req.userdata);
   }
-  delete[] buffer;
-  delete[] flipped;
+  DeallocArray(flipped, elements, allocator_);
+  DeallocArray(buffer, elements, allocator_);
   screenshots_.Clear();
 }
 
@@ -338,7 +339,8 @@ void BatchRenderer::SwitchShaderProgram(std::string_view program_name) {
 
 Renderer::Renderer(const Assets& assets, BatchRenderer* renderer,
                    Allocator* allocator)
-    : transform_stack_(allocator),
+    : allocator_(allocator),
+      transform_stack_(allocator),
       spritesheet_info_(allocator),
       sprites_(allocator),
       renderer_(renderer),
@@ -453,12 +455,13 @@ void Renderer::LoadFonts(const Assets& assets, float pixel_height) {
                               256, font.chars.data()) == 1,
           "Could not load font");
     stbtt_PackEnd(&font.context);
-    uint8_t* buffer = new uint8_t[4 * font.atlas.size()];
+    const size_t bytes = 4 * font.atlas.size();
+    uint8_t* buffer = NewArray<uint8_t>(4 * font.atlas.size(), allocator_);
     for (size_t i = 0, j = 0; j < font.atlas.size(); j++, i += 4) {
       std::memset(&buffer[i], font.atlas[j], 4);
     }
     font.texture = renderer_->LoadTexture(buffer, kAtlasWidth, kAtlasHeight);
-    delete[] buffer;
+    allocator_->Dealloc(buffer, bytes);
     font_table_.Insert(FlatbufferStringview(font_asset.filename()), &font);
   }
 }
