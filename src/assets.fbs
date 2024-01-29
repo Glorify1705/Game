@@ -68,7 +68,7 @@ table TextFileAsset {
 
 table AssetsPack {
     images: [ImageAsset];
-    sprite_sheets: [SpritesheetAsset];
+    spritesheets: [SpritesheetAsset];
     scripts: [ScriptAsset];
     sounds: [SoundAsset];
     fonts: [FontAsset];

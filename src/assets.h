@@ -33,9 +33,9 @@ class Assets {
   }
   const SpritesheetAsset* GetSpritesheet(std::string_view name) const;
   const SoundAsset* GetSound(std::string_view name) const;
-  size_t spritesheets() const { return assets_->sprite_sheets()->size(); }
+  size_t spritesheets() const { return assets_->spritesheets()->size(); }
   const SpritesheetAsset* GetSpritesheetByIndex(size_t idx) const {
-    return assets_->sprite_sheets()->Get(idx);
+    return assets_->spritesheets()->Get(idx);
   }
   const FontAsset* GetFont(std::string_view name) const;
   size_t fonts() const { return assets_->fonts()->size(); }

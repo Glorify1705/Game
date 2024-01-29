@@ -26,7 +26,7 @@ const ScriptAsset* Assets::GetScript(std::string_view name) const {
   return Search(*assets_->scripts(), name);
 }
 const SpritesheetAsset* Assets::GetSpritesheet(std::string_view name) const {
-  return Search(*assets_->sprite_sheets(), name);
+  return Search(*assets_->spritesheets(), name);
 }
 
 const SoundAsset* Assets::GetSound(std::string_view name) const {

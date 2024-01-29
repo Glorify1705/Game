@@ -131,7 +131,7 @@ class Packer {
     AssetsPackBuilder assets(fbs_);
     assets.add_images(image_vec);
     assets.add_scripts(scripts_vec);
-    assets.add_sprite_sheets(sprite_sheets_vec);
+    assets.add_spritesheets(sprite_sheets_vec);
     assets.add_sounds(sounds_vec);
     assets.add_fonts(fonts_vec);
     assets.add_shaders(shaders_vec);
