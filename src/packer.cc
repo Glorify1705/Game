@@ -120,7 +120,7 @@ class Packer {
     pugi::set_memory_management_functions(GlobalAlloc, GlobalDealloc);
   }
 
-  void Finish(const char* output_file) {
+  void Finish() {
     auto image_vec = fbs_.CreateVector(images_);
     auto scripts_vec = fbs_.CreateVector(scripts_);
     auto sprite_sheets_vec = fbs_.CreateVector(spritesheets_);
@@ -137,6 +137,9 @@ class Packer {
     assets.add_shaders(shaders_vec);
     assets.add_texts(text_files_vec);
     fbs_.Finish(assets.Finish());
+  }
+
+  void WriteToZip(const char* output_file) {
     zip_error_t zip_error;
     int zip_error_code;
     zip_t* zip_file =
@@ -330,7 +333,8 @@ void PackerMain(const char* output_file) {
   }
   PHYSFS_freeList(rc);
   LOG("Finished with files, packing to ", output_file);
-  packer.Finish(output_file);
+  packer.Finish();
+  packer.WriteToZip(output_file);
 }
 
 }  // namespace G
