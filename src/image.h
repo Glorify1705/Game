@@ -2,6 +2,8 @@
 #ifndef _GAME_IMAGE_H
 #define _GAME_IMAGE_H
 
+#include <cstdint>
+
 #include "allocators.h"
 
 namespace G {
@@ -10,10 +12,10 @@ namespace G {
 #define QOI_LINEAR 1
 
 struct QoiDesc {
-  unsigned int width;
-  unsigned int height;
-  unsigned char channels;
-  unsigned char colorspace;
+  uint64_t width;
+  uint64_t height;
+  uint8_t channels;
+  uint8_t colorspace;
 };
 
 void *QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
