@@ -87,28 +87,6 @@ set(PACKER_SRCS
     "src/strings.cc"
     "${PROJECT_BINARY_DIR}/assets_generated.h")
 
-set(ASSETS
-    "${PROJECT_SOURCE_DIR}/assets/classic.lua"
-    "${PROJECT_SOURCE_DIR}/assets/lume.lua"
-    "${PROJECT_SOURCE_DIR}/assets/main.lua"
-    "${PROJECT_SOURCE_DIR}/assets/physics.lua"
-    "${PROJECT_SOURCE_DIR}/assets/entity.lua"
-    "${PROJECT_SOURCE_DIR}/assets/meteor.lua"
-    "${PROJECT_SOURCE_DIR}/assets/player.lua"
-    "${PROJECT_SOURCE_DIR}/assets/sheet.qoi"
-    "${PROJECT_SOURCE_DIR}/assets/vector2d.lua"
-    "${PROJECT_SOURCE_DIR}/assets/timer.lua"
-    "${PROJECT_SOURCE_DIR}/assets/random.lua"
-    "${PROJECT_SOURCE_DIR}/assets/sheet.xml"
-    "${PROJECT_SOURCE_DIR}/assets/terminus.ttf"
-    "${PROJECT_SOURCE_DIR}/assets/sheet2.xml"
-    "${PROJECT_SOURCE_DIR}/assets/sheet2.png"
-    "${PROJECT_SOURCE_DIR}/assets/basic.frag"
-    "${PROJECT_SOURCE_DIR}/assets/pixelate.frag"
-    "${PROJECT_SOURCE_DIR}/assets/music.ogg"
-    "${PROJECT_SOURCE_DIR}/assets/gamecontrollerdb.txt"
-    "${PROJECT_SOURCE_DIR}/assets/laser.wav")
-
 add_executable(Game "${GAME_SRCS}")
 add_executable(Packer "${PACKER_SRCS}")
 
@@ -136,7 +114,7 @@ target_compile_options(Packer PRIVATE ${COMPILER_FLAGS})
 
 add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/assets.zip"
-    COMMAND Packer ARGS "${CMAKE_CURRENT_BINARY_DIR}/assets.zip" ${ASSETS}
+    COMMAND Packer ARGS "${CMAKE_CURRENT_BINARY_DIR}/assets.zip" "${PROJECT_SOURCE_DIR}/assets"
     DEPENDS Packer ${ASSETS})
 
 add_custom_target(
@@ -150,7 +128,7 @@ add_custom_target(Run
                   VERBATIM COMMAND_EXPAND_LISTS)
 
 target_link_libraries(Game PRIVATE SDL2::Main SDL2::Mixer flatbuffers physfs-static box2d lua zip xxHash::xxhash OpenGL::GL)
-target_link_libraries(Packer PRIVATE flatbuffers zip)
+target_link_libraries(Packer PRIVATE flatbuffers zip physfs-static)
 
 if (WIN32)
     add_custom_command(

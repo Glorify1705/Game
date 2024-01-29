@@ -13,11 +13,16 @@
 #include "image.h"
 #include "libraries/pugixml.h"
 #include "logging.h"
+#include "physfs.h"
 #include "units.h"
 #include "zip.h"
 
 namespace G {
 namespace {
+
+#define PHYSFS_CHECK(call, ...)                                \
+  CHECK(call != 0, "Failed to execute " #call " with error: ", \
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()), ##__VA_ARGS__)
 
 using Clock = std::chrono::high_resolution_clock;
 using Time = std::chrono::time_point<Clock>;
@@ -77,16 +82,16 @@ std::string_view WithoutExt(std::string_view p) {
 }
 
 std::pair<uint8_t*, size_t> ReadWholeFile(const char* path) {
-  FILE* f = std::fopen(path, "rb");
-  CHECK(f != nullptr, "Could not read ", path);
-  std::fseek(f, 0, SEEK_END);
-  const size_t fsize = std::ftell(f);
-  std::fseek(f, 0, SEEK_SET);
-  auto* buffer = static_cast<uint8_t*>(GlobalAlloc(fsize));
-  CHECK(std::fread(buffer, fsize, 1, f) == 1, " failed to read ", path,
-        " ferror = ", strerror(ferror(f)));
-  fclose(f);
-  return {buffer, fsize};
+  auto* handle = PHYSFS_openRead(path);
+  CHECK(handle != nullptr, "Could not read ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+  const int64_t bytes = PHYSFS_fileLength(handle);
+  auto* buffer = static_cast<uint8_t*>(GlobalAlloc(bytes));
+  CHECK(PHYSFS_readBytes(handle, buffer, bytes) == bytes, " failed to read ",
+        path, " error = ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+  CHECK(PHYSFS_close(handle), "failed to finish reading ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+  return {buffer, bytes};
 }
 
 class Packer {
@@ -297,15 +302,19 @@ FileHandler kHandlers[] = {{".lua", &Packer::HandleScript},
 
 }  // namespace
 
-void PackerMain(const char* output_file, const std::vector<const char*> paths) {
+void PackerMain(const char* output_file) {
   Packer::Init();
   Packer packer;
-  for (const char* path : paths) {
+  char** rc = PHYSFS_enumerateFiles("/");
+  CHECK(rc != nullptr, "Failed to enumerate files: ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+  for (char** p = rc; *p; p++) {
+    const char* path = *p;
+    LOG("Found file: ", path);
     std::string_view fname = Basename(path);
     bool handled = false;
     for (auto& handler : kHandlers) {
       if (HasSuffix(path, handler.extension)) {
-        LOG("Handling ", path, " with basename ", fname);
         auto [buffer, fsize] = ReadWholeFile(path);
         auto method = handler.method;
         (packer.*method)(fname, buffer, fsize);
@@ -313,8 +322,9 @@ void PackerMain(const char* output_file, const std::vector<const char*> paths) {
         break;
       }
     }
-    if (!handled) DIE("No handler for file ", path);
+    if (!handled) LOG("No handler for file ", path);
   }
+  PHYSFS_freeList(rc);
   LOG("Finished with files, packing to ", output_file);
   packer.Finish(output_file);
 }
@@ -322,6 +332,9 @@ void PackerMain(const char* output_file, const std::vector<const char*> paths) {
 }  // namespace G
 
 int main(int argc, const char* argv[]) {
-  CHECK(argc > 2, "Usage: <output file> <files to pack>");
-  G::PackerMain(argv[1], std::vector(argv + 2, argv + argc));
+  PHYSFS_CHECK(PHYSFS_init(argv[0]));
+  CHECK(argc > 2, "Usage: <output file> <directory with assets>");
+  PHYSFS_CHECK(PHYSFS_mount(argv[2], "/", 1));
+  G::PackerMain(argv[1]);
+  PHYSFS_deinit();
 }
