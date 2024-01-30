@@ -1020,11 +1020,11 @@ void Lua::LoadMain(const ScriptAsset& asset) {
     }
     lua_pop(state_, 1);
   }
-  lua_setglobal(state_, "Game");
+  lua_setglobal(state_, "_Game");
 }
 
 void Lua::Init() {
-  lua_getglobal(state_, "Game");
+  lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "init");
   lua_insert(state_, -2);
   if (lua_pcall(state_, 1, LUA_MULTRET, traceback_handler_)) {
@@ -1034,7 +1034,7 @@ void Lua::Init() {
 }
 
 void Lua::Update(float t, float dt) {
-  lua_getglobal(state_, "Game");
+  lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "update");
   lua_insert(state_, -2);
   lua_pushnumber(state_, t);
@@ -1046,7 +1046,7 @@ void Lua::Update(float t, float dt) {
 }
 
 void Lua::Draw() {
-  lua_getglobal(state_, "Game");
+  lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "draw");
   lua_insert(state_, -2);
   if (lua_pcall(state_, 1, 0, traceback_handler_)) {
