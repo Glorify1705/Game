@@ -62,6 +62,18 @@ Keyboard::Keyboard(Allocator* allocator) : table_(allocator) {
   table_.Insert("ralt", SDL_SCANCODE_RALT);
   table_.Insert("lshift", SDL_SCANCODE_LSHIFT);
   table_.Insert("rshift", SDL_SCANCODE_RSHIFT);
+  table_.Insert("f1", SDL_SCANCODE_F1);
+  table_.Insert("f2", SDL_SCANCODE_F2);
+  table_.Insert("f3", SDL_SCANCODE_F3);
+  table_.Insert("f4", SDL_SCANCODE_F4);
+  table_.Insert("f5", SDL_SCANCODE_F5);
+  table_.Insert("f6", SDL_SCANCODE_F6);
+  table_.Insert("f7", SDL_SCANCODE_F7);
+  table_.Insert("f8", SDL_SCANCODE_F8);
+  table_.Insert("f9", SDL_SCANCODE_F9);
+  table_.Insert("f10", SDL_SCANCODE_F10);
+  table_.Insert("f11", SDL_SCANCODE_F11);
+  table_.Insert("f12", SDL_SCANCODE_F12);
 }
 
 void Keyboard::PushEvent(const SDL_Event& event) {
