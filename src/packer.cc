@@ -223,6 +223,7 @@ void Packer::HandleTextFile(std::string_view filename, uint8_t* buf,
 }
 
 Assets Packer::HandleFiles() {
+  // TODO: This uses insane amounts of memory and needs to be reduced.
   struct FileHandler {
     std::string_view extension;
     void (Packer::*method)(std::string_view filename, uint8_t* buf,
