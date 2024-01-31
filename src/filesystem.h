@@ -2,29 +2,55 @@
 #ifndef _GAME_FILESYSTEM_H
 #define _GAME_FILESYSTEM_H
 
+#include <cstdint>
+#include <string_view>
+
+#include "allocators.h"
 #include "physfs.h"
 
 namespace G {
 
-class Filesystem {
- public:
-#if 0
-  bool Init(Allocator* allocator, const char* program_name,
-            const char* error_buffer, size_t buffer_size) {
-    PHYSFS_init(program_name);
-    return true;
+#define PHYSFS_CHECK(cond, ...)                               \
+  CHECK(cond, "Failed Phys condition " #cond " with error: ", \
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()), ##__VA_ARGS__)
+
+inline std::pair<uint8_t*, size_t> ReadWholeFile(const char* path,
+                                                 Allocator* allocator) {
+  auto* handle = PHYSFS_openRead(path);
+  CHECK(handle != nullptr, "Could not read ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+  const int64_t bytes = PHYSFS_fileLength(handle);
+  auto* buffer = static_cast<uint8_t*>(allocator->Alloc(bytes, /*align=*/1));
+  CHECK(PHYSFS_readBytes(handle, buffer, bytes) == bytes, " failed to read ",
+        path, " error = ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+  CHECK(PHYSFS_close(handle), "failed to finish reading ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+  return {buffer, bytes};
+}
+
+inline std::string_view Basename(std::string_view p) {
+  size_t pos = p.size() - 1;
+  for (; pos != 0 && p[pos] != '/';) {
+    pos--;
   }
+  return p[pos] == '/' ? p.substr(pos + 1) : p;
+}
 
-  void Deinit() { PHYSFS_deinit(); }
-
-  enum class AddToPath { kPrepend, kAppend };
-
-  void AddDir(const char* directory, const char* mount, AddToPath add_to_path) {
+inline std::string_view WithoutExt(std::string_view p) {
+  size_t pos = p.size() - 1;
+  for (; pos != 0 && p[pos] != '.';) {
+    pos--;
   }
+  return p[pos] == '.' ? p.substr(0, pos) : p;
+}
 
-  int Write(const char* filename, const char* data, size_t size) { return 0; }
-#endif
-};
+inline std::string_view Extension(std::string_view p) {
+  size_t pos = p.size() - 1;
+  for (; pos != 0 && p[pos] != '.';) {
+    pos--;
+  }
+  return (pos == 0 && p[pos] != '.') ? p : p.substr(pos + 1);
+}
 
 }  // namespace G
 

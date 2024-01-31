@@ -47,7 +47,7 @@ find_package(SDL2_mixer REQUIRED)
 
 add_custom_command(
         OUTPUT assets_generated.h
-        COMMAND flatc -o "${CMAKE_CURRENT_BINARY_DIR}" --cpp-std c++17 --cpp-static-reflection --cpp
+        COMMAND flatc -o "${CMAKE_CURRENT_BINARY_DIR}" --gen-object-api --cpp-std c++17 --cpp-static-reflection --cpp
                 "${CMAKE_CURRENT_SOURCE_DIR}/src/assets.fbs"
         DEPENDS flatc src/assets.fbs)
 
@@ -76,19 +76,10 @@ set(GAME_SRCS
     "libraries/stb_rect_pack.cc"
     "src/strings.cc"
     "src/transformations.cc"
+    "src/packer.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/assets_generated.h")
 
-set(PACKER_SRCS
-    "src/logging.cc"
-    "src/packer.cc"
-    "libraries/pugixml.cc"
-    "src/assets.cc"
-    "src/image.cc"
-    "src/strings.cc"
-    "${PROJECT_BINARY_DIR}/assets_generated.h")
-
 add_executable(Game "${GAME_SRCS}")
-add_executable(Packer "${PACKER_SRCS}")
 
 target_include_directories(Game 
                            PRIVATE 
@@ -105,30 +96,12 @@ set(COMPILER_FLAGS
 
 target_compile_options(Game PRIVATE ${COMPILER_FLAGS})
 
-target_include_directories(Packer
-                           PRIVATE 
-                           "${CMAKE_CURRENT_BINARY_DIR}"
-                           "${PROJECT_SOURCE_DIR}")
-
-target_compile_options(Packer PRIVATE ${COMPILER_FLAGS})
-
-add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/assets.zip"
-    COMMAND Packer ARGS "${CMAKE_CURRENT_BINARY_DIR}/assets.zip" "${PROJECT_SOURCE_DIR}/assets"
-    DEPENDS Packer ${ASSETS})
-
-add_custom_target(
-    Assets
-    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/assets.zip"
-)
-
-add_custom_target(Run
-                  COMMAND "${CMAKE_CURRENT_BINARY_DIR}/Game" "${CMAKE_CURRENT_BINARY_DIR}/assets.zip"
-                  DEPENDS Game Assets
+add_custom_target(Run ALL
+                  COMMAND "${CMAKE_CURRENT_BINARY_DIR}/Game" "${PROJECT_SOURCE_DIR}/assets"
+                  DEPENDS Game
                   VERBATIM COMMAND_EXPAND_LISTS)
 
 target_link_libraries(Game PRIVATE SDL2::Main SDL2::Mixer flatbuffers physfs-static box2d lua zip xxHash::xxhash OpenGL::GL)
-target_link_libraries(Packer PRIVATE flatbuffers zip physfs-static)
 
 if (WIN32)
     add_custom_command(

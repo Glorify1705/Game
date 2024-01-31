@@ -28,6 +28,7 @@
 #include "lua.h"
 #include "mat.h"
 #include "math.h"
+#include "packer.h"
 #include "physics.h"
 #include "renderer.h"
 #include "shaders.h"
@@ -39,6 +40,14 @@
 #include "zip.h"
 
 namespace G {
+
+constexpr size_t kEngineMemory = Gigabytes(4);
+using EngineAllocator = StaticAllocator<kEngineMemory>;
+
+static EngineAllocator* GlobalEngineAllocator() {
+  static auto* allocator = new EngineAllocator;
+  return allocator;
+}
 
 struct GameParams {
   int screen_width = 1440;
@@ -85,58 +94,21 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
   }
 }
 
-constexpr size_t kAssetMemory = Gigabytes(1);
-using AssetAllocator = StaticAllocator<kAssetMemory>;
-
-static AssetAllocator* GlobalAssetAllocator() {
-  static auto* allocator = new AssetAllocator;
-  return allocator;
-}
-
-const uint8_t* ReadAssets(const std::vector<const char*>& arguments) {
-  TIMER();
-  const char* output_file = arguments.empty() ? "assets.zip" : arguments[0];
-  constexpr char kAssetFileName[] = "assets.bin";
-  zip_error_t zip_error;
-  int zip_error_code;
-  zip_t* zip_file = zip_open(output_file, ZIP_RDONLY, &zip_error_code);
-  if (zip_file == nullptr) {
-    zip_error_init_with_code(&zip_error, zip_error_code);
-    DIE("Failed to open ", output_file,
-        " as a zip file: ", zip_error_strerror(&zip_error));
+Assets GetAssets(const std::vector<const char*>& arguments,
+                 Allocator* allocator) {
+  if (arguments.empty()) {
+    LOG("Reading assets from assets.zip since no file was provided");
+    return ReadAssets("assets.zip", allocator);
   }
-  const int64_t num_entries = zip_get_num_entries(zip_file, ZIP_FL_UNCHANGED);
-  if (num_entries == 0) LOG("Zip file has no entries");
-  CHECK(num_entries == 1, "Expected one file");
-  const char* filename = zip_get_name(zip_file, 0, ZIP_FL_ENC_RAW);
-  CHECK(!std::strcmp(filename, kAssetFileName), "Expected a file named ",
-        kAssetFileName, " found ", filename);
-  for (int i = 0; i < num_entries; ++i) {
-    LOG("Found file ", zip_get_name(zip_file, i, ZIP_FL_ENC_RAW),
-        " in zip file");
+  if (Extension(arguments[0]) == "zip") {
+    LOG("Reading assets from ", arguments[0]);
+    return ReadAssets(arguments[0], allocator);
   }
-  zip_stat_t stat;
-  if (zip_stat(zip_file, kAssetFileName, ZIP_FL_ENC_UTF_8, &stat) == -1) {
-    DIE("Failed to open ", output_file,
-        " as a zip file: ", zip_strerror(zip_file));
-  }
-  auto* assets_file = zip_fopen(zip_file, kAssetFileName, /*flags=*/0);
-  if (assets_file == nullptr) {
-    DIE("Failed to decompress ", output_file, ": ", zip_strerror(zip_file));
-  }
-  auto* buffer = NewArray<uint8_t>(stat.size, GlobalAssetAllocator());
-  if (zip_fread(assets_file, buffer, stat.size) == -1) {
-    DIE("Failed to read decompressed file");
-  }
-  LOG("Read assets file (", stat.size, " bytes)");
-  return buffer;
+  LOG("Packing all files in directory ", arguments[0]);
+  return PackFiles(arguments[0], allocator);
 }
 
 struct EngineModules {
- private:
-  const uint8_t* assets_buf_ = nullptr;
-
- public:
   Assets assets;
   Shaders shaders;
   BatchRenderer batch_renderer;
@@ -151,8 +123,7 @@ struct EngineModules {
   EngineModules(const std::vector<const char*> arguments,
                 const GameParams& params, SDL_Window* window,
                 Allocator* allocator)
-      : assets_buf_(ReadAssets(arguments)),
-        assets(assets_buf_),
+      : assets(GetAssets(arguments, allocator)),
         shaders(assets, allocator),
         batch_renderer(IVec2(params.screen_width, params.screen_height),
                        &shaders, allocator),
@@ -393,6 +364,12 @@ class DebugUi {
     FixedStringBuffer<kMaxLogLineLength> allocs_line(
         "Lua Allocations: ", modules_->lua.AllocatorStats());
     ImGui::TextUnformatted(allocs_line.str());
+    auto* allocator = GlobalEngineAllocator();
+    FixedStringBuffer<kMaxLogLineLength> memory_used_line(
+        "Allocator memory used: ", allocator->used_memory(), " / ",
+        allocator->total_memory(), " (",
+        ((100.0 * allocator->used_memory()) / allocator->total_memory()), ")");
+    ImGui::TextUnformatted(memory_used_line.str());
     if (ImGui::BeginTable("Watchers", 2)) {
       DebugConsole::Instance().ForAllWatchers(
           [](std::string_view key, std::string_view value) {
@@ -421,6 +398,10 @@ class DebugUi {
   StaticAllocator<kTotalSize> allocator_;
 };
 
+#define PHYSFS_CHECK(cond, ...)                               \
+  CHECK(cond, "Failed Phys condition " #cond " with error: ", \
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()), ##__VA_ARGS__)
+
 class Game {
  public:
   Game(int argc, const char* argv[], Allocator* allocator)
@@ -431,6 +412,8 @@ class Game {
     InitializeSDL();
     window_ = CreateWindow(params_);
     context_ = CreateOpenglContext(window_);
+    PHYSFS_CHECK(PHYSFS_init(argv[0]),
+                 "Could not initialize PhysFS: ", argv[0]);
     PrintDependencyVersions();
   }
 
@@ -442,6 +425,7 @@ class Game {
     }
     Mix_Quit();
     SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
+    PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
     SDL_GL_DeleteContext(context_);
     SDL_DestroyWindow(window_);
     SDL_Quit();
@@ -521,14 +505,6 @@ class Game {
   EngineModules* e_;
   Stats stats_;
 };
-
-constexpr size_t kEngineMemory = Gigabytes(4);
-using EngineAllocator = StaticAllocator<kEngineMemory>;
-
-static EngineAllocator* GlobalEngineAllocator() {
-  static auto* allocator = new EngineAllocator;
-  return allocator;
-}
 
 void GameMain(int argc, const char* argv[]) {
   auto* allocator = GlobalEngineAllocator();

@@ -3,8 +3,6 @@ local Meteor = require "meteor"
 local Timer = require "timer"
 local Random = require "random"
 
-local Game = {}
-
 local Entities = Object:extend()
 
 function Entities:new()
@@ -31,7 +29,9 @@ function Entities:draw()
     end
 end
 
-function Game:init()
+local G1 = {}
+
+function G1:init()
     G.window.set_title("My awesome Lua game!")
     self.entities = Entities()
     self.timer = Timer()
@@ -54,7 +54,7 @@ function Game:init()
     self.rnd = Random()
 end
 
-function Game:update(t, dt)
+function G1:update(t, dt)
     if not G.window.has_input_focus() then
         return
     end
@@ -83,7 +83,7 @@ function Game:update(t, dt)
     self.entities:update(dt)
 end
 
-function Game:draw()
+function G1:draw()
     self.entities:draw()
     local mx, my = G.input.mouse_position()
     G.graphics.set_color(255, 0, 0, 255)
@@ -92,6 +92,44 @@ function Game:draw()
     G.graphics.draw_rect(10, 10, 300, 20)
     G.graphics.set_color(255, 255, 255, 255)
     G.graphics.draw_sprite("numeralX", mx, my)
+end
+
+local G2 = {}
+
+function G2:init()
+end
+
+function G2:update(t, dt)
+end
+
+function G2:draw()
+end
+
+local Game = { g = G1 }
+
+function Game:init()
+    self.g:init()
+end
+
+function Game:update(t, dt)
+    if G.input.is_key_pressed('n') then
+        print("Using Game G1")
+        if self.g ~= G1 then
+            self.g = G1
+            self.g:init()
+        end
+    elseif G.input.is_key_pressed('m') then
+        print("Using Game G2")
+        if self.g ~= G2 then
+            self.g = G2
+            self.g:init()
+        end
+    end
+    self.g:update(t, dt)
+end
+
+function Game:draw()
+    self.g:draw()
 end
 
 return Game

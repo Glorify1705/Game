@@ -21,7 +21,7 @@ inline std::string_view FlatbufferStringview(const flatbuffers::String* s) {
 
 class Assets {
  public:
-  Assets(const uint8_t* buffer) : assets_(GetAssetsPack(buffer)) {
+  Assets(const AssetsPack* assets, size_t size) : assets_(assets), size_(size) {
     CHECK(assets_ != nullptr, "Failed to build assets from buffer");
   }
 
@@ -49,8 +49,12 @@ class Assets {
   }
   const ShaderAsset* GetShader(std::string_view) const;
 
+  const AssetsPack* PackedAssets() const { return assets_; }
+  size_t PackerAssetSize() const { return size_; }
+
  private:
   const AssetsPack* assets_;
+  const size_t size_;
 };
 
 }  // namespace G

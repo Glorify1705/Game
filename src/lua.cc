@@ -901,15 +901,10 @@ LuaError ParseLuaError(std::string_view message) {
   return result;
 }
 
-template <typename... Ts>
-void LuaCrash(lua_State* state, int idx, Ts... ts) {
+void LuaCrash(lua_State* state, int idx) {
   std::string_view message = GetLuaString(state, idx);
   LuaError e = ParseLuaError(message);
-  if constexpr (sizeof...(ts) > 0) {
-    Crash(e.filename, e.line, e.message, " (", std::forward<Ts>(ts)..., ")");
-  } else {
-    Crash(e.filename, e.line, e.message);
-  }
+  Crash(e.filename, e.line, e.message);
 }
 
 template <size_t N>
@@ -951,7 +946,6 @@ Lua::Lua(std::string_view script_name, Assets* assets, Allocator* allocator)
 void Lua::Load(std::string_view script_name) {
   if (state_ != nullptr) lua_close(state_);
   state_ = lua_newstate(&Lua::LuaAlloc, this);
-  lua_setallocf(state_, &Lua::LuaAlloc, this);
   lua_atpanic(state_, [](lua_State* state) {
     LuaCrash(state, 1);
     return 0;

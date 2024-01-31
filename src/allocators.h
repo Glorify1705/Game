@@ -136,18 +136,24 @@ class SystemAllocator final : public Allocator {
   }
 };
 
-template <size_t Size>
-class StaticAllocator final : public Allocator {
+class BumpAllocator : public Allocator {
  public:
+  BumpAllocator(void* buffer, size_t size) {
+    pos_ = reinterpret_cast<uintptr_t>(buffer);
+    beginning_ = pos_;
+    end_ = pos_ + size;
+  }
+
   void* Alloc(size_t size, size_t align) override {
-    DCHECK(pos_ + size <= Size);
+    CHECK(pos_ + size <= end_);
     pos_ = Align(pos_, align);
-    auto* result = reinterpret_cast<void*>(&buffer_[pos_]);
+    auto* result = reinterpret_cast<void*>(pos_);
     pos_ += size;
     return result;
   }
-  void Dealloc(void* /*p*/, size_t /*sz*/) override {
-    // Pass.
+  void Dealloc(void* ptr, size_t sz) override {
+    uintptr_t p = reinterpret_cast<uintptr_t>(ptr);
+    if ((p + sz) == pos_) pos_ = p;
   }
   void* Realloc(void* p, size_t old_size, size_t new_size,
                 size_t align) override {
@@ -156,12 +162,48 @@ class StaticAllocator final : public Allocator {
     return res;
   }
 
-  size_t used_memory() const { return pos_; }
-  size_t total_memory() const { return Size; }
+  size_t used_memory() const { return pos_ - beginning_; }
+  size_t total_memory() const { return end_ - beginning_; }
+
+ private:
+  uintptr_t beginning_;
+  uintptr_t pos_;
+  uintptr_t end_;
+};
+
+template <size_t Size>
+class StaticAllocator final : public BumpAllocator {
+ public:
+  StaticAllocator() : BumpAllocator(buffer_, Size) {}
 
  private:
   alignas(std::max_align_t) uint8_t buffer_[Size];
-  size_t pos_ = 0;
+};
+
+class ArenaAllocator final : public Allocator {
+ public:
+  ArenaAllocator(Allocator* allocator, size_t size)
+      : allocator_(allocator),
+        buffer_(allocator->Alloc(size, /*align=*/alignof(std::max_align_t))),
+        size_(size),
+        a_(buffer_, size) {}
+
+  ~ArenaAllocator() { allocator_->Dealloc(buffer_, size_); }
+
+  void* Alloc(size_t size, size_t align) override {
+    return a_.Alloc(size, align);
+  }
+  void Dealloc(void* ptr, size_t sz) override { a_.Dealloc(ptr, sz); }
+  void* Realloc(void* p, size_t old_size, size_t new_size,
+                size_t align) override {
+    return a_.Realloc(p, old_size, new_size, align);
+  }
+
+ private:
+  Allocator* const allocator_;
+  void* const buffer_;
+  size_t size_;
+  BumpAllocator a_;
 };
 
 template <class C, class Allocator>
