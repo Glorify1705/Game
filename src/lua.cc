@@ -415,9 +415,14 @@ const struct luaL_Reg kSystemLib[] = {
        return 1;
      }}};
 
-int LuaLogPrint(lua_State* state) {
+struct LogLine {
+  FixedStringBuffer<kMaxLogLineLength> file;
+  int line;
+  FixedStringBuffer<kMaxLogLineLength> log;
+};
+
+void FillLogLine(lua_State* state, LogLine* l) {
   const int num_args = lua_gettop(state);
-  FixedStringBuffer<kMaxLogLineLength> buffer;
   lua_getglobal(state, "tostring");
   for (int i = 0; i < num_args; ++i) {
     // Call tostring to print the value of the argument.
@@ -427,9 +432,10 @@ int LuaLogPrint(lua_State* state) {
     size_t length;
     const char* s = lua_tolstring(state, -1, &length);
     if (s == nullptr) {
-      return luaL_error(state, "'tostring' did not return string");
+      luaL_error(state, "'tostring' did not return string");
+      return;
     }
-    buffer.Append(std::string_view(s, length));
+    l->log.Append(std::string_view(s, length));
     lua_pop(state, 1);
   }
   lua_pop(state, 1);
@@ -441,12 +447,27 @@ int LuaLogPrint(lua_State* state) {
   // work properly.
   const char* file = ar.source + 1;
   lua_pop(state, 1);
-  Log(file, line, buffer);
+  l->file.Append(file);
+  l->line = line;
+}
+
+int LuaLogPrint(lua_State* state) {
+  LogLine l;
+  FillLogLine(state, &l);
+  Log(l.file.str(), l.line, l.log);
+  return 0;
   return 0;
 }
 
 const struct luaL_Reg kConsoleLib[] = {
     {"log", LuaLogPrint},
+    {"crash",
+     [](lua_State* state) {
+       LogLine l;
+       FillLogLine(state, &l);
+       Crash(l.file.str(), l.line, l.log);
+       return 0;
+     }},
     {"watch", [](lua_State* state) {
        auto* console = Registry<DebugConsole>::Retrieve(state);
        lua_getglobal(state, "tostring");
