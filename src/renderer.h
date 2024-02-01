@@ -6,6 +6,7 @@
 
 #include "array.h"
 #include "assets.h"
+#include "color.h"
 #include "libraries/stb_truetype.h"
 #include "lookup_table.h"
 #include "mat.h"
@@ -14,16 +15,6 @@
 #include "vec.h"
 
 namespace G {
-
-struct Color {
-  uint8_t r, g, b, a;
-
-  FVec4 ToFloat() const {
-    return FVec(r / 255.0, g / 255.0, b / 255.0, a / 255.0);
-  }
-
-  static Color White() { return {255, 255, 255, 255}; }
-};
 
 class BatchRenderer {
  public:

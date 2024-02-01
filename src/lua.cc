@@ -144,16 +144,25 @@ const struct luaL_Reg kGraphicsLib[] = {
      }},
     {"set_color",
      [](lua_State* state) {
-       const float r = luaL_checknumber(state, 1);
-       const float g = luaL_checknumber(state, 2);
-       const float b = luaL_checknumber(state, 3);
-       const float a = luaL_checknumber(state, 4);
+       Color color = Color::Zero();
+       if (lua_gettop(state) == 1) {
+         std::string_view s = GetLuaString(state, 1);
+         if (s.empty()) {
+           luaL_error(state, "Invalid empty color");
+           return 0;
+         }
+         color = ColorFromTable(s);
+       } else {
+         auto clamp = [](float f) -> uint8_t {
+           return std::clamp(f, 0.0f, 255.0f);
+         };
+         color.r = clamp(luaL_checknumber(state, 1));
+         color.g = clamp(luaL_checknumber(state, 2));
+         color.b = clamp(luaL_checknumber(state, 3));
+         color.a = clamp(luaL_checknumber(state, 4));
+       }
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       auto clamp = [](float f) -> uint8_t {
-         return std::clamp(f, 0.0f, 255.0f);
-       };
-       const Color previous =
-           renderer->SetColor(Color{clamp(r), clamp(g), clamp(b), clamp(a)});
+       const Color previous = renderer->SetColor(color);
        lua_newtable(state);
        lua_pushnumber(state, previous.r);
        lua_setfield(state, -2, "r");

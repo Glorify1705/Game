@@ -86,11 +86,11 @@ end
 function G1:draw()
     self.entities:draw()
     local mx, my = G.input.mouse_position()
-    G.graphics.set_color(255, 0, 0, 255)
+    G.graphics.set_color("neonred")
     G.graphics.draw_rect(300 * self.player:get_health() / 100, 10, 300, 20)
-    G.graphics.set_color(0, 255, 0, 255)
+    G.graphics.set_color("freshgreen")
     G.graphics.draw_rect(10, 10, 300, 20)
-    G.graphics.set_color(255, 255, 255, 255)
+    G.graphics.set_color("white")
     G.graphics.draw_sprite("numeralX", mx, my)
 end
 

@@ -59,6 +59,7 @@ set(GAME_SRCS
     "src/console.cc"
     "libraries/glad.cc"
     "src/input.cc"
+    "src/color.cc"
     "libraries/imgui_impl_opengl3.cc"
     "libraries/imgui_impl_sdl2.cc"
     "libraries/imgui_draw.cc"

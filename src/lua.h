@@ -76,8 +76,6 @@ class Lua {
   Allocator* allocator() const { return allocator_; }
 
  private:
-  inline static constexpr size_t kMaxMemory = 1 << 24;
-
   void LoadAssets();
 
   void Load(std::string_view script_name);

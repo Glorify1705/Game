@@ -10,6 +10,7 @@
 #include <string_view>
 
 #include "allocators.h"
+#include "array.h"
 #include "xxhash.h"
 
 namespace G {
