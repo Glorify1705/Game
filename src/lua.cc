@@ -709,6 +709,12 @@ const struct luaL_Reg kPhysicsLib[] = {
        physics->DestroyHandle(*handle);
        return 0;
      }},
+    {"create_ground",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       physics->CreateGround();
+       return 0;
+     }},
     {"set_collision_callback",
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);

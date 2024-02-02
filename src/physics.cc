@@ -25,7 +25,6 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
   b2SetAllocFunction(BoxAlloc, allocator);
   b2SetFreeFunction(BoxDealloc, allocator);
   world_.SetContactListener(this);
-  CreateGround();
 }
 
 void Physics::CreateGround() {

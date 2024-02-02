@@ -55,9 +55,9 @@ class Physics final : public b2ContactListener {
 
   float GetAngle(Handle handle) const;
 
- private:
   void CreateGround();
 
+ private:
   static void DefaultDestroy(uintptr_t, void *) {}
 
   static void DefaultContact(uintptr_t, uintptr_t, void *) {}
