@@ -223,6 +223,7 @@ void Packer::HandleTextFile(std::string_view filename, uint8_t* buf,
 }
 
 Assets Packer::HandleFiles() {
+  TIMER("Packing assets from directory");
   // TODO: This uses insane amounts of memory and needs to be reduced.
   struct FileHandler {
     std::string_view extension;
@@ -251,7 +252,7 @@ Assets Packer::HandleFiles() {
     bool handled = false;
     for (auto& handler : kHandlers) {
       if (HasSuffix(path, handler.extension)) {
-        LOG("Handling file ", path);
+        TIMER("Handling file ", path);
         auto [buffer, fsize] = ReadWholeFile(path, allocator_);
         auto method = handler.method;
         (packer.*method)(fname, buffer, fsize);
@@ -276,7 +277,7 @@ Assets PackFiles(const char* source_directory, Allocator* allocator) {
 }
 
 Assets ReadAssets(const char* assets_zip_file, Allocator* allocator) {
-  TIMER();
+  TIMER("Reading assets from file");
   constexpr char kAssetFileName[] = "assets.bin";
   zip_error_t zip_error;
   int zip_error_code;
