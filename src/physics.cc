@@ -28,20 +28,21 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
 }
 
 void Physics::CreateGround() {
-  if (ground_ == nullptr) {
-    b2BodyDef bd;
-    bd.type = b2_staticBody;
-    bd.position.Set(0.0f, 0.0f);
-    bd.userData.pointer = 0;
-    ground_ = world_.CreateBody(&bd);
-  } else {
+  if (ground_ != nullptr) {
     auto* fixture = ground_->GetFixtureList();
     while (fixture) {
       auto* ptr = fixture;
       fixture = fixture->GetNext();
       ground_->DestroyFixture(ptr);
     }
+    world_.DestroyBody(ground_);
   }
+  b2BodyDef bd;
+  bd.type = b2_staticBody;
+  bd.position.Set(0.0f, 0.0f);
+  bd.userData.pointer = 0;
+  ground_ = world_.CreateBody(&bd);
+
   b2EdgeShape shape;
 
   b2FixtureDef sd;
