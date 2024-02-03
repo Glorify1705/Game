@@ -6,7 +6,7 @@ return {
         { name = "beam2",                x = 262, y = 907,  width = 38,  height = 31 },
         { name = "beam3",                x = 396, y = 384,  width = 29,  height = 29 },
         { name = "beam4",                x = 177, y = 496,  width = 41,  height = 17 },
-        { name = "beam5",                x = 186, y = 377,  width = 40,  height = 25 }, q
+        { name = "beam5",                x = 186, y = 377,  width = 40,  height = 25 },
         { name = "beam6",                x = 120, y = 688,  width = 43,  height = 23 },
         { name = "beamLong1",            x = 828, y = 943,  width = 15,  height = 67 },
         { name = "beamLong2",            x = 307, y = 309,  width = 25,  height = 64 },
