@@ -26,8 +26,8 @@ class LogTimer {
 
   ~LogTimer() {
     const double time = NowInSeconds() - start_;
-    Log(file_, line_, buf_[0] == '\0' ? func_ : "", buf_, " elapsed ", time,
-        "ms");
+    Log(file_, line_, buf_[0] == '\0' ? func_ : "", buf_, " elapsed ",
+        1000.0 * time, "ms");
   }
 
  private:
