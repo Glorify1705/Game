@@ -1,24 +1,9 @@
 #include "logging.h"
+#include "thread.h"
 #include "thread_pool.h"
 
+
 namespace G {
-
-struct LockMutex {
-  explicit LockMutex(SDL_mutex* mutex) : mu(mutex) { SDL_LockMutex(mu); }
-
-  ~LockMutex() {
-    if (mu) SDL_UnlockMutex(mu);
-  }
-
-  SDL_mutex* Release() {
-    SDL_mutex* result = mu;
-    SDL_UnlockMutex(mu);
-    mu = nullptr;
-    return result;
-  }
-
-  SDL_mutex* mu;
-};
 
 ThreadPool::ThreadPool(Allocator* allocator, size_t num_threads)
     : threads_(num_threads, allocator),

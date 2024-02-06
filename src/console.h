@@ -11,6 +11,7 @@
 #include "circular_buffer.h"
 #include "lookup_table.h"
 #include "strings.h"
+#include "thread.h"
 
 namespace G {
 
@@ -21,27 +22,35 @@ class DebugConsole {
         lines_(allocator),
         watcher_keys_(allocator),
         watcher_values_(allocator) {
+    mu_ = SDL_CreateMutex();
     SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
     SDL_LogSetOutputFunction(LogWithConsole, this);
   }
-  ~DebugConsole() { SDL_LogSetOutputFunction(log_fn_, log_fn_userdata_); }
+  ~DebugConsole() {
+    SDL_LogSetOutputFunction(log_fn_, log_fn_userdata_);
+    SDL_DestroyMutex(mu_);
+  }
 
   template <typename... Ts>
   void Log(Ts... ts) {
+    LockMutex l(mu_);
     FixedStringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
     LogLine(buf.piece());
   }
 
   template <typename Fn>
   void ForAllLines(Fn&& fn) {
+    LockMutex l(mu_);
     for (size_t i = 0; i < lines_.size(); ++i) {
       Linebuffer* buffer = lines_[i];
       fn(std::string_view(buffer->chars, buffer->len));
     }
+    SDL_UnlockMutex(mu_);
   }
 
   template <typename... Ts>
   void AddWatcher(std::string_view key, Ts... ts) {
+    LockMutex l(mu_);
     FixedStringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
     if (Linebuffer * linebuffer; watcher_values_.Lookup(key, &linebuffer)) {
       CopyToBuffer(buf.piece(), linebuffer);
@@ -54,6 +63,7 @@ class DebugConsole {
 
   template <typename Fn>
   void ForAllWatchers(Fn&& fn) {
+    LockMutex l(mu_);
     for (size_t i = 0; i < watcher_keys_.size(); ++i) {
       const auto& key = watcher_keys_[i];
       if (Linebuffer * val; watcher_values_.Lookup(key, &val)) {
@@ -93,6 +103,8 @@ class DebugConsole {
 
   FixedArray<std::string_view, kMaxWatchers> watcher_keys_;
   LookupTable<Linebuffer*> watcher_values_;
+
+  SDL_mutex* mu_ = nullptr;
 };
 
 }  // namespace G
