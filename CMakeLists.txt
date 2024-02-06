@@ -73,6 +73,7 @@ set(GAME_SRCS
     "src/shaders.cc"
     "src/sound.cc"
     "src/stats.cc"
+    "src/thread_pool.cc"
     "libraries/stb_truetype.cc"
     "libraries/stb_rect_pack.cc"
     "src/strings.cc"

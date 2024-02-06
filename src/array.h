@@ -82,22 +82,22 @@ class FixedArray {
   size_t elems_ = 0;
 };
 
-template <typename T, typename Allocator>
+template <typename T>
 class DynArray {
  public:
-  template <typename, typename>
-  friend class DynArray;
-
   DynArray(Allocator* allocator) : allocator_(allocator) {}
-  ~DynArray() { allocator_->Dealloc(buffer_, capacity_); }
 
-  template <typename Alloc>
-  DynArray(DynArray<T, Alloc>&& other) {
-    Move(other);
+  DynArray(size_t size, Allocator* allocator) : allocator_(allocator) {
+    capacity_ = size;
+    buffer_ =
+        static_cast<T*>(allocator_->Alloc(capacity_ * sizeof(T), alignof(T)));
   }
 
-  template <typename Alloc>
-  DynArray& operator=(DynArray<T, Alloc>&& other) {
+  ~DynArray() { allocator_->Dealloc(buffer_, capacity_); }
+
+  DynArray(DynArray<T>&& other) { Move(other); }
+
+  DynArray& operator=(DynArray<T>&& other) {
     Move(std::move(other));
     return *this;
   }
@@ -162,7 +162,7 @@ class DynArray {
     elems_ = size;
     if (buffer_ == nullptr) {
       capacity_ = new_capacity;
-      buffer_ = allocator_->template NewArray<T>(capacity_);
+      buffer_ = NewArray<T>(capacity_, allocator_);
     } else if (capacity_ < new_capacity) {
       buffer_ = static_cast<T*>(
           allocator_->Realloc(buffer_, capacity_ * sizeof(T),
@@ -172,19 +172,13 @@ class DynArray {
   }
 
  private:
-  template <typename Alloc>
-  void Move(DynArray<T, Alloc>&& other) {
+  void Move(DynArray<T>&& other) {
     if (buffer_ != nullptr) {
       allocator_->Dealloc(buffer_, capacity_ * sizeof(T));
     }
-    if constexpr (std::is_same_v<Allocator, Alloc>) {
-      if (allocator_ == other.allocator_) {
-        buffer_ = other.buffer_;
-        allocator_ = other.allocator_;
-      } else {
-        CopyBuffer(other);
-        other.allocator_->Dealloc(other.buffer_, other.capacity_ * sizeof(T));
-      }
+    if (allocator_ == other.allocator_) {
+      buffer_ = other.buffer_;
+      allocator_ = other.allocator_;
     } else {
       CopyBuffer(other);
       other.allocator_->Dealloc(other.buffer_, other.capacity_ * sizeof(T));
@@ -196,8 +190,7 @@ class DynArray {
     other.allocator_ = nullptr;
   }
 
-  template <typename Alloc>
-  void CopyBuffer(const DynArray<T, Alloc>& other) {
+  void CopyBuffer(const DynArray<T>& other) {
     buffer_ = NewArray<T>(other.capacity_, allocator_);
     std::memcpy(buffer_, other.buffer_, other.elems_ * sizeof(T));
   }

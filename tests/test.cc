@@ -3,7 +3,6 @@
 #include "gport-shim.h"
 #include "gtest/gtest.h"
 #include "lookup_table.h"
-#include "uninitialized.h"
 #include "vec.h"
 
 namespace G {
@@ -41,7 +40,7 @@ TEST(Tests, FixedArrayWithAllocator) {
 }
 
 TEST(Tests, DynArray) {
-  DynArray<int, SystemAllocator> array(SystemAllocator::Instance());
+  DynArray<int> array(SystemAllocator::Instance());
   EXPECT_EQ(array.size(), 0);
   array.Push(0);
   EXPECT_EQ(array.size(), 1);
@@ -66,12 +65,12 @@ TEST(Tests, DynArray) {
 }
 
 TEST(Tests, DynArrayMove) {
-  DynArray<int, SystemAllocator> array(SystemAllocator::Instance());
+  DynArray<int> array(SystemAllocator::Instance());
   for (int i = 0; i < 100; ++i) {
     array.Push(i);
   }
   StaticAllocator<1024> allocator2;
-  DynArray<int, StaticAllocator<1024>> array2(&allocator2);
+  DynArray<int> array2(&allocator2);
   array2 = std::move(array);
   for (int i = 0; i < 100; ++i) {
     EXPECT_EQ(array2[i], i);

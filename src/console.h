@@ -18,6 +18,7 @@ class DebugConsole {
  public:
   DebugConsole(Allocator* allocator)
       : allocator_(allocator),
+        lines_(allocator),
         watcher_keys_(allocator),
         watcher_values_(allocator) {
     SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
@@ -84,7 +85,7 @@ class DebugConsole {
 
   Allocator* allocator_;
   StaticAllocator<2 * kMaxLines * sizeof(Linebuffer)> buffers_;
-  FixedCircularBuffer<Linebuffer*, kMaxLines> lines_;
+  CircularBuffer<Linebuffer*, kMaxLines> lines_;
   SDL_LogOutputFunction log_fn_;
   void* log_fn_userdata_;
 
