@@ -144,7 +144,7 @@ class BatchRenderer {
   FixedArray<ScreenshotRequest, 32> screenshots_;
   FixedArray<VertexData, 1 << 24> vertices_;
   FixedArray<GLuint, 1 << 24> indices_;
-  FixedArray<Batch, 1 << 24> batches_;
+  FixedArray<Batch, 1 << 12> batches_;
   FixedArray<GLuint, 64> tex_;
   Shaders* shaders_;
   GLuint ebo_, vao_, vbo_;
