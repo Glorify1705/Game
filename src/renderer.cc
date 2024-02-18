@@ -449,7 +449,7 @@ void Renderer::LoadFonts(const Assets& assets, float pixel_height) {
     stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
                           &font.line_gap);
     stbtt_PackBegin(&font.context, font.atlas.data(), kAtlasWidth, kAtlasHeight,
-                    kAtlasWidth, 1, nullptr);
+                    kAtlasWidth, 1, /*alloc_context=*/allocator_);
     stbtt_PackSetOversampling(&font.context, 2, 2);
     CHECK(stbtt_PackFontRange(&font.context, font_buffer, 0, pixel_height, 0,
                               256, font.chars.data()) == 1,
@@ -468,7 +468,7 @@ void Renderer::LoadFonts(const Assets& assets, float pixel_height) {
 
 void Renderer::DrawText(std::string_view font, float size, std::string_view str,
                         FVec2 position) {
-  FontInfo* info = nullptr;
+  const FontInfo* info = nullptr;
   CHECK(font_table_.Lookup(font, &info), "No font called ", font);
   renderer_->SetActiveTexture(info->texture);
   FVec2 p = position;

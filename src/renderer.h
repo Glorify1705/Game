@@ -221,7 +221,7 @@ class Renderer {
   SheetTexture current_;
   BatchRenderer* renderer_;
 
-  LookupTable<FontInfo*> font_table_;
+  LookupTable<const FontInfo*> font_table_;
   FixedArray<FontInfo, 32> fonts_;
 };
 

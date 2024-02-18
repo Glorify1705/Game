@@ -26,6 +26,8 @@ class Allocator {
 
   virtual void* Realloc(void* p, size_t old_size, size_t new_size,
                         size_t align) = 0;
+
+  virtual void Reset() = 0;
 };
 
 template <typename T>
@@ -130,6 +132,9 @@ class SystemAllocator final : public Allocator {
     return std::realloc(p, new_size);
   }
 
+  void Reset() override { /*pass*/
+  }
+
   static SystemAllocator* Instance() {
     static SystemAllocator allocator;
     return &allocator;
@@ -161,6 +166,8 @@ class BumpAllocator : public Allocator {
     std::memcpy(res, p, old_size);
     return res;
   }
+
+  void Reset() { pos_ = beginning_; }
 
   size_t used_memory() const { return pos_ - beginning_; }
   size_t total_memory() const { return end_ - beginning_; }
