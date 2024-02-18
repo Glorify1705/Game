@@ -30,7 +30,7 @@ inline int32_t MSIProbe(uint64_t hash, int exp, int32_t idx) {
 
 // Intended for static tables with keys that exist for the whole lifetime of the
 // binary.
-template <typename T>
+template <typename T, size_t kLogTableSize = 10>
 class LookupTable {
  public:
   LookupTable(Allocator* allocator)
@@ -100,8 +100,7 @@ class LookupTable {
   }
 
  private:
-  inline static constexpr size_t kLogTableSize = 15;
-  inline static constexpr size_t kKeysSize = 1 << 20;
+  inline static constexpr size_t kKeysSize = 1 << 15;
 
   Allocator* allocator_;
   FixedArray<char*, 1 << kLogTableSize> keys_;
