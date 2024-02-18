@@ -99,6 +99,10 @@ TEST(Tests, LookupTable) {
   int val;
   ASSERT_TRUE(table.Lookup("foo", &val));
   EXPECT_EQ(val, 1);
+  ASSERT_FALSE(table.Lookup("baz", &val));
+  table.Insert("foo", 3);
+  ASSERT_TRUE(table.Lookup("foo", &val));
+  EXPECT_EQ(val, 3);
 }
 
 TEST(Tests, Bits) {
@@ -115,6 +119,14 @@ TEST(Tests, FixedStringBufferTest) {
   buffer.Append("bar");
   EXPECT_STREQ(buffer.str(), "foo bar");
   EXPECT_EQ(buffer.size(), 7);
+  EXPECT_FALSE(buffer.empty());
+  buffer.Append(" bar ");
+  buffer.Append("bar ");
+  buffer.Append("bar ");
+  buffer.Append("bar ");
+  buffer.Append("bar ");
+  EXPECT_STREQ(buffer.str(), "foo bar bar bar ");
+  EXPECT_EQ(buffer.size(), 16);
   EXPECT_FALSE(buffer.empty());
 }
 

@@ -93,7 +93,9 @@ class DynArray {
         static_cast<T*>(allocator_->Alloc(capacity_ * sizeof(T), alignof(T)));
   }
 
-  ~DynArray() { allocator_->Dealloc(buffer_, capacity_); }
+  ~DynArray() {
+    if (allocator_) allocator_->Dealloc(buffer_, capacity_ * sizeof(T));
+  }
 
   DynArray(DynArray<T>&& other) { Move(other); }
 
@@ -119,6 +121,12 @@ class DynArray {
     ResizeIfNeeded();
     ::new (&buffer_[elems_]) T(t);
     elems_++;
+  }
+
+  void Insert(const T* ptr, size_t size) {
+    for (size_t i = 0; i < size; ++i) {
+      Push(ptr[i]);
+    }
   }
 
   void Pop() {
@@ -178,7 +186,6 @@ class DynArray {
     }
     if (allocator_ == other.allocator_) {
       buffer_ = other.buffer_;
-      allocator_ = other.allocator_;
     } else {
       CopyBuffer(other);
       other.allocator_->Dealloc(other.buffer_, other.capacity_ * sizeof(T));

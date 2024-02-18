@@ -125,7 +125,9 @@ class SystemAllocator final : public Allocator {
     return std::malloc(size);
   }
 
-  void Dealloc(void* p, size_t /*sz*/) override { std::free(p); }
+  void Dealloc(void* p, size_t /*sz*/) override {
+    if (p != nullptr) std::free(p);
+  }
 
   void* Realloc(void* p, size_t /*old_size*/, size_t new_size,
                 size_t /*align*/) override {
@@ -157,6 +159,7 @@ class BumpAllocator : public Allocator {
     return result;
   }
   void Dealloc(void* ptr, size_t sz) override {
+    if (ptr == nullptr) return;
     uintptr_t p = reinterpret_cast<uintptr_t>(ptr);
     if ((p + sz) == pos_) pos_ = p;
   }
