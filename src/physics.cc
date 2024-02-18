@@ -7,12 +7,12 @@
 namespace G {
 namespace {
 
-void* BoxAlloc(void* context, int32_t mem) {
-  return reinterpret_cast<Allocator*>(context)->Alloc(mem, /*align=*/16);
+void* Box2dAlloc(void* ctx, int32_t size, int32_t align) {
+  return static_cast<Allocator*>(ctx)->Alloc(size, align);
 }
 
-void BoxDealloc(void* context, void* ptr) {
-  return reinterpret_cast<Allocator*>(context)->Dealloc(ptr, /*size=*/1);
+void Box2dFree(void* ctx, void* ptr, int32_t size) {
+  static_cast<Allocator*>(ctx)->Dealloc(ptr, size);
 }
 
 }  // namespace
@@ -22,8 +22,10 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
     : pixels_per_meter_(pixels_per_meter),
       world_dimensions_(pixel_dimensions / pixels_per_meter),
       world_(b2Vec2(0, 0)) {
-  b2SetAllocFunction(BoxAlloc, allocator);
-  b2SetFreeFunction(BoxDealloc, allocator);
+  box2d_allocator_.Alloc = Box2dAlloc;
+  box2d_allocator_.Free = Box2dFree;
+  box2d_allocator_.ctx = allocator;
+  b2SetAllocator(&box2d_allocator_);
   world_.SetContactListener(this);
 }
 

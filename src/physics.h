@@ -62,6 +62,8 @@ class Physics final : public b2ContactListener {
 
   static void DefaultContact(uintptr_t, uintptr_t, void *) {}
 
+  b2Allocator box2d_allocator_;
+
   FVec2 From(b2Vec2 v) const;
   b2Vec2 To(FVec2 v) const;
 
