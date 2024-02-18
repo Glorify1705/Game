@@ -79,7 +79,12 @@ class LookupTable {
     for (int32_t i = h;;) {
       i = internal::MSIProbe(h, kLogTableSize, i);
       if (key_lengths_[i] != 0) {
-        values_[i] = std::move(value);
+        if (key_lengths_[i] == key.size() &&
+            !std::memcmp(keys_[i], key.data(), key.size())) {
+          values_[i] = std::move(value);
+          return {.map_key = std::string_view(keys_[i], key_lengths_[i]),
+                  .ptr = &values_[i]};
+        }
       } else {
         DCHECK(elements_ < keys_.size());
         auto* str = key_strs_.Insert(key.data(), key.size());
