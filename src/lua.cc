@@ -186,10 +186,11 @@ const struct luaL_Reg kGraphicsLib[] = {
     {"draw_text",
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       std::string_view text = GetLuaString(state, 1);
-       const float x = luaL_checknumber(state, 2);
-       const float y = luaL_checknumber(state, 3);
-       renderer->DrawText("terminus.ttf", 32, text, FVec2(x, y));
+       std::string_view font = GetLuaString(state, 1);
+       std::string_view text = GetLuaString(state, 2);
+       const float x = luaL_checknumber(state, 3);
+       const float y = luaL_checknumber(state, 4);
+       renderer->DrawText(font, 32, text, FVec2(x, y));
        return 0;
      }},
     {"push",
