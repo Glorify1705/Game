@@ -54,13 +54,19 @@ class Registry {
 
 class Lua {
  public:
-  Lua(std::string_view scriptname, Assets* assets, Allocator* allocator);
+  Lua(Assets* assets, Allocator* allocator);
   ~Lua() { lua_close(state_); }
 
   template <typename T>
   void Register(T* t) {
     Registry<T>::Register(state_, t);
   }
+
+  void LoadLibraries();
+
+  void LoadScripts();
+
+  void LoadMain(std::string_view main_script);
 
   void Init();
 
@@ -78,9 +84,6 @@ class Lua {
  private:
   void LoadAssets();
 
-  void Load(std::string_view script_name);
-
-  void LoadMain(const ScriptAsset& asset);
   void SetPackagePreload(std::string_view filename);
 
   void* Alloc(void* ptr, size_t osize, size_t nsize);

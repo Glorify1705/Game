@@ -110,6 +110,7 @@ Assets GetAssets(const std::vector<const char*>& arguments,
 
 struct EngineModules {
   Assets assets;
+  SDL_Window* window;
   Shaders shaders;
   BatchRenderer batch_renderer;
   Keyboard keyboard;
@@ -121,9 +122,10 @@ struct EngineModules {
   Physics physics;
 
   EngineModules(const std::vector<const char*> arguments,
-                const GameParams& params, SDL_Window* window,
+                const GameParams& params, SDL_Window* sdl_window,
                 Allocator* allocator)
       : assets(GetAssets(arguments, allocator)),
+        window(sdl_window),
         shaders(assets, allocator),
         batch_renderer(IVec2(params.screen_width, params.screen_height),
                        &shaders, allocator),
@@ -131,9 +133,12 @@ struct EngineModules {
         controllers(assets, allocator),
         sound(&assets, allocator),
         renderer(assets, &batch_renderer, allocator),
-        lua("main.lua", &assets, SystemAllocator::Instance()),
+        lua(&assets, SystemAllocator::Instance()),
         physics(FVec(params.screen_width, params.screen_height),
-                Physics::kPixelsPerMeter, allocator) {
+                Physics::kPixelsPerMeter, allocator) {}
+
+  void InitializeLua() {
+    lua.LoadLibraries();
     lua.Register(&shaders);
     lua.Register(&batch_renderer);
     lua.Register(&renderer);
@@ -144,6 +149,9 @@ struct EngineModules {
     lua.Register(&shaders);
     lua.Register(&sound);
     lua.Register(&physics);
+    lua.Register(&DebugConsole::Instance());
+    lua.LoadScripts();
+    lua.LoadMain("main.lua");
   }
 
   void StartFrame() {
@@ -437,7 +445,7 @@ class Game {
                                    allocator_);
     debug_ui_ = DirectInit<DebugUi>(allocator_, window_, context_, &stats_, e_,
                                     allocator_);
-    e_->lua.Register(&DebugConsole::Instance());
+    e_->InitializeLua();
     e_->lua.Init();
   }
 

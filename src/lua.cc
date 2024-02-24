@@ -975,12 +975,10 @@ void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
   return allocator_->Realloc(ptr, osize, nsize, /*align=*/1);
 }
 
-Lua::Lua(std::string_view script_name, Assets* assets, Allocator* allocator)
-    : allocator_(allocator), assets_(assets) {
-  Load(script_name);
-}
+Lua::Lua(Assets* assets, Allocator* allocator)
+    : allocator_(allocator), assets_(assets) {}
 
-void Lua::Load(std::string_view script_name) {
+void Lua::LoadLibraries() {
   if (state_ != nullptr) lua_close(state_);
   state_ = lua_newstate(&Lua::LuaAlloc, this);
   lua_atpanic(state_, [](lua_State* state) {
@@ -1001,6 +999,8 @@ void Lua::Load(std::string_view script_name) {
   });
   lua_setfield(state_, -2, "quit");
   lua_setglobal(state_, "G");
+  lua_pushcfunction(state_, Traceback);
+  traceback_handler_ = lua_gettop(state_);
   Register(assets_);
   AddLibrary(state_, "console", kConsoleLib);
   AddLibrary(state_, "graphics", kGraphicsLib);
@@ -1012,11 +1012,12 @@ void Lua::Load(std::string_view script_name) {
   AddLibrary(state_, "system", kSystemLib);
   AddLibrary(state_, "window", kWindowLib);
   AddLibrary(state_, "random", kRandomLib);
-  lua_pushcfunction(state_, Traceback);
-  traceback_handler_ = lua_gettop(state_);
   // Set print as G.console.log for consistency.
   lua_pushcfunction(state_, LuaLogPrint);
   lua_setglobal(state_, "print");
+}
+
+void Lua::LoadScripts() {
   for (size_t i = 0; i < assets_->scripts(); ++i) {
     auto* script = assets_->GetScriptByIndex(i);
     std::string_view asset_name(script->filename()->c_str());
@@ -1025,9 +1026,21 @@ void Lua::Load(std::string_view script_name) {
       SetPackagePreload(asset_name);
     }
   }
-  auto* main = assets_->GetScript(script_name);
-  CHECK(main != nullptr, "Unknown script ", script_name);
-  LoadMain(*main);
+}
+
+void Lua::LoadMain(std::string_view main_script) {
+  auto* main = assets_->GetScript(main_script);
+  CHECK(main != nullptr, "Unknown script ", main_script);
+  LoadLuaAsset(state_, *main, traceback_handler_);
+  // Check all important functions are defined.
+  for (const char* fn : {"init", "update", "draw"}) {
+    lua_getfield(state_, -1, fn);
+    if (lua_isnil(state_, -1)) {
+      DIE("Cannot run main code: ", fn, " is not defined in ", main_script);
+    }
+    lua_pop(state_, 1);
+  }
+  lua_setglobal(state_, "_Game");
 }
 
 void Lua::SetPackagePreload(std::string_view filename) {
@@ -1038,20 +1051,6 @@ void Lua::SetPackagePreload(std::string_view filename) {
   lua_pushcfunction(state_, &PackageLoader);
   lua_setfield(state_, -2, buf);
   lua_pop(state_, 2);
-}
-
-void Lua::LoadMain(const ScriptAsset& asset) {
-  const char* name = asset.filename()->c_str();
-  LoadLuaAsset(state_, asset, traceback_handler_);
-  // Check all important functions are defined.
-  for (const char* fn : {"init", "update", "draw"}) {
-    lua_getfield(state_, -1, fn);
-    if (lua_isnil(state_, -1)) {
-      DIE("Cannot run main code: ", fn, " is not defined in ", name);
-    }
-    lua_pop(state_, 1);
-  }
-  lua_setglobal(state_, "_Game");
 }
 
 void Lua::Init() {
