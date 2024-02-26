@@ -1984,7 +1984,7 @@ void Mouse::PushEvent(const SDL_Event& event) {
 
 Controllers::Controllers(const Assets& assets, Allocator* allocator)
     : button_table_(allocator), axis_table_(allocator) {
-  SDL_RWops* rwops;
+  SDL_RWops* rwops = nullptr;
   const TextFileAsset* asset = assets.GetText("gamecontrollerdb.txt");
   if (asset == nullptr) {
     LOG("Could not find game controller database, using the default one");
@@ -1994,6 +1994,7 @@ Controllers::Controllers(const Assets& assets, Allocator* allocator)
         const_cast<void*>(static_cast<const void*>(asset->contents()->Data())),
         asset->contents()->size());
   }
+  CHECK(rwops != nullptr);
   CHECK(SDL_GameControllerAddMappingsFromRW(rwops, /*freerw=*/true) > 0,
         "Could not add Joystick database: ", SDL_GetError());
   // Button table.
