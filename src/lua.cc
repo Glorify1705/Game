@@ -140,7 +140,7 @@ int LoadFennelAsset(lua_State* state, const ScriptAsset& asset,
 
 int PackageLoader(lua_State* state) {
   const char* modname = luaL_checkstring(state, 1);
-  FixedStringBuffer<127> buf(modname, ".lua");
+  FixedStringBuffer<kMaxPathLength> buf(modname, ".lua");
   Assets* assets = Registry<Assets>::Retrieve(state);
   LOG("Attempting to load package ", modname, " from file ", buf);
   auto* asset = assets->GetScript(buf.piece());
@@ -311,7 +311,7 @@ const struct luaL_Reg kGraphicsLib[] = {
 
          BatchRenderer* renderer_;
          lua_State* state_;
-         FixedStringBuffer<127> output_file_;
+         FixedStringBuffer<kMaxPathLength> output_file_;
          uint8_t* buffer_;
          size_t width_, height_;
          Allocator* allocator_;
@@ -341,7 +341,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        std::string_view fragment_shader = GetLuaString(state, 1);
        std::string_view program_name = fragment_shader;
-       FixedStringBuffer<128> buf(fragment_shader);
+       FixedStringBuffer<kMaxPathLength> buf(fragment_shader);
        if (!ConsumeSuffix(&program_name, ".frag")) {
          luaL_error(state,
                     "Could not switch shader %s: not a fragment shader (i.e. "
@@ -1074,30 +1074,25 @@ void Lua::LoadScripts() {
   for (size_t i = 0; i < assets_->scripts(); ++i) {
     auto* script = assets_->GetScriptByIndex(i);
     std::string_view asset_name(script->filename()->c_str());
+    if (asset_name == "main.lua") continue;
     ConsumeSuffix(&asset_name, ".lua");
     ConsumeSuffix(&asset_name, ".fnl");
-    if (asset_name != "main") {
-      SetPackagePreload(asset_name);
-    }
+    SetPackagePreload(asset_name);
   }
 }
 
-void Lua::LoadMain(std::string_view main_script) {
-  LOG("Loading main file ", main_script);
-  auto* main = assets_->GetScript(main_script);
-  CHECK(main != nullptr, "Unknown script ", main_script);
-  if (Basename(main_script) == ".lua") {
-    LoadLuaAsset(state_, *main, traceback_handler_);
-  } else {
-    LoadFennelAsset(state_, *main, traceback_handler_);
-  }
+void Lua::LoadMain() {
+  LOG("Loading main file main.lua");
+  auto* main = assets_->GetScript("main.lua");
+  CHECK(main != nullptr, "Unknown script main.lua");
+  LoadLuaAsset(state_, *main, traceback_handler_);
   LOG("Checking functions");
   CHECK(lua_istable(state_, -1), "Main script does not define a table");
   // Check all important functions are defined.
   for (const char* fn : {"init", "update", "draw"}) {
     lua_getfield(state_, -1, fn);
     if (lua_isnil(state_, -1)) {
-      DIE("Cannot run main code: ", fn, " is not defined in ", main_script);
+      DIE("Cannot run main code: ", fn, " is not defined in main.lua");
     }
     lua_pop(state_, 1);
   }
@@ -1106,7 +1101,7 @@ void Lua::LoadMain(std::string_view main_script) {
 
 void Lua::SetPackagePreload(std::string_view filename) {
   // We use a buffer to ensure that filename is null terminated.
-  FixedStringBuffer<127> buf(filename);
+  FixedStringBuffer<kMaxPathLength> buf(filename);
   lua_getglobal(state_, "package");
   lua_getfield(state_, -1, "preload");
   lua_pushcfunction(state_, &PackageLoader);

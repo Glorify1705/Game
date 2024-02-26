@@ -66,7 +66,7 @@ class Lua {
 
   void LoadScripts();
 
-  void LoadMain(std::string_view main_script);
+  void LoadMain();
 
   void Init();
 

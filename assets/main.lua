@@ -139,5 +139,4 @@ return Game
 ]]
 --
 
-local fennel = require("fennel")
-fennel.dofile("main.fnl")
+return require("game")

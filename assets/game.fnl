@@ -7,6 +7,6 @@
     (when (G.input.is_key_pressed "q") (G.quit)))
 
 (fn draw []
-    (G.graphics.draw_text "ponderosa.ttf" "Hi stranger!" 600 0))
+    (G.graphics.draw_text "ponderosa.ttf" "Welcome to my Fennel game" 600 600))
 
 {: init : update : draw}

@@ -151,7 +151,7 @@ struct EngineModules {
     lua.Register(&physics);
     lua.Register(&DebugConsole::Instance());
     lua.LoadScripts();
-    lua.LoadMain("main.fnl");
+    lua.LoadMain();
   }
 
   void StartFrame() {
