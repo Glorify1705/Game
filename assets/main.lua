@@ -1,3 +1,4 @@
+--[[
 local Player = require "player"
 local Meteor = require "meteor"
 local Timer = require "timer"
@@ -135,3 +136,8 @@ function Game:draw()
 end
 
 return Game
+]]
+--
+
+local fennel = require("fennel")
+fennel.dofile("main.fnl")

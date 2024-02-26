@@ -233,6 +233,7 @@ Assets Packer::HandleFiles() {
 
   static constexpr FileHandler kHandlers[] = {
       {".lua", &Packer::HandleScript},
+      {".fnl", &Packer::HandleScript},
       {".qoi", &Packer::HandleQoiImage},
       {".sprites", &Packer::HandleSpritesheet},
       {".ogg", &Packer::HandleOggSound},
@@ -253,15 +254,25 @@ Assets Packer::HandleFiles() {
     for (auto& handler : kHandlers) {
       if (HasSuffix(path, handler.extension)) {
         TIMER("Handling file ", path);
-        auto [buffer, fsize] = ReadWholeFile(path, allocator_);
+        auto* handle = PHYSFS_openRead(path);
+        CHECK(handle != nullptr, "Could not read ", path, ": ",
+              PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+        const size_t bytes = PHYSFS_fileLength(handle);
+        auto* buffer =
+            static_cast<uint8_t*>(allocator_->Alloc(bytes, /*align=*/1));
+        const size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
+        CHECK(read_bytes == bytes, " failed to read ", path,
+              " error = ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+        CHECK(PHYSFS_close(handle), "failed to finish reading ", path, ": ",
+              PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
         auto method = handler.method;
-        (packer.*method)(fname, buffer, fsize);
+        (packer.*method)(fname, buffer, bytes);
+        allocator_->Dealloc(buffer, bytes);
         handled = true;
-        allocator_->Dealloc(buffer, fsize);
         break;
       }
     }
-    if (!handled) LOG("No handler for file ", path);
+    CHECK(handled, "No handler for file ", path);
   }
   PHYSFS_freeList(rc);
   return Finish();

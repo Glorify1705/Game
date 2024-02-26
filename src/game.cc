@@ -151,7 +151,7 @@ struct EngineModules {
     lua.Register(&physics);
     lua.Register(&DebugConsole::Instance());
     lua.LoadScripts();
-    lua.LoadMain("main.lua");
+    lua.LoadMain("main.fnl");
   }
 
   void StartFrame() {
@@ -418,6 +418,10 @@ class Game {
     // Initialize the debug console.
     DebugConsole::Instance();
     InitializeSDL();
+    LOG("Program name = ", argv[0], " args = ", arguments_.size());
+    for (size_t i = 0; i < arguments_.size(); ++i) {
+      LOG("argv[", i, "] = ", arguments_[i]);
+    }
     window_ = CreateWindow(params_);
     context_ = CreateOpenglContext(window_);
     PHYSFS_CHECK(PHYSFS_init(argv[0]),

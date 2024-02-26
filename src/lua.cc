@@ -3,6 +3,7 @@
 #include "SDL.h"
 #include "clock.h"
 #include "console.h"
+#include "filesystem.h"
 #include "image.h"
 #include "input.h"
 #include "libraries/pcg_random.h"
@@ -77,7 +78,7 @@ int Traceback(lua_State* L) {
 int LoadLuaAsset(lua_State* state, const ScriptAsset& asset,
                  int traceback_handler = INT_MAX) {
   const char* name = asset.filename()->c_str();
-  FixedStringBuffer<128> buf("@", name);
+  FixedStringBuffer<kMaxPathLength + 1> buf("@", name);
   if (luaL_loadbuffer(state,
                       reinterpret_cast<const char*>(asset.contents()->Data()),
                       asset.contents()->size(), buf.str()) != 0) {
@@ -87,6 +88,7 @@ int LoadLuaAsset(lua_State* state, const ScriptAsset& asset,
   if (traceback_handler != INT_MAX) {
     if (lua_pcall(state, 0, 1, traceback_handler)) {
       lua_error(state);
+      return 0;
     }
   } else {
     lua_call(state, 0, 1);
@@ -94,16 +96,67 @@ int LoadLuaAsset(lua_State* state, const ScriptAsset& asset,
   return 1;
 }
 
+int LoadFennelAsset(lua_State* state, const ScriptAsset& asset,
+                    int traceback_handler = INT_MAX) {
+  const char* name = asset.filename()->c_str();
+  FixedStringBuffer<kMaxPathLength + 1> buf("@", name);
+  // Load fennel module if not present.
+  lua_getfield(state, LUA_GLOBALSINDEX, "package");
+  lua_getfield(state, -1, "loaded");
+  CHECK(lua_istable(state, -1), "Missing loaded table");
+  lua_getfield(state, -1, "fennel");
+  if (lua_isnil(state, -1)) {
+    LOG("Proactively loading Fennel compiler");
+    lua_pop(state, 1);
+    Assets* assets = Registry<Assets>::Retrieve(state);
+    auto* fennel = assets->GetScript("fennel.lua");
+    if (fennel == nullptr) {
+      luaL_error(state, "Fennel compiler is absent, cannot load fennel files");
+      return 0;
+    }
+    // Fennel is not loaded. Load it.
+    LoadLuaAsset(state, *fennel);
+    CHECK(lua_istable(state, -1), "Invalid fennel compilation result");
+    lua_pushvalue(state, -1);
+    lua_setfield(state, -3, "fennel");
+  }
+  // Run dostring on the script contents.
+  lua_getfield(state, -1, "eval");
+  CHECK(lua_isfunction(state, -1),
+        "Invalid fennel compiler has no function 'eval'");
+  lua_pushlstring(state,
+                  reinterpret_cast<const char*>(asset.contents()->Data()),
+                  asset.contents()->size());
+  if (traceback_handler != INT_MAX) {
+    if (lua_pcall(state, 1, 1, traceback_handler)) {
+      lua_error(state);
+      return 0;
+    }
+  } else {
+    lua_call(state, 1, 1);
+  }
+  return 1;
+}
+
 int PackageLoader(lua_State* state) {
   const char* modname = luaL_checkstring(state, 1);
   FixedStringBuffer<127> buf(modname, ".lua");
-  const auto* asset = Registry<Assets>::Retrieve(state)->GetScript(buf.piece());
-  LOG("Loading package ", modname, " from file ", buf);
+  Assets* assets = Registry<Assets>::Retrieve(state);
+  LOG("Attempting to load package ", modname, " from file ", buf);
+  auto* asset = assets->GetScript(buf.piece());
+  if (asset != nullptr) {
+    return LoadLuaAsset(state, *asset);
+  }
+  LOG("Could not find file ", buf, " trying with Fennel");
+  buf.Clear();
+  buf.Append(modname, ".fnl");
+  LOG("Attempting to load package ", modname, " from file ", buf);
+  asset = assets->GetScript(buf.piece());
   if (asset == nullptr) {
     luaL_error(state, "Could not find asset %s.lua", modname);
     return 0;
   }
-  return LoadLuaAsset(state, *asset);
+  return LoadFennelAsset(state, *asset);
 }
 
 std::string_view GetLuaString(lua_State* state, int index) {
@@ -1022,6 +1075,7 @@ void Lua::LoadScripts() {
     auto* script = assets_->GetScriptByIndex(i);
     std::string_view asset_name(script->filename()->c_str());
     ConsumeSuffix(&asset_name, ".lua");
+    ConsumeSuffix(&asset_name, ".fnl");
     if (asset_name != "main") {
       SetPackagePreload(asset_name);
     }
@@ -1029,9 +1083,16 @@ void Lua::LoadScripts() {
 }
 
 void Lua::LoadMain(std::string_view main_script) {
+  LOG("Loading main file ", main_script);
   auto* main = assets_->GetScript(main_script);
   CHECK(main != nullptr, "Unknown script ", main_script);
-  LoadLuaAsset(state_, *main, traceback_handler_);
+  if (Basename(main_script) == ".lua") {
+    LoadLuaAsset(state_, *main, traceback_handler_);
+  } else {
+    LoadFennelAsset(state_, *main, traceback_handler_);
+  }
+  LOG("Checking functions");
+  CHECK(lua_istable(state_, -1), "Main script does not define a table");
   // Check all important functions are defined.
   for (const char* fn : {"init", "update", "draw"}) {
     lua_getfield(state_, -1, fn);
