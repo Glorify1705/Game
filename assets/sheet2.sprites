@@ -1,5 +1,7 @@
 return {
     atlas = "sheet2.qoi",
+    width = 2262,
+    height = 2264,
     sprites = {
         { name = "spaceAstronauts_001",  x = 2026, y = 521,  width = 68,  height = 86 },
         { name = "spaceAstronauts_002",  x = 1949, y = 1213, width = 74,  height = 86 },

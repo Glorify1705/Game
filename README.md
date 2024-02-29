@@ -17,5 +17,10 @@
 - [X] Screenshots.  
 - [X] Collision.
 - [X] Draw circles and colored squares.
-- [ ] Integrate icculus/physfs for hot code reloading.
+- [X] Integrate icculus/physfs.
 - [X] Use https://github.com/Cyan4973/xxHash for the lookup table.
+- [ ] Implement the arena friendly hash map here https://nullprogram.com/blog/2023/09/30/
+- [ ] Adapt icclus/physfs with allocators.
+- [ ] Implement a better string buffer.
+- [ ] Use https://github.com/romkatv/gitstatus/blob/master/src/arena.h
+- [ ] Support [fennel](https://fennel-lang.org/).

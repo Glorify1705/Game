@@ -73,6 +73,7 @@ set(GAME_SRCS
     "src/shaders.cc"
     "src/sound.cc"
     "src/stats.cc"
+    "src/string_table.cc"
     "src/thread_pool.cc"
     "libraries/stb_truetype.cc"
     "libraries/stb_rect_pack.cc"
@@ -126,6 +127,7 @@ add_subdirectory(libraries/googletest)
 set(TEST_SRCS
     "src/strings.cc"
     "src/stats.cc"
+    "src/string_table.cc"
     "src/logging.cc"
     "tests/test.cc")
 
@@ -141,6 +143,7 @@ target_include_directories(Tests
 target_link_libraries(
   Tests
   GTest::gtest_main
+  GTest::gmock
   xxHash::xxhash
 )
 

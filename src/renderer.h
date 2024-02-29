@@ -7,6 +7,7 @@
 #include "array.h"
 #include "assets.h"
 #include "color.h"
+#include "dictionary.h"
 #include "libraries/stb_truetype.h"
 #include "lookup_table.h"
 #include "mat.h"
@@ -187,12 +188,8 @@ class Renderer {
  private:
   inline static constexpr size_t kAtlasWidth = 4096;
   inline static constexpr size_t kAtlasHeight = 4096;
+  inline static constexpr size_t kAtlasSize = kAtlasWidth * kAtlasHeight;
   inline static constexpr size_t kFontSize = 32;
-
-  struct SheetTexture {
-    size_t texture_index;
-    uint32_t width, height;
-  };
 
   struct FontInfo {
     GLuint texture;
@@ -201,7 +198,6 @@ class Renderer {
     stbtt_fontinfo font_info;
     stbtt_pack_context context;
     std::array<stbtt_packedchar, 256> chars;
-    std::array<uint8_t, kAtlasWidth * kAtlasHeight> atlas;
   };
 
   void LoadSpreadsheets(const Assets& assets);
@@ -213,16 +209,18 @@ class Renderer {
   }
 
   Allocator* allocator_;
-  FixedArray<FMat4x4, 128> transform_stack_;
-
-  LookupTable<SheetTexture> spritesheet_info_;
-  LookupTable<const SpriteAsset*> sprites_;
-  std::string_view current_spritesheet_;
-  SheetTexture current_;
+  const Assets* assets_;
   BatchRenderer* renderer_;
 
-  LookupTable<const FontInfo*> font_table_;
-  FixedArray<FontInfo, 32> fonts_;
+  FixedArray<FMat4x4, 128> transform_stack_;
+
+  FixedArray<GLuint, 256> textures_;
+
+  Dictionary<uint32_t> sprites_table_;
+  FixedArray<const SpriteAsset*, 1 << 20> sprites_;
+
+  Dictionary<uint32_t> font_table_;
+  FixedArray<FontInfo, 64> fonts_;
 };
 
 }  // namespace G

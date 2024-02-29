@@ -9,7 +9,7 @@
 #include "allocators.h"
 #include "array.h"
 #include "circular_buffer.h"
-#include "lookup_table.h"
+#include "dictionary.h"
 #include "strings.h"
 #include "thread.h"
 
@@ -20,7 +20,7 @@ class DebugConsole {
   DebugConsole(Allocator* allocator)
       : allocator_(allocator),
         lines_(allocator),
-        watcher_keys_(allocator),
+        watcher_handles_(allocator),
         watcher_values_(allocator) {
     mu_ = SDL_CreateMutex();
     SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
@@ -45,7 +45,6 @@ class DebugConsole {
       Linebuffer* buffer = lines_[i];
       fn(std::string_view(buffer->chars, buffer->len));
     }
-    SDL_UnlockMutex(mu_);
   }
 
   template <typename... Ts>
@@ -56,16 +55,18 @@ class DebugConsole {
       CopyToBuffer(buf.piece(), linebuffer);
       return;
     }
+    uint32_t handle = StringIntern(key);
     auto* linebuffer = New<Linebuffer>(allocator_);
     CopyToBuffer(buf.piece(), linebuffer);
-    watcher_keys_.Push(watcher_values_.Insert(key, linebuffer).map_key);
+    watcher_values_.Insert(key, linebuffer);
+    watcher_handles_.Push(handle);
   }
 
   template <typename Fn>
   void ForAllWatchers(Fn&& fn) {
     LockMutex l(mu_);
-    for (size_t i = 0; i < watcher_keys_.size(); ++i) {
-      const auto& key = watcher_keys_[i];
+    for (uint32_t handle : watcher_handles_) {
+      std::string_view key = StringByHandle(handle);
       if (Linebuffer * val; watcher_values_.Lookup(key, &val)) {
         fn(key, std::string_view(val->chars, val->len));
       }
@@ -101,8 +102,8 @@ class DebugConsole {
 
   inline static constexpr size_t kMaxWatchers = 128;
 
-  FixedArray<std::string_view, kMaxWatchers> watcher_keys_;
-  LookupTable<Linebuffer*> watcher_values_;
+  FixedArray<uint32_t, kMaxWatchers> watcher_handles_;
+  Dictionary<Linebuffer*> watcher_values_;
 
   SDL_mutex* mu_ = nullptr;
 };

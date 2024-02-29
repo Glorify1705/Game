@@ -394,7 +394,7 @@ class DebugUi {
 
   Stats* stats_;
   EngineModules* modules_;
-  LookupTable<const char*> expression_table_;
+  Dictionary<const char*> expression_table_;
   bool show_ = false;
   int frame_stats_location_ = 1;
   char screenshot_filename_[256];
@@ -445,10 +445,10 @@ class Game {
 
   void Init() {
     TIMER("Game Initialization");
-    e_ = DirectInit<EngineModules>(allocator_, arguments_, params_, window_,
-                                   allocator_);
-    debug_ui_ = DirectInit<DebugUi>(allocator_, window_, context_, &stats_, e_,
-                                    allocator_);
+    e_ = New<EngineModules>(allocator_, arguments_, params_, window_,
+                            allocator_);
+    debug_ui_ =
+        New<DebugUi>(allocator_, window_, context_, &stats_, e_, allocator_);
     e_->InitializeLua();
     e_->lua.Init();
   }
@@ -522,7 +522,7 @@ void GameMain(int argc, const char* argv[]) {
   auto* allocator = GlobalEngineAllocator();
   // Ensure we don't overflow the stack in any module by allocating Game on
   // the heap.
-  auto* g = DirectInit<Game>(allocator, argc, argv, allocator);
+  auto* g = New<Game>(allocator, argc, argv, allocator);
   g->Init();
   g->Run();
   Destroy(allocator, g);

@@ -7,19 +7,20 @@
 namespace G {
 
 void Sound::PlayMusic(std::string_view file, int times) {
-  Mix_Music* mixed = nullptr;
-  if (!music_by_name_.Lookup(file, &mixed)) {
+  uint32_t handle;
+  if (!music_by_name_.Lookup(file, &handle)) {
+    handle = musics_.size();
     auto* music = assets_->GetSound(file);
     CHECK(music != nullptr, "Could not find sound ", file);
     SDL_RWops* rwops = SDL_RWFromMem(
         const_cast<void*>(
             reinterpret_cast<const void*>(music->contents()->Data())),
         music->contents()->size());
-    mixed = Mix_LoadMUS_RW(rwops, /*freesrc=*/true);
+    auto* mixed = Mix_LoadMUS_RW(rwops, /*freesrc=*/true);
+    music_by_name_.Insert(file, handle);
     musics_.Push(mixed);
-    music_by_name_.Insert(file, mixed);
   }
-  DCHECK(mixed != nullptr);
+  auto* mixed = musics_[handle];
   if (!Mix_PlayingMusic()) {
     DCHECK(Mix_PlayMusic(mixed, times) == 0, "Could not play sound ", file,
            ": ", SDL_GetError());
@@ -33,18 +34,20 @@ Sound::~Sound() {
 }
 
 void Sound::PlaySoundEffect(std::string_view file) {
-  Mix_Chunk* chunk = nullptr;
-  if (!chunk_by_name_.Lookup(file, &chunk)) {
+  uint32_t handle;
+  if (!chunk_by_name_.Lookup(file, &handle)) {
+    handle = chunks_.size();
     auto* sound = assets_->GetSound(file);
     CHECK(sound != nullptr, "Could not find sound ", file);
     SDL_RWops* rwops = SDL_RWFromMem(
         const_cast<void*>(
             reinterpret_cast<const void*>(sound->contents()->Data())),
         sound->contents()->size());
-    chunk = Mix_LoadWAV_RW(rwops, /*freesrc=*/true);
+    auto* chunk = Mix_LoadWAV_RW(rwops, /*freesrc=*/true);
+    music_by_name_.Insert(file, handle);
     chunks_.Push(chunk);
-    chunk_by_name_.Insert(file, chunk);
   }
+  auto* chunk = chunks_[handle];
   DCHECK(chunk != nullptr);
   Mix_PlayChannel(-1, chunk, 0);
 }

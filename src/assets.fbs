@@ -10,7 +10,7 @@ table ImageAsset {
 
 table SpriteAsset {
     name: string;
-    spritesheet: string;
+    spritesheet: uint32;
     x: uint32;
     y: uint32;
     width: uint32;
@@ -20,6 +20,8 @@ table SpriteAsset {
 table SpritesheetAsset {
     filename: string;
     image_name: string;
+    width: uint32;
+    height: uint32;
     sprites: [SpriteAsset];
 }
 

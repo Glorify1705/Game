@@ -14,7 +14,7 @@
 #include "xxhash.h"
 
 namespace G {
-namespace internal {
+namespace internal_table {
 
 inline uint64_t Hash(std::string_view s) {
   return XXH64(s.data(), s.size(), 0xC0DE15D474);
@@ -26,7 +26,7 @@ inline int32_t MSIProbe(uint64_t hash, int exp, int32_t idx) {
   return (idx + step) & mask;
 }
 
-}  // namespace internal
+}  // namespace internal_table
 
 // Intended for static tables with keys that exist for the whole lifetime of the
 // binary.
@@ -46,9 +46,9 @@ class LookupTable {
   }
 
   bool Lookup(std::string_view key, T* value = nullptr) const {
-    const uint64_t h = internal::Hash(key);
+    const uint64_t h = internal_table::Hash(key);
     for (int32_t i = h;;) {
-      i = internal::MSIProbe(h, kLogTableSize, i);
+      i = internal_table::MSIProbe(h, kLogTableSize, i);
       if (key_lengths_[i] == 0) break;
       if (key_lengths_[i] == key.size() &&
           !std::memcmp(keys_[i], key.data(), key.size())) {
@@ -69,21 +69,15 @@ class LookupTable {
 
   size_t size() const { return elements_; }
 
-  struct Insertion {
-    std::string_view map_key;
-    T* ptr = nullptr;
-  };
-
-  Insertion Insert(std::string_view key, T value) {
-    const uint64_t h = internal::Hash(key);
+  void Insert(std::string_view key, T value) {
+    const uint64_t h = internal_table::Hash(key);
     for (int32_t i = h;;) {
-      i = internal::MSIProbe(h, kLogTableSize, i);
+      i = internal_table::MSIProbe(h, kLogTableSize, i);
       if (key_lengths_[i] != 0) {
         if (key_lengths_[i] == key.size() &&
             !std::memcmp(keys_[i], key.data(), key.size())) {
           values_[i] = std::move(value);
-          return {.map_key = std::string_view(keys_[i], key_lengths_[i]),
-                  .ptr = &values_[i]};
+          return;
         }
       } else {
         DCHECK(elements_ < keys_.size());
@@ -92,18 +86,10 @@ class LookupTable {
         values_[i] = std::move(value);
         key_lengths_[i] = key.size();
         elements_++;
-        return {.map_key = std::string_view(keys_[i], key_lengths_[i]),
-                .ptr = &values_[i]};
+        return;
       }
     }
     DIE("OOM");
-  }
-
-  template <typename Fn>
-  void ForAll(Fn&& fn) {
-    for (size_t i = 0; i < key_lengths_.size(); ++i) {
-      if (key_lengths_[i] > 0) fn(keys_[i], values_[i]);
-    }
   }
 
  private:

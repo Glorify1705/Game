@@ -1,9 +1,13 @@
 #include "array.h"
 #include "bits.h"
+#include "dictionary.h"
+#include "gmock/gmock-matchers.h"
 #include "gport-shim.h"
-#include "gtest/gtest.h"
+#include "gtest/gtest-matchers.h"
 #include "lookup_table.h"
 #include "vec.h"
+
+using ::testing::Pointee;
 
 namespace G {
 
@@ -128,6 +132,35 @@ TEST(Tests, FixedStringBufferTest) {
   EXPECT_STREQ(buffer.str(), "foo bar bar bar ");
   EXPECT_EQ(buffer.size(), 16);
   EXPECT_FALSE(buffer.empty());
+}
+
+TEST(Tests, Dictionary) {
+  Dictionary<int> dictionary(SystemAllocator::Instance());
+  EXPECT_FALSE(dictionary.Contains("foo"));
+  EXPECT_FALSE(dictionary.Contains("bar"));
+  dictionary.Insert("foo", 1);
+  int value;
+  EXPECT_TRUE(dictionary.Lookup("foo", &value));
+  EXPECT_EQ(value, 1);
+  EXPECT_THAT(dictionary.LookupOrDie("foo"), 1);
+  EXPECT_TRUE(dictionary.Contains("foo"));
+  EXPECT_FALSE(dictionary.Contains("bar"));
+  dictionary.Insert("foo", 2);
+  EXPECT_TRUE(dictionary.Contains("foo"));
+  EXPECT_FALSE(dictionary.Contains("bar"));
+  EXPECT_THAT(dictionary.LookupOrDie("foo"), 2);
+}
+
+TEST(Tests, StringTable) {
+  auto s = std::make_unique<StringTable>();
+  uint32_t handle1 = s->Intern("foo");
+  uint32_t handle2 = s->Intern("bar");
+  EXPECT_NE(handle1, handle2);
+  uint32_t handle3 = s->Intern("foo");
+  EXPECT_EQ(handle1, s->Handle("foo"));
+  EXPECT_NE(handle2, s->Handle("foo"));
+  EXPECT_EQ(handle2, s->Handle("bar"));
+  EXPECT_EQ(handle1, handle3);
 }
 
 }  // namespace G

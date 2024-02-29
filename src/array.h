@@ -28,7 +28,7 @@ class FixedArray {
     elems_++;
   }
   void Push(const T& t) {
-    DCHECK(elems_ < N);
+    DCHECK(elems_ < N, elems_, " vs ", N);
     ::new (&buffer_[elems_]) T(t);
     elems_++;
   }

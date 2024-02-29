@@ -2,6 +2,7 @@
 #ifndef _GAME_STRINGS_H
 #define _GAME_STRINGS_H
 
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -113,17 +114,35 @@ class FixedStringBuffer {
   }
 
   template <typename... T>
-  void Append(T... ts) {
+  FixedStringBuffer& Append(T... ts) {
     [&](std::initializer_list<std::string_view> ss) {
       for (auto& s : ss) AppendStr(s);
     }({internal_strings::Alphanumeric(ts).piece()...});
     buf_[pos_] = '\0';
+    return *this;
+  }
+
+  FixedStringBuffer& AppendF(const char* fmt, ...) {
+    va_list l;
+    va_start(l, fmt);
+    VAppendF(fmt, l);
+    va_end(l);
+    return *this;
   }
 
   template <typename... T>
-  void Set(T... ts) {
+  FixedStringBuffer& Set(T... ts) {
     pos_ = 0;
-    Append(std::forward<T>(ts)...);
+    return Append(std::forward<T>(ts)...);
+  }
+
+  FixedStringBuffer& SetF(const char* fmt, ...) {
+    pos_ = 0;
+    va_list l;
+    va_start(l, fmt);
+    VAppendF(fmt, l);
+    va_end(l);
+    return *this;
   }
 
   const char* str() const { return buf_; }
@@ -138,6 +157,11 @@ class FixedStringBuffer {
   bool empty() const { return pos_ == 0; }
 
  private:
+  void VAppendF(const char* fmt, va_list l) {
+    int needed = vsnprintf(&buf_[pos_], N - pos_, fmt, l);
+    pos_ = std::min(N, pos_ + needed);
+  }
+
   void AppendStr(std::string_view s) {
     const size_t length = capacity(s.size());
     std::memcpy(buf_ + pos_, s.data(), length);
@@ -153,26 +177,6 @@ class FixedStringBuffer {
 
 bool HasSuffix(std::string_view str, std::string_view suffix);
 bool ConsumeSuffix(std::string_view* str, std::string_view suffix);
-
-#if 0
-class String {
-  public:
-  private:
-    struct Ptr {
-      char* ptr;
-      size_t capacity;
-      size_t size;
-    };
-    struct Inline {
-      char buf[24];
-    };
-    union {
-      Ptr ptr;
-      Inline inl;
-    } rep;
-};
-
-#endif
 
 }  // namespace G
 

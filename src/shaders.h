@@ -3,9 +3,9 @@
 #define _GAME_SHADERS_H
 
 #include "assets.h"
+#include "dictionary.h"
 #include "libraries/glad.h"
 #include "logging.h"
-#include "lookup_table.h"
 #include "mat.h"
 #include "vec.h"
 
@@ -120,8 +120,10 @@ class Shaders {
     return false;
   }
 
-  LookupTable<GLuint> compiled_shaders_;
-  LookupTable<GLuint> compiled_programs_;
+  Dictionary<GLuint> compiled_shaders_;
+  Dictionary<GLuint> compiled_programs_;
+  FixedArray<GLuint, 256> gl_shader_handles_;
+  FixedArray<GLuint, 256> gl_program_handles_;
   FixedStringBuffer<512> last_error_;
   GLuint current_program_ = 0;
 };

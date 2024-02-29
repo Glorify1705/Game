@@ -15,6 +15,14 @@
 namespace G {
 namespace {
 
+#define LUA_ERROR(state, ...)                                       \
+  do {                                                              \
+    FixedStringBuffer<kMaxLogLineLength> _luaerror_buffer;          \
+    _luaerror_buffer.Append("[", Basename(__FILE__), ":", __LINE__, \
+                            "]: ", ##__VA_ARGS__);                  \
+    luaL_error(state, "%s", _luaerror_buffer);                      \
+  } while (0);
+
 Allocator* GetAllocator(lua_State* state) {
   return Registry<Lua>::Retrieve(state)->allocator();
 }
@@ -23,7 +31,7 @@ template <typename T>
 T FromLuaTable(lua_State* state, int index) {
   T result;
   if (!lua_istable(state, index)) {
-    luaL_error(state, "Not a table");
+    LUA_ERROR(state, "Not a table");
     return result;
   }
   for (size_t i = 0; i < T::kCardinality; ++i) {
@@ -38,13 +46,13 @@ template <typename T>
 T FromLuaMatrix(lua_State* state, int index) {
   T result;
   if (!lua_istable(state, index)) {
-    luaL_error(state, "Not a table");
+    LUA_ERROR(state, "Not a table");
     return result;
   }
   for (size_t i = 0; i < T::kDimension; ++i) {
     lua_rawgeti(state, index, i + 1);
     if (!lua_istable(state, index)) {
-      luaL_error(state, "Not a table");
+      LUA_ERROR(state, "Not a table");
       return result;
     }
     for (size_t j = 0; j < T::kDimension; ++j) {
@@ -111,7 +119,7 @@ int LoadFennelAsset(lua_State* state, const ScriptAsset& asset,
     Assets* assets = Registry<Assets>::Retrieve(state);
     auto* fennel = assets->GetScript("fennel.lua");
     if (fennel == nullptr) {
-      luaL_error(state, "Fennel compiler is absent, cannot load fennel files");
+      LUA_ERROR(state, "Fennel compiler is absent, cannot load fennel files");
       return 0;
     }
     // Fennel is not loaded. Load it.
@@ -153,7 +161,7 @@ int PackageLoader(lua_State* state) {
   LOG("Attempting to load package ", modname, " from file ", buf);
   asset = assets->GetScript(buf.piece());
   if (asset == nullptr) {
-    luaL_error(state, "Could not find asset %s.lua", modname);
+    LUA_ERROR(state, "Could not find asset %s.lua", modname);
     return 0;
   }
   return LoadFennelAsset(state, *asset);
@@ -178,7 +186,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        if (auto* sprite = renderer->sprite(spritename); sprite != nullptr) {
          renderer->Draw(FVec2(x, y), angle, *sprite);
        } else {
-         luaL_error(state, "unknown sprite %s", sprite);
+         LUA_ERROR(state, "unknown sprite ", spritename);
        }
        return 0;
      }},
@@ -201,7 +209,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        if (lua_gettop(state) == 1) {
          std::string_view s = GetLuaString(state, 1);
          if (s.empty()) {
-           luaL_error(state, "Invalid empty color");
+           LUA_ERROR(state, "Invalid empty color");
            return 0;
          }
          color = ColorFromTable(s);
@@ -300,8 +308,8 @@ const struct luaL_Reg kGraphicsLib[] = {
            LOG("Writing screenshot");
            if (!WritePixelsToImage(output_file_.str(), pixels, width, height,
                                    allocator_)) {
-             luaL_error(state_, "Could not write image %s to disk",
-                        output_file_.str(), state_);
+             LUA_ERROR(state_, "Could not write image ", output_file_,
+                       " to disk");
            }
            Destroy(allocator_, this);
          }
@@ -317,7 +325,7 @@ const struct luaL_Reg kGraphicsLib[] = {
          Allocator* allocator_;
        };
        auto* allocator = GetAllocator(state);
-       auto* context = DirectInit<Context>(allocator, state, allocator);
+       auto* context = New<Context>(allocator, state, allocator);
        context->RequestScreenshot();
        return 0;
      }},
@@ -330,8 +338,8 @@ const struct luaL_Reg kGraphicsLib[] = {
            HasSuffix(name, ".vert") ? ShaderType::VERTEX : ShaderType::FRAGMENT,
            name, code);
        if (!compiles) {
-         luaL_error(state, "Could not compile shader %s: %s", name,
-                    shaders->LastError());
+         LUA_ERROR(state, "Could not compile shader %s: %s", name,
+                   shaders->LastError());
        }
        return 0;
      }},
@@ -343,15 +351,15 @@ const struct luaL_Reg kGraphicsLib[] = {
        std::string_view program_name = fragment_shader;
        FixedStringBuffer<kMaxPathLength> buf(fragment_shader);
        if (!ConsumeSuffix(&program_name, ".frag")) {
-         luaL_error(state,
-                    "Could not switch shader %s: not a fragment shader (i.e. "
-                    "name does not end in .frag)",
-                    buf, shaders->LastError());
+         LUA_ERROR(state,
+                   "Could not switch shader %s: not a fragment shader (i.e. "
+                   "name does not end in .frag)",
+                   buf, shaders->LastError());
          return 0;
        }
        if (!shaders->Link(program_name, "post_pass.vert", fragment_shader)) {
-         luaL_error(state, "Could not switch shader %s: %s", buf,
-                    shaders->LastError().data());
+         LUA_ERROR(state, "Could not switch shader %s: %s", buf,
+                   shaders->LastError().data());
          return 0;
        }
        renderer->SwitchShaderProgram(program_name);
@@ -363,32 +371,32 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (lua_isnumber(state, 2)) {
          if (!shaders->SetUniformF(name, luaL_checknumber(state, 2))) {
-           luaL_error(state, "Could not set uniform ", name, ": ",
-                      shaders->LastError().data());
+           LUA_ERROR(state, "Could not set uniform ", name, ": ",
+                     shaders->LastError().data());
          }
          return 0;
        }
        if (!lua_istable(state, 2)) {
-         luaL_error(state, "Not a table");
+         LUA_ERROR(state, "Not a table");
          return 0;
        }
        switch (lua_objlen(state, 2)) {
          case 2:
            if (!shaders->SetUniform(name, FromLuaTable<FVec2>(state, 2))) {
-             luaL_error(state, "Could not set uniform ", name, ": ",
-                        shaders->LastError().data());
+             LUA_ERROR(state, "Could not set uniform ", name, ": ",
+                       shaders->LastError().data());
            };
            break;
          case 3:
            if (!shaders->SetUniform(name, FromLuaTable<FVec3>(state, 2))) {
-             luaL_error(state, "Could not set uniform ", name, ": ",
-                        shaders->LastError().data());
+             LUA_ERROR(state, "Could not set uniform ", name, ": ",
+                       shaders->LastError().data());
            };
            break;
          case 4:
            if (!shaders->SetUniform(name, FromLuaTable<FVec4>(state, 2))) {
-             luaL_error(state, "Could not set uniform ", name, ": ",
-                        shaders->LastError().data());
+             LUA_ERROR(state, "Could not set uniform ", name, ": ",
+                       shaders->LastError().data());
            }
 
            break;
@@ -400,8 +408,8 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FVec2>(state, 2))) {
-         luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError().data());
+         LUA_ERROR(state, "Could not set uniform ", name, ": ",
+                   shaders->LastError().data());
        }
        return 0;
      }},
@@ -410,8 +418,8 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FVec3>(state, 2))) {
-         luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError().data());
+         LUA_ERROR(state, "Could not set uniform ", name, ": ",
+                   shaders->LastError().data());
        }
        return 0;
      }},
@@ -420,8 +428,8 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FVec4>(state, 2))) {
-         luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError().data());
+         LUA_ERROR(state, "Could not set uniform ", name, ": ",
+                   shaders->LastError().data());
        }
        return 0;
      }},
@@ -430,8 +438,8 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FMat2x2>(state, 2))) {
-         luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError().data());
+         LUA_ERROR(state, "Could not set uniform ", name, ": ",
+                   shaders->LastError().data());
        }
        return 0;
      }},
@@ -440,8 +448,8 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FMat3x3>(state, 2))) {
-         luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError().data());
+         LUA_ERROR(state, "Could not set uniform ", name, ": ",
+                   shaders->LastError().data());
        }
        return 0;
      }},
@@ -449,8 +457,8 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FMat4x4>(state, 2))) {
-         luaL_error(state, "Could not set uniform ", name, ": ",
-                    shaders->LastError().data());
+         LUA_ERROR(state, "Could not set uniform ", name, ": ",
+                   shaders->LastError().data());
        }
        return 0;
      }}};
@@ -471,8 +479,8 @@ const struct luaL_Reg kSystemLib[] = {
        char* result = SDL_GetClipboardText();
        const size_t length = strlen(result);
        if (length == 0) {
-         return luaL_error(state, "Failed to get the clipboard: %s",
-                           SDL_GetError());
+         LUA_ERROR(state, "Failed to get the clipboard: %s", SDL_GetError());
+         return 0;
        }
        lua_pushlstring(state, result, length);
        return 1;
@@ -495,7 +503,7 @@ void FillLogLine(lua_State* state, LogLine* l) {
     size_t length;
     const char* s = lua_tolstring(state, -1, &length);
     if (s == nullptr) {
-      luaL_error(state, "'tostring' did not return string");
+      LUA_ERROR(state, "'tostring' did not return string");
       return;
     }
     l->log.Append(std::string_view(s, length));
@@ -541,7 +549,7 @@ const struct luaL_Reg kConsoleLib[] = {
        size_t length;
        const char* s = lua_tolstring(state, -1, &length);
        if (s == nullptr) {
-         return luaL_error(state, "'tostring' did not return string");
+         LUA_ERROR(state, "'tostring' did not return string");
        }
        console->AddWatcher(key, std::string_view(s, length));
        return 0;
@@ -669,7 +677,8 @@ const struct luaL_Reg kSoundLib[] = {
      [](lua_State* state) {
        const float volume = luaL_checknumber(state, 1);
        if (volume < 0 || volume > 1) {
-         luaL_error(state, "Invalid volume %f must be in [0, 1)", volume);
+         LUA_ERROR(state, "Invalid volume ", volume, " must be in [0, 1)",
+                   volume);
          return 0;
        }
        auto* sound = Registry<Sound>::Retrieve(state);
@@ -679,7 +688,7 @@ const struct luaL_Reg kSoundLib[] = {
     {"set_sfx_volume", [](lua_State* state) {
        const float volume = luaL_checknumber(state, 1);
        if (volume < 0 || volume > 1) {
-         luaL_error(state, "Invalid volume %f must be in [0, 1)", volume);
+         LUA_ERROR(state, "Invalid volume ", volume, " must be in [0, 1)");
          return 0;
        }
        auto* sound = Registry<Sound>::Retrieve(state);
@@ -694,7 +703,7 @@ const struct luaL_Reg kAssetsLib[] = {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        auto* subtexture = renderer->sprite(name);
        if (subtexture == nullptr) {
-         luaL_error(state, "Could not find a subtexture %s", name);
+         LUA_ERROR(state, "Could not find a subtexture called ", name);
        }
        lua_pushlightuserdata(state, renderer);
        lua_getfield(state, LUA_REGISTRYINDEX, "asset_sprite_ptr");
@@ -708,7 +717,7 @@ const struct luaL_Reg kAssetsLib[] = {
          std::string_view name = GetLuaString(state, 1);
          ptr = renderer->sprite(name);
          if (ptr == nullptr) {
-           luaL_error(state, "Could not find an image called %s", name);
+           LUA_ERROR(state, "Could not find an image called ", name);
          }
        } else {
          ptr = reinterpret_cast<const SpriteAsset*>(
@@ -773,7 +782,7 @@ const struct luaL_Reg kPhysicsLib[] = {
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
        if (lua_gettop(state) != 1) {
-         luaL_error(state, "Must pass a function as collision callback");
+         LUA_ERROR(state, "Must pass a function as collision callback");
          return 0;
        }
        struct CollisionContext {
@@ -1086,7 +1095,6 @@ void Lua::LoadMain() {
   auto* main = assets_->GetScript("main.lua");
   CHECK(main != nullptr, "Unknown script main.lua");
   LoadLuaAsset(state_, *main, traceback_handler_);
-  LOG("Checking functions");
   CHECK(lua_istable(state_, -1), "Main script does not define a table");
   // Check all important functions are defined.
   for (const char* fn : {"init", "update", "draw"}) {

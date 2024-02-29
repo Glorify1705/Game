@@ -143,6 +143,7 @@ void Packer::HandleSpritesheet(std::string_view filename, uint8_t* buf,
                                size_t size) {
   WithAllocator<std::vector<flatbuffers::Offset<SpriteAsset>>, Allocator>
       sprites(allocator_);
+  uint32_t spritesheet_index = spritesheets_.size();
   auto* state = lua_newstate(&Packer::LuaAlloc, this);
   CHECK(luaL_loadbuffer(state, reinterpret_cast<const char*>(buf), size,
                         filename.data()) == 0,
@@ -152,6 +153,14 @@ void Packer::HandleSpritesheet(std::string_view filename, uint8_t* buf,
   lua_pushstring(state, "atlas");
   lua_gettable(state, -2);
   auto str = fbs_.CreateString(luaL_checkstring(state, -1));
+  lua_pop(state, 1);
+  lua_pushstring(state, "width");
+  lua_gettable(state, -2);
+  const int width = lua_tonumber(state, -1);
+  lua_pop(state, 1);
+  lua_pushstring(state, "height");
+  lua_gettable(state, -2);
+  const int height = lua_tonumber(state, -1);
   lua_pop(state, 1);
   lua_pushstring(state, "sprites");
   lua_gettable(state, -2);
@@ -175,12 +184,14 @@ void Packer::HandleSpritesheet(std::string_view filename, uint8_t* buf,
     const uint32_t w = get_number("width");
     const uint32_t h = get_number("height");
 
-    sprites.push_back(CreateSpriteAsset(fbs_, name, str, x, y, w, h));
+    sprites.push_back(
+        CreateSpriteAsset(fbs_, name, spritesheet_index, x, y, w, h));
   }
   lua_pop(state, 1);
   lua_close(state);
-  spritesheets_.push_back(CreateSpritesheetAsset(
-      fbs_, fbs_.CreateString(filename), str, fbs_.CreateVector(sprites)));
+  spritesheets_.push_back(
+      CreateSpritesheetAsset(fbs_, fbs_.CreateString(filename), str, width,
+                             height, fbs_.CreateVector(sprites)));
 }
 
 void Packer::HandleOggSound(std::string_view filename, uint8_t* buf,

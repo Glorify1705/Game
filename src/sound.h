@@ -5,7 +5,7 @@
 #include "SDL_mixer.h"
 #include "array.h"
 #include "assets.h"
-#include "lookup_table.h"
+#include "dictionary.h"
 
 namespace G {
 
@@ -37,8 +37,8 @@ class Sound {
   const Assets* assets_;
   FixedArray<Mix_Chunk*, 128> chunks_;
   FixedArray<Mix_Music*, 128> musics_;
-  LookupTable<Mix_Chunk*> chunk_by_name_;
-  LookupTable<Mix_Music*> music_by_name_;
+  Dictionary<uint32_t> chunk_by_name_;
+  Dictionary<uint32_t> music_by_name_;
 };
 
 }  // namespace G

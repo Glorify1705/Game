@@ -89,7 +89,10 @@ constexpr std::string_view kPostPassFragmentShader = R"(
 }  // namespace
 
 Shaders::Shaders(const Assets& assets, Allocator* allocator)
-    : compiled_shaders_(allocator), compiled_programs_(allocator) {
+    : compiled_shaders_(allocator),
+      compiled_programs_(allocator),
+      gl_shader_handles_(allocator),
+      gl_program_handles_(allocator) {
   for (size_t i = 0; i < assets.shaders(); ++i) {
     const ShaderAsset* asset = assets.GetShaderByIndex(i);
     CHECK(Compile(asset->type(), FlatbufferStringview(asset->filename()),
@@ -110,10 +113,12 @@ Shaders::Shaders(const Assets& assets, Allocator* allocator)
 }
 
 Shaders::~Shaders() {
-  compiled_shaders_.ForAll(
-      [](std::string_view, GLuint shader) { glDeleteShader(shader); });
-  compiled_programs_.ForAll(
-      [](std::string_view, GLuint program) { glDeleteProgram(program); });
+  for (GLuint handle : gl_shader_handles_) {
+    glDeleteShader(handle);
+  }
+  for (GLuint handle : gl_program_handles_) {
+    glDeleteProgram(handle);
+  }
 }
 
 bool Shaders::Compile(ShaderType type, std::string_view name,
@@ -139,6 +144,7 @@ bool Shaders::Compile(ShaderType type, std::string_view name,
   }
   LOG("Compiled ", (type == ShaderType::VERTEX ? "vertex" : "fragment"),
       " shader ", name, " with id ", shader);
+  gl_shader_handles_.Push(shader);
   compiled_shaders_.Insert(name, shader);
   return true;
 }
@@ -167,6 +173,7 @@ bool Shaders::Link(std::string_view name, std::string_view vertex_shader,
     return FillError("Could not link shaders into ", name, ": ", info_log);
   }
   LOG("Linked program ", name, " with id ", shader_program);
+  gl_program_handles_.Push(shader_program);
   compiled_programs_.Insert(name, shader_program);
   return true;
 }

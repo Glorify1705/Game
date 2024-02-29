@@ -31,26 +31,29 @@ class Allocator {
 };
 
 template <typename T>
-T* New(Allocator* allocator) {
-  return reinterpret_cast<T*>(allocator->Alloc(sizeof(T), alignof(T)));
-}
-
-template <typename T>
 void Destroy(Allocator* allocator, T* ptr) {
-  ptr->~T();
+  if constexpr (!std::is_trivially_destructible_v<T>) {
+    ptr->~T();
+  }
   allocator->Dealloc(ptr, sizeof(T));
 }
 
 template <typename T, typename... Args>
-T* DirectInit(Allocator* allocator, Args... args) {
-  auto* ptr = New<T>(allocator);
+T* New(Allocator* allocator, Args... args) {
+  T* ptr = reinterpret_cast<T*>(allocator->Alloc(sizeof(T), alignof(T)));
   ::new (ptr) T(std::forward<Args>(args)...);
   return ptr;
 }
 
+inline std::string_view StrDup(Allocator* allocator, std::string_view s) {
+  char* result = reinterpret_cast<char*>(allocator->Alloc(s.size(), 1));
+  std::memcpy(result, s.data(), s.size());
+  return std::string_view(result, s.size());
+}
+
 template <typename T, typename... Args>
 T* BraceInit(Allocator* allocator, Args... args) {
-  auto* ptr = New<T>(allocator);
+  T* ptr = reinterpret_cast<T*>(allocator->Alloc(sizeof(T), alignof(T)));
   ::new (ptr) T{std::forward<Args>(args)...};
   return ptr;
 }
