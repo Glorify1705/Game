@@ -20,12 +20,15 @@ class DebugConsole {
   DebugConsole(Allocator* allocator)
       : allocator_(allocator),
         lines_(allocator),
+        linebuffers_(allocator),
         watcher_handles_(allocator),
         watcher_values_(allocator) {
+    linebuffers_.Reserve(linebuffers_.capacity());
     mu_ = SDL_CreateMutex();
     SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
     SDL_LogSetOutputFunction(LogWithConsole, this);
   }
+
   ~DebugConsole() {
     SDL_LogSetOutputFunction(log_fn_, log_fn_userdata_);
     SDL_DestroyMutex(mu_);
@@ -56,7 +59,7 @@ class DebugConsole {
       return;
     }
     uint32_t handle = StringIntern(key);
-    auto* linebuffer = New<Linebuffer>(allocator_);
+    auto* linebuffer = &linebuffers_[watcher_handles_.size()];
     CopyToBuffer(buf.piece(), linebuffer);
     watcher_values_.Insert(key, linebuffer);
     watcher_handles_.Push(handle);
@@ -102,6 +105,7 @@ class DebugConsole {
 
   inline static constexpr size_t kMaxWatchers = 128;
 
+  FixedArray<Linebuffer, kMaxWatchers> linebuffers_;
   FixedArray<uint32_t, kMaxWatchers> watcher_handles_;
   Dictionary<Linebuffer*> watcher_values_;
 
