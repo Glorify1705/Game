@@ -195,11 +195,9 @@ void BatchRenderer::Render() {
   glClearColor(0.f, 0.f, 0.f, 0.f);
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-  glEnable(GL_DEPTH_TEST);
-  glDepthFunc(GL_LEQUAL);
-  glClearDepth(1.0);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glBlendEquation(GL_FUNC_ADD);
+  glDisable(GL_DEPTH_TEST);
+  glClear(GL_COLOR_BUFFER_BIT);
   glBindVertexArray(vao_);
   glBindBuffer(GL_ARRAY_BUFFER, vbo_);
   glBufferData(GL_ARRAY_BUFFER, vertices_.bytes(), vertices_.data(),
@@ -237,6 +235,7 @@ void BatchRenderer::Render() {
                         reinterpret_cast<void*>(offsetof(VertexData, color)));
   glEnableVertexAttribArray(color_attribute);
   shaders_->SetUniform("global_color", FVec4(1, 1, 1, 1));
+  int render_calls = 0;
   for (const auto& batch : batches_) {
     if (batch.indices_count == 0) continue;
     shaders_->SetUniform("tex", batch.texture_unit);
@@ -249,9 +248,9 @@ void BatchRenderer::Render() {
         reinterpret_cast<uintptr_t>(&indices_[0]);
     glDrawElementsInstanced(GL_TRIANGLES, batch.indices_count, GL_UNSIGNED_INT,
                             reinterpret_cast<void*>(indices_start), 1);
+    render_calls++;
   }
   if (debug_render_) {
-    glDisable(GL_DEPTH_TEST);
     // Draw a red semi transparent quad for all quads.
     shaders_->SetUniform("tex", noop_texture_);
     shaders_->SetUniform("global_color", FVec4(1, 0, 0, 0.7));
@@ -268,11 +267,7 @@ void BatchRenderer::Render() {
                               reinterpret_cast<void*>(indices_start), 1);
     }
   }
-  WATCH_EXPR("Batches", batches_.size());
-  WATCH_EXPR("Vertex Memory", vertices_.bytes());
-  WATCH_EXPR("Batch used memory", batches_.bytes());
   // Second pass
-  glDisable(GL_DEPTH_TEST);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glClearColor(0.f, 0.f, 0.f, 0.f);
   glClear(GL_COLOR_BUFFER_BIT);
@@ -281,6 +276,11 @@ void BatchRenderer::Render() {
   glBindVertexArray(screen_quad_vao_);
   glBindTexture(GL_TEXTURE_2D, render_texture_);
   glDrawArrays(GL_TRIANGLES, 0, 6);
+  render_calls++;
+  WATCH_EXPR("Batches", batches_.size());
+  WATCH_EXPR("Vertex Memory", vertices_.bytes());
+  WATCH_EXPR("Batch used memory", batches_.bytes());
+  WATCH_EXPR("Render calls", render_calls);
   TakeScreenshots();
 }
 
