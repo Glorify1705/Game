@@ -23,6 +23,15 @@ class StringTable {
     return std::string_view(&buffer_[offsets_[handle]], sizes_[handle]);
   }
 
+  struct Stats {
+    int32_t strings_used = 0;
+    int32_t space_used = 0;
+    int32_t total_space = kTotalSize;
+    int32_t total_strings = 1 << kTotalStringsLog;
+  };
+
+  Stats stats() { return stats_; }
+
  private:
   static uint64_t Hash(std::string_view s);
 
@@ -35,6 +44,8 @@ class StringTable {
   uint32_t offsets_[1 << kTotalStringsLog];
   uint32_t sizes_[1 << kTotalStringsLog];
   uint32_t pos_ = 0;
+
+  Stats stats_;
 };
 
 inline uint32_t StringIntern(std::string_view input) {

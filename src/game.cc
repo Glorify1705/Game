@@ -378,6 +378,16 @@ class DebugUi {
         allocator->total_memory(), " (",
         ((100.0 * allocator->used_memory()) / allocator->total_memory()), ")");
     ImGui::TextUnformatted(memory_used_line.str());
+    const StringTable::Stats stats = StringTable::Instance().stats();
+    FixedStringBuffer<kMaxLogLineLength> strings_used_line;
+    strings_used_line.Set(
+        "Strings used: ", stats.strings_used, " / ", stats.total_strings, " (",
+        ((100.0 * stats.strings_used) / stats.total_strings), ")");
+    ImGui::TextUnformatted(strings_used_line.str());
+    strings_used_line.Set(
+        "String space used: ", stats.space_used, " / ", stats.total_space, " (",
+        ((100.0 * stats.space_used) / stats.total_space), ")");
+    ImGui::TextUnformatted(strings_used_line.str());
     if (ImGui::BeginTable("Watchers", 2)) {
       DebugConsole::Instance().ForAllWatchers(
           [](std::string_view key, std::string_view value) {

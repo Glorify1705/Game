@@ -41,6 +41,8 @@ uint32_t StringTable::Intern(std::string_view input) {
       offsets_[i] = pos_;
       sizes_[i] = size;
       pos_ += size;
+      stats_.space_used += size;
+      stats_.strings_used++;
       return i;
     }
   }
