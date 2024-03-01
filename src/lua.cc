@@ -107,7 +107,7 @@ int LoadLuaAsset(lua_State* state, const ScriptAsset& asset,
 int LoadFennelAsset(lua_State* state, const ScriptAsset& asset,
                     int traceback_handler = INT_MAX) {
   const char* name = asset.filename()->c_str();
-  FixedStringBuffer<kMaxPathLength + 1> buf("@", name);
+  TIMER("Compiling ", name);
   // Load fennel module if not present.
   lua_getfield(state, LUA_GLOBALSINDEX, "package");
   lua_getfield(state, -1, "loaded");
@@ -128,20 +128,25 @@ int LoadFennelAsset(lua_State* state, const ScriptAsset& asset,
     lua_pushvalue(state, -1);
     lua_setfield(state, -3, "fennel");
   }
-  // Run dostring on the script contents.
+  // Run eval on the script contents.
   lua_getfield(state, -1, "eval");
   CHECK(lua_isfunction(state, -1),
         "Invalid fennel compiler has no function 'eval'");
   lua_pushlstring(state,
                   reinterpret_cast<const char*>(asset.contents()->Data()),
                   asset.contents()->size());
+  FixedStringBuffer<kMaxPathLength + 1> buf(name);
+  lua_newtable(state);
+  lua_pushstring(state, "filename");
+  lua_pushstring(state, buf.str());
+  lua_settable(state, -3);
   if (traceback_handler != INT_MAX) {
-    if (lua_pcall(state, 1, 1, traceback_handler)) {
+    if (lua_pcall(state, 2, 1, traceback_handler)) {
       lua_error(state);
       return 0;
     }
   } else {
-    lua_call(state, 1, 1);
+    lua_call(state, 2, 1);
   }
   return 1;
 }
@@ -507,6 +512,7 @@ void FillLogLine(lua_State* state, LogLine* l) {
       return;
     }
     l->log.Append(std::string_view(s, length));
+    if (i + 1 < num_args) l->log.Append(" ");
     lua_pop(state, 1);
   }
   lua_pop(state, 1);
@@ -526,7 +532,6 @@ int LuaLogPrint(lua_State* state) {
   LogLine l;
   FillLogLine(state, &l);
   Log(l.file.str(), l.line, l.log);
-  return 0;
   return 0;
 }
 
