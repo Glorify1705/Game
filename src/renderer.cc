@@ -13,6 +13,51 @@ namespace {}  // namespace
 
 constexpr size_t kCommandMemory = 1 << 24;
 
+class BatchRenderer::CommandIterator {
+ public:
+  CommandIterator(uint8_t* buffer, FixedArray<QueueEntry>* commands)
+      : commands_(commands), buffer_(buffer), pos_(0) {
+    remaining_ = commands_->empty() ? 0 : (*commands_)[0].count;
+  }
+
+  CommandType Read(Command* p) {
+    if (i_ == commands_->size()) return kDone;
+    if (remaining_ == 0) {
+      i_++;
+      if (i_ == commands_->size()) return kDone;
+      remaining_ = (*commands_)[i_].count;
+    }
+    const QueueEntry& e = (*commands_)[i_];
+    remaining_--;
+    const auto type = static_cast<CommandType>(e.type);
+    size_t size = SizeOfCommand(type);
+    std::memcpy(p, &buffer_[pos_], size);
+    pos_ += size;
+    return type;
+  }
+
+  bool Done() const { return i_ == commands_->size(); }
+
+ private:
+  FixedArray<QueueEntry>* commands_;
+  uint8_t* buffer_;
+  size_t pos_ = 0, remaining_ = 0, i_ = 0;
+};
+
+void BatchRenderer::AddCommand(CommandType command, const void* data,
+                               size_t size) {
+  if (command != kDone) {
+    std::memcpy(&command_buffer_[pos_], data, size);
+    pos_ += size;
+  }
+  if (commands_.empty() || commands_.back().type != command ||
+      commands_.back().count == kMaxCount) {
+    commands_.Push(QueueEntry{.type = command, .count = 1});
+  } else {
+    commands_.back().count++;
+  }
+}
+
 BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
                              Allocator* allocator)
     : allocator_(allocator),

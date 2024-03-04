@@ -130,10 +130,6 @@ class BatchRenderer {
     uint32_t count : 20;
   };
 
-  struct SetShader {
-    uint32_t handle;
-  };
-
   union Command {
     RenderQuad quad;
     RenderTriangle triangle;
@@ -142,7 +138,7 @@ class BatchRenderer {
     SetTransform set_transform;
   };
 
-  static_assert(std::is_trivially_copyable_v<FVec2>);
+  static_assert(std::is_trivially_copyable_v<Command>);
 
   struct VertexData {
     FVec2 position;
@@ -163,19 +159,14 @@ class BatchRenderer {
     void* userdata = nullptr;
   };
 
+  class CommandIterator;
+
   template <typename T>
   void AddCommand(CommandType command, const T& data) {
-    if (command != kDone) {
-      std::memcpy(&command_buffer_[pos_], &data, sizeof(data));
-      pos_ += sizeof(data);
-    }
-    if (commands_.empty() || commands_.back().type != command ||
-        commands_.back().count == kMaxCount) {
-      commands_.Push(QueueEntry{.type = command, .count = 1});
-    } else {
-      commands_.back().count++;
-    }
+    AddCommand(command, &data, sizeof(data));
   }
+
+  void AddCommand(CommandType type, const void* data, size_t size);
 
   static constexpr size_t SizeOfCommand(CommandType t) {
     switch (t) {
@@ -212,60 +203,6 @@ class BatchRenderer {
     }
     return "";
   }
-
-  static void PrintCommand(CommandType t, const Command& c) {
-    switch (t) {
-      case kRenderQuad:
-        LOG("RENDER_QUAD");
-        break;
-      case kRenderTrig:
-        LOG("RENDER_TRIANGLE");
-        break;
-      case kSetTexture:
-        LOG("SET_TEXTURE unit = ", c.set_texture.texture_unit);
-        break;
-      case kSetColor:
-        LOG("SET_COLOR");
-        break;
-      case kSetTransform:
-        LOG("SET_TRANSFORM");
-        break;
-      case kDone:
-        LOG("DONE");
-        break;
-    }
-  }
-
-  class CommandIterator {
-   public:
-    CommandIterator(uint8_t* buffer, FixedArray<QueueEntry>* commands)
-        : commands_(commands), buffer_(buffer), pos_(0) {
-      remaining_ = commands_->empty() ? 0 : (*commands_)[0].count;
-    }
-
-    CommandType Read(Command* p) {
-      if (i_ == commands_->size()) return kDone;
-      if (remaining_ == 0) {
-        i_++;
-        if (i_ == commands_->size()) return kDone;
-        remaining_ = (*commands_)[i_].count;
-      }
-      const QueueEntry& e = (*commands_)[i_];
-      remaining_--;
-      const auto type = static_cast<CommandType>(e.type);
-      size_t size = SizeOfCommand(type);
-      std::memcpy(p, &buffer_[pos_], size);
-      pos_ += size;
-      return type;
-    }
-
-    bool Done() const { return i_ == commands_->size(); }
-
-   private:
-    FixedArray<QueueEntry>* commands_;
-    uint8_t* buffer_;
-    size_t pos_ = 0, remaining_ = 0, i_ = 0;
-  };
 
   void TakeScreenshots();
 
