@@ -147,10 +147,7 @@ void BatchRenderer::Render(Allocator* scratch) {
   // Compute size of data.
   size_t vertices_count = 0, indices_count = 0;
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
-    Command c;
-    CommandType type = it.Read(&c);
-    if (type == kDone) break;
-    switch (type) {
+    switch (Command c; it.Read(&c)) {
       case kRenderQuad:
         vertices_count += 4;
         indices_count += 6;
@@ -169,10 +166,8 @@ void BatchRenderer::Render(Allocator* scratch) {
   // Add data.
   Color color = Color::White();
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
-    Command c;
-    CommandType type = it.Read(&c);
     size_t current = vertices.size();
-    switch (type) {
+    switch (Command c; it.Read(&c)) {
       case kRenderQuad: {
         const RenderQuad& q = c.quad;
         vertices.Push({.position = FVec(q.p0.x, q.p1.y),
@@ -273,8 +268,6 @@ void BatchRenderer::Render(Allocator* scratch) {
   GLuint texture_unit = 0;
   FMat4x4 transform = FMat4x4::Identity();
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
-    Command c;
-    CommandType type = it.Read(&c);
     auto flush = [&] {
       if (indices_start == indices_end) return;
       shaders_->SetUniform("tex", texture_unit);
@@ -291,7 +284,7 @@ void BatchRenderer::Render(Allocator* scratch) {
       render_calls++;
       indices_start = indices_end;
     };
-    switch (type) {
+    switch (Command c; it.Read(&c)) {
       case kRenderQuad:
         indices_end += 6;
         break;
@@ -332,9 +325,7 @@ void BatchRenderer::Render(Allocator* scratch) {
                               reinterpret_cast<void*>(indices_start_ptr), 1);
     };
     for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
-      Command c;
-      CommandType type = it.Read(&c);
-      switch (type) {
+      switch (Command c; it.Read(&c)) {
         case kRenderQuad:
           indices_end += 6;
           break;
