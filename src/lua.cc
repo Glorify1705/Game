@@ -85,7 +85,7 @@ int Traceback(lua_State* L) {
 
 int LoadLuaAsset(lua_State* state, const ScriptAsset& asset,
                  int traceback_handler = INT_MAX) {
-  const char* name = asset.filename()->c_str();
+  const char* name = asset.name()->c_str();
   FixedStringBuffer<kMaxPathLength + 1> buf("@", name);
   if (luaL_loadbuffer(state,
                       reinterpret_cast<const char*>(asset.contents()->Data()),
@@ -106,7 +106,7 @@ int LoadLuaAsset(lua_State* state, const ScriptAsset& asset,
 
 int LoadFennelAsset(lua_State* state, const ScriptAsset& asset,
                     int traceback_handler = INT_MAX) {
-  const char* name = asset.filename()->c_str();
+  const char* name = asset.name()->c_str();
   TIMER("Compiling ", name);
   // Load fennel module if not present.
   lua_getfield(state, LUA_GLOBALSINDEX, "package");
@@ -188,11 +188,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        float angle = 0;
        if (parameters == 4) angle = luaL_checknumber(state, 4);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       if (auto* sprite = renderer->sprite(spritename); sprite != nullptr) {
-         renderer->Draw(FVec(x, y), angle, *sprite);
-       } else {
-         LUA_ERROR(state, "unknown sprite ", spritename);
-       }
+       renderer->Draw(spritename, FVec(x, y), angle);
        return 0;
      }},
     {"draw_rect",
@@ -253,10 +249,11 @@ const struct luaL_Reg kGraphicsLib[] = {
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        std::string_view font = GetLuaString(state, 1);
-       std::string_view text = GetLuaString(state, 2);
-       const float x = luaL_checknumber(state, 3);
-       const float y = luaL_checknumber(state, 4);
-       renderer->DrawText(font, 32, text, FVec(x, y));
+       const uint32_t font_size = luaL_checkinteger(state, 2);
+       std::string_view text = GetLuaString(state, 3);
+       const float x = luaL_checknumber(state, 4);
+       const float y = luaL_checknumber(state, 5);
+       renderer->DrawText(font, font_size, text, FVec(x, y));
        return 0;
      }},
     {"push",
@@ -705,12 +702,12 @@ const struct luaL_Reg kAssetsLib[] = {
     {"sprite",
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
-       auto* renderer = Registry<Renderer>::Retrieve(state);
-       auto* subtexture = renderer->sprite(name);
-       if (subtexture == nullptr) {
-         LUA_ERROR(state, "Could not find a subtexture called ", name);
+       auto* assets = Registry<Assets>::Retrieve(state);
+       auto* sprite = assets->GetSprite(name);
+       if (sprite == nullptr) {
+         LUA_ERROR(state, "Could not find a sprite called ", name);
        }
-       lua_pushlightuserdata(state, renderer);
+       lua_pushlightuserdata(state, const_cast<SpriteAsset*>(sprite));
        lua_getfield(state, LUA_REGISTRYINDEX, "asset_sprite_ptr");
        lua_setmetatable(state, -2);
        return 1;
@@ -718,9 +715,9 @@ const struct luaL_Reg kAssetsLib[] = {
     {"sprite_info", [](lua_State* state) {
        const SpriteAsset* ptr = nullptr;
        if (lua_isstring(state, 1)) {
-         auto* renderer = Registry<Renderer>::Retrieve(state);
+         auto* assets = Registry<Assets>::Retrieve(state);
          std::string_view name = GetLuaString(state, 1);
-         ptr = renderer->sprite(name);
+         ptr = assets->GetSprite(name);
          if (ptr == nullptr) {
            LUA_ERROR(state, "Could not find an image called ", name);
          }
@@ -1087,7 +1084,7 @@ void Lua::LoadLibraries() {
 void Lua::LoadScripts() {
   for (size_t i = 0; i < assets_->scripts(); ++i) {
     auto* script = assets_->GetScriptByIndex(i);
-    std::string_view asset_name(script->filename()->c_str());
+    std::string_view asset_name(script->name()->c_str());
     if (asset_name == "main.lua") continue;
     ConsumeSuffix(&asset_name, ".lua");
     ConsumeSuffix(&asset_name, ".fnl");

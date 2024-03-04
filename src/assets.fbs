@@ -1,7 +1,7 @@
 namespace G;
 
 table ImageAsset {
-    filename: string;
+    name: string;
     width: uint32;
     height: uint32;
     components: uint32;
@@ -18,7 +18,7 @@ table SpriteAsset {
 }
 
 table SpritesheetAsset {
-    filename: string;
+    name: string;
     image_name: string;
     width: uint32;
     height: uint32;
@@ -26,20 +26,20 @@ table SpritesheetAsset {
 }
 
 table ScriptAsset {
-    filename: string;
+    name: string;
     contents: [uint8];
 }
 
 enum SoundType : uint8 { OGG, WAV }
 
 table SoundAsset {
-    filename: string;
+    name: string;
     type: SoundType;
     contents: [uint8];
 }
 
 table FontAsset {
-    filename: string;
+    name: string;
     contents: [uint8];
 }
 
@@ -57,20 +57,21 @@ table ShaderUniform {
 }
 
 table ShaderAsset {
-    filename: string;
+    name: string;
     type: ShaderType;
     contents: string;
     uniforms: [ShaderUniform];
 }
 
 table TextFileAsset {
-    filename: string;
+    name: string;
     contents: [uint8];
 }
 
 table AssetsPack {
     images: [ImageAsset];
     spritesheets: [SpritesheetAsset];
+    sprites: [SpriteAsset];
     scripts: [ScriptAsset];
     sounds: [SoundAsset];
     fonts: [FontAsset];

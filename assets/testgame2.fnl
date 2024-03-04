@@ -20,7 +20,7 @@
             (tset self :score (+ (. self :score) 1)))))))
 
 (fn Game.draw [self]
-  (G.graphics.draw_text :ponderosa.ttf (.. "Score: " (. self :score)) 0 0)
+  (G.graphics.draw_text :ponderosa.ttf 24 (.. "Score: " (. self :score)) 0 0)
   (let [(mx my) (G.input.mouse_position)]
     (G.graphics.set_color :poisongreen)
     (each [_ {: x : y : w : h} (pairs (. self :rectangles))]

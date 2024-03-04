@@ -94,7 +94,7 @@ Shaders::Shaders(const Assets& assets, Allocator* allocator)
       gl_program_handles_(128, allocator) {
   for (size_t i = 0; i < assets.shaders(); ++i) {
     const ShaderAsset* asset = assets.GetShaderByIndex(i);
-    CHECK(Compile(asset->type(), FlatbufferStringview(asset->filename()),
+    CHECK(Compile(asset->type(), FlatbufferStringview(asset->name()),
                   FlatbufferStringview(asset->contents())),
           LastError());
   }

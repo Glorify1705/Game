@@ -230,17 +230,17 @@ class Renderer {
   void BeginFrame();
   void FlushFrame() { renderer_->Finish(); }
 
-  void Draw(FVec2 position, float angle, const SpriteAsset& texture);
+  void Draw(std::string_view spritename, FVec2 position, float angle);
+  void Draw(const SpriteAsset& asset, FVec2 position, float angle);
 
   // Returns the previous color.
   Color SetColor(Color color);
 
   void DrawRect(FVec2 top_left, FVec2 bottom_right, float angle);
   void DrawCircle(FVec2 center, float radius);
-  void DrawText(std::string_view font, float size, std::string_view str,
+  void DrawText(std::string_view font, uint32_t size, std::string_view str,
                 FVec2 position);
 
-  const SpriteAsset* sprite(std::string_view name) const;
   IVec2 viewport() const { return renderer_->GetViewport(); }
 
   void Push();
@@ -266,8 +266,9 @@ class Renderer {
     std::array<stbtt_packedchar, 256> chars;
   };
 
-  void LoadSpreadsheets(const Assets& assets);
-  void LoadFonts(const Assets& assets, float pixel_height);
+  const SpriteAsset* LoadSprite(std::string_view name);
+  const FontInfo* LoadFont(const FontAsset& asset, uint32_t font_size,
+                           Allocator* scratch);
 
   void ApplyTransform(const FMat4x4& mat) {
     transform_stack_.back() = mat * transform_stack_.back();
@@ -280,6 +281,7 @@ class Renderer {
 
   FixedArray<FMat4x4> transform_stack_;
 
+  Dictionary<uint32_t> textures_table_;
   FixedArray<GLuint> textures_;
 
   Dictionary<uint32_t> sprites_table_;

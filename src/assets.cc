@@ -11,7 +11,7 @@ template <typename T>
 const T* Search(const flatbuffers::Vector<flatbuffers::Offset<T>>& v,
                 std::string_view name) {
   for (const auto* entry : v) {
-    if (Match(*entry->filename(), name)) return entry;
+    if (Match(*entry->name(), name)) return entry;
   }
   return nullptr;
 }
@@ -20,6 +20,10 @@ const T* Search(const flatbuffers::Vector<flatbuffers::Offset<T>>& v,
 
 const ImageAsset* Assets::GetImage(std::string_view name) const {
   return Search(*assets_->images(), name);
+}
+
+const SpriteAsset* Assets::GetSprite(std::string_view name) const {
+  return Search(*assets_->sprites(), name);
 }
 
 const ScriptAsset* Assets::GetScript(std::string_view name) const {

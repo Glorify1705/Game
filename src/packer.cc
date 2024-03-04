@@ -68,6 +68,8 @@ class Packer {
       scripts_;
   WithAllocator<std::vector<flatbuffers::Offset<SpritesheetAsset>>, Allocator>
       spritesheets_;
+  WithAllocator<std::vector<flatbuffers::Offset<SpriteAsset>>, Allocator>
+      sprites_;
   WithAllocator<std::vector<flatbuffers::Offset<SoundAsset>>, Allocator>
       sounds_;
   WithAllocator<std::vector<flatbuffers::Offset<FontAsset>>, Allocator> fonts_;
@@ -85,6 +87,7 @@ Packer::Packer(Allocator* allocator)
       images_(allocator_),
       scripts_(allocator_),
       spritesheets_(allocator_),
+      sprites_(allocator_),
       sounds_(allocator_),
       fonts_(allocator_),
       shaders_(allocator_),
@@ -93,7 +96,8 @@ Packer::Packer(Allocator* allocator)
 Assets Packer::Finish() {
   auto image_vec = fbs_.CreateVector(images_);
   auto scripts_vec = fbs_.CreateVector(scripts_);
-  auto sprite_sheets_vec = fbs_.CreateVector(spritesheets_);
+  auto spritesheets_vec = fbs_.CreateVector(spritesheets_);
+  auto sprites_vec = fbs_.CreateVector(sprites_);
   auto sounds_vec = fbs_.CreateVector(sounds_);
   auto fonts_vec = fbs_.CreateVector(fonts_);
   auto shaders_vec = fbs_.CreateVector(shaders_);
@@ -101,7 +105,8 @@ Assets Packer::Finish() {
   AssetsPackBuilder assets(fbs_);
   assets.add_images(image_vec);
   assets.add_scripts(scripts_vec);
-  assets.add_spritesheets(sprite_sheets_vec);
+  assets.add_spritesheets(spritesheets_vec);
+  assets.add_sprites(sprites_vec);
   assets.add_sounds(sounds_vec);
   assets.add_fonts(fonts_vec);
   assets.add_shaders(shaders_vec);
@@ -184,8 +189,9 @@ void Packer::HandleSpritesheet(std::string_view filename, uint8_t* buf,
     const uint32_t w = get_number("width");
     const uint32_t h = get_number("height");
 
-    sprites.push_back(
-        CreateSpriteAsset(fbs_, name, spritesheet_index, x, y, w, h));
+    auto sprite = CreateSpriteAsset(fbs_, name, spritesheet_index, x, y, w, h);
+    sprites.push_back(sprite);
+    sprites_.push_back(sprite);
   }
   lua_pop(state, 1);
   lua_close(state);
