@@ -90,8 +90,8 @@ constexpr std::string_view kPostPassFragmentShader = R"(
 Shaders::Shaders(const Assets& assets, Allocator* allocator)
     : compiled_shaders_(allocator),
       compiled_programs_(allocator),
-      gl_shader_handles_(allocator),
-      gl_program_handles_(allocator) {
+      gl_shader_handles_(128, allocator),
+      gl_program_handles_(128, allocator) {
   for (size_t i = 0; i < assets.shaders(); ++i) {
     const ShaderAsset* asset = assets.GetShaderByIndex(i);
     CHECK(Compile(asset->type(), FlatbufferStringview(asset->filename()),

@@ -122,8 +122,8 @@ class Shaders {
 
   Dictionary<GLuint> compiled_shaders_;
   Dictionary<GLuint> compiled_programs_;
-  FixedArray<GLuint, 256> gl_shader_handles_;
-  FixedArray<GLuint, 256> gl_program_handles_;
+  FixedArray<GLuint> gl_shader_handles_;
+  FixedArray<GLuint> gl_program_handles_;
   FixedStringBuffer<512> last_error_;
   GLuint current_program_ = 0;
 };

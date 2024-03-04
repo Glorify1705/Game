@@ -2,13 +2,12 @@
 #include "thread.h"
 #include "thread_pool.h"
 
-
 namespace G {
 
 ThreadPool::ThreadPool(Allocator* allocator, size_t num_threads)
     : threads_(num_threads, allocator),
       user_data_(num_threads, allocator),
-      work_(allocator) {
+      work_(kMaxFunctions, allocator) {
   for (size_t i = 0; i < num_threads; ++i) threads_[i] = nullptr;
 }
 

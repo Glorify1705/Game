@@ -189,7 +189,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        if (parameters == 4) angle = luaL_checknumber(state, 4);
        auto* renderer = Registry<Renderer>::Retrieve(state);
        if (auto* sprite = renderer->sprite(spritename); sprite != nullptr) {
-         renderer->Draw(FVec2(x, y), angle, *sprite);
+         renderer->Draw(FVec(x, y), angle, *sprite);
        } else {
          LUA_ERROR(state, "unknown sprite ", spritename);
        }
@@ -205,7 +205,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        float angle = 0;
        if (parameters == 5) angle = luaL_checknumber(state, 5);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->DrawRect(FVec2(x1, y1), FVec2(x2, y2), angle);
+       renderer->DrawRect(FVec(x1, y1), FVec(x2, y2), angle);
        return 0;
      }},
     {"set_color",
@@ -246,7 +246,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const float y = luaL_checknumber(state, 2);
        const float radius = luaL_checknumber(state, 3);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->DrawCircle(FVec2(x, y), radius);
+       renderer->DrawCircle(FVec(x, y), radius);
        return 0;
      }},
     {"draw_text",
@@ -256,7 +256,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        std::string_view text = GetLuaString(state, 2);
        const float x = luaL_checknumber(state, 3);
        const float y = luaL_checknumber(state, 4);
-       renderer->DrawText(font, 32, text, FVec2(x, y));
+       renderer->DrawText(font, 32, text, FVec(x, y));
        return 0;
      }},
     {"push",

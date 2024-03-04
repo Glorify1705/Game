@@ -4,6 +4,7 @@
 
 #include <cstdlib>
 #include <string_view>
+#include <cstdint>
 
 namespace G {
 

@@ -16,8 +16,8 @@ struct Color {
     return FVec(r / 255.0, g / 255.0, b / 255.0, a / 255.0);
   }
 
-  static Color White() { return {255, 255, 255, 255}; }
-  static Color Zero() { return {0, 0, 0, 0}; }
+  static Color White() { return Color{255, 255, 255, 255}; }
+  static Color Zero() { return Color{0, 0, 0, 0}; }
 };
 
 Color ColorFromTable(std::string_view color);

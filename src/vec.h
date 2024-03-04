@@ -29,20 +29,9 @@ struct FVec2 {
     result.y = 0;
     return result;
   }
-
-  explicit FVec2(float value) {
-    x = value;
-    y = value;
-  }
-
   explicit FVec2(float x, float y) {
     this->x = x;
     this->y = y;
-  }
-
-  FVec2(const float* vec) {
-    this->x = vec[0];
-    this->y = vec[1];
   }
 
   FVec2 operator+(const FVec2& rhs) const {
@@ -73,22 +62,6 @@ struct FVec2 {
     return *this;
   }
 
-  FVec2& operator=(const FVec2& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    return *this;
-  }
-
-  FVec2(const FVec2& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-  }
-
-  FVec2(FVec2&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-  }
-
   FVec2 operator*(float rhs) const {
     FVec2 result = *this;
     result.x *= rhs;
@@ -106,12 +79,6 @@ struct FVec2 {
   FVec2& operator*=(float rhs) {
     x *= rhs;
     y *= rhs;
-    return *this;
-  }
-
-  FVec2& operator=(FVec2&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
     return *this;
   }
 
@@ -151,7 +118,7 @@ struct FVec2 {
   }
 };
 
-inline FVec2 FVec(float x, float y) { return FVec2(x, y); }
+inline FVec2 FVec(float x, float y) { return FVec2{x, y}; }
 
 struct FVec3 {
   using type = float;
@@ -226,25 +193,6 @@ struct FVec3 {
     return *this;
   }
 
-  FVec3& operator=(const FVec3& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    return *this;
-  }
-
-  FVec3(const FVec3& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-  }
-
-  FVec3(FVec3&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-  }
-
   FVec3 operator*(float rhs) const {
     FVec3 result = *this;
     result.x *= rhs;
@@ -265,13 +213,6 @@ struct FVec3 {
     x *= rhs;
     y *= rhs;
     z *= rhs;
-    return *this;
-  }
-
-  FVec3& operator=(FVec3&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
     return *this;
   }
 
@@ -406,28 +347,6 @@ struct FVec4 {
     return *this;
   }
 
-  FVec4& operator=(const FVec4& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
-    return *this;
-  }
-
-  FVec4(const FVec4& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
-  }
-
-  FVec4(FVec4&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
-  }
-
   FVec4 operator*(float rhs) const {
     FVec4 result = *this;
     result.x *= rhs;
@@ -451,14 +370,6 @@ struct FVec4 {
     y *= rhs;
     z *= rhs;
     w *= rhs;
-    return *this;
-  }
-
-  FVec4& operator=(FVec4&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
     return *this;
   }
 
@@ -575,22 +486,6 @@ struct DVec2 {
     return *this;
   }
 
-  DVec2& operator=(const DVec2& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    return *this;
-  }
-
-  DVec2(const DVec2& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-  }
-
-  DVec2(DVec2&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-  }
-
   DVec2 operator*(double rhs) const {
     DVec2 result = *this;
     result.x *= rhs;
@@ -608,12 +503,6 @@ struct DVec2 {
   DVec2& operator*=(double rhs) {
     x *= rhs;
     y *= rhs;
-    return *this;
-  }
-
-  DVec2& operator=(DVec2&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
     return *this;
   }
 
@@ -728,25 +617,6 @@ struct DVec3 {
     return *this;
   }
 
-  DVec3& operator=(const DVec3& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    return *this;
-  }
-
-  DVec3(const DVec3& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-  }
-
-  DVec3(DVec3&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-  }
-
   DVec3 operator*(double rhs) const {
     DVec3 result = *this;
     result.x *= rhs;
@@ -767,13 +637,6 @@ struct DVec3 {
     x *= rhs;
     y *= rhs;
     z *= rhs;
-    return *this;
-  }
-
-  DVec3& operator=(DVec3&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
     return *this;
   }
 
@@ -908,28 +771,6 @@ struct DVec4 {
     return *this;
   }
 
-  DVec4& operator=(const DVec4& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
-    return *this;
-  }
-
-  DVec4(const DVec4& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
-  }
-
-  DVec4(DVec4&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
-  }
-
   DVec4 operator*(double rhs) const {
     DVec4 result = *this;
     result.x *= rhs;
@@ -953,14 +794,6 @@ struct DVec4 {
     y *= rhs;
     z *= rhs;
     w *= rhs;
-    return *this;
-  }
-
-  DVec4& operator=(DVec4&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
     return *this;
   }
 
@@ -1077,22 +910,6 @@ struct IVec2 {
     return *this;
   }
 
-  IVec2& operator=(const IVec2& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    return *this;
-  }
-
-  IVec2(const IVec2& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-  }
-
-  IVec2(IVec2&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-  }
-
   IVec2 operator*(int rhs) const {
     IVec2 result = *this;
     result.x *= rhs;
@@ -1110,12 +927,6 @@ struct IVec2 {
   IVec2& operator*=(int rhs) {
     x *= rhs;
     y *= rhs;
-    return *this;
-  }
-
-  IVec2& operator=(IVec2&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
     return *this;
   }
 
@@ -1227,25 +1038,6 @@ struct IVec3 {
     return *this;
   }
 
-  IVec3& operator=(const IVec3& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    return *this;
-  }
-
-  IVec3(const IVec3& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-  }
-
-  IVec3(IVec3&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-  }
-
   IVec3 operator*(int rhs) const {
     IVec3 result = *this;
     result.x *= rhs;
@@ -1266,13 +1058,6 @@ struct IVec3 {
     x *= rhs;
     y *= rhs;
     z *= rhs;
-    return *this;
-  }
-
-  IVec3& operator=(IVec3&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
     return *this;
   }
 
@@ -1403,28 +1188,6 @@ struct IVec4 {
     return *this;
   }
 
-  IVec4& operator=(const IVec4& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
-    return *this;
-  }
-
-  IVec4(const IVec4& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
-  }
-
-  IVec4(IVec4&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
-  }
-
   IVec4 operator*(int rhs) const {
     IVec4 result = *this;
     result.x *= rhs;
@@ -1448,14 +1211,6 @@ struct IVec4 {
     y *= rhs;
     z *= rhs;
     w *= rhs;
-    return *this;
-  }
-
-  IVec4& operator=(IVec4&& rhs) {
-    x = rhs.x;
-    y = rhs.y;
-    z = rhs.z;
-    w = rhs.w;
     return *this;
   }
 

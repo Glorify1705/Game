@@ -13,8 +13,8 @@ class Sound {
  public:
   explicit Sound(const Assets* assets, Allocator* allocator)
       : assets_(assets),
-        chunks_(allocator),
-        musics_(allocator),
+        chunks_(128, allocator),
+        musics_(128, allocator),
         chunk_by_name_(allocator),
         music_by_name_(allocator) {}
   ~Sound();
@@ -35,8 +35,8 @@ class Sound {
 
  private:
   const Assets* assets_;
-  FixedArray<Mix_Chunk*, 128> chunks_;
-  FixedArray<Mix_Music*, 128> musics_;
+  FixedArray<Mix_Chunk*> chunks_;
+  FixedArray<Mix_Music*> musics_;
   Dictionary<uint32_t> chunk_by_name_;
   Dictionary<uint32_t> music_by_name_;
 };

@@ -28,52 +28,49 @@ class BatchRenderer {
   size_t LoadTexture(const void* data, size_t width, size_t height);
 
   void SetActiveTexture(size_t texture_unit) {
-    if (batches_.empty() || (batches_.back().indices_count &&
-                             texture_unit != batches_.back().texture_unit)) {
-      FlushBatch();
-    }
-    batches_.back().texture_unit = texture_unit;
+    AddCommand(kSetTexture, SetTexture{texture_unit});
   }
 
   void ClearTexture() { SetActiveTexture(noop_texture_); }
 
-  Color SetActiveColor(Color rgba_color) {
-    // We do not need to flush on color changes because they are
-    // put on vertex data.
-    Color previous;
-    if (!batches_.empty()) {
-      previous = batches_.back().rgba_color;
-    } else {
-      previous = Color::White();
-      FlushBatch();
-    }
-    batches_.back().rgba_color = rgba_color;
-    return previous;
+  Color SetActiveColor(const Color& color) {
+    AddCommand(kSetColor, SetColor{color});
+    auto result = current_color_;
+    current_color_ = color;
+    return result;
   }
+
   void SetActiveTransform(const FMat4x4& transform) {
-    if (batches_.empty() || (batches_.back().indices_count &&
-                             transform != batches_.back().transform)) {
-      FlushBatch();
-    }
-    batches_.back().transform = transform;
+    AddCommand(kSetTransform, SetTransform{transform});
   }
 
   void PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1, FVec2 origin,
-                float angle);
+                float angle) {
+    AddCommand(kRenderQuad, RenderQuad{p0, p1, q0, q1, origin, angle});
+  }
   void PushTriangle(FVec2 p0, FVec2 p1, FVec2 p2, FVec2 q0, FVec2 q1, FVec2 q2,
-                    FVec2 origin, float angle);
+                    FVec2 origin, float angle) {
+    AddCommand(kRenderTrig,
+               RenderTriangle{p0, p1, p2, q0, q1, q2, origin, angle});
+  }
+
+  void SwitchShaderProgram(std::string_view fragment_shader_name) {
+    program_handle_ = StringIntern(fragment_shader_name);
+  }
 
   void Clear() {
-    batches_.Clear();
-    indices_.Clear();
-    vertices_.Clear();
+    commands_.Clear();
+    pos_ = 0;
+    current_color_ = Color::White();
   }
+
+  void Finish() { AddCommand(kDone, DoneCommand{}); }
 
   void SetViewport(IVec2 viewport);
 
   IVec2 GetViewport() const { return viewport_; }
 
-  void Render();
+  void Render(Allocator* scratch);
 
   void ToggleDebugRender() { debug_render_ = !debug_render_; }
 
@@ -92,12 +89,63 @@ class BatchRenderer {
         ptr);
   }
 
-  void SwitchShaderProgram(std::string_view fragment_shader_name);
-
  private:
+  enum CommandType : uint32_t {
+    kRenderQuad = 1,
+    kRenderTrig,
+    kSetTexture,
+    kSetColor,
+    kSetTransform,
+    kDone
+  };
+
+  struct DoneCommand {};
+
+  struct RenderQuad {
+    FVec2 p0, p1, q0, q1, origin;
+    float angle;
+  };
+
+  struct RenderTriangle {
+    FVec2 p0, p1, p2, q0, q1, q2, origin;
+    float angle;
+  };
+
+  struct SetTexture {
+    size_t texture_unit;
+  };
+
+  struct SetColor {
+    Color color;
+  };
+
+  struct SetTransform {
+    FMat4x4 transform;
+  };
+
+  inline static constexpr uint32_t kMaxCount = 1 << 20;
+
+  struct QueueEntry {
+    uint32_t type : 12;
+    uint32_t count : 20;
+  };
+
+  struct SetShader {
+    uint32_t handle;
+  };
+
+  union Command {
+    RenderQuad quad;
+    RenderTriangle triangle;
+    SetTexture set_texture;
+    SetColor set_color;
+    SetTransform set_transform;
+  };
+
+  static_assert(std::is_trivially_copyable_v<FVec2>);
+
   struct VertexData {
-    // The position contains a Z to do ordering.
-    FVec3 position;
+    FVec2 position;
     FVec2 tex_coords;
     // We duplicate the origin angle and color for every vertex in the quad
     // to avoid having to reset a uniform on drawing every colored rotated quad,
@@ -107,30 +155,6 @@ class BatchRenderer {
     float angle;
     Color color;
   };
-  struct Batch {
-    GLuint texture_unit;
-    Color rgba_color;
-    FMat4x4 transform;
-    size_t indices_start;
-    size_t indices_count;
-  };
-
-  void FlushBatch() {
-    Batch batch;
-    if (!batches_.empty()) {
-      const auto& prev = batches_.back();
-      batch.texture_unit = prev.texture_unit;
-      batch.rgba_color = prev.rgba_color;
-      batch.transform = prev.transform;
-    } else {
-      batch.texture_unit = 0;
-      batch.transform = FMat4x4::Identity();
-      batch.rgba_color = Color::White();
-    }
-    batch.indices_start = indices_.size();
-    batch.indices_count = 0;
-    batches_.Push(std::move(batch));
-  }
 
   struct ScreenshotRequest {
     uint8_t* out_buffer;
@@ -139,14 +163,119 @@ class BatchRenderer {
     void* userdata = nullptr;
   };
 
+  template <typename T>
+  void AddCommand(CommandType command, const T& data) {
+    if (command != kDone) {
+      std::memcpy(&command_buffer_[pos_], &data, sizeof(data));
+      pos_ += sizeof(data);
+    }
+    if (commands_.empty() || commands_.back().type != command ||
+        commands_.back().count == kMaxCount) {
+      commands_.Push(QueueEntry{.type = command, .count = 1});
+    } else {
+      commands_.back().count++;
+    }
+  }
+
+  static constexpr size_t SizeOfCommand(CommandType t) {
+    switch (t) {
+      case kRenderQuad:
+        return sizeof(RenderQuad);
+      case kRenderTrig:
+        return sizeof(RenderTriangle);
+      case kSetTexture:
+        return sizeof(SetTexture);
+      case kSetColor:
+        return sizeof(SetColor);
+      case kSetTransform:
+        return sizeof(SetTransform);
+      case kDone:
+        return 0;
+    }
+    return 0;
+  }
+
+  static std::string_view CommandName(CommandType t) {
+    switch (t) {
+      case kRenderQuad:
+        return "RENDER_QUAD";
+      case kRenderTrig:
+        return "RENDER_TRIANGLE";
+      case kSetTexture:
+        return "SET_TEXTURE";
+      case kSetColor:
+        return "SET_COLOR";
+      case kSetTransform:
+        return "SET_TRANSFORM";
+      case kDone:
+        return "DONE";
+    }
+    return "";
+  }
+
+  static void PrintCommand(CommandType t, const Command& c) {
+    switch (t) {
+      case kRenderQuad:
+        LOG("RENDER_QUAD");
+        break;
+      case kRenderTrig:
+        LOG("RENDER_TRIANGLE");
+        break;
+      case kSetTexture:
+        LOG("SET_TEXTURE unit = ", c.set_texture.texture_unit);
+        break;
+      case kSetColor:
+        LOG("SET_COLOR");
+        break;
+      case kSetTransform:
+        LOG("SET_TRANSFORM");
+        break;
+      case kDone:
+        LOG("DONE");
+        break;
+    }
+  }
+
+  class CommandIterator {
+   public:
+    CommandIterator(uint8_t* buffer, FixedArray<QueueEntry>* commands)
+        : commands_(commands), buffer_(buffer), pos_(0) {
+      remaining_ = commands_->empty() ? 0 : (*commands_)[0].count;
+    }
+
+    CommandType Read(Command* p) {
+      if (i_ == commands_->size()) return kDone;
+      if (remaining_ == 0) {
+        i_++;
+        if (i_ == commands_->size()) return kDone;
+        remaining_ = (*commands_)[i_].count;
+      }
+      const QueueEntry& e = (*commands_)[i_];
+      remaining_--;
+      const auto type = static_cast<CommandType>(e.type);
+      size_t size = SizeOfCommand(type);
+      std::memcpy(p, &buffer_[pos_], size);
+      pos_ += size;
+      return type;
+    }
+
+    bool Done() const { return i_ == commands_->size(); }
+
+   private:
+    FixedArray<QueueEntry>* commands_;
+    uint8_t* buffer_;
+    size_t pos_ = 0, remaining_ = 0, i_ = 0;
+  };
+
   void TakeScreenshots();
 
   Allocator* allocator_;
-  FixedArray<ScreenshotRequest, 32> screenshots_;
-  FixedArray<VertexData, 1 << 24> vertices_;
-  FixedArray<GLuint, 1 << 24> indices_;
-  FixedArray<Batch, 1 << 12> batches_;
-  FixedArray<GLuint, 64> tex_;
+  uint8_t* command_buffer_ = nullptr;
+  size_t pos_ = 0;
+  FixedArray<QueueEntry> commands_;
+  FixedArray<GLuint> tex_;
+  FixedArray<ScreenshotRequest> screenshots_;
+  Color current_color_;
   Shaders* shaders_;
   GLuint ebo_, vao_, vbo_;
   size_t noop_texture_;
@@ -154,7 +283,7 @@ class BatchRenderer {
   GLuint render_target_, render_texture_, depth_buffer_;
   IVec2 viewport_;
   bool debug_render_ = false;
-  FixedStringBuffer<128> program_name_;
+  uint32_t program_handle_;
 };
 
 class Renderer {
@@ -162,7 +291,7 @@ class Renderer {
   Renderer(const Assets& assets, BatchRenderer* renderer, Allocator* allocator);
 
   void BeginFrame();
-  void FlushFrame() {}
+  void FlushFrame() { renderer_->Finish(); }
 
   void Draw(FVec2 position, float angle, const SpriteAsset& texture);
 
@@ -212,15 +341,15 @@ class Renderer {
   const Assets* assets_;
   BatchRenderer* renderer_;
 
-  FixedArray<FMat4x4, 128> transform_stack_;
+  FixedArray<FMat4x4> transform_stack_;
 
-  FixedArray<GLuint, 256> textures_;
+  FixedArray<GLuint> textures_;
 
   Dictionary<uint32_t> sprites_table_;
-  FixedArray<const SpriteAsset*, 1 << 20> sprites_;
+  FixedArray<const SpriteAsset*> sprites_;
 
   Dictionary<uint32_t> font_table_;
-  FixedArray<FontInfo, 64> fonts_;
+  FixedArray<FontInfo> fonts_;
 };
 
 }  // namespace G

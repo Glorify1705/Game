@@ -120,6 +120,7 @@ struct EngineModules {
   Renderer renderer;
   Lua lua;
   Physics physics;
+  ArenaAllocator frame_allocator;
 
   EngineModules(const std::vector<const char*> arguments,
                 const GameParams& params, SDL_Window* sdl_window,
@@ -135,7 +136,8 @@ struct EngineModules {
         renderer(assets, &batch_renderer, allocator),
         lua(&assets, SystemAllocator::Instance()),
         physics(FVec(params.screen_width, params.screen_height),
-                Physics::kPixelsPerMeter, allocator) {}
+                Physics::kPixelsPerMeter, allocator),
+        frame_allocator(allocator, Megabytes(128)) {}
 
   void InitializeLua() {
     lua.LoadLibraries();
@@ -155,6 +157,7 @@ struct EngineModules {
   }
 
   void StartFrame() {
+    frame_allocator.Reset();
     batch_renderer.Clear();
     mouse.InitForFrame();
     keyboard.InitForFrame();
@@ -183,7 +186,7 @@ struct EngineModules {
     renderer.BeginFrame();
     lua.Draw();
     renderer.FlushFrame();
-    batch_renderer.Render();
+    batch_renderer.Render(&frame_allocator);
   }
 };
 

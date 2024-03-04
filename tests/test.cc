@@ -12,7 +12,7 @@ using ::testing::Pointee;
 namespace G {
 
 TEST(Tests, FixedArray) {
-  FixedArray<int, 3> array(SystemAllocator::Instance());
+  FixedArray<int> array(3, SystemAllocator::Instance());
   EXPECT_EQ(array.size(), 0);
   array.Push(1);
   EXPECT_EQ(array.size(), 1);
@@ -28,7 +28,7 @@ TEST(Tests, FixedArray) {
 }
 
 TEST(Tests, FixedArrayWithAllocator) {
-  FixedArray<int, 3> array(SystemAllocator::Instance());
+  FixedArray<int> array(3, SystemAllocator::Instance());
   EXPECT_EQ(array.size(), 0);
   array.Push(1);
   EXPECT_EQ(array.size(), 1);

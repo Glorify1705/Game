@@ -35,13 +35,13 @@ class LookupTable {
  public:
   LookupTable(Allocator* allocator)
       : allocator_(allocator),
-        keys_(allocator),
-        key_strs_(allocator),
-        key_lengths_(allocator),
-        values_(allocator) {
-    key_lengths_.Reserve(key_lengths_.capacity());
-    keys_.Reserve(keys_.capacity());
-    values_.Reserve(values_.capacity());
+        keys_(1 << kLogTableSize, allocator),
+        key_strs_(kKeysSize, allocator),
+        key_lengths_(1 << kLogTableSize, allocator),
+        values_(1 << kLogTableSize, allocator) {
+    key_lengths_.Resize(key_lengths_.capacity());
+    keys_.Resize(keys_.capacity());
+    values_.Resize(values_.capacity());
     std::fill(key_lengths_.begin(), key_lengths_.end(), 0);
   }
 
@@ -96,10 +96,10 @@ class LookupTable {
   inline static constexpr size_t kKeysSize = 1 << 15;
 
   Allocator* allocator_;
-  FixedArray<char*, 1 << kLogTableSize> keys_;
-  FixedArray<char, kKeysSize> key_strs_;
-  FixedArray<size_t, 1 << kLogTableSize> key_lengths_;
-  FixedArray<T, 1 << kLogTableSize> values_;
+  FixedArray<char*> keys_;
+  FixedArray<char> key_strs_;
+  FixedArray<size_t> key_lengths_;
+  FixedArray<T> values_;
   size_t elements_ = 0;
 };
 

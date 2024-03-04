@@ -11,14 +11,17 @@
 namespace G {
 namespace {}  // namespace
 
+constexpr size_t kCommandMemory = 1 << 24;
+
 BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
                              Allocator* allocator)
     : allocator_(allocator),
-      screenshots_(allocator),
-      vertices_(allocator),
-      indices_(allocator),
-      batches_(allocator),
-      tex_(allocator),
+      command_buffer_(static_cast<uint8_t*>(
+          allocator->Alloc(kCommandMemory, alignof(Command)))),
+      commands_(1 << 20, allocator),
+      tex_(256, allocator),
+      screenshots_(64, allocator),
+      current_color_(Color::White()),
       shaders_(shaders),
       viewport_(viewport) {
   TIMER();
@@ -37,8 +40,8 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   glBindBuffer(GL_ARRAY_BUFFER, screen_quad_vbo_);
   glBufferData(GL_ARRAY_BUFFER, screen_quad_vertices.size() * sizeof(float),
                screen_quad_vertices.data(), GL_STATIC_DRAW);
-  program_name_.Append("post_pass");
-  shaders_->UseProgram(program_name_.piece());
+  program_handle_ = StringIntern("post_pass");
+  shaders_->UseProgram(StringByHandle(program_handle_));
   const GLint pos_attribute = shaders_->AttributeLocation("input_position");
   glEnableVertexAttribArray(pos_attribute);
   glVertexAttribPointer(pos_attribute, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
@@ -108,6 +111,7 @@ BatchRenderer::~BatchRenderer() {
   glDeleteVertexArrays(1, &vao_);
   glDeleteVertexArrays(1, &screen_quad_vbo_);
   glDeleteTextures(tex_.size(), tex_.data());
+  allocator_->Dealloc(command_buffer_, kCommandMemory);
 }
 
 size_t BatchRenderer::LoadTexture(const void* data, size_t width,
@@ -130,67 +134,9 @@ size_t BatchRenderer::LoadTexture(const void* data, size_t width,
   return index;
 }
 
-void BatchRenderer::PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1,
-                             FVec2 origin, float angle) {
-  auto& batch = batches_.back();
-  size_t current = vertices_.size();
-  const float depth = current * 0.01;
-  vertices_.Push({.position = FVec(p0.x, p1.y, depth),
-                  .tex_coords = FVec(q0.x, q1.y),
-                  .origin = origin,
-                  .angle = angle,
-                  .color = batch.rgba_color});
-  vertices_.Push({.position = FVec(p1.x, p1.y, depth),
-                  .tex_coords = q1,
-                  .origin = origin,
-                  .angle = angle,
-                  .color = batch.rgba_color});
-  vertices_.Push({.position = FVec(p1.x, p0.y, depth),
-                  .tex_coords = FVec2(q1.x, q0.y),
-                  .origin = origin,
-                  .angle = angle,
-                  .color = batch.rgba_color});
-  vertices_.Push({.position = FVec(p0.x, p0.y, depth),
-                  .tex_coords = q0,
-                  .origin = origin,
-                  .angle = angle,
-                  .color = batch.rgba_color});
-  for (int i : {0, 1, 3, 1, 2, 3}) {
-    indices_.Push(current + i);
-    batch.indices_count++;
-  }
-}
-
-void BatchRenderer::PushTriangle(FVec2 p0, FVec2 p1, FVec2 p2, FVec2 q0,
-                                 FVec2 q1, FVec2 q2, FVec2 origin,
-                                 float angle) {
-  auto& batch = batches_.back();
-  size_t current = vertices_.size();
-  const float depth = current * 0.01;
-  vertices_.Push({.position = FVec(p0.x, p0.y, depth),
-                  .tex_coords = q0,
-                  .origin = origin,
-                  .angle = angle,
-                  .color = batch.rgba_color});
-  vertices_.Push({.position = FVec(p1.x, p1.y, depth),
-                  .tex_coords = q1,
-                  .origin = origin,
-                  .angle = angle,
-                  .color = batch.rgba_color});
-  vertices_.Push({.position = FVec(p2.x, p2.y, depth),
-                  .tex_coords = q2,
-                  .origin = origin,
-                  .angle = angle,
-                  .color = batch.rgba_color});
-  for (int i : {0, 1, 2}) {
-    indices_.Push(current + i);
-    batch.indices_count++;
-  }
-}
-
-void BatchRenderer::Render() {
+void BatchRenderer::Render(Allocator* scratch) {
+  // Setup OpenGL state.
   glViewport(0, 0, viewport_.x, viewport_.y);
-  // Ensure we render to the off screen frame buffer.
   glBindFramebuffer(GL_FRAMEBUFFER, render_target_);
   glClearColor(0.f, 0.f, 0.f, 0.f);
   glEnable(GL_BLEND);
@@ -198,17 +144,102 @@ void BatchRenderer::Render() {
   glBlendEquation(GL_FUNC_ADD);
   glDisable(GL_DEPTH_TEST);
   glClear(GL_COLOR_BUFFER_BIT);
+  // Compute size of data.
+  size_t vertices_count = 0, indices_count = 0;
+  for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
+    Command c;
+    CommandType type = it.Read(&c);
+    if (type == kDone) break;
+    switch (type) {
+      case kRenderQuad:
+        vertices_count += 4;
+        indices_count += 6;
+        break;
+      case kRenderTrig:
+        vertices_count += 3;
+        indices_count += 3;
+        break;
+      default:
+        // Other commands do not add vertices.
+        break;
+    }
+  }
+  FixedArray<VertexData> vertices(vertices_count, scratch);
+  FixedArray<GLuint> indices(indices_count, scratch);
+  // Add data.
+  Color color = Color::White();
+  for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
+    Command c;
+    CommandType type = it.Read(&c);
+    size_t current = vertices.size();
+    switch (type) {
+      case kRenderQuad: {
+        const RenderQuad& q = c.quad;
+        vertices.Push({.position = FVec(q.p0.x, q.p1.y),
+                       .tex_coords = FVec(q.q0.x, q.q1.y),
+                       .origin = q.origin,
+                       .angle = q.angle,
+                       .color = color});
+        vertices.Push({.position = FVec(q.p1.x, q.p1.y),
+                       .tex_coords = q.q1,
+                       .origin = q.origin,
+                       .angle = q.angle,
+                       .color = color});
+        vertices.Push({.position = FVec(q.p1.x, q.p0.y),
+                       .tex_coords = FVec(q.q1.x, q.q0.y),
+                       .origin = q.origin,
+                       .angle = q.angle,
+                       .color = color});
+        vertices.Push({.position = FVec(q.p0.x, q.p0.y),
+                       .tex_coords = q.q0,
+                       .origin = q.origin,
+                       .angle = q.angle,
+                       .color = color});
+        for (int i : {0, 1, 3, 1, 2, 3}) {
+          indices.Push(current + i);
+        }
+      }; break;
+      case kRenderTrig: {
+        const RenderTriangle& t = c.triangle;
+        vertices.Push({.position = FVec(t.p0.x, t.p0.y),
+                       .tex_coords = t.q0,
+                       .origin = t.origin,
+                       .angle = t.angle,
+                       .color = color});
+        vertices.Push({.position = FVec(t.p1.x, t.p1.y),
+                       .tex_coords = t.q1,
+                       .origin = t.origin,
+                       .angle = t.angle,
+                       .color = color});
+        vertices.Push({.position = FVec(t.p2.x, t.p2.y),
+                       .tex_coords = t.q2,
+                       .origin = t.origin,
+                       .angle = t.angle,
+                       .color = color});
+        for (int i : {0, 1, 2}) {
+          indices.Push(current + i);
+        }
+      }; break;
+      case kSetColor:
+        color = c.set_color.color;
+        break;
+      default:
+        // Other commands do not add vertices.
+        break;
+    }
+  }
+  // Setup OpenGL context.
   glBindVertexArray(vao_);
   glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-  glBufferData(GL_ARRAY_BUFFER, vertices_.bytes(), vertices_.data(),
+  glBufferData(GL_ARRAY_BUFFER, vertices.bytes(), vertices.data(),
                GL_STATIC_DRAW);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_.bytes(), indices_.data(),
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.bytes(), indices.data(),
                GL_STATIC_DRAW);
   shaders_->UseProgram("pre_pass");
   const GLint pos_attribute = shaders_->AttributeLocation("input_position");
   glVertexAttribPointer(
-      pos_attribute, FVec3::kCardinality, GL_FLOAT, GL_FALSE,
+      pos_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
       sizeof(VertexData),
       reinterpret_cast<void*>(offsetof(VertexData, position)));
   glEnableVertexAttribArray(pos_attribute);
@@ -235,51 +266,112 @@ void BatchRenderer::Render() {
                         reinterpret_cast<void*>(offsetof(VertexData, color)));
   glEnableVertexAttribArray(color_attribute);
   shaders_->SetUniform("global_color", FVec4(1, 1, 1, 1));
+  // Render batches by finding changes to the OpenGL context.
   int render_calls = 0;
-  for (const auto& batch : batches_) {
-    if (batch.indices_count == 0) continue;
-    shaders_->SetUniform("tex", batch.texture_unit);
-    shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
-    shaders_->SetUniform("transform", batch.transform);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-    glBindTexture(GL_TEXTURE_2D, tex_[batch.texture_unit]);
-    const auto indices_start =
-        reinterpret_cast<uintptr_t>(&indices_[batch.indices_start]) -
-        reinterpret_cast<uintptr_t>(&indices_[0]);
-    glDrawElementsInstanced(GL_TRIANGLES, batch.indices_count, GL_UNSIGNED_INT,
-                            reinterpret_cast<void*>(indices_start), 1);
-    render_calls++;
+  size_t indices_start = 0;
+  size_t indices_end = 0;
+  GLuint texture_unit = 0;
+  FMat4x4 transform = FMat4x4::Identity();
+  for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
+    Command c;
+    CommandType type = it.Read(&c);
+    auto flush = [&] {
+      if (indices_start == indices_end) return;
+      shaders_->SetUniform("tex", texture_unit);
+      shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
+      shaders_->SetUniform("transform", transform);
+      glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+      glBindTexture(GL_TEXTURE_2D, tex_[texture_unit]);
+      const auto indices_start_ptr =
+          reinterpret_cast<uintptr_t>(&indices[indices_start]) -
+          reinterpret_cast<uintptr_t>(&indices[0]);
+      glDrawElementsInstanced(GL_TRIANGLES, indices_end - indices_start,
+                              GL_UNSIGNED_INT,
+                              reinterpret_cast<void*>(indices_start_ptr), 1);
+      render_calls++;
+      indices_start = indices_end;
+    };
+    switch (type) {
+      case kRenderQuad:
+        indices_end += 6;
+        break;
+      case kRenderTrig:
+        indices_end += 3;
+        break;
+      case kSetTransform:
+        flush();
+        transform = c.set_transform.transform;
+        break;
+      case kSetTexture:
+        flush();
+        texture_unit = c.set_texture.texture_unit;
+      case kSetColor:
+        break;
+      case kDone:
+        flush();
+        break;
+    }
   }
   if (debug_render_) {
+    indices_end = indices_start = 0;
     // Draw a red semi transparent quad for all quads.
     shaders_->SetUniform("tex", noop_texture_);
     shaders_->SetUniform("global_color", FVec4(1, 0, 0, 0.7));
-    for (const auto& batch : batches_) {
+    FMat4x4 transform = FMat4x4::Identity();
+    auto flush = [&] {
+      if (indices_start == indices_end) return;
       shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
-      shaders_->SetUniform("transform", batch.transform);
+      shaders_->SetUniform("transform", transform);
       glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
       glBindTexture(GL_TEXTURE_2D, tex_[noop_texture_]);
-      const auto indices_start =
-          reinterpret_cast<uintptr_t>(&indices_[batch.indices_start]) -
-          reinterpret_cast<uintptr_t>(&indices_[0]);
-      glDrawElementsInstanced(GL_TRIANGLES, batch.indices_count,
+      const auto indices_start_ptr =
+          reinterpret_cast<uintptr_t>(&indices[indices_start]) -
+          reinterpret_cast<uintptr_t>(&indices[0]);
+      glDrawElementsInstanced(GL_TRIANGLES, indices_end - indices_start,
                               GL_UNSIGNED_INT,
-                              reinterpret_cast<void*>(indices_start), 1);
+                              reinterpret_cast<void*>(indices_start_ptr), 1);
+    };
+    for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
+      Command c;
+      CommandType type = it.Read(&c);
+      switch (type) {
+        case kRenderQuad:
+          indices_end += 6;
+          break;
+        case kRenderTrig:
+          indices_end += 3;
+          break;
+        case kSetTransform:
+          flush();
+          transform = c.set_transform.transform;
+          break;
+        case kSetTexture:
+          flush();
+          texture_unit = c.set_texture.texture_unit;
+          break;
+        case kSetColor:
+          flush();
+          break;
+        case kDone:
+          flush();
+          break;
+      }
     }
   }
   // Second pass
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glClearColor(0.f, 0.f, 0.f, 0.f);
   glClear(GL_COLOR_BUFFER_BIT);
-  shaders_->UseProgram(program_name_.piece());
+  shaders_->UseProgram(StringByHandle(program_handle_));
   shaders_->SetUniform("screen_texture", 0);
   glBindVertexArray(screen_quad_vao_);
   glBindTexture(GL_TEXTURE_2D, render_texture_);
   glDrawArrays(GL_TRIANGLES, 0, 6);
   render_calls++;
-  WATCH_EXPR("Batches", batches_.size());
-  WATCH_EXPR("Vertex Memory", vertices_.bytes());
-  WATCH_EXPR("Batch used memory", batches_.bytes());
+  WATCH_EXPR("Vertexes ", vertices.size());
+  WATCH_EXPR("Indices ", indices.size());
+  WATCH_EXPR("Vertex Memory", vertices.bytes());
+  WATCH_EXPR("Indices Memory", indices.size());
   WATCH_EXPR("Render calls", render_calls);
   TakeScreenshots();
 }
@@ -332,22 +424,17 @@ void BatchRenderer::TakeScreenshots() {
   screenshots_.Clear();
 }
 
-void BatchRenderer::SwitchShaderProgram(std::string_view program_name) {
-  program_name_.Set(program_name);
-  shaders_->UseProgram(program_name);
-}
-
 Renderer::Renderer(const Assets& assets, BatchRenderer* renderer,
                    Allocator* allocator)
     : allocator_(allocator),
       assets_(&assets),
       renderer_(renderer),
-      transform_stack_(allocator),
-      textures_(allocator),
+      transform_stack_(128, allocator),
+      textures_(256, allocator),
       sprites_table_(allocator),
-      sprites_(allocator),
+      sprites_(1 << 20, allocator),
       font_table_(allocator),
-      fonts_(allocator) {
+      fonts_(64, allocator) {
   TIMER();
   LoadSpreadsheets(assets);
   LoadFonts(assets, kFontSize);
@@ -383,29 +470,30 @@ void Renderer::Draw(FVec2 position, float angle, const SpriteAsset& sprite) {
   CHECK(spritesheet != nullptr, "No spritesheet for ",
         FlatbufferStringview(sprite.name()));
   renderer_->SetActiveTexture(textures_[spritesheet_index]);
-  const FVec2 p0(position - FVec2(sprite.width() / 2.0, sprite.height() / 2.0));
-  const FVec2 p1(position + FVec2(sprite.width() / 2.0, sprite.height() / 2.0));
-  const FVec2 q0(FVec2(1.0 * sprite.x() / spritesheet->width(),
-                       1.0 * sprite.y() / spritesheet->height()));
-  const FVec2 q1(1.0 * (sprite.x() + sprite.width()) / spritesheet->width(),
-                 1.0 * (sprite.y() + sprite.height()) / spritesheet->height());
+  const FVec2 p0(position - FVec(sprite.width() / 2.0, sprite.height() / 2.0));
+  const FVec2 p1(position + FVec(sprite.width() / 2.0, sprite.height() / 2.0));
+  const FVec2 q0(FVec(1.0 * sprite.x() / spritesheet->width(),
+                      1.0 * sprite.y() / spritesheet->height()));
+  const FVec2 q1(1.0f * (sprite.x() + sprite.width()) / spritesheet->width(),
+                 1.0f * (sprite.y() + sprite.height()) / spritesheet->height());
   renderer_->PushQuad(p0, p1, q0, q1, position, angle);
 }
 
 void Renderer::DrawRect(FVec2 top_left, FVec2 bottom_right, float angle) {
   renderer_->ClearTexture();
   const FVec2 center = (top_left + bottom_right) / 2;
-  renderer_->PushQuad(top_left, bottom_right, FVec2(0, 0), FVec2(1, 1),
+  renderer_->PushQuad(top_left, bottom_right, FVec(0, 0), FVec(1, 1),
                       /*origin=*/center, angle);
 }
 
 void Renderer::DrawCircle(FVec2 center, float radius) {
   renderer_->ClearTexture();
-  constexpr size_t kTriangles = 30;
+  constexpr size_t kTriangles = 22;
   auto for_index = [&](int index) {
     const int i = index % kTriangles;
-    return FVec(center.x + radius * std::cos(2 * i * M_PI / kTriangles),
-                center.y + radius * std::sin(2 * i * M_PI / kTriangles));
+    constexpr double kAngle = (2.0 * M_PI) / kTriangles;
+    return FVec(center.x + radius * std::cos(kAngle * i),
+                center.y + radius * std::sin(kAngle * i));
   };
   for (size_t i = 0; i < kTriangles; ++i) {
     renderer_->PushTriangle(center, for_index(i), for_index(i + 1), FVec(0, 0),
@@ -479,8 +567,8 @@ void Renderer::DrawText(std::string_view font, float size, std::string_view str,
       stbtt_GetPackedQuad(info->chars.data(), kAtlasWidth, kAtlasHeight, c,
                           &p.x, &p.y, &q,
                           /*align_to_integer=*/true);
-      renderer_->PushQuad(FVec2(q.x0, q.y1), FVec2(q.x1, q.y0),
-                          FVec2(q.s0, q.t1), FVec2(q.s1, q.t0), FVec2(0, 0),
+      renderer_->PushQuad(FVec(q.x0, q.y1), FVec(q.x1, q.y0), FVec(q.s0, q.t1),
+                          FVec(q.s1, q.t0), FVec(0, 0),
                           /*angle=*/0);
     }
   }

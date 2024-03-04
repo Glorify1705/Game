@@ -94,6 +94,8 @@ function G1:draw()
     G.graphics.draw_rect(300 * self.player:get_health() / 100, 10, 300, 20)
     G.graphics.set_color("white")
     G.graphics.draw_sprite("numeralX", mx, my)
+    G.graphics.set_color("neonred")
+    G.graphics.draw_circle(300, 300, 20)
 end
 
 local G2 = {}

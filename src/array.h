@@ -12,36 +12,34 @@
 
 namespace G {
 
-template <typename T, size_t N>
+template <typename T>
 class FixedArray {
  public:
-  inline static constexpr size_t TotalSize = N * sizeof(T);
-
-  FixedArray(Allocator* allocator) : allocator_(allocator) {
-    buffer_ = NewArray<T>(N, allocator);
+  FixedArray(size_t n, Allocator* allocator) : allocator_(allocator), size_(n) {
+    buffer_ = NewArray<T>(size_, allocator);
   }
-  ~FixedArray() { allocator_->Dealloc(buffer_, TotalSize); }
+  ~FixedArray() { DeallocArray<T>(buffer_, size_ * sizeof(T), allocator_); }
 
   void Push(T&& t) {
-    DCHECK(elems_ < N);
+    DCHECK(elems_ < size_, elems_, " vs ", size_);
     ::new (&buffer_[elems_]) T(std::move(t));
     elems_++;
   }
   void Push(const T& t) {
-    DCHECK(elems_ < N, elems_, " vs ", N);
+    DCHECK(elems_ < size_, elems_, " vs ", size_);
     ::new (&buffer_[elems_]) T(t);
     elems_++;
   }
 
   T* Insert(const T* ptr, size_t n) {
-    DCHECK(elems_ + n < N);
+    DCHECK(elems_ + n < size_, "cannot fit ", n, " elements");
     auto* result = &buffer_[elems_];
     std::memcpy(result, ptr, n * sizeof(T));
     elems_ += n;
     return result;
   }
 
-  void Reserve(size_t s) { elems_ = s; }
+  void Resize(size_t s) { elems_ = s; }
 
   void Pop() {
     DCHECK(elems_ > 0);
@@ -73,13 +71,14 @@ class FixedArray {
   const T* cend() const { return data() + elems_; }
 
   size_t size() const { return elems_; }
-  size_t capacity() const { return N; }
+  size_t capacity() const { return size_; }
   size_t bytes() const { return elems_ * sizeof(T); }
 
  private:
   Allocator* allocator_;
   T* buffer_;
   size_t elems_ = 0;
+  const size_t size_;
 };
 
 template <typename T>

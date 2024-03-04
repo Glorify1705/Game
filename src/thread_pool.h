@@ -45,7 +45,7 @@ class ThreadPool {
   SDL_cond* idle_cv_ = nullptr;
   int inflight_ = 0;
   static constexpr size_t kMaxFunctions = 4096;
-  CircularBuffer<Work, kMaxFunctions> work_;
+  CircularBuffer<Work> work_;
   bool exit_ = false;
 };
 

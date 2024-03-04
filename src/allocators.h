@@ -212,6 +212,8 @@ class ArenaAllocator final : public Allocator {
     return a_.Realloc(p, old_size, new_size, align);
   }
 
+  void Reset() { a_.Reset(); }
+
  private:
   Allocator* const allocator_;
   void* const buffer_;

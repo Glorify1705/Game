@@ -72,20 +72,6 @@ struct FMat2x2 {
     return *this;
   }
 
-  FMat2x2& operator=(const FMat2x2& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
-  FMat2x2(const FMat2x2& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  FMat2x2(FMat2x2&& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  FMat2x2& operator=(FMat2x2&& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
   FMat2x2& operator*=(float val) {
     for (size_t i = 0; i < kCardinality; ++i) v[i] *= val;
     return *this;
@@ -232,20 +218,6 @@ struct FMat3x3 {
     for (size_t i = 0; i < kCardinality; ++i) {
       v[i] -= rhs.v[i];
     }
-    return *this;
-  }
-
-  FMat3x3& operator=(const FMat3x3& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
-  FMat3x3(const FMat3x3& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  FMat3x3(FMat3x3&& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  FMat3x3& operator=(FMat3x3&& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
     return *this;
   }
 
@@ -398,20 +370,6 @@ struct FMat4x4 {
     return *this;
   }
 
-  FMat4x4& operator=(const FMat4x4& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
-  FMat4x4(const FMat4x4& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  FMat4x4(FMat4x4&& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  FMat4x4& operator=(FMat4x4&& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
   FMat4x4& operator*=(float val) {
     for (size_t i = 0; i < kCardinality; ++i) v[i] *= val;
     return *this;
@@ -558,20 +516,6 @@ struct DMat2x2 {
     for (size_t i = 0; i < kCardinality; ++i) {
       v[i] -= rhs.v[i];
     }
-    return *this;
-  }
-
-  DMat2x2& operator=(const DMat2x2& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
-  DMat2x2(const DMat2x2& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  DMat2x2(DMat2x2&& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  DMat2x2& operator=(DMat2x2&& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
     return *this;
   }
 
@@ -724,20 +668,6 @@ struct DMat3x3 {
     return *this;
   }
 
-  DMat3x3& operator=(const DMat3x3& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
-  DMat3x3(const DMat3x3& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  DMat3x3(DMat3x3&& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  DMat3x3& operator=(DMat3x3&& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
   DMat3x3& operator*=(double val) {
     for (size_t i = 0; i < kCardinality; ++i) v[i] *= val;
     return *this;
@@ -884,20 +814,6 @@ struct DMat4x4 {
     for (size_t i = 0; i < kCardinality; ++i) {
       v[i] -= rhs.v[i];
     }
-    return *this;
-  }
-
-  DMat4x4& operator=(const DMat4x4& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
-  DMat4x4(const DMat4x4& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  DMat4x4(DMat4x4&& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  DMat4x4& operator=(DMat4x4&& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
     return *this;
   }
 
@@ -1050,20 +966,6 @@ struct IMat2x2 {
     return *this;
   }
 
-  IMat2x2& operator=(const IMat2x2& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
-  IMat2x2(const IMat2x2& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  IMat2x2(IMat2x2&& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  IMat2x2& operator=(IMat2x2&& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
   IMat2x2& operator*=(int val) {
     for (size_t i = 0; i < kCardinality; ++i) v[i] *= val;
     return *this;
@@ -1213,20 +1115,6 @@ struct IMat3x3 {
     return *this;
   }
 
-  IMat3x3& operator=(const IMat3x3& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
-  IMat3x3(const IMat3x3& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  IMat3x3(IMat3x3&& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  IMat3x3& operator=(IMat3x3&& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
   IMat3x3& operator*=(int val) {
     for (size_t i = 0; i < kCardinality; ++i) v[i] *= val;
     return *this;
@@ -1373,20 +1261,6 @@ struct IMat4x4 {
     for (size_t i = 0; i < kCardinality; ++i) {
       v[i] -= rhs.v[i];
     }
-    return *this;
-  }
-
-  IMat4x4& operator=(const IMat4x4& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
-    return *this;
-  }
-
-  IMat4x4(const IMat4x4& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  IMat4x4(IMat4x4&& rhs) { std::memcpy(v, rhs.v, sizeof(rhs.v)); }
-
-  IMat4x4& operator=(IMat4x4&& rhs) {
-    std::memcpy(v, rhs.v, sizeof(rhs.v));
     return *this;
   }
 
