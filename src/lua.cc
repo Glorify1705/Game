@@ -971,11 +971,13 @@ const struct luaL_Reg kRandomLib[] = {
          case 1:
            lua_pushnumber(state, randnum / kRandomRange);
            break;
-         case 3:
-           lua_pushnumber(
-               state, (randnum / kRandomRange) * (luaL_checknumber(state, 3) -
-                                                  luaL_checknumber(state, 2)));
+         case 3: {
+           const double start = luaL_checknumber(state, 2);
+           const double end = luaL_checknumber(state, 3);
+           lua_pushnumber(state,
+                          start + (randnum / kRandomRange) * (end - start));
            break;
+         }
        }
        return 1;
      }},

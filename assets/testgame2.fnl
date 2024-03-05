@@ -7,8 +7,7 @@
                           {:x 300 :y 300 :w 50 :h 50}])
   (tset self :random (G.random.non_deterministic))
   (G.sound.set_music_volume 0.2)
-  (G.sound.set_sfx_volume 0.1)
-  (G.window.set_title "Shoot clicker!"))
+  (G.sound.set_sfx_volume 0.1))
 
 (fn contains? [rect px py]
   (let [{: x : y : w : h} rect]

@@ -11,8 +11,8 @@ namespace G {
 
 class Sound {
  public:
-  explicit Sound(const Assets* assets, Allocator* allocator)
-      : assets_(assets),
+  explicit Sound(const Assets& assets, Allocator* allocator)
+      : assets_(&assets),
         chunks_(128, allocator),
         musics_(128, allocator),
         chunk_by_name_(allocator),

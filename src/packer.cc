@@ -27,10 +27,10 @@ class Packer {
  public:
   Packer(Allocator* allocator);
 
-  Assets HandleFiles();
+  Assets* HandleFiles();
 
  private:
-  Assets Finish();
+  Assets* Finish();
 
   void* Alloc(void* ptr, size_t osize, size_t nsize);
 
@@ -93,7 +93,7 @@ Packer::Packer(Allocator* allocator)
       shaders_(allocator_),
       text_files_(allocator_) {}
 
-Assets Packer::Finish() {
+Assets* Packer::Finish() {
   auto image_vec = fbs_.CreateVector(images_);
   auto scripts_vec = fbs_.CreateVector(scripts_);
   auto spritesheets_vec = fbs_.CreateVector(spritesheets_);
@@ -115,7 +115,7 @@ Assets Packer::Finish() {
   // TODO: Avoid the copy here by releasing the pointer explicitly.
   auto* buffer = allocator_->Alloc(fbs_.GetSize(), /*align=*/16);
   std::memcpy(buffer, fbs_.GetBufferPointer(), fbs_.GetSize());
-  return Assets(GetAssetsPack(buffer), fbs_.GetSize());
+  return New<Assets>(allocator_, GetAssetsPack(buffer), fbs_.GetSize());
 }
 
 void* Packer::Alloc(void* ptr, size_t osize, size_t nsize) {
@@ -239,7 +239,7 @@ void Packer::HandleTextFile(std::string_view filename, uint8_t* buf,
                                             fbs_.CreateVector(buf, size)));
 }
 
-Assets Packer::HandleFiles() {
+Assets* Packer::HandleFiles() {
   TIMER("Packing assets from directory");
   // TODO: This uses insane amounts of memory and needs to be reduced.
   struct FileHandler {
@@ -297,14 +297,14 @@ Assets Packer::HandleFiles() {
 
 }  // namespace
 
-Assets PackFiles(const char* source_directory, Allocator* allocator) {
+Assets* PackFiles(const char* source_directory, Allocator* allocator) {
   PHYSFS_CHECK(PHYSFS_mount(source_directory, "/", 1),
                " while trying to mount directory ", source_directory);
   Packer packer(allocator);
   return packer.HandleFiles();
 }
 
-Assets ReadAssets(const char* assets_zip_file, Allocator* allocator) {
+Assets* ReadAssets(const char* assets_zip_file, Allocator* allocator) {
   TIMER("Reading assets from file");
   constexpr char kAssetFileName[] = "assets.bin";
   zip_error_t zip_error;
@@ -339,7 +339,7 @@ Assets ReadAssets(const char* assets_zip_file, Allocator* allocator) {
     DIE("Failed to read decompressed file");
   }
   LOG("Read assets file (", stat.size, " bytes)");
-  return Assets(GetAssetsPack(buffer), stat.size);
+  return New<Assets>(allocator, GetAssetsPack(buffer), stat.size);
 }
 
 bool WriteAssets(const Assets& assets, const char* output_file) {

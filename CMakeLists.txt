@@ -4,9 +4,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS True)
 
-set(CMAKE_CXX_FLAGS_RELEASE “-O3” CACHE STRING “”)
-set(CMAKE_CXX_FLAGS_DEBUG “-O1 -ggdb” CACHE STRING “”)
-
 project(Game 
     VERSION 0.1 
     DESCRIPTION "The game"
@@ -69,6 +66,7 @@ set(GAME_SRCS
     "libraries/imgui_tables.cc"
     "libraries/imgui.cc"
     "libraries/imgui_widgets.cc"
+    "src/config.cc"
     "src/lua.cc"
     "src/physics.cc"
     "src/image.cc"
@@ -112,12 +110,12 @@ target_link_libraries(Game PRIVATE SDL2::Main SDL2::Mixer flatbuffers physfs-sta
 if (WIN32)
     add_custom_command(
         TARGET Game POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:SDL2::Core>" "$<TARGET_FILE_DIR:Game>"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE_DIR:SDL2::Core>/../bin/SDL2.dll" "$<TARGET_FILE_DIR:Game>"
         VERBATIM
     )
     add_custom_command(
         TARGET Game POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:SDL2::Mixer>" "$<TARGET_FILE_DIR:Game>"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE_DIR:SDL2::Mixer>/../bin/SDL2_mixer.dll" "$<TARGET_FILE_DIR:Game>"
         VERBATIM
     )
 endif()

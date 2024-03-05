@@ -16,6 +16,7 @@
 #include "assets.h"
 #include "circular_buffer.h"
 #include "clock.h"
+#include "config.h"
 #include "console.h"
 #include "filesystem.h"
 #include "image.h"
@@ -48,11 +49,6 @@ static EngineAllocator* GlobalEngineAllocator() {
   static auto* allocator = new EngineAllocator;
   return allocator;
 }
-
-struct GameParams {
-  int screen_width = 1440;
-  int screen_height = 1024;
-};
 
 #ifndef _INTERNAL_GAME_TRAP
 #if __has_builtin(__builtin_debugtrap)
@@ -95,8 +91,8 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
   }
 }
 
-Assets GetAssets(const std::vector<const char*>& arguments,
-                 Allocator* allocator) {
+Assets* GetAssets(const std::vector<const char*>& arguments,
+                  Allocator* allocator) {
   if (arguments.empty()) {
     LOG("Reading assets from assets.zip since no file was provided");
     return ReadAssets("assets.zip", allocator);
@@ -110,33 +106,18 @@ Assets GetAssets(const std::vector<const char*>& arguments,
 }
 
 struct EngineModules {
-  Assets assets;
-  SDL_Window* window;
-  Shaders shaders;
-  BatchRenderer batch_renderer;
-  Keyboard keyboard;
-  Mouse mouse;
-  Controllers controllers;
-  Sound sound;
-  Renderer renderer;
-  Lua lua;
-  Physics physics;
-  ArenaAllocator frame_allocator;
-
-  EngineModules(const std::vector<const char*> arguments,
-                const GameParams& params, SDL_Window* sdl_window,
-                Allocator* allocator)
-      : assets(GetAssets(arguments, allocator)),
-        window(sdl_window),
-        shaders(assets, allocator),
-        batch_renderer(IVec2(params.screen_width, params.screen_height),
+  EngineModules(Assets* assets, const GameConfig& config,
+                SDL_Window* sdl_window, Allocator* allocator)
+      : window(sdl_window),
+        shaders(*assets, allocator),
+        batch_renderer(IVec2(config.window_width, config.window_height),
                        &shaders, allocator),
         keyboard(allocator),
-        controllers(assets, allocator),
-        sound(&assets, allocator),
-        renderer(assets, &batch_renderer, allocator),
-        lua(&assets, SystemAllocator::Instance()),
-        physics(FVec(params.screen_width, params.screen_height),
+        controllers(*assets, allocator),
+        sound(*assets, allocator),
+        renderer(*assets, &batch_renderer, allocator),
+        lua(assets, SystemAllocator::Instance()),
+        physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)) {}
 
@@ -189,20 +170,38 @@ struct EngineModules {
     renderer.FlushFrame();
     batch_renderer.Render(&frame_allocator);
   }
+
+  SDL_Window* window;
+  Shaders shaders;
+  BatchRenderer batch_renderer;
+  Keyboard keyboard;
+  Mouse mouse;
+  Controllers controllers;
+  Sound sound;
+  Renderer renderer;
+  Lua lua;
+  Physics physics;
+  ArenaAllocator frame_allocator;
 };
 
-void InitializeSDL() {
+void InitializeLogging() {
   SDL_LogSetAllPriority(SDL_LOG_PRIORITY_INFO);
-  CHECK(SDL_Init(SDL_INIT_EVERYTHING) == 0,
+  SetLogSink(LogToSDL);
+  SetCrashHandler(SdlCrash);
+}
+
+void InitializeSDL(const GameConfig& config) {
+  CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER |
+                 SDL_INIT_EVENTS) == 0,
         "Could not initialize SDL: ", SDL_GetError());
   CHECK(Mix_OpenAudio(44100, MIX_INIT_OGG, 2, 2048) == 0,
         "Could not initialize audio: ", Mix_GetError());
-  SetLogSink(LogToSDL);
-  SetCrashHandler(SdlCrash);
-  CHECK(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) == 0,
-        "Could not initialize SDL joysticks: ", SDL_GetError());
-  SDL_JoystickEventState(SDL_ENABLE);
-  SDL_GameControllerEventState(SDL_ENABLE);
+  if (config.enable_joystick) {
+    CHECK(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) == 0,
+          "Could not initialize SDL joysticks: ", SDL_GetError());
+    SDL_JoystickEventState(SDL_ENABLE);
+    SDL_GameControllerEventState(SDL_ENABLE);
+  }
   SDL_ShowCursor(false);
 }
 
@@ -226,9 +225,13 @@ void PrintDependencyVersions() {
   LOG("Using Box2D ", b2_version.major, ".", b2_version.minor, ".",
       b2_version.revision);
   LOG("Using Dear ImGUI Version: ", IMGUI_VERSION);
+  PHYSFS_Version physfs_version;
+  PHYSFS_getLinkedVersion(&physfs_version);
+  LOG("Using PhysFS ", physfs_version.major, ".", physfs_version.minor, ".",
+      physfs_version.patch);
 }
 
-SDL_Window* CreateWindow(const GameParams& params) {
+SDL_Window* CreateWindow(const GameConfig& config) {
   LOG("Initializing basic attributes");
   CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4) == 0,
         "Could not set major version", SDL_GetError());
@@ -239,30 +242,37 @@ SDL_Window* CreateWindow(const GameParams& params) {
         "Could not set Core profile", SDL_GetError());
   CHECK(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1) == 0,
         "Could not set double buffering version", SDL_GetError());
-  auto* window =
-      SDL_CreateWindow("Game", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                       params.screen_width, params.screen_height,
-                       SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+  uint32_t flags = SDL_WINDOW_OPENGL;
+  if (config.resizable) flags |= SDL_WINDOW_RESIZABLE;
+  if (config.borderless) flags |= SDL_WINDOW_BORDERLESS;
+  auto* window = SDL_CreateWindow(config.window_title, SDL_WINDOWPOS_UNDEFINED,
+                                  SDL_WINDOWPOS_UNDEFINED, config.window_width,
+                                  config.window_height, flags);
   CHECK(window != nullptr, "Could not initialize window: ", SDL_GetError());
   return window;
 }
 
-SDL_GLContext CreateOpenglContext(SDL_Window* window) {
+SDL_GLContext CreateOpenglContext(const GameConfig& config,
+                                  SDL_Window* window) {
   LOG("Creating SDL context");
   CHECK(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1) == 0,
         " failed to set multi sample buffers: ", SDL_GetError());
-  CHECK(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16) == 0,
-        " failed to set multi samples: ", SDL_GetError());
+  CHECK(
+      SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, config.msaa_samples) == 0,
+      " failed to set multi samples: ", SDL_GetError());
   CHECK(SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1) == 0,
         " failed to set accelerated visual: ", SDL_GetError());
   auto context = SDL_GL_CreateContext(window);
   CHECK(context != nullptr, "Could not load OpenGL context: ", SDL_GetError());
   CHECK(gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress),
         "Could not load GLAD");
-  CHECK(SDL_GL_SetSwapInterval(1) == 0, "Could not set up VSync: ",
-        SDL_GetError());  // Sync update with monitor vertical.
+  if (config.vsync_mode != 0) {
+    CHECK(SDL_GL_SetSwapInterval(config.vsync_mode) == 0,
+          "Could not set up VSync to mode ", config.vsync_mode, ": ",
+          SDL_GetError());
+  }
   const bool supports_opengl_debug = GLAD_GL_VERSION_4_3 && GLAD_GL_KHR_debug;
-  if (supports_opengl_debug) {
+  if (supports_opengl_debug && config.enable_opengl_debug) {
     LOG("OpenGL Debug Callback Support is enabled!");
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
@@ -436,25 +446,22 @@ class Game {
   Game(int argc, const char* argv[], Allocator* allocator)
       : arguments_(argv + 1, argv + argc), allocator_(allocator) {
     TIMER("Setup");
-    {
-      TIMER("Debug console");
-      // Initialize the debug console.
-      DebugConsole::Instance();
+    InitializeLogging();
+    // Initialize the debug console.
+    DebugConsole::Instance();
+    LOG("Program name = ", argv[0], " args = ", arguments_.size());
+    for (size_t i = 0; i < arguments_.size(); ++i) {
+      LOG("argv[", i, "] = ", arguments_[i]);
     }
+    PHYSFS_CHECK(PHYSFS_init(argv[0]),
+                 "Could not initialize PhysFS: ", argv[0]);
+    assets_ = GetAssets(arguments_, allocator_);
+    LoadConfig(*assets_, &config_, allocator_);
     {
       TIMER("SDL2 initialization");
-      InitializeSDL();
-      LOG("Program name = ", argv[0], " args = ", arguments_.size());
-      for (size_t i = 0; i < arguments_.size(); ++i) {
-        LOG("argv[", i, "] = ", arguments_[i]);
-      }
-      window_ = CreateWindow(params_);
-      context_ = CreateOpenglContext(window_);
-    }
-    {
-      TIMER("PhysFS initialization");
-      PHYSFS_CHECK(PHYSFS_init(argv[0]),
-                   "Could not initialize PhysFS: ", argv[0]);
+      InitializeSDL(config_);
+      window_ = CreateWindow(config_);
+      context_ = CreateOpenglContext(config_, window_);
     }
     PrintDependencyVersions();
   }
@@ -466,7 +473,12 @@ class Game {
       SDL_QuitSubSystem(SDL_INIT_HAPTIC);
     }
     Mix_Quit();
-    SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
+    if (SDL_WasInit(SDL_INIT_JOYSTICK)) {
+      SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
+    }
+    if (SDL_WasInit(SDL_INIT_GAMECONTROLLER)) {
+      SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
+    }
     PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
     SDL_GL_DeleteContext(context_);
     SDL_DestroyWindow(window_);
@@ -475,8 +487,7 @@ class Game {
 
   void Init() {
     TIMER("Game Initialization");
-    e_ = New<EngineModules>(allocator_, arguments_, params_, window_,
-                            allocator_);
+    e_ = New<EngineModules>(allocator_, assets_, config_, window_, allocator_);
     debug_ui_ =
         New<DebugUi>(allocator_, window_, context_, &stats_, e_, allocator_);
     e_->InitializeLua();
@@ -538,9 +549,10 @@ class Game {
   }
 
  private:
-  std::vector<const char*> arguments_;
+  const std::vector<const char*> arguments_;
   Allocator* allocator_;
-  GameParams params_;
+  Assets* assets_ = nullptr;
+  GameConfig config_;
   SDL_Window* window_ = nullptr;
   SDL_GLContext context_;
   DebugUi* debug_ui_;
