@@ -1,1 +1,1 @@
-return require('testgame1')
+return require('testgame2')
