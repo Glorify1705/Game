@@ -15,7 +15,7 @@ function Random.non_deterministic()
 end
 
 function Random:next()
-    return G.random.random(self.rnd)
+    return G.random.sample(self.rnd)
 end
 
 return Random

@@ -941,6 +941,8 @@ const struct luaL_Reg kClockLib[] = {{"now", [](lua_State* state) {
                                         return 1;
                                       }}};
 
+constexpr double kRandomRange = std::pow(2.0, 32);
+
 const struct luaL_Reg kRandomLib[] = {
     {"from_seed",
      [](lua_State* state) {
@@ -961,14 +963,36 @@ const struct luaL_Reg kRandomLib[] = {
        lua_setmetatable(state, -2);
        return 1;
      }},
-    {"random",
+    {"sample",
      [](lua_State* state) {
        auto* handle = static_cast<pcg32*>(luaL_checkudata(state, 1, "rng"));
-       lua_Number result = (*handle)();
-       lua_pushnumber(state, result);
+       lua_Number randnum = (*handle)();
+       switch (lua_gettop(state)) {
+         case 1:
+           lua_pushnumber(state, randnum / kRandomRange);
+           break;
+         case 3:
+           lua_pushnumber(
+               state, (randnum / kRandomRange) * (luaL_checknumber(state, 3) -
+                                                  luaL_checknumber(state, 2)));
+           break;
+       }
        return 1;
      }},
-};
+    {"pick", [](lua_State* state) {
+       if (lua_gettop(state) != 2) {
+         LUA_ERROR(state, "Insufficient arguments");
+       }
+       auto* handle = static_cast<pcg32*>(luaL_checkudata(state, 1, "rng"));
+       if (!lua_istable(state, 2)) {
+         LUA_ERROR(state, "Did not pass a sequential table");
+       }
+       const double val = (*handle)();
+       const double size = lua_objlen(state, 2);
+       const double pos = std::floor((val / kRandomRange) * size);
+       lua_rawgeti(state, 2, static_cast<int>(pos));
+       return 1;
+     }}};
 
 struct LuaError {
   std::string_view filename;

@@ -436,17 +436,26 @@ class Game {
   Game(int argc, const char* argv[], Allocator* allocator)
       : arguments_(argv + 1, argv + argc), allocator_(allocator) {
     TIMER("Setup");
-    // Initialize the debug console.
-    DebugConsole::Instance();
-    InitializeSDL();
-    LOG("Program name = ", argv[0], " args = ", arguments_.size());
-    for (size_t i = 0; i < arguments_.size(); ++i) {
-      LOG("argv[", i, "] = ", arguments_[i]);
+    {
+      TIMER("Debug console");
+      // Initialize the debug console.
+      DebugConsole::Instance();
     }
-    window_ = CreateWindow(params_);
-    context_ = CreateOpenglContext(window_);
-    PHYSFS_CHECK(PHYSFS_init(argv[0]),
-                 "Could not initialize PhysFS: ", argv[0]);
+    {
+      TIMER("SDL2 initialization");
+      InitializeSDL();
+      LOG("Program name = ", argv[0], " args = ", arguments_.size());
+      for (size_t i = 0; i < arguments_.size(); ++i) {
+        LOG("argv[", i, "] = ", arguments_[i]);
+      }
+      window_ = CreateWindow(params_);
+      context_ = CreateOpenglContext(window_);
+    }
+    {
+      TIMER("PhysFS initialization");
+      PHYSFS_CHECK(PHYSFS_init(argv[0]),
+                   "Could not initialize PhysFS: ", argv[0]);
+    }
     PrintDependencyVersions();
   }
 
