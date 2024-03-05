@@ -217,7 +217,10 @@ class BatchRenderer {
   GLuint ebo_, vao_, vbo_;
   size_t noop_texture_;
   GLuint screen_quad_vao_, screen_quad_vbo_;
-  GLuint render_target_, render_texture_, depth_buffer_;
+  GLuint intermediate_target_;
+  GLuint render_target_, downsampled_target_, render_texture_,
+      downsampled_texture_, depth_buffer_;
+  GLint antialiasing_samples_;
   IVec2 viewport_;
   bool debug_render_ = false;
   uint32_t program_handle_;

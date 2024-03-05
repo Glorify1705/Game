@@ -77,7 +77,7 @@ class Shaders {
     CHECK(compiled_programs_.Lookup(program, &program_id),
           " could not find program ", program);
     current_program_ = program_id;
-    glUseProgram(current_program_);
+    OPENGL_CALL(glUseProgram(current_program_));
   }
 
   std::string_view LastError() const { return last_error_.piece(); };
@@ -95,7 +95,7 @@ class Shaders {
     if (!current_program_) return FillError("No program set");
     const GLint uniform = glGetUniformLocation(current_program_, name);
     if (uniform == -1) return FillError("No uniform named ", name);
-    glUniform1i(uniform, value);
+    OPENGL_CALL(glUniform1i(uniform, value));
     return true;
   }
 
@@ -103,13 +103,12 @@ class Shaders {
     if (!current_program_) return FillError("No program set");
     const GLint uniform = glGetUniformLocation(current_program_, name);
     if (uniform == -1) return FillError("No uniform named ", name);
-    glUniform1f(uniform, value);
+    OPENGL_CALL(glUniform1f(uniform, value));
     return true;
   }
 
   GLint AttributeLocation(const char* name) const {
     DCHECK(current_program_, "No program set");
-
     return glGetAttribLocation(current_program_, name);
   }
 

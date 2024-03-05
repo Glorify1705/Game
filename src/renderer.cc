@@ -71,70 +71,101 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
       shaders_(shaders),
       viewport_(viewport) {
   TIMER();
-  glGenVertexArrays(1, &vao_);
-  glGenBuffers(1, &vbo_);
-  glGenBuffers(1, &ebo_);
+  glGetIntegerv(GL_MAX_SAMPLES, &antialiasing_samples_);
+  LOG("Using ", antialiasing_samples_, " MSAA samples");
+  OPENGL_CALL(glGenVertexArrays(1, &vao_));
+  OPENGL_CALL(glGenBuffers(1, &vbo_));
+  OPENGL_CALL(glGenBuffers(1, &ebo_));
   // Generate the quad for the post pass step.
-  glGenVertexArrays(1, &screen_quad_vao_);
-  glGenBuffers(1, &screen_quad_vbo_);
-  glBindVertexArray(screen_quad_vao_);
+  OPENGL_CALL(glGenVertexArrays(1, &screen_quad_vao_));
+  OPENGL_CALL(glGenBuffers(1, &screen_quad_vbo_));
+  OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
   std::array<float, 24> screen_quad_vertices = {
       // Vertex position and Tex coord in Normalized Device Coordinates.
       -1.0f, 1.0f,  0.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f,
       1.0f,  -1.0f, 1.0f, 0.0f, -1.0f, 1.0f,  0.0f, 1.0f,
       1.0f,  -1.0f, 1.0f, 0.0f, 1.0f,  1.0f,  1.0f, 1.0f};
-  glBindBuffer(GL_ARRAY_BUFFER, screen_quad_vbo_);
-  glBufferData(GL_ARRAY_BUFFER, screen_quad_vertices.size() * sizeof(float),
-               screen_quad_vertices.data(), GL_STATIC_DRAW);
+  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, screen_quad_vbo_));
+  OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER,
+                           screen_quad_vertices.size() * sizeof(float),
+                           screen_quad_vertices.data(), GL_STATIC_DRAW));
   program_handle_ = StringIntern("post_pass");
   shaders_->UseProgram(StringByHandle(program_handle_));
   const GLint pos_attribute = shaders_->AttributeLocation("input_position");
-  glEnableVertexAttribArray(pos_attribute);
-  glVertexAttribPointer(pos_attribute, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                        (void*)0);
+  OPENGL_CALL(glEnableVertexAttribArray(pos_attribute));
+  OPENGL_CALL(glVertexAttribPointer(pos_attribute, 2, GL_FLOAT, GL_FALSE,
+                                    4 * sizeof(float), (void*)0));
   const GLint tex_attribute = shaders_->AttributeLocation("input_tex_coord");
-  glEnableVertexAttribArray(tex_attribute);
-  glVertexAttribPointer(tex_attribute, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                        (void*)(2 * sizeof(float)));
+  OPENGL_CALL(glEnableVertexAttribArray(tex_attribute));
+  OPENGL_CALL(glVertexAttribPointer(tex_attribute, 2, GL_FLOAT, GL_FALSE,
+                                    4 * sizeof(float),
+                                    (void*)(2 * sizeof(float))));
   // Create a render target for the viewport.
-  glGenFramebuffers(1, &render_target_);
-  glBindFramebuffer(GL_FRAMEBUFFER, render_target_);
-  glGenTextures(1, &render_texture_);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, render_texture_);
-  glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport.x, viewport.y,
-               /*border=*/0, GL_RGBA, GL_UNSIGNED_BYTE, /*pixels=*/nullptr);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                         render_texture_, /*level=*/0);
-  CHECK(!glGetError(), "Could generate texture: ", glGetError());
-  glGenRenderbuffers(1, &depth_buffer_);
-  glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, viewport.x,
-                        viewport.y);
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-                            GL_RENDERBUFFER, depth_buffer_);
-  CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  OPENGL_CALL(glGenFramebuffers(1, &render_target_));
+  OPENGL_CALL(glGenFramebuffers(1, &downsampled_target_));
+  OPENGL_CALL(glGenTextures(1, &render_texture_));
+  OPENGL_CALL(glGenTextures(1, &downsampled_texture_));
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
+  OPENGL_CALL(glActiveTexture(GL_TEXTURE0));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, render_texture_));
+  OPENGL_CALL(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE,
+                                      antialiasing_samples_, GL_RGBA,
+                                      viewport.x, viewport.y, GL_TRUE));
+  OPENGL_CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                     GL_TEXTURE_2D_MULTISAMPLE, render_texture_,
+                                     /*level=*/0));
+  CHECK(!glGetError(), "Could generate render texture: ", glGetError());
+  // Create downsampled texture data.
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, downsampled_target_));
+  OPENGL_CALL(glActiveTexture(GL_TEXTURE1));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
+  OPENGL_CALL(glTexImage2D(
+      GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport.x, viewport.y,
+      /*border=*/0, GL_RGBA, GL_UNSIGNED_BYTE, /*pixels=*/nullptr));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+  OPENGL_CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                     GL_TEXTURE_2D, downsampled_texture_,
+                                     /*level=*/0));
+  CHECK(!glGetError(), "Could generate downsampled texture: ", glGetError());
+  OPENGL_CALL(glGenRenderbuffers(1, &depth_buffer_));
+  OPENGL_CALL(glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_));
+  OPENGL_CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8,
+                                    viewport.x, viewport.y));
+  OPENGL_CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                                        GL_DEPTH_STENCIL_ATTACHMENT,
+                                        GL_RENDERBUFFER, depth_buffer_));
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   tex_.Push(render_texture_);
+  tex_.Push(downsampled_texture_);
+  glActiveTexture(GL_TEXTURE0);
   // Load an empty texture, just white pixels, to be able to draw colors without
   // if statements in the shader.
   uint8_t white_pixels[32 * 32 * 4];
   std::memset(white_pixels, 255, sizeof(white_pixels));
   noop_texture_ = LoadTexture(&white_pixels, /*width=*/32, /*height=*/32);
+  SetActiveTexture(noop_texture_);
 }
 
 void BatchRenderer::SetViewport(IVec2 viewport) {
-  if (viewport_ != viewport) {
-    // Rebind texture and depth buffer to the size.
-    glBindTexture(GL_TEXTURE_2D, render_texture_);
-    glTexImage2D(GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport.x, viewport.y,
-                 /*border=*/0, GL_RGBA, GL_UNSIGNED_BYTE, /*pixels=*/nullptr);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, viewport.x,
-                          viewport.y);
-    viewport_ = viewport;
-  }
+  if (viewport_ == viewport) return;
+  // Rebind texture, downsampled and depth buffer to the size.
+  OPENGL_CALL(glActiveTexture(GL_TEXTURE0));
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, render_texture_));
+  OPENGL_CALL(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE,
+                                      antialiasing_samples_, GL_RGBA,
+                                      viewport.x, viewport.y, GL_TRUE));
+  OPENGL_CALL(glActiveTexture(GL_TEXTURE1));
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, downsampled_target_));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
+  OPENGL_CALL(glTexImage2D(
+      GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport.x, viewport.y,
+      /*border=*/0, GL_RGBA, GL_UNSIGNED_BYTE, /*pixels=*/nullptr));
+  OPENGL_CALL(glRenderbufferStorageMultisample(
+      GL_RENDERBUFFER, antialiasing_samples_, GL_DEPTH24_STENCIL8, viewport.x,
+      viewport.y));
+  viewport_ = viewport;
 }
 
 size_t BatchRenderer::LoadTexture(const ImageAsset& image) {
@@ -150,13 +181,13 @@ size_t BatchRenderer::LoadTexture(const ImageAsset& image) {
 }
 
 BatchRenderer::~BatchRenderer() {
-  std::array<GLuint, 4> buffers = {vbo_, ebo_, screen_quad_vbo_};
-  glDeleteBuffers(buffers.size(), buffers.data());
-  glDeleteFramebuffers(1, &render_target_);
-  glDeleteRenderbuffers(1, &depth_buffer_);
-  glDeleteVertexArrays(1, &vao_);
-  glDeleteVertexArrays(1, &screen_quad_vbo_);
-  glDeleteTextures(tex_.size(), tex_.data());
+  std::array<GLuint, 4> object_buffers = {vbo_, ebo_, screen_quad_vbo_};
+  OPENGL_CALL(glDeleteBuffers(object_buffers.size(), object_buffers.data()));
+  std::array<GLuint, 2> frame_buffers = {render_target_, downsampled_target_};
+  OPENGL_CALL(glDeleteFramebuffers(frame_buffers.size(), frame_buffers.data()));
+  OPENGL_CALL(glDeleteVertexArrays(1, &vao_));
+  OPENGL_CALL(glDeleteVertexArrays(1, &screen_quad_vao_));
+  OPENGL_CALL(glDeleteTextures(tex_.size(), tex_.data()));
   allocator_->Dealloc(command_buffer_, kCommandMemory);
 }
 
@@ -164,17 +195,17 @@ size_t BatchRenderer::LoadTexture(const void* data, size_t width,
                                   size_t height) {
   GLuint tex;
   const size_t index = tex_.size();
-  glGenTextures(1, &tex);
-  glActiveTexture(GL_TEXTURE0 + index);
-  glBindTexture(GL_TEXTURE_2D, tex);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                  GL_LINEAR_MIPMAP_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
-               GL_UNSIGNED_BYTE, data);
-  glGenerateMipmap(GL_TEXTURE_2D);
+  OPENGL_CALL(glGenTextures(1, &tex));
+  OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + index));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                              GL_LINEAR_MIPMAP_LINEAR));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+  OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
+                           GL_UNSIGNED_BYTE, data));
+  OPENGL_CALL(glGenerateMipmap(GL_TEXTURE_2D));
   CHECK(!glGetError(), "Could generate texture: ", glGetError());
   tex_.Push(tex);
   return index;
@@ -182,14 +213,15 @@ size_t BatchRenderer::LoadTexture(const void* data, size_t width,
 
 void BatchRenderer::Render(Allocator* scratch) {
   // Setup OpenGL state.
-  glViewport(0, 0, viewport_.x, viewport_.y);
-  glBindFramebuffer(GL_FRAMEBUFFER, render_target_);
-  glClearColor(0.f, 0.f, 0.f, 0.f);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glBlendEquation(GL_FUNC_ADD);
-  glDisable(GL_DEPTH_TEST);
-  glClear(GL_COLOR_BUFFER_BIT);
+  OPENGL_CALL(glEnable(GL_MULTISAMPLE));
+  OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
+  OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
+  OPENGL_CALL(glEnable(GL_BLEND));
+  OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+  OPENGL_CALL(glBlendEquation(GL_FUNC_ADD));
+  OPENGL_CALL(glDisable(GL_DEPTH_TEST));
+  OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
   // Compute size of data.
   size_t vertices_count = 0, indices_count = 0;
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
@@ -270,42 +302,44 @@ void BatchRenderer::Render(Allocator* scratch) {
     }
   }
   // Setup OpenGL context.
-  glBindVertexArray(vao_);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-  glBufferData(GL_ARRAY_BUFFER, vertices.bytes(), vertices.data(),
-               GL_STATIC_DRAW);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.bytes(), indices.data(),
-               GL_STATIC_DRAW);
+  OPENGL_CALL(glBindVertexArray(vao_));
+  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, vbo_));
+  OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER, vertices.bytes(), vertices.data(),
+                           GL_STATIC_DRAW));
+  OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
+  OPENGL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.bytes(),
+                           indices.data(), GL_STATIC_DRAW));
   shaders_->UseProgram("pre_pass");
   const GLint pos_attribute = shaders_->AttributeLocation("input_position");
-  glVertexAttribPointer(
+  OPENGL_CALL(glVertexAttribPointer(
       pos_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
       sizeof(VertexData),
-      reinterpret_cast<void*>(offsetof(VertexData, position)));
-  glEnableVertexAttribArray(pos_attribute);
+      reinterpret_cast<void*>(offsetof(VertexData, position))));
+  OPENGL_CALL(glEnableVertexAttribArray(pos_attribute));
   const GLint tex_coord_attribute =
       shaders_->AttributeLocation("input_tex_coord");
-  glVertexAttribPointer(
+  OPENGL_CALL(glVertexAttribPointer(
       tex_coord_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
       sizeof(VertexData),
-      reinterpret_cast<void*>(offsetof(VertexData, tex_coords)));
-  glEnableVertexAttribArray(tex_coord_attribute);
+      reinterpret_cast<void*>(offsetof(VertexData, tex_coords))));
+  OPENGL_CALL(glEnableVertexAttribArray(tex_coord_attribute));
   const GLint origin_attribute = shaders_->AttributeLocation("origin");
-  glVertexAttribPointer(origin_attribute, FVec2::kCardinality, GL_FLOAT,
-                        GL_FALSE, sizeof(VertexData),
-                        reinterpret_cast<void*>(offsetof(VertexData, origin)));
-  glEnableVertexAttribArray(origin_attribute);
+  OPENGL_CALL(glVertexAttribPointer(
+      origin_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
+      sizeof(VertexData),
+      reinterpret_cast<void*>(offsetof(VertexData, origin))));
+  OPENGL_CALL(glEnableVertexAttribArray(origin_attribute));
   const GLint angle_attribute = shaders_->AttributeLocation("angle");
-  glVertexAttribPointer(angle_attribute, 1, GL_FLOAT, GL_FALSE,
-                        sizeof(VertexData),
-                        reinterpret_cast<void*>(offsetof(VertexData, angle)));
-  glEnableVertexAttribArray(angle_attribute);
+  OPENGL_CALL(glVertexAttribPointer(
+      angle_attribute, 1, GL_FLOAT, GL_FALSE, sizeof(VertexData),
+      reinterpret_cast<void*>(offsetof(VertexData, angle))));
+  OPENGL_CALL(glEnableVertexAttribArray(angle_attribute));
   const GLint color_attribute = shaders_->AttributeLocation("color");
-  glVertexAttribPointer(color_attribute, sizeof(Color), GL_UNSIGNED_BYTE,
-                        GL_FALSE, sizeof(VertexData),
-                        reinterpret_cast<void*>(offsetof(VertexData, color)));
-  glEnableVertexAttribArray(color_attribute);
+  OPENGL_CALL(glVertexAttribPointer(
+      color_attribute, sizeof(Color), GL_UNSIGNED_BYTE, GL_FALSE,
+      sizeof(VertexData),
+      reinterpret_cast<void*>(offsetof(VertexData, color))));
+  OPENGL_CALL(glEnableVertexAttribArray(color_attribute));
   shaders_->SetUniform("global_color", FVec4(1, 1, 1, 1));
   // Render batches by finding changes to the OpenGL context.
   int render_calls = 0;
@@ -316,17 +350,18 @@ void BatchRenderer::Render(Allocator* scratch) {
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
     auto flush = [&] {
       if (indices_start == indices_end) return;
+      glActiveTexture(GL_TEXTURE0 + texture_unit);
       shaders_->SetUniform("tex", texture_unit);
       shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
       shaders_->SetUniform("transform", transform);
-      glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-      glBindTexture(GL_TEXTURE_2D, tex_[texture_unit]);
+      OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
+      OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex_[texture_unit]));
       const auto indices_start_ptr =
           reinterpret_cast<uintptr_t>(&indices[indices_start]) -
           reinterpret_cast<uintptr_t>(&indices[0]);
-      glDrawElementsInstanced(GL_TRIANGLES, indices_end - indices_start,
-                              GL_UNSIGNED_INT,
-                              reinterpret_cast<void*>(indices_start_ptr), 1);
+      OPENGL_CALL(glDrawElementsInstanced(
+          GL_TRIANGLES, indices_end - indices_start, GL_UNSIGNED_INT,
+          reinterpret_cast<void*>(indices_start_ptr), 1));
       render_calls++;
       indices_start = indices_end;
     };
@@ -361,14 +396,14 @@ void BatchRenderer::Render(Allocator* scratch) {
       if (indices_start == indices_end) return;
       shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
       shaders_->SetUniform("transform", transform);
-      glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-      glBindTexture(GL_TEXTURE_2D, tex_[noop_texture_]);
+      OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
+      OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex_[noop_texture_]));
       const auto indices_start_ptr =
           reinterpret_cast<uintptr_t>(&indices[indices_start]) -
           reinterpret_cast<uintptr_t>(&indices[0]);
-      glDrawElementsInstanced(GL_TRIANGLES, indices_end - indices_start,
-                              GL_UNSIGNED_INT,
-                              reinterpret_cast<void*>(indices_start_ptr), 1);
+      OPENGL_CALL(glDrawElementsInstanced(
+          GL_TRIANGLES, indices_end - indices_start, GL_UNSIGNED_INT,
+          reinterpret_cast<void*>(indices_start_ptr), 1));
     };
     for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
       switch (Command c; it.Read(&c)) {
@@ -395,15 +430,23 @@ void BatchRenderer::Render(Allocator* scratch) {
       }
     }
   }
-  // Second pass
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  glClearColor(0.f, 0.f, 0.f, 0.f);
-  glClear(GL_COLOR_BUFFER_BIT);
+  // Downsample framebuffer.
+  glActiveTexture(GL_TEXTURE0);
+  OPENGL_CALL(glBindFramebuffer(GL_READ_FRAMEBUFFER, render_target_));
+  OPENGL_CALL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, downsampled_target_));
+  OPENGL_CALL(glBlitFramebuffer(0, 0, viewport_.x, viewport_.y, 0, 0,
+                                viewport_.x, viewport_.y, GL_COLOR_BUFFER_BIT,
+                                GL_NEAREST));
+  // Second pass.
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+  OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
+  OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
   shaders_->UseProgram(StringByHandle(program_handle_));
-  shaders_->SetUniform("screen_texture", 0);
-  glBindVertexArray(screen_quad_vao_);
-  glBindTexture(GL_TEXTURE_2D, render_texture_);
-  glDrawArrays(GL_TRIANGLES, 0, 6);
+  glActiveTexture(GL_TEXTURE1);
+  shaders_->SetUniform("screen_texture", 1);
+  OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
+  OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   render_calls++;
   WATCH_EXPR("Vertexes ", vertices.size());
   WATCH_EXPR("Indices ", indices.size());

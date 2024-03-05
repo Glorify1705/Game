@@ -68,4 +68,28 @@ void Log(std::string_view file, int line, T&&... ts) {
 #define DCHECK(...) CHECK(__VA_ARGS__)
 #endif
 
+struct OpenGLSourceLine {
+  char file[256] = {0};
+  size_t line = 0;
+};
+
+inline OpenGLSourceLine* GetOpenGLSourceLine() {
+  static OpenGLSourceLine l;
+  return &l;
+}
+
+inline void SetOpenGLLine(const char* file, size_t line) {
+#ifdef GAME_WITH_ASSERTS
+  auto* ptr = GetOpenGLSourceLine();
+  std::memcpy(&ptr->file, file, strlen(file) + 1);
+  ptr->line = line;
+#endif
+}
+
+#define OPENGL_CALL(f)                 \
+  do {                                 \
+    SetOpenGLLine(__FILE__, __LINE__); \
+    f;                                 \
+  } while (0)
+
 #endif  // _GAME_LOGGING_H

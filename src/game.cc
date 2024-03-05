@@ -86,10 +86,11 @@ void LogToSDL(LogLevel level, const char* message) {
 void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
                                       GLuint /*id*/, GLenum severity,
                                       GLsizei /*length*/, const GLchar* message,
-                                      const void* /*user_param*/) {
+                                      const void* user_param) {
+  auto l = static_cast<const OpenGLSourceLine*>(user_param);
   if (type == GL_DEBUG_TYPE_ERROR) {
-    LOG("GL ERROR ", " type = ", type, " severity = ", severity,
-        " message = ", message);
+    Log(l->file, l->line, "GL ERROR ", " type = ", type,
+        " severity = ", severity, " message = ", message);
     _INTERNAL_GAME_TRAP();
   }
 }
@@ -248,6 +249,12 @@ SDL_Window* CreateWindow(const GameParams& params) {
 
 SDL_GLContext CreateOpenglContext(SDL_Window* window) {
   LOG("Creating SDL context");
+  CHECK(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1) == 0,
+        " failed to set multi sample buffers: ", SDL_GetError());
+  CHECK(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16) == 0,
+        " failed to set multi samples: ", SDL_GetError());
+  CHECK(SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1) == 0,
+        " failed to set accelerated visual: ", SDL_GetError());
   auto context = SDL_GL_CreateContext(window);
   CHECK(context != nullptr, "Could not load OpenGL context: ", SDL_GetError());
   CHECK(gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress),
@@ -259,7 +266,8 @@ SDL_GLContext CreateOpenglContext(SDL_Window* window) {
     LOG("OpenGL Debug Callback Support is enabled!");
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-    glDebugMessageCallback(OpenglMessageCallback, /*userParam=*/nullptr);
+    glDebugMessageCallback(OpenglMessageCallback,
+                           /*userParam=*/GetOpenGLSourceLine());
   } else {
     LOG("OpenGL Debug Callback Support is disabled");
   }
