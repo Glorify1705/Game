@@ -239,8 +239,10 @@ class Renderer {
 
   void DrawRect(FVec2 top_left, FVec2 bottom_right, float angle);
   void DrawCircle(FVec2 center, float radius);
-  void DrawText(std::string_view font, uint32_t size, std::string_view str,
+  void DrawText(std::string_view font_name, uint32_t size, std::string_view str,
                 FVec2 position);
+  IVec2 TextDimensions(std::string_view font_name, uint32_t size,
+                       std::string_view str);
   void DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3);
 
   IVec2 viewport() const { return renderer_->GetViewport(); }
@@ -269,8 +271,7 @@ class Renderer {
   };
 
   const SpriteAsset* LoadSprite(std::string_view name);
-  const FontInfo* LoadFont(const FontAsset& asset, uint32_t font_size,
-                           Allocator* scratch);
+  const FontInfo* LoadFont(std::string_view font_name, uint32_t font_size);
 
   void ApplyTransform(const FMat4x4& mat) {
     transform_stack_.back() = mat * transform_stack_.back();
