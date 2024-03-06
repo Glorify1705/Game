@@ -648,12 +648,11 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
   const FontInfo* info = LoadFont(font_name, size);
   renderer_->SetActiveTexture(info->texture);
   FVec2 p = position;
-  for (char c : str) {
+  for (size_t i = 0; i < str.size(); ++i) {
+    const char c = str[i];
     if (c == '\n') {
       p.x = position.x;
       p.y += info->scale * (info->ascent - info->descent + info->line_gap);
-    } else if (c == '\t') {
-      p.x += size * 2;
     } else {
       stbtt_aligned_quad q;
       stbtt_GetPackedQuad(info->chars.data(), kAtlasWidth, kAtlasHeight, c,
@@ -664,6 +663,10 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
       renderer_->PushQuad(FVec(q.x0, y0), FVec(q.x1, y1), FVec(q.s0, q.t0),
                           FVec(q.s1, q.t1), FVec(0, 0),
                           /*angle=*/0);
+      if ((i + 1) < str.size()) {
+        p.x += info->scale * stbtt_GetCodepointKernAdvance(&info->font_info,
+                                                           str[i], str[i + 1]);
+      }
     }
   }
 }
@@ -672,17 +675,19 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
                                std::string_view str) {
   const FontInfo* info = LoadFont(font_name, size);
   auto p = FVec2::Zero();
-  p.y += info->scale * (info->ascent - info->descent);
-  for (char c : str) {
+  p.y = info->scale * (info->ascent - info->descent + info->line_gap);
+  for (size_t i = 0; i < str.size(); ++i) {
+    const char c = str[i];
     if (c == '\n') {
       p.y += info->scale * (info->ascent - info->descent + info->line_gap);
-    } else if (c == '\t') {
-      p.x += size * 2;
     } else {
       int width, bearing;
       stbtt_GetCodepointHMetrics(&info->font_info, c, &width, &bearing);
-      p.x += width;
-      p.y += info->scale * (info->ascent - info->descent + info->line_gap);
+      p.x += info->scale * width;
+      if ((i + 1) < str.size()) {
+        p.x += info->scale * stbtt_GetCodepointKernAdvance(&info->font_info,
+                                                           str[i], str[i + 1]);
+      }
     }
   }
   return IVec2(static_cast<int>(p.x), static_cast<int>(p.y));

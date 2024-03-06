@@ -268,6 +268,17 @@ const struct luaL_Reg kGraphicsLib[] = {
        renderer->DrawText(font, font_size, text, FVec(x, y));
        return 0;
      }},
+    {"text_dimensions",
+     [](lua_State* state) {
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       std::string_view font = GetLuaString(state, 1);
+       const uint32_t font_size = luaL_checkinteger(state, 2);
+       std::string_view text = GetLuaString(state, 3);
+       const IVec2 result = renderer->TextDimensions(font, font_size, text);
+       lua_pushinteger(state, result.x);
+       lua_pushinteger(state, result.y);
+       return 2;
+     }},
     {"push",
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
