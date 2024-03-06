@@ -48,10 +48,9 @@ class BatchRenderer {
                 float angle) {
     AddCommand(kRenderQuad, RenderQuad{p0, p1, q0, q1, origin, angle});
   }
-  void PushTriangle(FVec2 p0, FVec2 p1, FVec2 p2, FVec2 q0, FVec2 q1, FVec2 q2,
-                    FVec2 origin, float angle) {
-    AddCommand(kRenderTrig,
-               RenderTriangle{p0, p1, p2, q0, q1, q2, origin, angle});
+  void PushTriangle(FVec2 p0, FVec2 p1, FVec2 p2, FVec2 q0, FVec2 q1,
+                    FVec2 q2) {
+    AddCommand(kRenderTrig, RenderTriangle{p0, p1, p2, q0, q1, q2});
   }
 
   void SwitchShaderProgram(std::string_view fragment_shader_name) {
@@ -107,8 +106,7 @@ class BatchRenderer {
   };
 
   struct RenderTriangle {
-    FVec2 p0, p1, p2, q0, q1, q2, origin;
-    float angle;
+    FVec2 p0, p1, p2, q0, q1, q2;
   };
 
   struct SetTexture {
@@ -243,6 +241,7 @@ class Renderer {
   void DrawCircle(FVec2 center, float radius);
   void DrawText(std::string_view font, uint32_t size, std::string_view str,
                 FVec2 position);
+  void DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3);
 
   IVec2 viewport() const { return renderer_->GetViewport(); }
 

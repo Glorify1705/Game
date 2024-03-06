@@ -276,18 +276,18 @@ void BatchRenderer::Render(Allocator* scratch) {
         const RenderTriangle& t = c.triangle;
         vertices.Push({.position = FVec(t.p0.x, t.p0.y),
                        .tex_coords = t.q0,
-                       .origin = t.origin,
-                       .angle = t.angle,
+                       .origin = FVec(0, 0),
+                       .angle = 0,
                        .color = color});
         vertices.Push({.position = FVec(t.p1.x, t.p1.y),
                        .tex_coords = t.q1,
-                       .origin = t.origin,
-                       .angle = t.angle,
+                       .origin = FVec(0, 0),
+                       .angle = 0,
                        .color = color});
         vertices.Push({.position = FVec(t.p2.x, t.p2.y),
                        .tex_coords = t.q2,
-                       .origin = t.origin,
-                       .angle = t.angle,
+                       .origin = FVec(0, 0),
+                       .angle = 0,
                        .color = color});
         for (int i : {0, 1, 2}) {
           indices.Push(current + i);
@@ -569,6 +569,11 @@ void Renderer::DrawRect(FVec2 top_left, FVec2 bottom_right, float angle) {
                       /*origin=*/center, angle);
 }
 
+void Renderer::DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3) {
+  renderer_->ClearTexture();
+  renderer_->PushTriangle(p1, p2, p3, FVec(0, 0), FVec(1, 0), FVec(1, 1));
+}
+
 void Renderer::DrawCircle(FVec2 center, float radius) {
   renderer_->ClearTexture();
   constexpr size_t kTriangles = 22;
@@ -580,8 +585,7 @@ void Renderer::DrawCircle(FVec2 center, float radius) {
   };
   for (size_t i = 0; i < kTriangles; ++i) {
     renderer_->PushTriangle(center, for_index(i), for_index(i + 1), FVec(0, 0),
-                            FVec(1, 0), FVec(1, 1), center,
-                            /*angle=*/0);
+                            FVec(1, 0), FVec(1, 1));
   }
 }
 

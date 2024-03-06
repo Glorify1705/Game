@@ -245,6 +245,18 @@ const struct luaL_Reg kGraphicsLib[] = {
        renderer->DrawCircle(FVec(x, y), radius);
        return 0;
      }},
+    {"draw_triangle",
+     [](lua_State* state) {
+       const auto p1 =
+           FVec(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
+       const auto p2 =
+           FVec(luaL_checknumber(state, 4), luaL_checknumber(state, 4));
+       const auto p3 =
+           FVec(luaL_checknumber(state, 5), luaL_checknumber(state, 6));
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawTriangle(p1, p2, p3);
+       return 0;
+     }},
     {"draw_text",
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -608,6 +620,13 @@ const struct luaL_Reg kInputLib[] = {
        lua_pushboolean(state, mouse->IsReleased(button));
        return 1;
      }},
+    {"is_mouse_down",
+     [](lua_State* state) {
+       auto* mouse = Registry<Mouse>::Retrieve(state);
+       const auto button = luaL_checknumber(state, 1);
+       lua_pushboolean(state, mouse->IsDown(button));
+       return 1;
+     }},
     {"is_controller_button_pressed",
      [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
@@ -635,19 +654,12 @@ const struct luaL_Reg kInputLib[] = {
                                           controllers->active_controller()));
        return 1;
      }},
-    {"get_controller_axis",
-     [](lua_State* state) {
+    {"get_controller_axis", [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
        auto* controllers = Registry<Controllers>::Retrieve(state);
        lua_pushnumber(
            state, controllers->AxisPositions(controllers->StrToAxisOrTrigger(c),
                                              controllers->active_controller()));
-       return 1;
-     }},
-    {"is_mouse_down", [](lua_State* state) {
-       auto* mouse = Registry<Mouse>::Retrieve(state);
-       const auto button = luaL_checknumber(state, 1);
-       lua_pushboolean(state, mouse->IsDown(button));
        return 1;
      }}};
 
@@ -991,7 +1003,7 @@ const struct luaL_Reg kRandomLib[] = {
        }
        const double val = (*handle)();
        const double size = lua_objlen(state, 2);
-       const double pos = std::floor((val / kRandomRange) * size);
+       const double pos = 1 + std::floor((val / kRandomRange) * size);
        lua_rawgeti(state, 2, static_cast<int>(pos));
        return 1;
      }}};
