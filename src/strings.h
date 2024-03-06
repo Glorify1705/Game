@@ -69,7 +69,10 @@ class Alphanumeric {
     piece_ = std::string_view(output);
   }
 
-  Alphanumeric(char c) = delete;
+  Alphanumeric(char c) {
+    buf_[0] = c;
+    piece_ = std::string_view(buf_);
+  }
   Alphanumeric(const Alphanumeric&) = delete;
   Alphanumeric& operator=(const Alphanumeric&) = delete;
 
