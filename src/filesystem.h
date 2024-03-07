@@ -40,6 +40,38 @@ inline std::string_view Extension(std::string_view p) {
   return (pos == 0 && p[pos] != '.') ? p : p.substr(pos + 1);
 }
 
+class Filesystem {
+ public:
+  using Handle = int;
+
+  enum class Mode { kReading, kWriting };
+
+  static void Initialize(std::string_view program_name);
+
+  Filesystem(Allocator* allocator) : allocator_(allocator) {}
+
+  Handle Open(std::string_view file, Mode mode);
+
+  size_t WriteToFile(Handle handle, std::string_view contents);
+
+  size_t ReadFile(Handle handle, uint8_t* buffer, size_t size);
+
+  struct StatResult {
+    size_t total_size;
+  };
+
+  StatResult Stat(Handle handle);
+
+  using DirCallback = void (*)(std::string_view file, std::string_view dir,
+                               void* userdata);
+
+  void EnumerateDirectory(std::string_view directory, DirCallback callback,
+                          void* userdata);
+
+ private:
+  Allocator* allocator_;
+};
+
 }  // namespace G
 
 #endif  // _GAME_FILESYSTEM_H

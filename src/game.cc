@@ -437,10 +437,6 @@ class DebugUi {
   StaticAllocator<kTotalSize> allocator_;
 };
 
-#define PHYSFS_CHECK(cond, ...)                               \
-  CHECK(cond, "Failed Phys condition " #cond " with error: ", \
-        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()), ##__VA_ARGS__)
-
 class Game {
  public:
   Game(int argc, const char* argv[], Allocator* allocator)
