@@ -27,6 +27,8 @@ class Packer {
  public:
   Packer(Allocator* allocator);
 
+  void HandleFile(std::string_view filename);
+
   Assets* HandleFiles();
 
  private:
@@ -239,9 +241,7 @@ void Packer::HandleTextFile(std::string_view filename, uint8_t* buf,
                                             fbs_.CreateVector(buf, size)));
 }
 
-Assets* Packer::HandleFiles() {
-  TIMER("Packing assets from directory");
-  // TODO: This uses insane amounts of memory and needs to be reduced.
+void Packer::HandleFile(std::string_view filename) {
   struct FileHandler {
     std::string_view extension;
     void (Packer::*method)(std::string_view filename, uint8_t* buf,
@@ -260,38 +260,43 @@ Assets* Packer::HandleFiles() {
       {".frag", &Packer::HandleFragmentShader},
       {".txt", &Packer::HandleTextFile}};
 
-  char** rc = PHYSFS_enumerateFiles("/");
-  CHECK(rc != nullptr, "Failed to enumerate files: ",
-        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
-  auto& packer = *this;
-  for (char** p = rc; *p; p++) {
-    const char* path = *p;
-    std::string_view fname = Basename(path);
-    bool handled = false;
-    for (auto& handler : kHandlers) {
-      if (HasSuffix(path, handler.extension)) {
-        TIMER("Handling file ", path);
-        auto* handle = PHYSFS_openRead(path);
-        CHECK(handle != nullptr, "Could not read ", path, ": ",
-              PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
-        const size_t bytes = PHYSFS_fileLength(handle);
-        auto* buffer =
-            static_cast<uint8_t*>(allocator_->Alloc(bytes, /*align=*/1));
-        const size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
-        CHECK(read_bytes == bytes, " failed to read ", path,
-              " error = ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
-        CHECK(PHYSFS_close(handle), "failed to finish reading ", path, ": ",
-              PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
-        auto method = handler.method;
-        (packer.*method)(fname, buffer, bytes);
-        allocator_->Dealloc(buffer, bytes);
-        handled = true;
-        break;
-      }
+  std::string_view fname = Basename(filename);
+  bool handled = false;
+  for (const FileHandler& handler : kHandlers) {
+    if (HasSuffix(filename, handler.extension)) {
+      TIMER("Handling file ", filename);
+      auto* handle = PHYSFS_openRead(filename.data());
+      CHECK(handle != nullptr, "Could not read ", filename, ": ",
+            PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+      const size_t bytes = PHYSFS_fileLength(handle);
+      auto* buffer =
+          static_cast<uint8_t*>(allocator_->Alloc(bytes, /*align=*/1));
+      const size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
+      CHECK(read_bytes == bytes, " failed to read ", filename,
+            " error = ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+      CHECK(PHYSFS_close(handle), "failed to finish reading ", filename, ": ",
+            PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+      auto method = handler.method;
+      (this->*method)(fname, buffer, bytes);
+      allocator_->Dealloc(buffer, bytes);
+      handled = true;
+      break;
     }
-    CHECK(handled, "No handler for file ", path);
   }
-  PHYSFS_freeList(rc);
+  CHECK(handled, "No handler for file ", filename);
+}
+
+PHYSFS_EnumerateCallbackResult HandleFileCallback(void* ud,
+                                                  const char* /*dirname*/,
+                                                  const char* filename) {
+  auto& packer = *static_cast<Packer*>(ud);
+  packer.HandleFile(filename);
+  return PHYSFS_ENUM_OK;
+}
+
+Assets* Packer::HandleFiles() {
+  TIMER("Packing assets from directory");
+  PHYSFS_enumerate("/", HandleFileCallback, this);
   return Finish();
 }
 
