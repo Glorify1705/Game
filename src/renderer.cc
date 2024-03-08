@@ -658,9 +658,7 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
       stbtt_GetPackedQuad(info->chars.data(), kAtlasWidth, kAtlasHeight, c,
                           &p.x, &p.y, &q,
                           /*align_to_integer=*/false);
-      const float y0 = p.y - (q.y1 - q.y0);
-      const float y1 = p.y;
-      renderer_->PushQuad(FVec(q.x0, y0), FVec(q.x1, y1), FVec(q.s0, q.t0),
+      renderer_->PushQuad(FVec(q.x0, q.y0), FVec(q.x1, q.y1), FVec(q.s0, q.t0),
                           FVec(q.s1, q.t1), FVec(0, 0),
                           /*angle=*/0);
       if ((i + 1) < str.size()) {

@@ -489,6 +489,12 @@ const struct luaL_Reg kGraphicsLib[] = {
      }}};
 
 const struct luaL_Reg kSystemLib[] = {
+    {"quit",
+     [](lua_State* state) {
+       auto* lua = Registry<Lua>::Retrieve(state);
+       lua->Stop();
+       return 0;
+     }},
     {"operating_system",
      [](lua_State* state) {
        lua_pushstring(state, SDL_GetPlatform());
@@ -1051,12 +1057,6 @@ LuaError ParseLuaError(std::string_view message) {
   return result;
 }
 
-void LuaCrash(lua_State* state, int idx) {
-  std::string_view message = GetLuaString(state, idx);
-  LuaError e = ParseLuaError(message);
-  Crash(e.filename, e.line, e.message);
-}
-
 template <size_t N>
 void AddLibrary(lua_State* state, const char* name,
                 const luaL_Reg (&funcs)[N]) {
@@ -1091,13 +1091,29 @@ void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
 Lua::Lua(Assets* assets, Allocator* allocator)
     : allocator_(allocator), assets_(assets) {}
 
+void Lua::Crash() {
+  std::string_view message = GetLuaString(state_, 1);
+  LuaError e = ParseLuaError(message);
+  Log(e.filename, e.line, e.message);
+  SetError(e.filename, e.line, e.message);
+  std::longjmp(on_error_buf_, 1);
+}
+
+#define READY()                \
+  if (setjmp(on_error_buf_)) { \
+    return;                    \
+  }
+
 void Lua::LoadLibraries() {
   if (state_ != nullptr) lua_close(state_);
   state_ = lua_newstate(&Lua::LuaAlloc, this);
   lua_atpanic(state_, [](lua_State* state) {
-    LuaCrash(state, 1);
+    auto* lua = Registry<Lua>::Retrieve(state);
+    lua->Crash();
+    DIE("What are you doing here? Get out of here, it's gonna blow!");
     return 0;
   });
+  READY();
   Register(this);
   luaL_newmetatable(state_, "physics_handle");
   luaL_newmetatable(state_, "asset_subtexture_ptr");
@@ -1105,12 +1121,6 @@ void Lua::LoadLibraries() {
   lua_pop(state_, 2);
   luaL_openlibs(state_);
   lua_newtable(state_);
-  lua_pushcfunction(state_, [](lua_State* state) {
-    auto* lua = Registry<Lua>::Retrieve(state);
-    lua->Stop();
-    return 0;
-  });
-  lua_setfield(state_, -2, "quit");
   lua_setglobal(state_, "G");
   lua_pushcfunction(state_, Traceback);
   traceback_handler_ = lua_gettop(state_);
@@ -1131,6 +1141,7 @@ void Lua::LoadLibraries() {
 }
 
 void Lua::LoadScripts() {
+  READY();
   for (size_t i = 0; i < assets_->scripts(); ++i) {
     auto* script = assets_->GetScriptByIndex(i);
     std::string_view asset_name(script->name()->c_str());
@@ -1141,7 +1152,20 @@ void Lua::LoadScripts() {
   }
 }
 
+size_t Lua::Error(char* buf, size_t max_size) {
+  if (error_.empty()) return 0;
+  const size_t size = std::min(error_.size(), max_size);
+  std::memcpy(buf, error_.str(), size);
+  buf[size] = '\0';
+  return size;
+}
+
+void Lua::SetError(std::string_view file, int line, std::string_view error) {
+  error_.Set("[", file, ":", line, "] ", error);
+}
+
 void Lua::LoadMain() {
+  READY();
   LOG("Loading main file main.lua");
   auto* main = assets_->GetScript("main.lua");
   CHECK(main != nullptr, "Unknown script main.lua");
@@ -1169,6 +1193,8 @@ void Lua::SetPackagePreload(std::string_view filename) {
 }
 
 void Lua::Init() {
+  if (!error_.empty()) return;
+  READY();
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "init");
   lua_insert(state_, -2);
@@ -1179,6 +1205,8 @@ void Lua::Init() {
 }
 
 void Lua::Update(float t, float dt) {
+  if (!error_.empty()) return;
+  READY();
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "update");
   lua_insert(state_, -2);
@@ -1191,6 +1219,8 @@ void Lua::Update(float t, float dt) {
 }
 
 void Lua::Draw() {
+  if (!error_.empty()) return;
+  READY();
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "draw");
   lua_insert(state_, -2);

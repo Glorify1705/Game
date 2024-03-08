@@ -532,12 +532,28 @@ class Game {
     }
   }
 
+  void RenderCrashScreen(std::string_view error) {
+    const IVec2 viewport = e_->batch_renderer.GetViewport();
+    e_->renderer.SetColor(Color::Black());
+    e_->renderer.DrawRect(/*top_left=*/FVec(0, 0), FVec(viewport.x, viewport.y),
+                          /*angle=*/0);
+    e_->renderer.SetColor(Color::White());
+    e_->renderer.DrawText("debug_font.ttf", 20, error, FVec(50, 50));
+  }
+
   // Update state given current time t and frame delta dt, both in ms.
   void Update(double t, double dt) {
     WATCH_VAR(t);
     WATCH_VAR(dt);
-    e_->physics.Update(dt);
-    e_->lua.Update(t, dt);
+    char error[1024];
+    if (size_t error_len = e_->lua.Error(error, sizeof(error) - 1);
+        error_len > 0) {
+      e_->sound.Stop();
+      RenderCrashScreen(std::string_view(error, error_len));
+    } else {
+      e_->physics.Update(dt);
+      e_->lua.Update(t, dt);
+    }
     WATCH_EXPR("Mouse Position ", e_->mouse.GetPosition());
   }
 

@@ -2,6 +2,7 @@
 #ifndef _GAME_LUA_H
 #define _GAME_LUA_H
 
+#include <csetjmp>
 #include <string_view>
 
 extern "C" {
@@ -81,6 +82,11 @@ class Lua {
 
   Allocator* allocator() const { return allocator_; }
 
+  // Checks whether there is a permanent error and returns the message length.
+  size_t Error(char* buf, size_t max_size);
+
+  void Crash();
+
  private:
   void LoadAssets();
 
@@ -92,12 +98,17 @@ class Lua {
     return static_cast<Lua*>(ud)->Alloc(ptr, osize, nsize);
   }
 
+  void SetError(std::string_view file, int line, std::string_view error);
+
   lua_State* state_ = nullptr;
   bool stopped_ = false;
   int traceback_handler_;
 
   Allocator* allocator_;
   Assets* assets_;
+
+  FixedStringBuffer<1024> error_;
+  std::jmp_buf on_error_buf_;
 
   Stats allocator_stats_;
 };

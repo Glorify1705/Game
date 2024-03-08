@@ -17,6 +17,8 @@ struct Color {
   }
 
   static Color White() { return Color{255, 255, 255, 255}; }
+  static Color Black() { return Color{0, 0, 0, 255}; }
+
   static Color Zero() { return Color{0, 0, 0, 0}; }
 };
 

@@ -1,4 +1,5 @@
 #include "clock.h"
+#include "debug_font.h"
 #include "filesystem.h"
 #include "lua.h"
 #include "packer.h"
@@ -40,24 +41,30 @@ class Packer {
     return static_cast<Packer*>(ud)->Alloc(ptr, osize, nsize);
   }
 
-  void HandleQoiImage(std::string_view filename, uint8_t* buf, size_t size);
+  void HandleQoiImage(std::string_view filename, const uint8_t* buf,
+                      size_t size);
 
-  void HandleScript(std::string_view filename, uint8_t* buf, size_t size);
+  void HandleScript(std::string_view filename, const uint8_t* buf, size_t size);
 
-  void HandleSpritesheet(std::string_view filename, uint8_t* buf, size_t size);
+  void HandleSpritesheet(std::string_view filename, const uint8_t* buf,
+                         size_t size);
 
-  void HandleOggSound(std::string_view filename, uint8_t* buf, size_t size);
+  void HandleOggSound(std::string_view filename, const uint8_t* buf,
+                      size_t size);
 
-  void HandleWavSound(std::string_view filename, uint8_t* buf, size_t size);
+  void HandleWavSound(std::string_view filename, const uint8_t* buf,
+                      size_t size);
 
-  void HandleFont(std::string_view filename, uint8_t* buf, size_t size);
+  void HandleFont(std::string_view filename, const uint8_t* buf, size_t size);
 
-  void HandleVertexShader(std::string_view filename, uint8_t* buf, size_t size);
+  void HandleVertexShader(std::string_view filename, const uint8_t* buf,
+                          size_t size);
 
-  void HandleFragmentShader(std::string_view filename, uint8_t* buf,
+  void HandleFragmentShader(std::string_view filename, const uint8_t* buf,
                             size_t size);
 
-  void HandleTextFile(std::string_view filename, uint8_t* buf, size_t size);
+  void HandleTextFile(std::string_view filename, const uint8_t* buf,
+                      size_t size);
 
   const int64_t start_secs_;
   Allocator* allocator_;
@@ -131,7 +138,7 @@ void* Packer::Alloc(void* ptr, size_t osize, size_t nsize) {
   return allocator_->Realloc(ptr, osize, nsize, /*align=*/1);
 }
 
-void Packer::HandleQoiImage(std::string_view filename, uint8_t* buf,
+void Packer::HandleQoiImage(std::string_view filename, const uint8_t* buf,
                             size_t size) {
   QoiDesc desc;
   QoiDecode(buf, size, &desc, /*components=*/4, allocator_);
@@ -140,13 +147,13 @@ void Packer::HandleQoiImage(std::string_view filename, uint8_t* buf,
                                      fbs_.CreateVector(buf, size)));
 }
 
-void Packer::HandleScript(std::string_view filename, uint8_t* buf,
+void Packer::HandleScript(std::string_view filename, const uint8_t* buf,
                           size_t size) {
   scripts_.push_back(CreateScriptAsset(fbs_, fbs_.CreateString(filename),
                                        fbs_.CreateVector(buf, size)));
 }
 
-void Packer::HandleSpritesheet(std::string_view filename, uint8_t* buf,
+void Packer::HandleSpritesheet(std::string_view filename, const uint8_t* buf,
                                size_t size) {
   WithAllocator<std::vector<flatbuffers::Offset<SpriteAsset>>, Allocator>
       sprites(allocator_);
@@ -202,40 +209,41 @@ void Packer::HandleSpritesheet(std::string_view filename, uint8_t* buf,
                              height, fbs_.CreateVector(sprites)));
 }
 
-void Packer::HandleOggSound(std::string_view filename, uint8_t* buf,
+void Packer::HandleOggSound(std::string_view filename, const uint8_t* buf,
                             size_t size) {
   sounds_.push_back(CreateSoundAsset(fbs_, fbs_.CreateString(filename),
                                      SoundType::OGG,
                                      fbs_.CreateVector(buf, size)));
 }
 
-void Packer::HandleWavSound(std::string_view filename, uint8_t* buf,
+void Packer::HandleWavSound(std::string_view filename, const uint8_t* buf,
                             size_t size) {
   sounds_.push_back(CreateSoundAsset(fbs_, fbs_.CreateString(filename),
                                      SoundType::WAV,
                                      fbs_.CreateVector(buf, size)));
 }
 
-void Packer::HandleFont(std::string_view filename, uint8_t* buf, size_t size) {
+void Packer::HandleFont(std::string_view filename, const uint8_t* buf,
+                        size_t size) {
   fonts_.push_back(CreateFontAsset(fbs_, fbs_.CreateString(filename),
                                    fbs_.CreateVector(buf, size)));
 }
 
-void Packer::HandleVertexShader(std::string_view filename, uint8_t* buf,
+void Packer::HandleVertexShader(std::string_view filename, const uint8_t* buf,
                                 size_t size) {
   shaders_.push_back(CreateShaderAsset(
       fbs_, fbs_.CreateString(filename), ShaderType::VERTEX,
       fbs_.CreateString(reinterpret_cast<const char*>(buf), size)));
 }
 
-void Packer::HandleFragmentShader(std::string_view filename, uint8_t* buf,
+void Packer::HandleFragmentShader(std::string_view filename, const uint8_t* buf,
                                   size_t size) {
   shaders_.push_back(CreateShaderAsset(
       fbs_, fbs_.CreateString(filename), ShaderType::FRAGMENT,
       fbs_.CreateString(reinterpret_cast<const char*>(buf), size)));
 }
 
-void Packer::HandleTextFile(std::string_view filename, uint8_t* buf,
+void Packer::HandleTextFile(std::string_view filename, const uint8_t* buf,
                             size_t size) {
   text_files_.push_back(CreateTextFileAsset(fbs_, fbs_.CreateString(filename),
                                             fbs_.CreateVector(buf, size)));
@@ -244,7 +252,7 @@ void Packer::HandleTextFile(std::string_view filename, uint8_t* buf,
 void Packer::HandleFile(std::string_view dirname, std::string_view filename) {
   struct FileHandler {
     std::string_view extension;
-    void (Packer::*method)(std::string_view filename, uint8_t* buf,
+    void (Packer::*method)(std::string_view filename, const uint8_t* buf,
                            size_t size);
   };
   FixedStringBuffer<kMaxPathLength> path(dirname, "/", filename);
@@ -298,6 +306,8 @@ PHYSFS_EnumerateCallbackResult HandleFileCallback(void* ud, const char* dirname,
 Assets* Packer::HandleFiles() {
   TIMER("Packing assets from directory");
   PHYSFS_enumerate("/assets", HandleFileCallback, this);
+  // Ensure we always have the debug font available.
+  HandleFont("debug_font.ttf", kProggyCleanFont, kProggyCleanFontLength);
   return Finish();
 }
 
