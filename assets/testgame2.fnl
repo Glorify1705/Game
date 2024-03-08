@@ -17,6 +17,12 @@
                :candypink
                :boringgreen
                :orangepink
+               :oliveyellow
+               :rawsienna
+               :camo
+               :oldrose
+               :hazel
+               :darkishpurple
                :azul])
 
 (local Game {:score 0
@@ -94,7 +100,7 @@
   (tset g :t t)
   (let [(sx sy) (G.window.dimensions)]
     (tset g :dimensions [sx sy]))
-  (when (< gtimer 0) (G.sound.stop))
+  (when (< g.timer 0) (G.sound.stop))
   (when (> g.timer 0)
     (tset g :timer (- g.timer dt))
     (let [(mx my) (G.input.mouse_position)]
@@ -112,6 +118,9 @@
         (tset g :reticule :en (+ t 0.3)))
       (when (G.input.is_mouse_pressed 0)
         (G.sound.play_sfx :gunshot.wav)
+        (tset g :reticule :state :moving)
+        (tset g :reticule :st t)
+        (tset g :reticule :en (+ t 0.1))
         (when i
           (let [(sx sy) (G.window.dimensions)]
             (add-score! g)
