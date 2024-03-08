@@ -1160,8 +1160,38 @@ size_t Lua::Error(char* buf, size_t max_size) {
   return size;
 }
 
+std::string_view Trim(std::string_view s) {
+  size_t i = 0, j = s.size() - 1;
+  auto is_whitespace = [&](size_t p) {
+    return s[p] == ' ' || s[p] == '\t' || s[p] == '\n';
+  };
+  while (i < s.size() && is_whitespace(i)) i++;
+  while (j > 0 && is_whitespace(j)) j--;
+  return s.substr(i, j - i);
+}
+
 void Lua::SetError(std::string_view file, int line, std::string_view error) {
-  error_.Set("[", file, ":", line, "] ", error);
+  error_.Set("[", file, ":", line, "] ");
+  // Remove lines with [C] or "(tail call)" since they are not useful.
+  size_t st = 0, en = 0;
+  auto flush = [&] {
+    if (en <= st) return;
+    std::string_view line = error.substr(st, en - st + 1);
+    std::string_view trimmed = Trim(line);
+    if (!HasPrefix(trimmed, "[C]") && !HasPrefix(trimmed, "(tail call)")) {
+      error_.Append(line);
+      error_.Append("\n");
+    }
+  };
+  for (size_t i = 0; i < error.size(); ++i) {
+    if (error[i] == '\n') {
+      flush();
+      st = en = i + 1;
+    } else {
+      en = i;
+    }
+  }
+  flush();
 }
 
 void Lua::LoadMain() {

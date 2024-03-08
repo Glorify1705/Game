@@ -643,30 +643,53 @@ const SpriteAsset* Renderer::LoadSprite(std::string_view name) {
   return sprite;
 }
 
+Color ParseColor(std::string_view color) {
+  // TODO: Support ANSI escape codes properly.
+  for (char c : color) {
+    if (c == '[') continue;
+    if (c == ';') continue;
+    if (c == '7') return ColorFromTable("lightred");
+    if (c == '0') return Color::White();
+  }
+  return Color::White();
+}
+
 void Renderer::DrawText(std::string_view font_name, uint32_t size,
                         std::string_view str, FVec2 position) {
   const FontInfo* info = LoadFont(font_name, size);
   renderer_->SetActiveTexture(info->texture);
   FVec2 p = position;
-  for (size_t i = 0; i < str.size(); ++i) {
+  const Color color = renderer_->SetActiveColor(Color::White());
+  for (size_t i = 0; i < str.size();) {
     const char c = str[i];
+    if (c == '\033') {
+      // Skip ANSI escape sequence.
+      size_t st = i + 1, en = i;
+      while (str[en] != 'm') en++;
+      renderer_->SetActiveColor(ParseColor(str.substr(st, en - st)));
+      i = en + 1;
+      continue;
+    }
     if (c == '\n') {
       p.x = position.x;
       p.y += info->scale * (info->ascent - info->descent + info->line_gap);
-    } else {
-      stbtt_aligned_quad q;
-      stbtt_GetPackedQuad(info->chars.data(), kAtlasWidth, kAtlasHeight, c,
-                          &p.x, &p.y, &q,
-                          /*align_to_integer=*/false);
-      renderer_->PushQuad(FVec(q.x0, q.y0), FVec(q.x1, q.y1), FVec(q.s0, q.t0),
-                          FVec(q.s1, q.t1), FVec(0, 0),
-                          /*angle=*/0);
-      if ((i + 1) < str.size()) {
-        p.x += info->scale * stbtt_GetCodepointKernAdvance(&info->font_info,
-                                                           str[i], str[i + 1]);
-      }
+      i++;
+      continue;
     }
+    stbtt_aligned_quad q;
+    stbtt_GetPackedQuad(info->chars.data(), kAtlasWidth, kAtlasHeight, c, &p.x,
+                        &p.y, &q,
+                        /*align_to_integer=*/false);
+    renderer_->PushQuad(FVec(q.x0, q.y0), FVec(q.x1, q.y1), FVec(q.s0, q.t0),
+                        FVec(q.s1, q.t1), FVec(0, 0),
+                        /*angle=*/0);
+    if ((i + 1) < str.size()) {
+      p.x += info->scale * stbtt_GetCodepointKernAdvance(&info->font_info,
+                                                         str[i], str[i + 1]);
+    }
+    i++;
   }
+  renderer_->SetActiveColor(color);
 }
 
 IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,

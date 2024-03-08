@@ -16,4 +16,13 @@ bool ConsumeSuffix(std::string_view* str, std::string_view suffix) {
   return has_suffix;
 }
 
+bool HasPrefix(std::string_view str, std::string_view prefix) {
+  return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
+}
+bool ConsumePrefix(std::string_view* str, std::string_view prefix) {
+  if (!HasPrefix(*str, prefix)) return false;
+  str->remove_prefix(prefix.size());
+  return true;
+}
+
 }  // namespace G

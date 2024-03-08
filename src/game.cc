@@ -521,6 +521,9 @@ class Game {
             if (config_.enable_debug_ui) debug_ui_->Toggle();
           }
         }
+        if (e_->lua.HasError() && e_->keyboard.IsDown(SDL_SCANCODE_Q)) {
+          e_->lua.Stop();
+        }
       }
       while (accum >= kStep) {
         Update(t, kStep);

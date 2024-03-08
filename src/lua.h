@@ -84,6 +84,7 @@ class Lua {
 
   // Checks whether there is a permanent error and returns the message length.
   size_t Error(char* buf, size_t max_size);
+  bool HasError() { return !error_.empty(); }
 
   void Crash();
 

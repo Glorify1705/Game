@@ -180,6 +180,8 @@ class FixedStringBuffer {
 
 bool HasSuffix(std::string_view str, std::string_view suffix);
 bool ConsumeSuffix(std::string_view* str, std::string_view suffix);
+bool HasPrefix(std::string_view str, std::string_view prefix);
+bool ConsumePrefix(std::string_view* str, std::string_view prefix);
 
 }  // namespace G
 
