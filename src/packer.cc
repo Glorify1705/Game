@@ -27,7 +27,7 @@ class Packer {
  public:
   Packer(Allocator* allocator);
 
-  void HandleFile(std::string_view filename);
+  void HandleFile(std::string_view dirname, std::string_view filename);
 
   Assets* HandleFiles();
 
@@ -241,12 +241,13 @@ void Packer::HandleTextFile(std::string_view filename, uint8_t* buf,
                                             fbs_.CreateVector(buf, size)));
 }
 
-void Packer::HandleFile(std::string_view filename) {
+void Packer::HandleFile(std::string_view dirname, std::string_view filename) {
   struct FileHandler {
     std::string_view extension;
     void (Packer::*method)(std::string_view filename, uint8_t* buf,
                            size_t size);
   };
+  FixedStringBuffer<kMaxPathLength> path(dirname, "/", filename);
 
   static constexpr FileHandler kHandlers[] = {
       {".lua", &Packer::HandleScript},
@@ -262,23 +263,24 @@ void Packer::HandleFile(std::string_view filename) {
 
   std::string_view fname = Basename(filename);
   bool handled = false;
+  ArenaAllocator scratch(allocator_, Megabytes(128));
   for (const FileHandler& handler : kHandlers) {
     if (HasSuffix(filename, handler.extension)) {
-      TIMER("Handling file ", filename);
-      auto* handle = PHYSFS_openRead(filename.data());
-      CHECK(handle != nullptr, "Could not read ", filename, ": ",
+      scratch.Reset();
+      TIMER("Handling file ", path);
+      auto* handle = PHYSFS_openRead(path.str());
+      CHECK(handle != nullptr, "Could not read ", path, ": ",
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       const size_t bytes = PHYSFS_fileLength(handle);
-      auto* buffer =
-          static_cast<uint8_t*>(allocator_->Alloc(bytes, /*align=*/1));
+      auto* buffer = static_cast<uint8_t*>(scratch.Alloc(bytes, /*align=*/1));
       const size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
-      CHECK(read_bytes == bytes, " failed to read ", filename,
+      CHECK(read_bytes == bytes, " failed to read ", path,
             " error = ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       CHECK(PHYSFS_close(handle), "failed to finish reading ", filename, ": ",
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       auto method = handler.method;
       (this->*method)(fname, buffer, bytes);
-      allocator_->Dealloc(buffer, bytes);
+      scratch.Dealloc(buffer, bytes);
       handled = true;
       break;
     }
@@ -286,24 +288,23 @@ void Packer::HandleFile(std::string_view filename) {
   CHECK(handled, "No handler for file ", filename);
 }
 
-PHYSFS_EnumerateCallbackResult HandleFileCallback(void* ud,
-                                                  const char* /*dirname*/,
+PHYSFS_EnumerateCallbackResult HandleFileCallback(void* ud, const char* dirname,
                                                   const char* filename) {
   auto& packer = *static_cast<Packer*>(ud);
-  packer.HandleFile(filename);
+  packer.HandleFile(dirname, filename);
   return PHYSFS_ENUM_OK;
 }
 
 Assets* Packer::HandleFiles() {
   TIMER("Packing assets from directory");
-  PHYSFS_enumerate("/", HandleFileCallback, this);
+  PHYSFS_enumerate("/assets", HandleFileCallback, this);
   return Finish();
 }
 
 }  // namespace
 
 Assets* PackFiles(const char* source_directory, Allocator* allocator) {
-  PHYSFS_CHECK(PHYSFS_mount(source_directory, "/", 1),
+  PHYSFS_CHECK(PHYSFS_mount(source_directory, "/assets", 1),
                " while trying to mount directory ", source_directory);
   Packer packer(allocator);
   return packer.HandleFiles();
