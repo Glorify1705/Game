@@ -38,6 +38,7 @@ void Filesystem::EnumerateDirectory(std::string_view directory,
   (void)directory;
   (void)callback;
   (void)userdata;
+  PHYSFS_enumerate(directory.data(), callback, userdata);
 }
 
 }  // namespace G

@@ -67,6 +67,7 @@ set(GAME_SRCS
     "libraries/imgui.cc"
     "libraries/imgui_widgets.cc"
     "src/config.cc"
+    "src/filesystem.cc"
     "src/lua.cc"
     "src/physics.cc"
     "src/image.cc"

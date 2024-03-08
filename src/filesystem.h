@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include "allocators.h"
+#include "array.h"
 #include "physfs.h"
 
 namespace G {
@@ -44,11 +45,16 @@ class Filesystem {
  public:
   using Handle = int;
 
+  class Result {
+    char error[128];
+  };
+
   enum class Mode { kReading, kWriting };
 
   static void Initialize(std::string_view program_name);
 
-  Filesystem(Allocator* allocator) : allocator_(allocator) {}
+  Filesystem(Allocator* allocator)
+      : allocator_(allocator), buffer_(64, allocator) {}
 
   Handle Open(std::string_view file, Mode mode);
 
@@ -62,14 +68,20 @@ class Filesystem {
 
   StatResult Stat(Handle handle);
 
-  using DirCallback = void (*)(std::string_view file, std::string_view dir,
-                               void* userdata);
+  using DirCallback = PHYSFS_EnumerateCallbackResult (*)(void* userdata,
+                                                         const char* file,
+                                                         const char* dir);
 
   void EnumerateDirectory(std::string_view directory, DirCallback callback,
                           void* userdata);
 
  private:
+  struct FreeListNode {
+    FreeListNode* next;
+  };
   Allocator* allocator_;
+  FixedArray<Result> buffer_;
+  FreeListNode* head_ = nullptr;
 };
 
 }  // namespace G

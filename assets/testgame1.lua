@@ -61,7 +61,7 @@ function G1:update(t, dt)
     end
     self.timer:update(dt)
     if G.input.is_key_pressed('q') then
-        G.quit()
+        G.system.quit()
     end
     if G.input.is_key_pressed('f') then
         if not self.fullscreen then
