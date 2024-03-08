@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "SDL.h"
+#include "array.h"
 #include "assets.h"
 #include "circular_buffer.h"
 #include "lookup_table.h"
@@ -40,14 +41,24 @@ class Keyboard {
 
   void PushEvent(const SDL_Event& event);
 
+  enum EventType { kDown, kUp };
+
+  void ForAllKeypresses(void (*fn)(SDL_Scancode, EventType, void*),
+                        void* userdata);
+
  private:
   inline static constexpr size_t kQueueSize = 256;
   inline static constexpr size_t kKeyboardTable = SDL_NUM_SCANCODES;
-  using Event = char;
+
+  struct Event {
+    SDL_Scancode code;
+    EventType type;
+  };
 
   std::bitset<kKeyboardTable + 1> pressed_;
   std::bitset<kKeyboardTable + 1> previous_pressed_;
   LookupTable<SDL_Scancode> table_;
+  FixedArray<Event> events_;
 };
 
 class Mouse {

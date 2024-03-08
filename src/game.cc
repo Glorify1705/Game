@@ -108,7 +108,8 @@ Assets* GetAssets(const std::vector<const char*>& arguments,
 struct EngineModules {
   EngineModules(Assets* assets, const GameConfig& config,
                 SDL_Window* sdl_window, Allocator* allocator)
-      : window(sdl_window),
+      : config(&config),
+        window(sdl_window),
         shaders(*assets, allocator),
         batch_renderer(IVec2(config.window_width, config.window_height),
                        &shaders, allocator),
@@ -155,10 +156,10 @@ struct EngineModules {
       }
     }
     ImGuiIO& io = ImGui::GetIO();
-    if (!io.WantCaptureKeyboard) {
+    if (!config->enable_debug_ui || !io.WantCaptureKeyboard) {
       keyboard.PushEvent(event);
     }
-    if (!io.WantCaptureMouse) {
+    if (!config->enable_debug_ui || !io.WantCaptureMouse) {
       mouse.PushEvent(event);
     }
     controllers.PushEvent(event);
@@ -171,6 +172,7 @@ struct EngineModules {
     batch_renderer.Render(&frame_allocator);
   }
 
+  const GameConfig* config;
   SDL_Window* window;
   Shaders shaders;
   BatchRenderer batch_renderer;
@@ -514,8 +516,9 @@ class Game {
         e_->HandleEvent(event);
         if (event.type == SDL_KEYDOWN) {
           if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
-            e_->batch_renderer.ToggleDebugRender();
-            debug_ui_->Toggle();
+            if (config_.enable_debug_rendering)
+              e_->batch_renderer.ToggleDebugRender();
+            if (config_.enable_debug_ui) debug_ui_->Toggle();
           }
         }
       }

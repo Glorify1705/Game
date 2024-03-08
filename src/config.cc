@@ -20,6 +20,10 @@ int SetWindowInfo(lua_State* state) {
     config->borderless = lua_toboolean(state, 3);
   } else if (key == "enable_joystick") {
     config->enable_joystick = lua_toboolean(state, 3);
+  } else if (key == "enable_debug_ui") {
+    config->enable_debug_ui = lua_toboolean(state, 3);
+  } else if (key == "enable_debug_rendering") {
+    config->enable_debug_rendering = lua_toboolean(state, 3);
   } else if (key == "title") {
     size_t l;
     const char* k = lua_tolstring(state, 3, &l);
@@ -49,8 +53,8 @@ void LoadConfig(const Assets& assets, GameConfig* config,
   CHECK(!lua_isnil(state, -1), "no Conf function defined in ", filename);
   // Set table.
   lua_newtable(state);
-  lua_pushstring(state, "window");
-  // Set "window" with an index metatable and `config` as upvalue.
+  lua_pushstring(state, "game");
+  // Set "game" with an index metatable and `config` as upvalue.
   lua_newtable(state);
   // Set table with a metatable.
   lua_newtable(state);

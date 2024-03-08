@@ -1897,7 +1897,8 @@ void Keyboard::InitForFrame() {
   }
 }
 
-Keyboard::Keyboard(Allocator* allocator) : table_(allocator) {
+Keyboard::Keyboard(Allocator* allocator)
+    : table_(allocator), events_(256, allocator) {
   table_.Insert("a", SDL_SCANCODE_A);
   table_.Insert("b", SDL_SCANCODE_B);
   table_.Insert("c", SDL_SCANCODE_C);
@@ -1962,6 +1963,13 @@ void Keyboard::PushEvent(const SDL_Event& event) {
   if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
     const SDL_Scancode c = event.key.keysym.scancode;
     pressed_[c] = event.type == SDL_KEYDOWN;
+  }
+}
+
+void Keyboard::ForAllKeypresses(void (*fn)(SDL_Scancode, EventType, void*),
+                                void* userdata) {
+  for (const Event& e : events_) {
+    fn(e.code, e.type, userdata);
   }
 }
 
