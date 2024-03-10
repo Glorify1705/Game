@@ -841,6 +841,14 @@ const struct luaL_Reg kFilesystem[] = {
      }},
 };
 
+const struct luaL_Reg kDataLib[] = {
+    {"hash", [](lua_State* state) {
+       size_t l;
+       const char* s = luaL_checklstring(state, 1, &l);
+       lua_pushnumber(state, XXH64(s, l, 0xC0D315D474));
+       return 1;
+     }}};
+
 const struct luaL_Reg kPhysicsLib[] = {
     {"add_box",
      [](lua_State* state) {
@@ -1229,6 +1237,7 @@ void Lua::LoadLibraries() {
   AddLibrary(state_, "filesystem", kFilesystem);
   AddLibrary(state_, "physics", kPhysicsLib);
   AddLibrary(state_, "assets", kAssetsLib);
+  AddLibrary(state_, "data", kDataLib);
   AddLibrary(state_, "clock", kClockLib);
   AddLibrary(state_, "system", kSystemLib);
   AddLibrary(state_, "window", kWindowLib);
