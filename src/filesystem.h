@@ -7,6 +7,8 @@
 
 #include "allocators.h"
 #include "array.h"
+#include "config.h"
+#include "dictionary.h"
 #include "physfs.h"
 
 namespace G {
@@ -15,7 +17,7 @@ inline static constexpr size_t kMaxPathLength = 256;
 
 #define PHYSFS_CHECK(cond, ...)                               \
   CHECK(cond, "Failed Phys condition " #cond " with error: ", \
-        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()), ##__VA_ARGS__)
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()), " ", ##__VA_ARGS__)
 
 inline std::string_view Basename(std::string_view p) {
   size_t pos = p.size() - 1;
@@ -43,30 +45,23 @@ inline std::string_view Extension(std::string_view p) {
 
 class Filesystem {
  public:
-  using Handle = int;
-
-  class Result {
-    char error[128];
-  };
-
-  enum class Mode { kReading, kWriting };
-
-  static void Initialize(std::string_view program_name);
-
   Filesystem(Allocator* allocator)
-      : allocator_(allocator), buffer_(64, allocator) {}
+      : allocator_(allocator),
+        for_read_(1024, allocator),
+        for_write_(1024, allocator),
+        filename_to_handle_(allocator_) {}
+  ~Filesystem();
 
-  Handle Open(std::string_view file, Mode mode);
+  void Initialize(const GameConfig& config);
 
-  size_t WriteToFile(Handle handle, std::string_view contents);
+  bool WriteToFile(std::string_view filename, std::string_view contents,
+                   char* errbuf, size_t* errlen);
 
-  size_t ReadFile(Handle handle, uint8_t* buffer, size_t size);
+  bool ReadFile(std::string_view filename, uint8_t* buffer, size_t size,
+                char* errbuf, size_t* errlen);
 
-  struct StatResult {
-    size_t total_size;
-  };
-
-  StatResult Stat(Handle handle);
+  bool Size(std::string_view filename, size_t* result, char* errbuf,
+            size_t* errlen);
 
   using DirCallback = PHYSFS_EnumerateCallbackResult (*)(void* userdata,
                                                          const char* file,
@@ -76,12 +71,13 @@ class Filesystem {
                           void* userdata);
 
  private:
-  struct FreeListNode {
-    FreeListNode* next;
-  };
   Allocator* allocator_;
-  FixedArray<Result> buffer_;
-  FreeListNode* head_ = nullptr;
+  FixedStringBuffer<kMaxPathLength> org_name_;
+  FixedStringBuffer<kMaxPathLength> program_name_;
+  FixedStringBuffer<kMaxPathLength + 1> pref_dir_;
+  FixedArray<PHYSFS_File*> for_read_;
+  FixedArray<PHYSFS_File*> for_write_;
+  Dictionary<size_t> filename_to_handle_;
 };
 
 }  // namespace G

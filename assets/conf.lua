@@ -5,4 +5,6 @@ function Conf(t)
     t.game.title = "Shoot clicker"
     t.game.borderless = false
     t.game.enable_joystick = false
+    t.game.org_name = "JPIndustries"
+    t.game.app_name = "ShootClicker"
 end

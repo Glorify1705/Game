@@ -86,6 +86,11 @@
   index)
 
 (fn Game.init [g]
+  (each [_ f (ipairs (G.filesystem.list_directory :/app))]
+    (print f))
+  (let [(data err) (G.filesystem.read :/app/scores.txt)]
+    (print "Data: [" data "]")
+    (print "Error: " err))
   (tset g :random (G.random.non_deterministic))
   (tset g :timer 60)
   (let [(sx sy) (G.window.dimensions)]

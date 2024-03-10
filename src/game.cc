@@ -109,6 +109,7 @@ struct EngineModules {
   EngineModules(Assets* assets, const GameConfig& config,
                 SDL_Window* sdl_window, Allocator* allocator)
       : config(&config),
+        filesystem(allocator),
         window(sdl_window),
         shaders(*assets, allocator),
         batch_renderer(IVec2(config.window_width, config.window_height),
@@ -120,7 +121,9 @@ struct EngineModules {
         lua(assets, SystemAllocator::Instance()),
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
-        frame_allocator(allocator, Megabytes(128)) {}
+        frame_allocator(allocator, Megabytes(128)) {
+    filesystem.Initialize(config);
+  }
 
   void InitializeLua() {
     lua.LoadLibraries();
@@ -133,6 +136,7 @@ struct EngineModules {
     lua.Register(&controllers);
     lua.Register(&shaders);
     lua.Register(&sound);
+    lua.Register(&filesystem);
     lua.Register(&physics);
     lua.Register(&DebugConsole::Instance());
     lua.LoadScripts();
@@ -173,6 +177,7 @@ struct EngineModules {
   }
 
   const GameConfig* config;
+  Filesystem filesystem;
   SDL_Window* window;
   Shaders shaders;
   BatchRenderer batch_renderer;

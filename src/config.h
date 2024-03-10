@@ -22,6 +22,8 @@ struct GameConfig {
   bool enable_joystick = false;
   bool enable_debug_ui = true;
   bool enable_debug_rendering = true;
+  char org_name[512];
+  char app_name[512];
 };
 
 void LoadConfig(const Assets& assets, GameConfig* config, Allocator* allocator);

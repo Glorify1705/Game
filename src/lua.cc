@@ -762,6 +762,64 @@ const struct luaL_Reg kAssetsLib[] = {
        return 1;
      }}};
 
+PHYSFS_EnumerateCallbackResult LuaListDirectory(void* userdata, const char* dir,
+                                                const char* file) {
+  auto* state = static_cast<lua_State*>(userdata);
+  FixedStringBuffer<kMaxPathLength> buf(dir, dir[0] ? "/" : "", file);
+  lua_pushlstring(state, buf.str(), buf.size());
+  lua_rawseti(state, -2, lua_objlen(state, -2) + 1);
+  return PHYSFS_ENUM_OK;
+}
+
+const struct luaL_Reg kFilesystem[] = {
+    {"write",
+     [](lua_State* state) {
+       auto* filesystem = Registry<Filesystem>::Retrieve(state);
+       std::string_view name = GetLuaString(state, 1);
+       std::string_view data = GetLuaString(state, 2);
+       char buf[kMaxLogLineLength];
+       size_t err = kMaxLogLineLength;
+       if (filesystem->WriteToFile(name, data, buf, &err)) {
+         lua_pushnil(state);
+       } else {
+         lua_pushlstring(state, buf, err);
+       }
+       return 1;
+     }},
+    {"read",
+     [](lua_State* state) {
+       auto* filesystem = Registry<Filesystem>::Retrieve(state);
+       std::string_view name = GetLuaString(state, 1);
+       char errbuf[kMaxLogLineLength];
+       size_t errlen = kMaxLogLineLength;
+       size_t size = 0;
+       if (!filesystem->Size(name, &size, errbuf, &errlen)) {
+         lua_pushnil(state);
+         lua_pushlstring(state, errbuf, errlen);
+         return 2;
+       }
+       auto* allocator = GetAllocator(state);
+       uint8_t* buf = NewArray<uint8_t>(size, allocator);
+       if (filesystem->ReadFile(name, buf, size, errbuf, &errlen)) {
+         lua_pushlstring(state, reinterpret_cast<char*>(buf), size);
+         lua_pushnil(state);
+       } else {
+         lua_pushnil(state);
+         lua_pushlstring(state, errbuf, errlen);
+       }
+       DeallocArray(buf, size, allocator);
+       return 2;
+     }},
+    {"list_directory",
+     [](lua_State* state) {
+       auto* filesystem = Registry<Filesystem>::Retrieve(state);
+       std::string_view name = GetLuaString(state, 1);
+       lua_newtable(state);
+       filesystem->EnumerateDirectory(name, LuaListDirectory, state);
+       return 1;
+     }},
+};
+
 const struct luaL_Reg kPhysicsLib[] = {
     {"add_box",
      [](lua_State* state) {
@@ -1129,6 +1187,7 @@ void Lua::LoadLibraries() {
   AddLibrary(state_, "graphics", kGraphicsLib);
   AddLibrary(state_, "input", kInputLib);
   AddLibrary(state_, "sound", kSoundLib);
+  AddLibrary(state_, "filesystem", kFilesystem);
   AddLibrary(state_, "physics", kPhysicsLib);
   AddLibrary(state_, "assets", kAssetsLib);
   AddLibrary(state_, "clock", kClockLib);

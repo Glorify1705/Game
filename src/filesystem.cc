@@ -1,44 +1,112 @@
 #include "filesystem.h"
 
 namespace G {
+namespace {
 
-void Filesystem::Initialize(std::string_view program_name) {
-  if (PHYSFS_isInit()) return;
-  PHYSFS_CHECK(PHYSFS_init(program_name.data()),
-               "Could not initialize PhysFS: ", program_name);
+void SetError(char* buffer, size_t* len, const char* fmt, ...) {
+  va_list l;
+  va_start(l, fmt);
+  size_t result = vsnprintf(buffer, *len, fmt, l);
+  va_end(l);
+  result += snprintf(&buffer[result], *len - result, ": %s",
+                     PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+  *len = result;
 }
 
-Filesystem::Handle Filesystem::Open(std::string_view output,
-                                    Filesystem::Mode mode) {
-  (void)output;
-  (void)mode;
-  return 0;
+}  // namespace
+
+void Filesystem::Initialize(const GameConfig& config) {
+  if (!PHYSFS_isInit()) {
+    PHYSFS_CHECK(PHYSFS_init(config.app_name),
+                 "Could not initialize PhysFS: ", config.app_name);
+  }
+  LOG("Initializing filesystem with org ", config.org_name, " and app ",
+      config.app_name);
+  org_name_.Set(config.app_name);
+  program_name_.Set(config.app_name);
+  pref_dir_.Set(PHYSFS_getPrefDir(org_name_, program_name_));
+  LOG("Output dir: ", pref_dir_);
+  PHYSFS_setWriteDir(pref_dir_.str());
+  PHYSFS_mount(pref_dir_.str(), "/app", /*appendToPath=*/true);
 }
 
-size_t Filesystem::WriteToFile(Handle handle, std::string_view contents) {
-  (void)handle;
-  (void)contents;
-  return 0;
+Filesystem::~Filesystem() {
+  for (PHYSFS_File* ptr : for_read_) PHYSFS_close(ptr);
+  for (PHYSFS_File* ptr : for_write_) PHYSFS_close(ptr);
 }
 
-size_t Filesystem::ReadFile(Handle handle, uint8_t* buffer, size_t size) {
-  (void)handle;
-  (void)buffer;
-  (void)size;
-  return 0;
+bool Filesystem::WriteToFile(std::string_view filename,
+                             std::string_view contents, char* err,
+                             size_t* errlen) {
+  size_t handle;
+  FixedStringBuffer<kMaxPathLength> path(filename);
+  if (!filename_to_handle_.Lookup(filename, &handle)) {
+    handle = for_write_.size();
+    PHYSFS_File* f = PHYSFS_openWrite(path.str());
+    if (f == nullptr) {
+      SetError(err, errlen, "Failed to open file %s", path.str());
+      return false;
+    }
+    for_write_.Push(f);
+    filename_to_handle_.Insert(filename, handle);
+  }
+  if (PHYSFS_writeBytes(for_write_[handle], contents.data(), contents.size()) !=
+      static_cast<PHYSFS_sint64>(contents.size())) {
+    SetError(err, errlen, "Could not write to file %s", path.str());
+    return false;
+  }
+  return true;
 }
 
-Filesystem::StatResult Filesystem::Stat(Handle handle) {
-  (void)handle;
-  return {0};
+bool Filesystem::ReadFile(std::string_view filename, uint8_t* buffer,
+                          size_t size, char* err, size_t* errlen) {
+  size_t handle;
+  FixedStringBuffer<kMaxPathLength> path(filename);
+  if (!filename_to_handle_.Lookup(filename, &handle)) {
+    handle = for_read_.size();
+    PHYSFS_File* f = PHYSFS_openRead(path.str());
+    if (f == nullptr) {
+      SetError(err, errlen, "Failed to open file %s", path.str());
+      return false;
+    }
+    for_read_.Push(f);
+    filename_to_handle_.Insert(filename, handle);
+  }
+  if (PHYSFS_readBytes(for_read_[handle], buffer, size) !=
+      static_cast<PHYSFS_sint64>(size)) {
+    SetError(err, errlen, "Could not read file %s", path.str());
+    return false;
+  }
+  return true;
+}
+
+bool Filesystem::Size(std::string_view filename, size_t* result, char* err,
+                      size_t* errlen) {
+  size_t handle;
+  FixedStringBuffer<kMaxPathLength> path(filename);
+  if (!filename_to_handle_.Lookup(filename, &handle)) {
+    handle = for_read_.size();
+    PHYSFS_File* f = PHYSFS_openRead(path.str());
+    if (f == nullptr) {
+      SetError(err, errlen, "Failed to open file %s", path.str());
+      return false;
+    }
+    for_read_.Push(f);
+    filename_to_handle_.Insert(filename, handle);
+  }
+  PHYSFS_sint64 length = PHYSFS_fileLength(for_read_[handle]);
+  if (length == -1) {
+    SetError(err, errlen, "Could not read size of file %s", path.str());
+    return false;
+  }
+  *result = length;
+  return true;
 }
 
 void Filesystem::EnumerateDirectory(std::string_view directory,
                                     DirCallback callback, void* userdata) {
-  (void)directory;
-  (void)callback;
-  (void)userdata;
-  PHYSFS_enumerate(directory.data(), callback, userdata);
+  FixedStringBuffer<kMaxPathLength> d(directory);
+  PHYSFS_enumerate(d.str(), callback, userdata);
 }
 
 }  // namespace G

@@ -4,6 +4,15 @@
 
 namespace G {
 
+template <size_t size>
+void CopyLuaString(lua_State* state, char (&buf)[size]) {
+  size_t l;
+  const char* k = lua_tolstring(state, 3, &l);
+  l = std::min(size - 1, l);
+  std::memcpy(buf, k, l);
+  buf[l] = '\0';
+}
+
 int SetWindowInfo(lua_State* state) {
   auto* config =
       static_cast<GameConfig*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -25,11 +34,11 @@ int SetWindowInfo(lua_State* state) {
   } else if (key == "enable_debug_rendering") {
     config->enable_debug_rendering = lua_toboolean(state, 3);
   } else if (key == "title") {
-    size_t l;
-    const char* k = lua_tolstring(state, 3, &l);
-    l = std::min(sizeof(config->window_title) - 1, l);
-    std::memcpy(config->window_title, k, l);
-    config->window_title[l] = '\0';
+    CopyLuaString(state, config->window_title);
+  } else if (key == "org_name") {
+    CopyLuaString(state, config->org_name);
+  } else if (key == "app_name") {
+    CopyLuaString(state, config->app_name);
   }
   return 0;
 }
