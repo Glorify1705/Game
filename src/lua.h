@@ -97,6 +97,9 @@ class Lua {
 
   void Crash();
 
+  double time() const { return t_; }
+  double dt() const { return dt_; }
+
  private:
   void LoadAssets();
 
@@ -121,6 +124,9 @@ class Lua {
   std::jmp_buf on_error_buf_;
 
   Stats allocator_stats_;
+
+  double t_ = 0;
+  double dt_ = 0;
 };
 
 }  // namespace G

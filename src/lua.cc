@@ -1031,10 +1031,28 @@ const struct luaL_Reg kWindowLib[] = {
        return 1;
      }}};
 
-const struct luaL_Reg kClockLib[] = {{"now", [](lua_State* state) {
-                                        lua_pushnumber(state, NowInSeconds());
-                                        return 1;
-                                      }}};
+const struct luaL_Reg kClockLib[] = {
+    {"walltime",
+     [](lua_State* state) {
+       lua_pushnumber(state, NowInSeconds());
+       return 1;
+     }},
+    {"gametime",
+     [](lua_State* state) {
+       auto* lua = Registry<Lua>::Retrieve(state);
+       lua_pushnumber(state, lua->time());
+       return 1;
+     }},
+    {"sleep_ms",
+     [](lua_State* state) {
+       SDL_Delay(luaL_checknumber(state, 1));
+       return 0;
+     }},
+    {"gamedelta", [](lua_State* state) {
+       auto* lua = Registry<Lua>::Retrieve(state);
+       lua_pushnumber(state, lua->dt());
+       return 1;
+     }}};
 
 constexpr double kRandomRange = std::pow(2.0, 32);
 
@@ -1304,6 +1322,8 @@ void Lua::Init() {
 void Lua::Update(float t, float dt) {
   if (!error_.empty()) return;
   READY();
+  t_ = t;
+  dt_ = dt;
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "update");
   lua_insert(state_, -2);
