@@ -30,14 +30,21 @@
              :rectangles []
              :mouse [0 0]
              :dimensions [0 0]
+             :actions []
              :reticule {:size 30 :state :normal :st 0 :en 0}
              :style {:style :none :st 0 :en 0}})
+
+(fn add-action! [f])
+
+(fn update-actions! [g t dt]
+  (let [action g.actions.0] 
+    (if (action)))
 
 (fn style-spelling [g]
   (let [current (-> g (. :style) (. :style))]
     (-> Styles (. current) (. :text))))
 
-(fn add-score! [g]
+(fn update-score! [g]
   (tset g :score (+ g.score (-> Styles (. g.style.style) (. :points)))))
 
 (fn pick-color [g]
@@ -86,11 +93,6 @@
   index)
 
 (fn Game.init [g]
-  (each [_ f (ipairs (G.filesystem.list_directory :/app))]
-    (print f))
-  (let [(data err) (G.filesystem.read :/app/scores.txt)]
-    (print "Data: [" data "]")
-    (print "Error: " err))
   (tset g :random (G.random.non_deterministic))
   (tset g :timer 60)
   (let [(sx sy) (G.window.dimensions)]
@@ -99,6 +101,9 @@
   (G.sound.set_music_volume 1)
   (G.sound.set_sfx_volume 0.8)
   (G.sound.play_music :weapons_mode.ogg))
+
+(fn Game.quit [g]
+  (print "Thanks for playing!"))
 
 (fn Game.update [g t dt]
   (when (G.input.is_key_pressed :q) (G.system.quit))
@@ -128,7 +133,7 @@
         (tset g :reticule :en (+ t 0.1))
         (when i
           (let [(sx sy) (G.window.dimensions)]
-            (add-score! g)
+            (update-score!! g)
             (table.remove (. g :rectangles) i)
             (add-rectangle! g t))))
       (let [{: state : st : en} (. g :reticule)]

@@ -85,7 +85,6 @@ function G1:update(t, dt)
 end
 
 function G1:draw()
-    self.entities:draw()
     local mx, my = G.input.mouse_position()
     G.graphics.draw_text("ponderosa.ttf", 16, "Hi stranger!", 600, 0)
     G.graphics.set_color("freshgreen")
@@ -94,8 +93,11 @@ function G1:draw()
     G.graphics.draw_rect(300 * self.player:get_health() / 100, 10, 300, 20)
     G.graphics.set_color("white")
     G.graphics.draw_sprite("numeralX", mx, my)
+    self.player:center_camera()
+    self.entities:draw()
     G.graphics.set_color("neonred")
     G.graphics.draw_circle(300, 300, 20)
+    G.graphics.set_color('white')
 end
 
 local G2 = {}

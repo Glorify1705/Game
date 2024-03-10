@@ -62,15 +62,15 @@ end
 
 function Player:center_camera()
     local vx, vy = G.window.dimensions()
-    local x, y = G.physics.position(self.physics)
-    local angle = G.physics.angle(self.physics)
-    G.graphics.translate(-x, -y)
+    local v = self.physics:position()
+    local angle = self.physics:angle()
+    G.graphics.translate(-v.x, -v.y)
     local mx, my = G.input.mouse_wheel()
     local factor = 0.4 + my * 0.9;
     G.graphics.scale(factor, factor)
     G.graphics.rotate(-angle)
-    G.graphics.translate(x, y)
-    G.graphics.translate(vx / 2 - x, vy / 2 - y)
+    G.graphics.translate(v.x, v.y)
+    G.graphics.translate(vx / 2 - v.x, vy / 2 - v.y)
 end
 
 return Player

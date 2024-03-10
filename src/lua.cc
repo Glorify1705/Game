@@ -773,7 +773,7 @@ PHYSFS_EnumerateCallbackResult LuaListDirectory(void* userdata, const char* dir,
 }
 
 const struct luaL_Reg kFilesystem[] = {
-    {"write",
+    {"spit",
      [](lua_State* state) {
        auto* filesystem = Registry<Filesystem>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
@@ -787,7 +787,7 @@ const struct luaL_Reg kFilesystem[] = {
        }
        return 1;
      }},
-    {"read",
+    {"slurp",
      [](lua_State* state) {
        auto* filesystem = Registry<Filesystem>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
@@ -1388,6 +1388,19 @@ void Lua::HandleMouseMoved(FVec2 pos, FVec2 delta) {
   lua_pushnumber(state_, delta.x);
   lua_pushnumber(state_, delta.y);
   if (lua_pcall(state_, 5, 0, traceback_handler_)) {
+    lua_error(state_);
+    return;
+  }
+}
+
+void Lua::HandleQuit() {
+  if (!error_.empty()) return;
+  READY();
+  lua_getglobal(state_, "_Game");
+  lua_getfield(state_, -1, "quit");
+  if (lua_isnil(state_, -1)) return;
+  lua_insert(state_, -2);
+  if (lua_pcall(state_, 1, 0, traceback_handler_)) {
     lua_error(state_);
     return;
   }
