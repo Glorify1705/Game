@@ -556,7 +556,6 @@ class Game {
     for (;;) {
       if (e_->lua.Stopped()) return;
       if (e_->lua.HasError() && e_->keyboard.IsDown(SDL_SCANCODE_Q)) {
-        LOG("CHAU");
         e_->lua.Stop();
         return;
       }
