@@ -163,8 +163,9 @@ struct EngineModules {
         }
       }
     }
-    if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP ||
-        event.type == SDL_MOUSEMOTION) {
+    if ((event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP ||
+         event.type == SDL_MOUSEMOTION) &&
+        (!config->enable_debug_ui || !io.WantCaptureKeyboard)) {
       if (event.type == SDL_MOUSEBUTTONDOWN) {
         if (event.button.button == SDL_BUTTON_LEFT) {
           lua.HandleMousePressed(0);
@@ -380,6 +381,7 @@ class DebugUi {
     ImGui::InputText("Screenshot filename", screenshot_filename_,
                      sizeof(screenshot_filename_));
     if (ImGui::Button("Take Screenshot")) {
+      LOG("Requesting screenshot for ", screenshot_filename_);
       const IVec2 viewport = modules_->batch_renderer.GetViewport();
       modules_->batch_renderer.RequestScreenshot(screenshot_, viewport.x,
                                                  viewport.y, this);
@@ -395,8 +397,10 @@ class DebugUi {
 
   void HandleScreenshot(uint8_t* buffer, size_t width, size_t height) {
     TIMER("Screenshot");
+    FixedStringBuffer<kMaxLogLineLength> err;
     CHECK(WritePixelsToImage(screenshot_filename_, buffer, width, height,
-                             &allocator_));
+                             &modules_->filesystem, &err, &allocator_),
+          "Could not write screenshot: ", err);
     LOG("Wrote screenshot with width ", width, " and height ", height);
   }
 
@@ -552,6 +556,7 @@ class Game {
     for (;;) {
       if (e_->lua.Stopped()) return;
       if (e_->lua.HasError() && e_->keyboard.IsDown(SDL_SCANCODE_Q)) {
+        LOG("CHAU");
         e_->lua.Stop();
         return;
       }

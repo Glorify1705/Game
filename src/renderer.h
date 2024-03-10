@@ -53,8 +53,8 @@ class BatchRenderer {
     AddCommand(kRenderTrig, RenderTriangle{p0, p1, p2, q0, q1, q2});
   }
 
-  void SwitchShaderProgram(std::string_view fragment_shader_name) {
-    program_handle_ = StringIntern(fragment_shader_name);
+  void SetShaderProgram(std::string_view fragment_shader_name) {
+    AddCommand(kSetShader, SetShader{StringIntern(fragment_shader_name)});
   }
 
   void Clear() {
@@ -95,6 +95,7 @@ class BatchRenderer {
     kSetTexture,
     kSetColor,
     kSetTransform,
+    kSetShader,
     kDone
   };
 
@@ -121,6 +122,10 @@ class BatchRenderer {
     FMat4x4 transform;
   };
 
+  struct SetShader {
+    uint32_t shader_handle;
+  };
+
   inline static constexpr uint32_t kMaxCount = 1 << 20;
 
   struct QueueEntry {
@@ -134,6 +139,7 @@ class BatchRenderer {
     SetTexture set_texture;
     SetColor set_color;
     SetTransform set_transform;
+    SetShader set_shader;
   };
 
   static_assert(std::is_trivially_copyable_v<Command>);
@@ -159,6 +165,14 @@ class BatchRenderer {
 
   class CommandIterator;
 
+  void SwitchShaderProgram(uint32_t handle) {
+    shaders_->UseProgram(StringByHandle(handle));
+  }
+
+  void SwitchShaderProgram(std::string_view fragment_shader_name) {
+    SwitchShaderProgram(StringIntern(fragment_shader_name));
+  }
+
   template <typename T>
   void AddCommand(CommandType command, const T& data) {
     AddCommand(command, &data, sizeof(data));
@@ -178,6 +192,8 @@ class BatchRenderer {
         return sizeof(SetColor);
       case kSetTransform:
         return sizeof(SetTransform);
+      case kSetShader:
+        return sizeof(SetShader);
       case kDone:
         return 0;
     }
@@ -196,6 +212,8 @@ class BatchRenderer {
         return "SET_COLOR";
       case kSetTransform:
         return "SET_TRANSFORM";
+      case kSetShader:
+        return "SET_SHADER";
       case kDone:
         return "DONE";
     }
@@ -221,7 +239,6 @@ class BatchRenderer {
   GLint antialiasing_samples_;
   IVec2 viewport_;
   bool debug_render_ = false;
-  uint32_t program_handle_;
 };
 
 class Renderer {

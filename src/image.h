@@ -5,6 +5,8 @@
 #include <cstdint>
 
 #include "allocators.h"
+#include "filesystem.h"
+#include "strings.h"
 
 namespace G {
 
@@ -25,7 +27,8 @@ void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
                 Allocator *allocator);
 
 bool WritePixelsToImage(const char *filename, uint8_t *data, size_t width,
-                        size_t height, Allocator *allocator);
+                        size_t height, Filesystem *filesystem,
+                        StringBuffer *err, Allocator *allocator);
 
 }  // namespace G
 

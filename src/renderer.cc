@@ -89,8 +89,7 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER,
                            screen_quad_vertices.size() * sizeof(float),
                            screen_quad_vertices.data(), GL_STATIC_DRAW));
-  program_handle_ = StringIntern("post_pass");
-  shaders_->UseProgram(StringByHandle(program_handle_));
+  SwitchShaderProgram("post_pass");
   const GLint pos_attribute = shaders_->AttributeLocation("input_position");
   OPENGL_CALL(glEnableVertexAttribArray(pos_attribute));
   OPENGL_CALL(glVertexAttribPointer(pos_attribute, 2, GL_FLOAT, GL_FALSE,
@@ -309,7 +308,7 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
   OPENGL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.bytes(),
                            indices.data(), GL_STATIC_DRAW));
-  shaders_->UseProgram("pre_pass");
+  SwitchShaderProgram("pre_pass");
   const GLint pos_attribute = shaders_->AttributeLocation("input_position");
   OPENGL_CALL(glVertexAttribPointer(
       pos_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
@@ -379,6 +378,11 @@ void BatchRenderer::Render(Allocator* scratch) {
       case kSetTexture:
         flush();
         texture_unit = c.set_texture.texture_unit;
+        break;
+      case kSetShader:
+        flush();
+        SwitchShaderProgram(c.set_shader.shader_handle);
+        break;
       case kSetColor:
         break;
       case kDone:
@@ -389,6 +393,7 @@ void BatchRenderer::Render(Allocator* scratch) {
   if (debug_render_) {
     indices_end = indices_start = 0;
     // Draw a red semi transparent quad for all quads.
+    SwitchShaderProgram("pre_pass");
     shaders_->SetUniform("tex", noop_texture_);
     shaders_->SetUniform("global_color", FVec4(1, 0, 0, 0.7));
     FMat4x4 transform = FMat4x4::Identity();
@@ -424,6 +429,10 @@ void BatchRenderer::Render(Allocator* scratch) {
         case kSetColor:
           flush();
           break;
+        case kSetShader:
+          // Not gonna use the shader here since its debug drawing.
+          flush();
+          break;
         case kDone:
           flush();
           break;
@@ -439,9 +448,10 @@ void BatchRenderer::Render(Allocator* scratch) {
                                 GL_NEAREST));
   // Second pass.
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+  TakeScreenshots();
   OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
   OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
-  shaders_->UseProgram(StringByHandle(program_handle_));
+  SwitchShaderProgram("post_pass");
   glActiveTexture(GL_TEXTURE1);
   shaders_->SetUniform("screen_texture", 1);
   OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
@@ -453,7 +463,6 @@ void BatchRenderer::Render(Allocator* scratch) {
   WATCH_EXPR("Vertex Memory", vertices.bytes());
   WATCH_EXPR("Indices Memory", indices.size());
   WATCH_EXPR("Render calls", render_calls);
-  TakeScreenshots();
 }
 
 void BatchRenderer::RequestScreenshot(

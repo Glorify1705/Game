@@ -55,13 +55,12 @@ class Filesystem {
   void Initialize(const GameConfig& config);
 
   bool WriteToFile(std::string_view filename, std::string_view contents,
-                   char* errbuf, size_t* errlen);
+                   StringBuffer* err);
 
   bool ReadFile(std::string_view filename, uint8_t* buffer, size_t size,
-                char* errbuf, size_t* errlen);
+                StringBuffer* err);
 
-  bool Size(std::string_view filename, size_t* result, char* errbuf,
-            size_t* errlen);
+  bool Size(std::string_view filename, size_t* result, StringBuffer* err);
 
   using DirCallback = PHYSFS_EnumerateCallbackResult (*)(void* userdata,
                                                          const char* file,

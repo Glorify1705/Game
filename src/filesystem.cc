@@ -3,14 +3,10 @@
 namespace G {
 namespace {
 
-void SetError(char* buffer, size_t* len, const char* fmt, ...) {
-  va_list l;
-  va_start(l, fmt);
-  size_t result = vsnprintf(buffer, *len, fmt, l);
-  va_end(l);
-  result += snprintf(&buffer[result], *len - result, ": %s",
-                     PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
-  *len = result;
+template <typename... Ts>
+void SetError(StringBuffer* buf, Ts... ts) {
+  buf->Append(std::forward<Ts>(ts)...);
+  buf->Append(": ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
 }
 
 }  // namespace
@@ -36,15 +32,14 @@ Filesystem::~Filesystem() {
 }
 
 bool Filesystem::WriteToFile(std::string_view filename,
-                             std::string_view contents, char* err,
-                             size_t* errlen) {
+                             std::string_view contents, StringBuffer* buf) {
   size_t handle;
   FixedStringBuffer<kMaxPathLength> path(filename);
   if (!filename_to_handle_.Lookup(filename, &handle)) {
     handle = for_write_.size();
     PHYSFS_File* f = PHYSFS_openWrite(path.str());
     if (f == nullptr) {
-      SetError(err, errlen, "Failed to open file %s", path.str());
+      SetError(buf, "Failed to open file ", path);
       return false;
     }
     for_write_.Push(f);
@@ -52,21 +47,21 @@ bool Filesystem::WriteToFile(std::string_view filename,
   }
   if (PHYSFS_writeBytes(for_write_[handle], contents.data(), contents.size()) !=
       static_cast<PHYSFS_sint64>(contents.size())) {
-    SetError(err, errlen, "Could not write to file %s", path.str());
+    SetError(buf, "Could not write to file ", path);
     return false;
   }
   return true;
 }
 
 bool Filesystem::ReadFile(std::string_view filename, uint8_t* buffer,
-                          size_t size, char* err, size_t* errlen) {
+                          size_t size, StringBuffer* buf) {
   size_t handle;
   FixedStringBuffer<kMaxPathLength> path(filename);
   if (!filename_to_handle_.Lookup(filename, &handle)) {
     handle = for_read_.size();
     PHYSFS_File* f = PHYSFS_openRead(path.str());
     if (f == nullptr) {
-      SetError(err, errlen, "Failed to open file %s", path.str());
+      SetError(buf, "Failed to open file ", path);
       return false;
     }
     for_read_.Push(f);
@@ -74,21 +69,21 @@ bool Filesystem::ReadFile(std::string_view filename, uint8_t* buffer,
   }
   if (PHYSFS_readBytes(for_read_[handle], buffer, size) !=
       static_cast<PHYSFS_sint64>(size)) {
-    SetError(err, errlen, "Could not read file %s", path.str());
+    SetError(buf, "Could not read file ", path);
     return false;
   }
   return true;
 }
 
-bool Filesystem::Size(std::string_view filename, size_t* result, char* err,
-                      size_t* errlen) {
+bool Filesystem::Size(std::string_view filename, size_t* result,
+                      StringBuffer* buf) {
   size_t handle;
   FixedStringBuffer<kMaxPathLength> path(filename);
   if (!filename_to_handle_.Lookup(filename, &handle)) {
     handle = for_read_.size();
     PHYSFS_File* f = PHYSFS_openRead(path.str());
     if (f == nullptr) {
-      SetError(err, errlen, "Failed to open file %s", path.str());
+      SetError(buf, "Failed to open file ", path);
       return false;
     }
     for_read_.Push(f);
@@ -96,7 +91,7 @@ bool Filesystem::Size(std::string_view filename, size_t* result, char* err,
   }
   PHYSFS_sint64 length = PHYSFS_fileLength(for_read_[handle]);
   if (length == -1) {
-    SetError(err, errlen, "Could not read size of file %s", path.str());
+    SetError(buf, "Could not read file ", path);
     return false;
   }
   *result = length;

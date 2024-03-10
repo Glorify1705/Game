@@ -317,6 +317,7 @@ const struct luaL_Reg kGraphicsLib[] = {
          Context(lua_State* state, Allocator* allocator) : state_(state) {
            output_file_.Set(GetLuaString(state, 1));
            renderer_ = Registry<BatchRenderer>::Retrieve(state);
+           filesystem_ = Registry<Filesystem>::Retrieve(state);
            const IVec2 viewport = renderer_->GetViewport();
            width_ = viewport.x;
            height_ = viewport.y;
@@ -331,10 +332,12 @@ const struct luaL_Reg kGraphicsLib[] = {
 
          void HandleScreenshot(uint8_t* pixels, size_t width, size_t height) {
            LOG("Writing screenshot");
-           if (!WritePixelsToImage(output_file_.str(), pixels, width, height,
-                                   allocator_)) {
-             LUA_ERROR(state_, "Could not write image ", output_file_,
-                       " to disk");
+           FixedStringBuffer<kMaxLogLineLength> err;
+           if (!WritePixelsToImage(output_file_.str(),
+                                   reinterpret_cast<uint8_t*>(pixels), width,
+                                   height, filesystem_, &err, allocator_)) {
+             LUA_ERROR(state_, "Could not write file ", output_file_, ": ",
+                       err);
            }
            Destroy(allocator_, this);
          }
@@ -343,6 +346,7 @@ const struct luaL_Reg kGraphicsLib[] = {
          size_t size() const { return width_ * height_ * 4; }
 
          BatchRenderer* renderer_;
+         Filesystem* filesystem_;
          lua_State* state_;
          FixedStringBuffer<kMaxPathLength> output_file_;
          uint8_t* buffer_;
@@ -778,12 +782,11 @@ const struct luaL_Reg kFilesystem[] = {
        auto* filesystem = Registry<Filesystem>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
        std::string_view data = GetLuaString(state, 2);
-       char buf[kMaxLogLineLength];
-       size_t err = kMaxLogLineLength;
-       if (filesystem->WriteToFile(name, data, buf, &err)) {
+       FixedStringBuffer<kMaxLogLineLength> err;
+       if (filesystem->WriteToFile(name, data, &err)) {
          lua_pushnil(state);
        } else {
-         lua_pushlstring(state, buf, err);
+         lua_pushlstring(state, err.str(), err.size());
        }
        return 1;
      }},
@@ -791,22 +794,21 @@ const struct luaL_Reg kFilesystem[] = {
      [](lua_State* state) {
        auto* filesystem = Registry<Filesystem>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
-       char errbuf[kMaxLogLineLength];
-       size_t errlen = kMaxLogLineLength;
+       FixedStringBuffer<kMaxLogLineLength> err;
        size_t size = 0;
-       if (!filesystem->Size(name, &size, errbuf, &errlen)) {
+       if (!filesystem->Size(name, &size, &err)) {
          lua_pushnil(state);
-         lua_pushlstring(state, errbuf, errlen);
+         lua_pushlstring(state, err.str(), err.size());
          return 2;
        }
        auto* allocator = GetAllocator(state);
        uint8_t* buf = NewArray<uint8_t>(size, allocator);
-       if (filesystem->ReadFile(name, buf, size, errbuf, &errlen)) {
+       if (filesystem->ReadFile(name, buf, size, &err)) {
          lua_pushlstring(state, reinterpret_cast<char*>(buf), size);
          lua_pushnil(state);
        } else {
          lua_pushnil(state);
-         lua_pushlstring(state, errbuf, errlen);
+         lua_pushlstring(state, err.str(), err.size());
        }
        DeallocArray(buf, size, allocator);
        return 2;

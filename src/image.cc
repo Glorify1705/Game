@@ -61,6 +61,8 @@ void *QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
   if (data == NULL || out_len == NULL || desc == NULL || desc->width == 0 ||
       desc->height == 0 || desc->channels < 3 || desc->channels > 4 ||
       desc->colorspace > 1 || desc->height >= QOI_PIXELS_MAX / desc->width) {
+    LOG("Invalid QOI data: ", desc->width, " ", desc->height, " ",
+        desc->channels);
     return NULL;
   }
 
@@ -258,32 +260,29 @@ void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
 }
 
 bool WritePixelsToImage(const char *filename, uint8_t *data, size_t width,
-                        size_t height, Allocator *allocator) {
-  CHECK(HasSuffix(filename, ".qoi"));
+                        size_t height, Filesystem *filesystem,
+                        StringBuffer *err, Allocator *allocator) {
+  CHECK(HasSuffix(filename, ".qoi"), "invalid filename ", filename);
   QoiDesc desc;
   desc.width = width;
   desc.height = height;
   desc.channels = 4;
-  FILE *f = fopen(filename, "wb");
+  desc.colorspace = 1;
   int size;
-  void *encoded;
-
-  if (!f) {
-    return 0;
+  auto *encoded =
+      reinterpret_cast<char *>(QoiEncode(data, &desc, &size, allocator));
+  if (encoded == nullptr) {
+    allocator->Dealloc(encoded, size);
+    err->Set("Failed to encode data to QOI");
+    return false;
   }
 
-  encoded = QoiEncode(data, &desc, &size, allocator);
-  if (!encoded) {
-    LOG("Failed to write to ", filename);
-    fclose(f);
-    return 0;
+  if (!filesystem->WriteToFile(filename, std::string_view(encoded, size),
+                               err)) {
+    allocator->Dealloc(encoded, size);
+    return false;
   }
-
-  fwrite(encoded, 1, size, f);
-  fclose(f);
-
-  allocator->Dealloc(encoded, size);
-  return size;
+  return true;
 }
 
 }  // namespace G

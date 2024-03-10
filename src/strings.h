@@ -107,17 +107,14 @@ void StrAppend(std::string* buf, T... ts) {
   }({internal_strings::Alphanumeric(ts).piece()...});
 }
 
-template <size_t N>
-class FixedStringBuffer {
+class StringBuffer {
  public:
-  FixedStringBuffer() { buf_[pos_] = '\0'; }
-  template <typename... Ts>
-  explicit FixedStringBuffer(Ts... ts) {
-    Append(std::forward<Ts>(ts)...);
+  StringBuffer(char* buf, size_t size) : buf_(buf), size_(size) {
+    buf_[pos_] = '\0';
   }
 
   template <typename... T>
-  FixedStringBuffer& Append(T... ts) {
+  StringBuffer& Append(T... ts) {
     [&](std::initializer_list<std::string_view> ss) {
       for (auto& s : ss) AppendStr(s);
     }({internal_strings::Alphanumeric(ts).piece()...});
@@ -125,7 +122,9 @@ class FixedStringBuffer {
     return *this;
   }
 
-  FixedStringBuffer& AppendF(const char* fmt, ...) {
+  void Append(StringBuffer& buf) { Append(buf.str()); }
+
+  StringBuffer& AppendF(const char* fmt, ...) {
     va_list l;
     va_start(l, fmt);
     VAppendF(fmt, l);
@@ -134,12 +133,12 @@ class FixedStringBuffer {
   }
 
   template <typename... T>
-  FixedStringBuffer& Set(T... ts) {
+  StringBuffer& Set(T... ts) {
     pos_ = 0;
     return Append(std::forward<T>(ts)...);
   }
 
-  FixedStringBuffer& SetF(const char* fmt, ...) {
+  StringBuffer& SetF(const char* fmt, ...) {
     pos_ = 0;
     va_list l;
     va_start(l, fmt);
@@ -161,8 +160,8 @@ class FixedStringBuffer {
 
  private:
   void VAppendF(const char* fmt, va_list l) {
-    int needed = vsnprintf(&buf_[pos_], N - pos_, fmt, l);
-    pos_ = std::min(N, pos_ + needed);
+    int needed = vsnprintf(&buf_[pos_], size_ - pos_, fmt, l);
+    pos_ = std::min(size_, pos_ + needed);
   }
 
   void AppendStr(std::string_view s) {
@@ -171,11 +170,25 @@ class FixedStringBuffer {
     pos_ += length;
   }
 
-  size_t remaining() const { return pos_ >= N ? 0 : (N - pos_); }
+  size_t remaining() const { return pos_ >= size_ ? 0 : (size_ - pos_); }
   size_t capacity(size_t cs) const { return std::min(cs, remaining()); }
 
+  char* buf_;
+  size_t pos_ = 0, size_;
+};
+
+template <size_t N>
+class FixedStringBuffer final : public StringBuffer {
+ public:
+  FixedStringBuffer() : StringBuffer(buf_, N) {}
+
+  template <typename... Ts>
+  explicit FixedStringBuffer(Ts... ts) : StringBuffer(buf_, N) {
+    Append(std::forward<Ts>(ts)...);
+  }
+
+ private:
   char buf_[N + 1];
-  size_t pos_ = 0;
 };
 
 bool HasSuffix(std::string_view str, std::string_view suffix);
