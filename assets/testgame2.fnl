@@ -1,4 +1,4 @@
-(local Player (require :player))
+(local Object (require :classic))
 
 (local Styles
        {:none {:points 500 :duration 0 :text :Yaawn}
@@ -30,15 +30,8 @@
              :rectangles []
              :mouse [0 0]
              :dimensions [0 0]
-             :actions []
              :reticule {:size 30 :state :normal :st 0 :en 0}
              :style {:style :none :st 0 :en 0}})
-
-(fn add-action! [f])
-
-(fn update-actions! [g t dt]
-  (let [action g.actions.0] 
-    (if (action)))
 
 (fn style-spelling [g]
   (let [current (-> g (. :style) (. :style))]
@@ -133,7 +126,7 @@
         (tset g :reticule :en (+ t 0.1))
         (when i
           (let [(sx sy) (G.window.dimensions)]
-            (update-score!! g)
+            (update-score! g)
             (table.remove (. g :rectangles) i)
             (add-rectangle! g t))))
       (let [{: state : st : en} (. g :reticule)]
