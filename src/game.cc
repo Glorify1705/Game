@@ -151,18 +151,10 @@ struct EngineModules {
     controllers.InitForFrame();
   }
 
-  void HandleEvent(const SDL_Event& event) {
-    if (event.type == SDL_WINDOWEVENT) {
-      if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-        IVec2 new_viewport(event.window.data1, event.window.data2);
-        batch_renderer.SetViewport(new_viewport);
-        physics.UpdateDimensions(new_viewport);
-      }
-    }
+  void ForwardEventToLua(const SDL_Event& event) {
     ImGuiIO& io = ImGui::GetIO();
     if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
       if (!config->enable_debug_ui || !io.WantCaptureKeyboard) {
-        keyboard.PushEvent(event);
         if (event.type == SDL_KEYDOWN) {
           lua.HandleKeypressed(event.key.keysym.scancode);
         }
@@ -199,7 +191,30 @@ struct EngineModules {
         mouse.PushEvent(event);
       }
     }
+  }
+
+  void HandleEvent(const SDL_Event& event) {
+    if (event.type == SDL_WINDOWEVENT) {
+      if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+        IVec2 new_viewport(event.window.data1, event.window.data2);
+        batch_renderer.SetViewport(new_viewport);
+        physics.UpdateDimensions(new_viewport);
+      }
+    }
+    ImGuiIO& io = ImGui::GetIO();
+    if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+      if (!config->enable_debug_ui || !io.WantCaptureKeyboard) {
+        keyboard.PushEvent(event);
+      }
+    }
+    if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP ||
+        event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEWHEEL) {
+      if (!config->enable_debug_ui || !io.WantCaptureMouse) {
+        mouse.PushEvent(event);
+      }
+    }
     controllers.PushEvent(event);
+    ForwardEventToLua(event);
   }
 
   void Render() {
@@ -536,6 +551,10 @@ class Game {
     double t = 0, accum = 0;
     for (;;) {
       if (e_->lua.Stopped()) return;
+      if (e_->lua.HasError() && e_->keyboard.IsDown(SDL_SCANCODE_Q)) {
+        e_->lua.Stop();
+        return;
+      }
       const double now = NowInSeconds();
       const double frame_time = now - last_frame;
       last_frame = now;
@@ -548,6 +567,7 @@ class Game {
       e_->StartFrame();
       for (SDL_Event event; SDL_PollEvent(&event);) {
         if (event.type == SDL_QUIT) {
+          e_->lua.HandleQuit();
           return;
         }
         ImGui_ImplSDL2_ProcessEvent(&event);
@@ -558,9 +578,6 @@ class Game {
               e_->batch_renderer.ToggleDebugRender();
             if (config_.enable_debug_ui) debug_ui_->Toggle();
           }
-        }
-        if (e_->lua.HasError() && e_->keyboard.IsDown(SDL_SCANCODE_Q)) {
-          e_->lua.Stop();
         }
       }
       while (accum >= kStep) {

@@ -82,6 +82,7 @@ class Lua {
   void HandleMousePressed(int button);
   void HandleMouseReleased(int button);
   void HandleMouseMoved(FVec2 pos, FVec2 delta);
+  void HandleQuit();
 
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }

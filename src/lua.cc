@@ -492,6 +492,7 @@ const struct luaL_Reg kSystemLib[] = {
     {"quit",
      [](lua_State* state) {
        auto* lua = Registry<Lua>::Retrieve(state);
+       lua->HandleQuit();
        lua->Stop();
        return 0;
      }},
