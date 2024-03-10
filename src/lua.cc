@@ -516,6 +516,19 @@ const struct luaL_Reg kSystemLib[] = {
        SDL_SetClipboardText(str);
        return 0;
      }},
+    {"open_url",
+     [](lua_State* state) {
+       const char* url = luaL_checkstring(state, 1);
+       const int result = SDL_OpenURL(url);
+       if (result == 0) {
+         lua_pushnil(state);
+       } else {
+         FixedStringBuffer<kMaxLogLineLength> buf("Could not open ", url, ": ",
+                                                  SDL_GetError());
+         lua_pushstring(state, SDL_GetError());
+       }
+       return 1;
+     }},
     {"get_clipboard", [](lua_State* state) {
        char* result = SDL_GetClipboardText();
        const size_t length = strlen(result);
