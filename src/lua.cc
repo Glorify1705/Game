@@ -384,10 +384,10 @@ const struct luaL_Reg kGraphicsLib[] = {
        }
        if (!shaders->Link(program_name, "post_pass.vert", fragment_shader)) {
          LUA_ERROR(state, "Could not switch shader %s: %s", buf,
-                   shaders->LastError().data());
+                   shaders->LastError());
          return 0;
        }
-       renderer->SwitchShaderProgram(program_name);
+       renderer->SetShaderProgram(program_name);
        return 0;
      }},
     {"send_uniform",
@@ -397,7 +397,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        if (lua_isnumber(state, 2)) {
          if (!shaders->SetUniformF(name, luaL_checknumber(state, 2))) {
            LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                     shaders->LastError().data());
+                     shaders->LastError());
          }
          return 0;
        }
@@ -409,19 +409,19 @@ const struct luaL_Reg kGraphicsLib[] = {
          case 2:
            if (!shaders->SetUniform(name, FromLuaTable<FVec2>(state, 2))) {
              LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                       shaders->LastError().data());
+                       shaders->LastError());
            };
            break;
          case 3:
            if (!shaders->SetUniform(name, FromLuaTable<FVec3>(state, 2))) {
              LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                       shaders->LastError().data());
+                       shaders->LastError());
            };
            break;
          case 4:
            if (!shaders->SetUniform(name, FromLuaTable<FVec4>(state, 2))) {
              LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                       shaders->LastError().data());
+                       shaders->LastError());
            }
 
            break;
@@ -434,7 +434,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FVec2>(state, 2))) {
          LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError().data());
+                   shaders->LastError());
        }
        return 0;
      }},
@@ -444,7 +444,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FVec3>(state, 2))) {
          LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError().data());
+                   shaders->LastError());
        }
        return 0;
      }},
@@ -454,7 +454,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FVec4>(state, 2))) {
          LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError().data());
+                   shaders->LastError());
        }
        return 0;
      }},
@@ -464,7 +464,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FMat2x2>(state, 2))) {
          LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError().data());
+                   shaders->LastError());
        }
        return 0;
      }},
@@ -474,7 +474,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FMat3x3>(state, 2))) {
          LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError().data());
+                   shaders->LastError());
        }
        return 0;
      }},
@@ -483,7 +483,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FMat4x4>(state, 2))) {
          LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError().data());
+                   shaders->LastError());
        }
        return 0;
      }}};
