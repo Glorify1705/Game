@@ -45,6 +45,7 @@ int SetWindowInfo(lua_State* state) {
 
 void LoadConfig(const Assets& assets, GameConfig* config,
                 Allocator* /*allocator*/) {
+  TIMER("Loading configuration");
   auto* state = luaL_newstate();
   auto* conf = assets.GetScript("conf.lua");
   if (conf == nullptr) {
