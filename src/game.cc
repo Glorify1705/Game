@@ -188,9 +188,6 @@ struct EngineModules {
         lua.HandleMouseMoved(FVec2(event.motion.x, event.motion.y),
                              FVec2(event.motion.xrel, event.motion.yrel));
       }
-      if (!config->enable_debug_ui || !io.WantCaptureMouse) {
-        mouse.PushEvent(event);
-      }
     }
   }
 
@@ -288,7 +285,7 @@ void PrintDependencyVersions() {
 }
 
 SDL_Window* CreateWindow(const GameConfig& config) {
-  LOG("Initializing basic attributes");
+  TIMER("Initializing basic attributes");
   CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4) == 0,
         "Could not set major version", SDL_GetError());
   CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6) == 0,
