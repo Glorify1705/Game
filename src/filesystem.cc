@@ -98,6 +98,33 @@ bool Filesystem::Size(std::string_view filename, size_t* result,
   return true;
 }
 
+bool Filesystem::Stat(std::string_view filename, StatInfo* info,
+                      StringBuffer* buf) {
+  FixedStringBuffer<kMaxPathLength> path(filename);
+  PHYSFS_Stat stat;
+  const int result = PHYSFS_stat(path.str(), &stat);
+  if (result == 0) {
+    SetError(buf, "Could not read file ", path);
+    return false;
+  }
+  info->size = stat.filesize;
+  info->access_time_secs = stat.accesstime;
+  info->created_time_secs = stat.createtime;
+  info->modtime_secs = stat.modtime;
+  switch (stat.filetype) {
+    case PHYSFS_FILETYPE_REGULAR:
+      info->type = StatInfo::kFile;
+      break;
+    case PHYSFS_FILETYPE_DIRECTORY:
+      info->type = StatInfo::kDirectory;
+      break;
+    default:
+      SetError(buf, "Tried to stat unknown file ", path);
+      return false;
+  }
+  return true;
+}
+
 void Filesystem::EnumerateDirectory(std::string_view directory,
                                     DirCallback callback, void* userdata) {
   FixedStringBuffer<kMaxPathLength> d(directory);

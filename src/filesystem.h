@@ -60,7 +60,18 @@ class Filesystem {
   bool ReadFile(std::string_view filename, uint8_t* buffer, size_t size,
                 StringBuffer* err);
 
+  struct StatInfo {
+    size_t size;
+    enum Type { kFile, kDirectory };
+    Type type;
+    int64_t modtime_secs;
+    int64_t created_time_secs;
+    int64_t access_time_secs;
+  };
+
   bool Size(std::string_view filename, size_t* result, StringBuffer* err);
+
+  bool Stat(std::string_view filename, StatInfo* info, StringBuffer* err);
 
   using DirCallback = PHYSFS_EnumerateCallbackResult (*)(void* userdata,
                                                          const char* file,
