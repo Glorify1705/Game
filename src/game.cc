@@ -258,7 +258,7 @@ void InitializeSDL(const GameConfig& config) {
   SDL_ShowCursor(false);
 }
 
-void PrintDependencyVersions() {
+void PrintSystemInformation() {
   SDL_version compiled, linked;
   SDL_VERSION(&compiled);
   SDL_GetVersion(&linked);
@@ -282,6 +282,8 @@ void PrintDependencyVersions() {
   PHYSFS_getLinkedVersion(&physfs_version);
   LOG("Using PhysFS ", physfs_version.major, ".", physfs_version.minor, ".",
       physfs_version.patch);
+  LOG("Running on platform: ", SDL_GetPlatform());
+  LOG("Have ", SDL_GetCPUCount(), " logical cores");
 }
 
 SDL_Window* CreateWindow(const GameConfig& config) {
@@ -515,7 +517,7 @@ class Game {
       window_ = CreateWindow(config_);
       context_ = CreateOpenglContext(config_, window_);
     }
-    PrintDependencyVersions();
+    PrintSystemInformation();
   }
 
   ~Game() {
