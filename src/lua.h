@@ -15,6 +15,7 @@ extern "C" {
 #include "assets.h"
 #include "clock.h"
 #include "stats.h"
+#include "vec.h"
 
 namespace G {
 
@@ -74,6 +75,13 @@ class Lua {
   void Update(float t, float dt);
 
   void Draw();
+
+  // Handles events if callbacks are present
+  void HandleKeypressed(int scancode);
+  void HandleKeyreleased(int scancode);
+  void HandleMousePressed(int button);
+  void HandleMouseReleased(int button);
+  void HandleMouseMoved(FVec2 pos, FVec2 delta);
 
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }

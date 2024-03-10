@@ -1319,4 +1319,77 @@ void Lua::Draw() {
   }
 }
 
+void Lua::HandleKeypressed(int scancode) {
+  if (!error_.empty()) return;
+  READY();
+  lua_getglobal(state_, "_Game");
+  lua_getfield(state_, -1, "keypressed");
+  if (lua_isnil(state_, -1)) return;
+  lua_insert(state_, -2);
+  lua_pushnumber(state_, scancode);
+  if (lua_pcall(state_, 2, 0, traceback_handler_)) {
+    lua_error(state_);
+    return;
+  }
+}
+
+void Lua::HandleKeyreleased(int scancode) {
+  if (!error_.empty()) return;
+  READY();
+  lua_getglobal(state_, "_Game");
+  lua_getfield(state_, -1, "keyreleased");
+  if (lua_isnil(state_, -1)) return;
+  lua_insert(state_, -2);
+  lua_pushnumber(state_, scancode);
+  if (lua_pcall(state_, 2, 0, traceback_handler_)) {
+    lua_error(state_);
+    return;
+  }
+}
+
+void Lua::HandleMousePressed(int button) {
+  if (!error_.empty()) return;
+  READY();
+  lua_getglobal(state_, "_Game");
+  lua_getfield(state_, -1, "mousepressed");
+  if (lua_isnil(state_, -1)) return;
+  lua_insert(state_, -2);
+  lua_pushnumber(state_, button);
+  if (lua_pcall(state_, 2, 0, traceback_handler_)) {
+    lua_error(state_);
+    return;
+  }
+}
+
+void Lua::HandleMouseReleased(int button) {
+  if (!error_.empty()) return;
+  READY();
+  lua_getglobal(state_, "_Game");
+  lua_getfield(state_, -1, "mousereleased");
+  if (lua_isnil(state_, -1)) return;
+  lua_insert(state_, -2);
+  lua_pushnumber(state_, button);
+  if (lua_pcall(state_, 2, 0, traceback_handler_)) {
+    lua_error(state_);
+    return;
+  }
+}
+
+void Lua::HandleMouseMoved(FVec2 pos, FVec2 delta) {
+  if (!error_.empty()) return;
+  READY();
+  lua_getglobal(state_, "_Game");
+  lua_getfield(state_, -1, "mousemoved");
+  if (lua_isnil(state_, -1)) return;
+  lua_insert(state_, -2);
+  lua_pushnumber(state_, pos.x);
+  lua_pushnumber(state_, pos.y);
+  lua_pushnumber(state_, delta.x);
+  lua_pushnumber(state_, delta.y);
+  if (lua_pcall(state_, 5, 0, traceback_handler_)) {
+    lua_error(state_);
+    return;
+  }
+}
+
 }  // namespace G

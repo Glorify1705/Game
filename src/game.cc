@@ -160,11 +160,44 @@ struct EngineModules {
       }
     }
     ImGuiIO& io = ImGui::GetIO();
-    if (!config->enable_debug_ui || !io.WantCaptureKeyboard) {
-      keyboard.PushEvent(event);
+    if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+      if (!config->enable_debug_ui || !io.WantCaptureKeyboard) {
+        keyboard.PushEvent(event);
+        if (event.type == SDL_KEYDOWN) {
+          lua.HandleKeypressed(event.key.keysym.scancode);
+        }
+        if (event.type == SDL_KEYUP) {
+          lua.HandleKeyreleased(event.key.keysym.scancode);
+        }
+      }
     }
-    if (!config->enable_debug_ui || !io.WantCaptureMouse) {
-      mouse.PushEvent(event);
+    if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP ||
+        event.type == SDL_MOUSEMOTION) {
+      if (event.type == SDL_MOUSEBUTTONDOWN) {
+        if (event.button.button == SDL_BUTTON_LEFT) {
+          lua.HandleMousePressed(0);
+        } else if (event.button.button == SDL_BUTTON_MIDDLE) {
+          lua.HandleMousePressed(1);
+        } else if (event.button.button == SDL_BUTTON_RIGHT) {
+          lua.HandleMousePressed(2);
+        }
+      }
+      if (event.type == SDL_MOUSEBUTTONUP) {
+        if (event.button.button == SDL_BUTTON_LEFT) {
+          lua.HandleMouseReleased(0);
+        } else if (event.button.button == SDL_BUTTON_MIDDLE) {
+          lua.HandleMouseReleased(1);
+        } else if (event.button.button == SDL_BUTTON_RIGHT) {
+          lua.HandleMouseReleased(2);
+        }
+      }
+      if (event.type == SDL_MOUSEMOTION) {
+        lua.HandleMouseMoved(FVec2(event.motion.x, event.motion.y),
+                             FVec2(event.motion.xrel, event.motion.yrel));
+      }
+      if (!config->enable_debug_ui || !io.WantCaptureMouse) {
+        mouse.PushEvent(event);
+      }
     }
     controllers.PushEvent(event);
   }
