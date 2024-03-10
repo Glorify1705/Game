@@ -505,6 +505,11 @@ const struct luaL_Reg kSystemLib[] = {
        lua_pushstring(state, SDL_GetPlatform());
        return 1;
      }},
+    {"cpu_count",
+     [](lua_State* state) {
+       lua_pushinteger(state, SDL_GetCPUCount());
+       return 1;
+     }},
     {"set_clipboard",
      [](lua_State* state) {
        const char* str = luaL_checkstring(state, 1);
