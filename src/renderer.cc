@@ -750,7 +750,7 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
   const FontInfo* info = LoadFont(font_name, size);
   renderer_->SetActiveTexture(info->texture);
   FVec2 p = position;
-  const Color color = SetColor(Color::White());
+  const Color color = color_;
   for (size_t i = 0; i < str.size();) {
     const char c = str[i];
     if (c == '\033') {
