@@ -45,17 +45,17 @@ class BatchRenderer::CommandIterator {
   size_t pos_ = 0, remaining_ = 0, i_ = 0;
 };
 
-void BatchRenderer::AddCommand(CommandType command, const void* data,
-                               size_t size) {
+void BatchRenderer::AddCommand(CommandType command, uint32_t count,
+                               const void* data, size_t size) {
   if (command != kDone) {
     std::memcpy(&command_buffer_[pos_], data, size);
     pos_ += size;
   }
   if (commands_.empty() || commands_.back().type != command ||
       commands_.back().count == kMaxCount) {
-    commands_.Push(QueueEntry{.type = command, .count = 1});
+    commands_.Push(QueueEntry{.type = command, .count = count});
   } else {
-    commands_.back().count++;
+    commands_.back().count += count;
   }
 }
 
@@ -648,17 +648,15 @@ void Renderer::DrawRect(FVec2 top_left, FVec2 bottom_right, float angle) {
 void Renderer::DrawLine(FVec2 p0, FVec2 p1) {
   renderer_->ClearTexture();
   renderer_->BeginLine();
-  renderer_->PushLinePoint(p0);
-  renderer_->PushLinePoint(p1);
+  FVec2 ps[2] = {p0, p1};
+  renderer_->PushLinePoints(ps, 2);
   renderer_->FinishLine();
 }
 
 void Renderer::DrawLines(const FVec2* ps, size_t n) {
   renderer_->ClearTexture();
   renderer_->BeginLine();
-  for (size_t i = 0; i < n; ++i) {
-    renderer_->PushLinePoint(ps[i]);
-  }
+  renderer_->PushLinePoints(ps, n);
   renderer_->FinishLine();
 }
 

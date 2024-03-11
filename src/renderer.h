@@ -53,7 +53,9 @@ class BatchRenderer {
 
   void FinishLine() { AddCommand(kEndLine, EndLine{}); }
 
-  void PushLinePoint(FVec2 p0) { AddCommand(kAddLinePoint, AddLinePoint{p0}); }
+  void PushLinePoints(const FVec2* ps, size_t n) {
+    AddCommand(kAddLinePoint, /*count=*/n, ps, n * sizeof(FVec2));
+  }
 
   void SetShaderProgram(std::string_view fragment_shader_name) {
     AddCommand(kSetShader, SetShader{StringIntern(fragment_shader_name)});
@@ -200,10 +202,11 @@ class BatchRenderer {
 
   template <typename T>
   void AddCommand(CommandType command, const T& data) {
-    AddCommand(command, &data, sizeof(data));
+    AddCommand(command, /*count=*/1, &data, sizeof(data));
   }
 
-  void AddCommand(CommandType type, const void* data, size_t size);
+  void AddCommand(CommandType type, uint32_t count, const void* data,
+                  size_t size);
 
   static constexpr size_t SizeOfCommand(CommandType t) {
     switch (t) {
