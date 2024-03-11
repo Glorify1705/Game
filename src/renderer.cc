@@ -67,7 +67,6 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
       commands_(1 << 20, allocator),
       tex_(256, allocator),
       screenshots_(64, allocator),
-      current_color_(Color::White()),
       shaders_(shaders),
       viewport_(viewport) {
   TIMER();
@@ -221,6 +220,7 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glBlendEquation(GL_FUNC_ADD));
   OPENGL_CALL(glDisable(GL_DEPTH_TEST));
   OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+  OPENGL_CALL(glEnable(GL_LINE_SMOOTH));
   // Compute size of data.
   size_t vertices_count = 0, indices_count = 0;
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
@@ -232,6 +232,10 @@ void BatchRenderer::Render(Allocator* scratch) {
       case kRenderTrig:
         vertices_count += 3;
         indices_count += 3;
+        break;
+      case kRenderLine:
+        vertices_count += 2;
+        indices_count += 2;
         break;
       default:
         // Other commands do not add vertices.
@@ -292,6 +296,20 @@ void BatchRenderer::Render(Allocator* scratch) {
           indices.Push(current + i);
         }
       }; break;
+      case kRenderLine: {
+        const RenderLine& l = c.line;
+        vertices.Push({.position = l.p0,
+                       .tex_coords = FVec(0, 0),
+                       .origin = FVec(0, 0),
+                       .angle = 0,
+                       .color = color});
+        vertices.Push({.position = l.p1,
+                       .tex_coords = FVec(0, 0),
+                       .origin = FVec(0, 0),
+                       .angle = 0,
+                       .color = color});
+        for (int i : {0, 1}) indices.Push(current + i);
+      }; break;
       case kSetColor:
         color = c.set_color.color;
         break;
@@ -346,9 +364,12 @@ void BatchRenderer::Render(Allocator* scratch) {
   size_t indices_end = 0;
   GLuint texture_unit = 0;
   FMat4x4 transform = FMat4x4::Identity();
+  GLint primitives = GL_TRIANGLES;
+  float line_width = 1.0;
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
     auto flush = [&] {
       if (indices_start == indices_end) return;
+      glLineWidth(line_width);
       glActiveTexture(GL_TEXTURE0 + texture_unit);
       shaders_->SetUniform("tex", texture_unit);
       shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
@@ -359,17 +380,26 @@ void BatchRenderer::Render(Allocator* scratch) {
           reinterpret_cast<uintptr_t>(&indices[indices_start]) -
           reinterpret_cast<uintptr_t>(&indices[0]);
       OPENGL_CALL(glDrawElementsInstanced(
-          GL_TRIANGLES, indices_end - indices_start, GL_UNSIGNED_INT,
+          primitives, indices_end - indices_start, GL_UNSIGNED_INT,
           reinterpret_cast<void*>(indices_start_ptr), 1));
       render_calls++;
       indices_start = indices_end;
     };
     switch (Command c; it.Read(&c)) {
       case kRenderQuad:
+        if (primitives != GL_TRIANGLES) flush();
+        primitives = GL_TRIANGLES;
         indices_end += 6;
         break;
       case kRenderTrig:
+        if (primitives != GL_TRIANGLES) flush();
+        primitives = GL_TRIANGLES;
         indices_end += 3;
+        break;
+      case kRenderLine:
+        if (primitives != GL_LINES) flush();
+        primitives = GL_LINES;
+        indices_end += 2;
         break;
       case kSetTransform:
         flush();
@@ -382,6 +412,10 @@ void BatchRenderer::Render(Allocator* scratch) {
       case kSetShader:
         flush();
         SwitchShaderProgram(c.set_shader.shader_handle);
+        break;
+      case kSetLineWidth:
+        flush();
+        line_width = c.set_line_width.width;
         break;
       case kSetColor:
         break;
@@ -397,8 +431,11 @@ void BatchRenderer::Render(Allocator* scratch) {
     shaders_->SetUniform("tex", noop_texture_);
     shaders_->SetUniform("global_color", FVec4(1, 0, 0, 0.7));
     FMat4x4 transform = FMat4x4::Identity();
+    GLint primitives = GL_TRIANGLES;
+    float line_width = 1.0;
     auto flush = [&] {
       if (indices_start == indices_end) return;
+      glLineWidth(line_width);
       shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
       shaders_->SetUniform("transform", transform);
       OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
@@ -413,10 +450,19 @@ void BatchRenderer::Render(Allocator* scratch) {
     for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
       switch (Command c; it.Read(&c)) {
         case kRenderQuad:
+          if (primitives != GL_TRIANGLES) flush();
+          primitives = GL_TRIANGLES;
           indices_end += 6;
           break;
         case kRenderTrig:
+          if (primitives != GL_TRIANGLES) flush();
+          primitives = GL_TRIANGLES;
           indices_end += 3;
+          break;
+        case kRenderLine:
+          if (primitives != GL_LINES) flush();
+          primitives = GL_LINES;
+          indices_end += 2;
           break;
         case kSetTransform:
           flush();
@@ -432,6 +478,10 @@ void BatchRenderer::Render(Allocator* scratch) {
         case kSetShader:
           // Not gonna use the shader here since its debug drawing.
           flush();
+          break;
+        case kSetLineWidth:
+          flush();
+          line_width = c.set_line_width.width;
           break;
         case kDone:
           flush();
@@ -530,6 +580,8 @@ void Renderer::BeginFrame() {
   transform_stack_.Clear();
   transform_stack_.Push(FMat4x4::Identity());
   ApplyTransform(FMat4x4::Identity());
+  SetColor(Color::White());
+  SetLineWidth(1.0f);
 }
 
 void Renderer::Push() { transform_stack_.Push(transform_stack_.back()); }
@@ -540,7 +592,17 @@ void Renderer::Pop() {
 }
 
 Color Renderer::SetColor(Color color) {
-  return renderer_->SetActiveColor(color);
+  auto result = color_;
+  color_ = color;
+  renderer_->SetActiveColor(color);
+  return result;
+}
+
+float Renderer::SetLineWidth(float width) {
+  auto result = line_width_;
+  line_width_ = width;
+  renderer_->SetActiveLineWidth(width);
+  return result;
 }
 
 void Renderer::Draw(std::string_view spritename, FVec2 position, float angle) {
@@ -576,6 +638,11 @@ void Renderer::DrawRect(FVec2 top_left, FVec2 bottom_right, float angle) {
   const FVec2 center = (top_left + bottom_right) / 2;
   renderer_->PushQuad(top_left, bottom_right, FVec(0, 0), FVec(1, 1),
                       /*origin=*/center, angle);
+}
+
+void Renderer::DrawLine(FVec2 p0, FVec2 p1) {
+  renderer_->ClearTexture();
+  renderer_->PushLine(p0, p1);
 }
 
 void Renderer::DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3) {
@@ -668,7 +735,7 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
   const FontInfo* info = LoadFont(font_name, size);
   renderer_->SetActiveTexture(info->texture);
   FVec2 p = position;
-  const Color color = renderer_->SetActiveColor(Color::White());
+  const Color color = SetColor(Color::White());
   for (size_t i = 0; i < str.size();) {
     const char c = str[i];
     if (c == '\033') {

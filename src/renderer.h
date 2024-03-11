@@ -33,11 +33,8 @@ class BatchRenderer {
 
   void ClearTexture() { SetActiveTexture(noop_texture_); }
 
-  Color SetActiveColor(const Color& color) {
+  void SetActiveColor(const Color& color) {
     AddCommand(kSetColor, SetColor{color});
-    auto result = current_color_;
-    current_color_ = color;
-    return result;
   }
 
   void SetActiveTransform(const FMat4x4& transform) {
@@ -52,15 +49,21 @@ class BatchRenderer {
                     FVec2 q2) {
     AddCommand(kRenderTrig, RenderTriangle{p0, p1, p2, q0, q1, q2});
   }
+  void PushLine(FVec2 p0, FVec2 p1) {
+    AddCommand(kRenderLine, RenderLine{p0, p1});
+  }
 
   void SetShaderProgram(std::string_view fragment_shader_name) {
     AddCommand(kSetShader, SetShader{StringIntern(fragment_shader_name)});
   }
 
+  void SetActiveLineWidth(float width) {
+    AddCommand(kSetLineWidth, SetLineWidth{width});
+  }
+
   void Clear() {
     commands_.Clear();
     pos_ = 0;
-    current_color_ = Color::White();
   }
 
   void Finish() { AddCommand(kDone, DoneCommand{}); }
@@ -92,10 +95,12 @@ class BatchRenderer {
   enum CommandType : uint32_t {
     kRenderQuad = 1,
     kRenderTrig,
+    kRenderLine,
     kSetTexture,
     kSetColor,
     kSetTransform,
     kSetShader,
+    kSetLineWidth,
     kDone
   };
 
@@ -126,6 +131,14 @@ class BatchRenderer {
     uint32_t shader_handle;
   };
 
+  struct RenderLine {
+    FVec2 p0, p1;
+  };
+
+  struct SetLineWidth {
+    float width;
+  };
+
   inline static constexpr uint32_t kMaxCount = 1 << 20;
 
   struct QueueEntry {
@@ -136,9 +149,11 @@ class BatchRenderer {
   union Command {
     RenderQuad quad;
     RenderTriangle triangle;
+    RenderLine line;
     SetTexture set_texture;
     SetColor set_color;
     SetTransform set_transform;
+    SetLineWidth set_line_width;
     SetShader set_shader;
   };
 
@@ -186,6 +201,8 @@ class BatchRenderer {
         return sizeof(RenderQuad);
       case kRenderTrig:
         return sizeof(RenderTriangle);
+      case kRenderLine:
+        return sizeof(RenderLine);
       case kSetTexture:
         return sizeof(SetTexture);
       case kSetColor:
@@ -194,6 +211,8 @@ class BatchRenderer {
         return sizeof(SetTransform);
       case kSetShader:
         return sizeof(SetShader);
+      case kSetLineWidth:
+        return sizeof(SetLineWidth);
       case kDone:
         return 0;
     }
@@ -206,6 +225,8 @@ class BatchRenderer {
         return "RENDER_QUAD";
       case kRenderTrig:
         return "RENDER_TRIANGLE";
+      case kRenderLine:
+        return "RENDER_LINE";
       case kSetTexture:
         return "SET_TEXTURE";
       case kSetColor:
@@ -214,6 +235,8 @@ class BatchRenderer {
         return "SET_TRANSFORM";
       case kSetShader:
         return "SET_SHADER";
+      case kSetLineWidth:
+        return "SET_LINE_WIDTH";
       case kDone:
         return "DONE";
     }
@@ -228,7 +251,6 @@ class BatchRenderer {
   FixedArray<QueueEntry> commands_;
   FixedArray<GLuint> tex_;
   FixedArray<ScreenshotRequest> screenshots_;
-  Color current_color_;
   Shaders* shaders_;
   GLuint ebo_, vao_, vbo_;
   size_t noop_texture_;
@@ -254,10 +276,15 @@ class Renderer {
   // Returns the previous color.
   Color SetColor(Color color);
 
+  // Returns the previous width.
+  float SetLineWidth(float width);
+
   void DrawRect(FVec2 top_left, FVec2 bottom_right, float angle);
   void DrawCircle(FVec2 center, float radius);
   void DrawText(std::string_view font_name, uint32_t size, std::string_view str,
                 FVec2 position);
+  void DrawLine(FVec2 p0, FVec2 p1);
+
   IVec2 TextDimensions(std::string_view font_name, uint32_t size,
                        std::string_view str);
   void DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3);
@@ -294,6 +321,9 @@ class Renderer {
     transform_stack_.back() = mat * transform_stack_.back();
     renderer_->SetActiveTransform(transform_stack_.back());
   }
+
+  Color color_;
+  float line_width_;
 
   Allocator* allocator_;
   const Assets* assets_;

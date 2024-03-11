@@ -257,6 +257,16 @@ const struct luaL_Reg kGraphicsLib[] = {
        renderer->DrawTriangle(p1, p2, p3);
        return 0;
      }},
+    {"draw_line",
+     [](lua_State* state) {
+       const auto p1 =
+           FVec(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
+       const auto p2 =
+           FVec(luaL_checknumber(state, 4), luaL_checknumber(state, 4));
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawLine(p1, p2);
+       return 0;
+     }},
     {"draw_text",
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
