@@ -49,9 +49,11 @@ class BatchRenderer {
                     FVec2 q2) {
     AddCommand(kRenderTrig, RenderTriangle{p0, p1, p2, q0, q1, q2});
   }
-  void PushLine(FVec2 p0, FVec2 p1) {
-    AddCommand(kRenderLine, RenderLine{p0, p1});
-  }
+  void BeginLine() { AddCommand(kStartLine, StartLine{}); }
+
+  void FinishLine() { AddCommand(kEndLine, EndLine{}); }
+
+  void PushLinePoint(FVec2 p0) { AddCommand(kAddLinePoint, AddLinePoint{p0}); }
 
   void SetShaderProgram(std::string_view fragment_shader_name) {
     AddCommand(kSetShader, SetShader{StringIntern(fragment_shader_name)});
@@ -95,7 +97,9 @@ class BatchRenderer {
   enum CommandType : uint32_t {
     kRenderQuad = 1,
     kRenderTrig,
-    kRenderLine,
+    kStartLine,
+    kAddLinePoint,
+    kEndLine,
     kSetTexture,
     kSetColor,
     kSetTransform,
@@ -131,9 +135,13 @@ class BatchRenderer {
     uint32_t shader_handle;
   };
 
-  struct RenderLine {
-    FVec2 p0, p1;
+  struct StartLine {};
+
+  struct AddLinePoint {
+    FVec2 p0;
   };
+
+  struct EndLine {};
 
   struct SetLineWidth {
     float width;
@@ -149,7 +157,9 @@ class BatchRenderer {
   union Command {
     RenderQuad quad;
     RenderTriangle triangle;
-    RenderLine line;
+    StartLine start_line;
+    AddLinePoint add_line_point;
+    EndLine end_line;
     SetTexture set_texture;
     SetColor set_color;
     SetTransform set_transform;
@@ -201,8 +211,12 @@ class BatchRenderer {
         return sizeof(RenderQuad);
       case kRenderTrig:
         return sizeof(RenderTriangle);
-      case kRenderLine:
-        return sizeof(RenderLine);
+      case kStartLine:
+        return sizeof(StartLine);
+      case kAddLinePoint:
+        return sizeof(AddLinePoint);
+      case kEndLine:
+        return sizeof(EndLine);
       case kSetTexture:
         return sizeof(SetTexture);
       case kSetColor:
@@ -225,8 +239,12 @@ class BatchRenderer {
         return "RENDER_QUAD";
       case kRenderTrig:
         return "RENDER_TRIANGLE";
-      case kRenderLine:
-        return "RENDER_LINE";
+      case kStartLine:
+        return "START_LINE";
+      case kAddLinePoint:
+        return "ADD_LINE_POINT";
+      case kEndLine:
+        return "END_LINE";
       case kSetTexture:
         return "SET_TEXTURE";
       case kSetColor:
@@ -284,6 +302,7 @@ class Renderer {
   void DrawText(std::string_view font_name, uint32_t size, std::string_view str,
                 FVec2 position);
   void DrawLine(FVec2 p0, FVec2 p1);
+  void DrawLines(const FVec2* ps, size_t n);
 
   IVec2 TextDimensions(std::string_view font_name, uint32_t size,
                        std::string_view str);

@@ -233,9 +233,9 @@ void BatchRenderer::Render(Allocator* scratch) {
         vertices_count += 3;
         indices_count += 3;
         break;
-      case kRenderLine:
-        vertices_count += 2;
-        indices_count += 2;
+      case kAddLinePoint:
+        vertices_count += 1;
+        indices_count += 1;
         break;
       default:
         // Other commands do not add vertices.
@@ -296,19 +296,14 @@ void BatchRenderer::Render(Allocator* scratch) {
           indices.Push(current + i);
         }
       }; break;
-      case kRenderLine: {
-        const RenderLine& l = c.line;
+      case kAddLinePoint: {
+        const AddLinePoint& l = c.add_line_point;
         vertices.Push({.position = l.p0,
                        .tex_coords = FVec(0, 0),
                        .origin = FVec(0, 0),
                        .angle = 0,
                        .color = color});
-        vertices.Push({.position = l.p1,
-                       .tex_coords = FVec(0, 0),
-                       .origin = FVec(0, 0),
-                       .angle = 0,
-                       .color = color});
-        for (int i : {0, 1}) indices.Push(current + i);
+        indices.Push(current);
       }; break;
       case kSetColor:
         color = c.set_color.color;
@@ -396,10 +391,15 @@ void BatchRenderer::Render(Allocator* scratch) {
         primitives = GL_TRIANGLES;
         indices_end += 3;
         break;
-      case kRenderLine:
-        if (primitives != GL_LINES) flush();
-        primitives = GL_LINES;
-        indices_end += 2;
+      case kStartLine:
+        if (primitives != GL_LINE_STRIP) flush();
+        primitives = GL_LINE_STRIP;
+        break;
+      case kAddLinePoint:
+        indices_end += 1;
+        break;
+      case kEndLine:
+        flush();
         break;
       case kSetTransform:
         flush();
@@ -459,10 +459,15 @@ void BatchRenderer::Render(Allocator* scratch) {
           primitives = GL_TRIANGLES;
           indices_end += 3;
           break;
-        case kRenderLine:
-          if (primitives != GL_LINES) flush();
-          primitives = GL_LINES;
-          indices_end += 2;
+        case kStartLine:
+          if (primitives != GL_LINE_STRIP) flush();
+          primitives = GL_LINE_STRIP;
+          break;
+        case kAddLinePoint:
+          indices_end += 1;
+          break;
+        case kEndLine:
+          flush();
           break;
         case kSetTransform:
           flush();
@@ -642,7 +647,19 @@ void Renderer::DrawRect(FVec2 top_left, FVec2 bottom_right, float angle) {
 
 void Renderer::DrawLine(FVec2 p0, FVec2 p1) {
   renderer_->ClearTexture();
-  renderer_->PushLine(p0, p1);
+  renderer_->BeginLine();
+  renderer_->PushLinePoint(p0);
+  renderer_->PushLinePoint(p1);
+  renderer_->FinishLine();
+}
+
+void Renderer::DrawLines(const FVec2* ps, size_t n) {
+  renderer_->ClearTexture();
+  renderer_->BeginLine();
+  for (size_t i = 0; i < n; ++i) {
+    renderer_->PushLinePoint(ps[i]);
+  }
+  renderer_->FinishLine();
 }
 
 void Renderer::DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3) {

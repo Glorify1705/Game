@@ -267,6 +267,29 @@ const struct luaL_Reg kGraphicsLib[] = {
        renderer->DrawLine(p1, p2);
        return 0;
      }},
+    {"draw_lines",
+     [](lua_State* state) {
+       if (!lua_istable(state, 1)) {
+         LUA_ERROR(state, "not a table");
+         return 0;
+       }
+       const size_t n = lua_objlen(state, 1);
+       ArenaAllocator scratch(GetAllocator(state), (n + 1) * sizeof(FVec2));
+       FixedArray<FVec2> temp(n, &scratch);
+       for (size_t i = 1; i <= n; ++i) {
+         lua_rawgeti(state, 1, i);
+         lua_rawgeti(state, -1, 1);
+         float x = luaL_checknumber(state, -1);
+         lua_pop(state, 1);
+         lua_rawgeti(state, -1, 2);
+         float y = luaL_checknumber(state, -1);
+         lua_pop(state, 2);
+         temp.Push(FVec(x, y));
+       }
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawLines(temp.data(), temp.size());
+       return 0;
+     }},
     {"draw_text",
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
