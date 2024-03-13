@@ -193,7 +193,7 @@ struct EngineModules {
 
   void HandleEvent(const SDL_Event& event) {
     if (event.type == SDL_WINDOWEVENT) {
-      if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+      if (config->resizable && event.window.event == SDL_WINDOWEVENT_RESIZED) {
         IVec2 new_viewport(event.window.data1, event.window.data2);
         batch_renderer.SetViewport(new_viewport);
         physics.UpdateDimensions(new_viewport);
