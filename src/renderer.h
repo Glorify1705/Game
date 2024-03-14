@@ -280,7 +280,7 @@ class BatchRenderer {
   GLuint render_target_, downsampled_target_, render_texture_,
       downsampled_texture_, depth_buffer_;
   GLint antialiasing_samples_;
-  IVec2 viewport_;
+  IVec2 viewport_, original_viewport_;
   bool debug_render_ = false;
 };
 

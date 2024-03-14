@@ -1,1 +1,1 @@
-return require('testcoroutines')
+return require('renderertest')

@@ -10,7 +10,6 @@
 #include "transformations.h"
 
 namespace G {
-namespace {}  // namespace
 
 constexpr size_t kCommandMemory = 1 << 24;
 
@@ -68,7 +67,8 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
       tex_(256, allocator),
       screenshots_(64, allocator),
       shaders_(shaders),
-      viewport_(viewport) {
+      viewport_(viewport),
+      original_viewport_(viewport) {
   TIMER();
   glGetIntegerv(GL_MAX_SAMPLES, &antialiasing_samples_);
   LOG("Using ", antialiasing_samples_, " MSAA samples");
@@ -145,26 +145,7 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   SetActiveTexture(noop_texture_);
 }
 
-void BatchRenderer::SetViewport(IVec2 viewport) {
-  if (viewport_ == viewport) return;
-  // Rebind texture, downsampled and depth buffer to the size.
-  OPENGL_CALL(glActiveTexture(GL_TEXTURE0));
-  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
-  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, render_texture_));
-  OPENGL_CALL(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE,
-                                      antialiasing_samples_, GL_RGBA,
-                                      viewport.x, viewport.y, GL_TRUE));
-  OPENGL_CALL(glActiveTexture(GL_TEXTURE1));
-  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, downsampled_target_));
-  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
-  OPENGL_CALL(glTexImage2D(
-      GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport.x, viewport.y,
-      /*border=*/0, GL_RGBA, GL_UNSIGNED_BYTE, /*pixels=*/nullptr));
-  OPENGL_CALL(glRenderbufferStorageMultisample(
-      GL_RENDERBUFFER, antialiasing_samples_, GL_DEPTH24_STENCIL8, viewport.x,
-      viewport.y));
-  viewport_ = viewport;
-}
+void BatchRenderer::SetViewport(IVec2 viewport) { viewport_ = viewport; }
 
 size_t BatchRenderer::LoadTexture(const ImageAsset& image) {
   TIMER("Decoding ", FlatbufferStringview(image.name()));
@@ -212,7 +193,7 @@ size_t BatchRenderer::LoadTexture(const void* data, size_t width,
 void BatchRenderer::Render(Allocator* scratch) {
   // Setup OpenGL state.
   OPENGL_CALL(glEnable(GL_MULTISAMPLE));
-  OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
+  OPENGL_CALL(glViewport(0, 0, original_viewport_.x, original_viewport_.y));
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
   OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
   OPENGL_CALL(glEnable(GL_BLEND));
@@ -495,7 +476,7 @@ void BatchRenderer::Render(Allocator* scratch) {
     }
   }
   // Downsample framebuffer.
-  glActiveTexture(GL_TEXTURE0);
+  OPENGL_CALL(glActiveTexture(GL_TEXTURE0));
   OPENGL_CALL(glBindFramebuffer(GL_READ_FRAMEBUFFER, render_target_));
   OPENGL_CALL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, downsampled_target_));
   OPENGL_CALL(glBlitFramebuffer(0, 0, viewport_.x, viewport_.y, 0, 0,
@@ -506,6 +487,7 @@ void BatchRenderer::Render(Allocator* scratch) {
   TakeScreenshots();
   OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
   OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+  OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   SwitchShaderProgram("post_pass");
   glActiveTexture(GL_TEXTURE1);
   shaders_->SetUniform("screen_texture", 1);

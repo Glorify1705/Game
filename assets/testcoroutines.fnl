@@ -1,5 +1,5 @@
 (local Object (require :classic))
-(local Queue (require :queue))
+(local queue (require :queue))
 
 (local *text* "Strange game, the only winning move is not to play!")
 
@@ -71,7 +71,7 @@
 (fn Room.new [r name]
   (tset r :name name)
   (tset r :objects [])
-  (tset r :actions (Queue)))
+  (tset r :actions (queue.create)))
 
 (fn Room.init [])
 
@@ -79,17 +79,17 @@
   (table.insert r.objects o))
 
 (fn Room.add-action! [r a]
-  (r.actions:push! a))
+  (queue.push! r.actions a))
 
 (fn Room.update [r t dt]
   ;; Update objects
   (each [_ o (ipairs r.objects)]
     (o:update t dt))
   ;; Update actions
-  (when (not (r.actions:empty?))
-    (let [a (r.actions:peek)]
+  (when (not (queue.empty? r.actions))
+    (let [a (queue.peek r.actions)]
       (a:update t dt)
-      (when (a:finished?) (r.actions:pop!)))))
+      (when (a:finished?) (queue.pop! r.actions)))))
 
 (fn Room.draw [r]
   (each [_ o (ipairs r.objects)]
@@ -139,6 +139,7 @@
   (switch-room! g :menu))
 
 (fn Game.update [g t dt]
+  (G.graphics.draw_lines [[0 0] [300 300] [300 600] [600 600]])
   (when g.current (g.current:update t dt)))
 
 (fn Game.draw [g]

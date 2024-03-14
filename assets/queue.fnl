@@ -1,18 +1,14 @@
-(local Object (require :classic))
+(local queue {})
 
-(local Queue (Object:extend))
+(fn queue.create []
+  {:elements [] :first 1 :last 0})
 
-(fn Queue.new [q]
-  (tset q :elements [])
-  (tset q :first 1)
-  (tset q :last 0))
+(fn queue.empty? [q] (< q.last q.first))
 
-(fn Queue.empty? [q] (< q.last q.first))
+(fn queue.peek [q] (. q.elements q.first))
 
-(fn Queue.peek [q] (. q.elements q.first))
+(fn queue.pop! [q] (tset q :first (+ q.first 1)))
 
-(fn Queue.pop! [q] (tset q :first (+ q.first 1)))
+(fn queue.push! [q e] (table.insert q.elements e) (tset q :last (+ q.last 1)))
 
-(fn Queue.push! [q e] (table.insert q.elements e) (tset q :last (+ q.last 1)))
-
-Queue
+queue
