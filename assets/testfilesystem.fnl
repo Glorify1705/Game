@@ -11,9 +11,9 @@
 
 (fn Game.draw [self]
   (when Game.contents
-    (G.graphics.draw_text :ponderosa.ttf 24 Game.contents 200 200))
-  (G.graphics.draw_text :ponderosa.ttf 24
-                        (.. "Hash: " (tostring (G.data.hash Game.contents))) 300
-                        300))
+    (G.graphics.draw_text :ponderosa.ttf 24
+                          (.. "Contents: " Game.contents "\nHash: "
+                              (G.data.hash Game.contents))
+                          200 200)))
 
 Game

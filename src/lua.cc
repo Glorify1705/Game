@@ -1342,7 +1342,7 @@ void Lua::LoadLibraries() {
                 /*register_count=*/0);
   LoadMetatable("random_number_generator", /*registers=*/nullptr,
                 /*register_count=*/0);
-  constexpr std::array<luaL_Reg, 3> kByteBufferMethods{
+  constexpr std::array<luaL_Reg, 4> kByteBufferMethods{
       {{"__index",
         [](lua_State* state) {
           auto* buffer = reinterpret_cast<ByteBuffer*>(
@@ -1362,12 +1362,29 @@ void Lua::LoadLibraries() {
           lua_pushinteger(state, buffer->size);
           return 1;
         }},
-       {"__tostring", [](lua_State* state) {
+       {"__tostring",
+        [](lua_State* state) {
           auto* buffer = reinterpret_cast<ByteBuffer*>(
               luaL_checkudata(state, 1, "byte_buffer"));
           lua_pushlstring(state,
                           reinterpret_cast<const char*>(buffer->contents),
                           buffer->size);
+          return 1;
+        }},
+       {"__concat", [](lua_State* state) {
+          lua_getglobal(state, "tostring");
+          lua_pushvalue(state, 1);
+          lua_call(state, 1, 1);
+          lua_getglobal(state, "tostring");
+          lua_pushvalue(state, 2);
+          lua_call(state, 1, 1);
+          std::string_view a = GetLuaString(state, -2);
+          std::string_view b = GetLuaString(state, -1);
+          luaL_Buffer buffer;
+          luaL_buffinit(state, &buffer);
+          luaL_addlstring(&buffer, a.data(), a.size());
+          luaL_addlstring(&buffer, b.data(), b.size());
+          luaL_pushresult(&buffer);
           return 1;
         }}}};
   LoadMetatable("byte_buffer", kByteBufferMethods.data(),
