@@ -289,7 +289,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const auto p1 =
            FVec(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
        const auto p2 =
-           FVec(luaL_checknumber(state, 4), luaL_checknumber(state, 4));
+           FVec(luaL_checknumber(state, 3), luaL_checknumber(state, 4));
        const auto p3 =
            FVec(luaL_checknumber(state, 5), luaL_checknumber(state, 6));
        auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -864,7 +864,8 @@ const struct luaL_Reg kAssetsLib[] = {
        lua_setmetatable(state, -2);
        return 1;
      }},
-    {"sprite_info", [](lua_State* state) {
+    {"sprite_info",
+     [](lua_State* state) {
        const SpriteAsset* ptr = nullptr;
        if (lua_isstring(state, 1)) {
          auto* assets = Registry<Assets>::Retrieve(state);
@@ -882,6 +883,33 @@ const struct luaL_Reg kAssetsLib[] = {
        lua_setfield(state, -2, "width");
        lua_pushnumber(state, ptr->height());
        lua_setfield(state, -2, "height");
+       return 1;
+     }},
+    {"list_sprites", [](lua_State* state) {
+       auto* assets = Registry<Assets>::Retrieve(state);
+       lua_newtable(state);
+       for (size_t i = 0; i < assets->sprites(); ++i) {
+         const SpriteAsset* asset = assets->GetSpriteByIndex(i);
+         lua_pushlstring(state,
+                         reinterpret_cast<const char*>(asset->name()->Data()),
+                         asset->name()->size());
+         lua_newtable(state);
+         lua_pushnumber(state, asset->width());
+         lua_setfield(state, -2, "width");
+         lua_pushnumber(state, asset->height());
+         lua_setfield(state, -2, "height");
+         lua_pushnumber(state, asset->x());
+         lua_setfield(state, -2, "x");
+         lua_pushnumber(state, asset->y());
+         lua_setfield(state, -2, "y");
+         const SpritesheetAsset* spritesheet =
+             assets->GetSpritesheetByIndex(asset->spritesheet());
+         lua_pushlstring(
+             state, reinterpret_cast<const char*>(spritesheet->name()->Data()),
+             spritesheet->name()->size());
+         lua_setfield(state, -2, "spritesheet");
+         lua_settable(state, -2);
+       }
        return 1;
      }}};
 
