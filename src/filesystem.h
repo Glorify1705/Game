@@ -73,6 +73,8 @@ class Filesystem {
 
   bool Stat(std::string_view filename, StatInfo* info, StringBuffer* err);
 
+  bool Exists(std::string_view filename);
+
   using DirCallback = PHYSFS_EnumerateCallbackResult (*)(void* userdata,
                                                          const char* file,
                                                          const char* dir);

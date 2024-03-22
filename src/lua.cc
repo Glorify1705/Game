@@ -15,12 +15,13 @@
 namespace G {
 namespace {
 
-#define LUA_ERROR(state, ...)                                       \
-  do {                                                              \
-    FixedStringBuffer<kMaxLogLineLength> _luaerror_buffer;          \
-    _luaerror_buffer.Append("[", Basename(__FILE__), ":", __LINE__, \
-                            "]: ", ##__VA_ARGS__);                  \
-    luaL_error(state, "%s", _luaerror_buffer);                      \
+#define LUA_ERROR(state, ...)                                                \
+  do {                                                                       \
+    FixedStringBuffer<kMaxLogLineLength> _luaerror_buffer;                   \
+    _luaerror_buffer.Append("[", Basename(__FILE__), ":", __LINE__,          \
+                            "]: ", ##__VA_ARGS__);                           \
+    lua_pushlstring(state, _luaerror_buffer.str(), _luaerror_buffer.size()); \
+    lua_error(state);                                                        \
   } while (0);
 
 Allocator* GetAllocator(lua_State* state) {
@@ -178,6 +179,44 @@ std::string_view GetLuaString(lua_State* state, int index) {
   return std::string_view(data, len);
 }
 
+PHYSFS_EnumerateCallbackResult LuaListDirectory(void* userdata, const char* dir,
+                                                const char* file) {
+  auto* state = static_cast<lua_State*>(userdata);
+  FixedStringBuffer<kMaxPathLength> buf(dir, dir[0] ? "/" : "", file);
+  lua_pushlstring(state, buf.str(), buf.size());
+  lua_rawseti(state, -2, lua_objlen(state, -2) + 1);
+  return PHYSFS_ENUM_OK;
+}
+
+struct ByteBuffer {
+  size_t size;
+  uint8_t contents[];
+};
+
+int LoadFileIntoBuffer(lua_State* state, std::string_view filename) {
+  auto* filesystem = Registry<Filesystem>::Retrieve(state);
+  FixedStringBuffer<kMaxLogLineLength> err;
+  size_t size = 0;
+  if (!filesystem->Size(filename, &size, &err)) {
+    lua_pushnil(state);
+    lua_pushlstring(state, err.str(), err.size());
+    return 2;
+  }
+  auto* buf = static_cast<ByteBuffer*>(
+      lua_newuserdata(state, sizeof(ByteBuffer) + size));
+  buf->size = size;
+  luaL_getmetatable(state, "byte_buffer");
+  lua_setmetatable(state, -2);
+  if (filesystem->ReadFile(filename, buf->contents, buf->size, &err)) {
+    lua_pushnil(state);
+  } else {
+    lua_pop(state, 1);  // Pop the userdata, it will be GCed.
+    lua_pushnil(state);
+    lua_pushlstring(state, err.str(), err.size());
+  }
+  return 2;
+}
+
 const struct luaL_Reg kGraphicsLib[] = {
     {"draw_sprite",
      [](lua_State* state) {
@@ -295,7 +334,20 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        std::string_view font = GetLuaString(state, 1);
        const uint32_t font_size = luaL_checkinteger(state, 2);
-       std::string_view text = GetLuaString(state, 3);
+       std::string_view text;
+       switch (lua_type(state, 3)) {
+         case LUA_TSTRING:
+           text = GetLuaString(state, 3);
+           break;
+         case LUA_TUSERDATA: {
+           auto* buf = reinterpret_cast<ByteBuffer*>(
+               luaL_checkudata(state, 3, "byte_buffer"));
+           text = std::string_view(reinterpret_cast<const char*>(buf->contents),
+                                   buf->size);
+         }; break;
+         default:
+           LUA_ERROR(state, "Argument 3 cannot be printed");
+       }
        const float x = luaL_checknumber(state, 4);
        const float y = luaL_checknumber(state, 5);
        renderer->DrawText(font, font_size, text, FVec(x, y));
@@ -515,13 +567,28 @@ const struct luaL_Reg kGraphicsLib[] = {
        }
        return 0;
      }},
-    {"send_f4x4_uniform", [](lua_State* state) {
+    {"send_f4x4_uniform",
+     [](lua_State* state) {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
        if (!shaders->SetUniform(name, FromLuaTable<FMat4x4>(state, 2))) {
          LUA_ERROR(state, "Could not set uniform ", name, ": ",
                    shaders->LastError());
        }
+       return 0;
+     }},
+    {"new_canvas",
+     [](lua_State* state) {
+       LUA_ERROR(state, "Unimplemented");
+       return 0;
+     }},
+    {"set_canvas",
+     [](lua_State* state) {
+       LUA_ERROR(state, "Unimplemented");
+       return 0;
+     }},
+    {"draw_canvas", [](lua_State* state) {
+       LUA_ERROR(state, "Unimplemented");
        return 0;
      }}};
 
@@ -818,15 +885,6 @@ const struct luaL_Reg kAssetsLib[] = {
        return 1;
      }}};
 
-PHYSFS_EnumerateCallbackResult LuaListDirectory(void* userdata, const char* dir,
-                                                const char* file) {
-  auto* state = static_cast<lua_State*>(userdata);
-  FixedStringBuffer<kMaxPathLength> buf(dir, dir[0] ? "/" : "", file);
-  lua_pushlstring(state, buf.str(), buf.size());
-  lua_rawseti(state, -2, lua_objlen(state, -2) + 1);
-  return PHYSFS_ENUM_OK;
-}
-
 const struct luaL_Reg kFilesystem[] = {
     {"spit",
      [](lua_State* state) {
@@ -843,26 +901,17 @@ const struct luaL_Reg kFilesystem[] = {
      }},
     {"slurp",
      [](lua_State* state) {
-       auto* filesystem = Registry<Filesystem>::Retrieve(state);
-       std::string_view name = GetLuaString(state, 1);
-       FixedStringBuffer<kMaxLogLineLength> err;
-       size_t size = 0;
-       if (!filesystem->Size(name, &size, &err)) {
-         lua_pushnil(state);
-         lua_pushlstring(state, err.str(), err.size());
-         return 2;
-       }
-       auto* allocator = GetAllocator(state);
-       uint8_t* buf = NewArray<uint8_t>(size, allocator);
-       if (filesystem->ReadFile(name, buf, size, &err)) {
-         lua_pushlstring(state, reinterpret_cast<char*>(buf), size);
-         lua_pushnil(state);
-       } else {
-         lua_pushnil(state);
-         lua_pushlstring(state, err.str(), err.size());
-       }
-       DeallocArray(buf, size, allocator);
-       return 2;
+       return LoadFileIntoBuffer(state, GetLuaString(state, 1));
+     }},
+    {"load_lua",
+     [](lua_State* state) {
+       LUA_ERROR(state, "Unimplemented");
+       return 0;
+     }},
+    {"save_lua",
+     [](lua_State* state) {
+       LUA_ERROR(state, "Unimplemented");
+       return 0;
      }},
     {"list_directory",
      [](lua_State* state) {
@@ -872,13 +921,33 @@ const struct luaL_Reg kFilesystem[] = {
        filesystem->EnumerateDirectory(name, LuaListDirectory, state);
        return 1;
      }},
+    {"exists",
+     [](lua_State* state) {
+       auto* filesystem = Registry<Filesystem>::Retrieve(state);
+       std::string_view name = GetLuaString(state, 1);
+       lua_pushboolean(state, filesystem->Exists(name));
+       return 1;
+     }},
 };
 
 const struct luaL_Reg kDataLib[] = {
     {"hash", [](lua_State* state) {
-       size_t l;
-       const char* s = luaL_checklstring(state, 1, &l);
-       lua_pushnumber(state, XXH64(s, l, 0xC0D315D474));
+       std::string_view contents;
+       switch (lua_type(state, 1)) {
+         case LUA_TSTRING:
+           contents = GetLuaString(state, 1);
+           break;
+         case LUA_TUSERDATA: {
+           auto* buf = reinterpret_cast<ByteBuffer*>(
+               luaL_checkudata(state, 1, "byte_buffer"));
+           contents = std::string_view(
+               reinterpret_cast<const char*>(buf->contents), buf->size);
+         }; break;
+         default:
+           LUA_ERROR(state, "Argument 1 cannot be hashed");
+       }
+       lua_pushnumber(state,
+                      XXH64(contents.data(), contents.size(), 0xC0D315D474));
        return 1;
      }}};
 
@@ -1116,7 +1185,7 @@ const struct luaL_Reg kRandomLib[] = {
        auto* handle =
            static_cast<pcg32*>(lua_newuserdata(state, sizeof(pcg64)));
        handle->seed(luaL_checkinteger(state, 1));
-       luaL_getmetatable(state, "rng");
+       luaL_getmetatable(state, "random_number_generator");
        lua_setmetatable(state, -2);
        return 1;
      }},
@@ -1126,13 +1195,14 @@ const struct luaL_Reg kRandomLib[] = {
        auto* handle =
            static_cast<pcg32*>(lua_newuserdata(state, sizeof(pcg64)));
        handle->seed(seed_source);
-       luaL_getmetatable(state, "rng");
+       luaL_getmetatable(state, "random_number_generator");
        lua_setmetatable(state, -2);
        return 1;
      }},
     {"sample",
      [](lua_State* state) {
-       auto* handle = static_cast<pcg32*>(luaL_checkudata(state, 1, "rng"));
+       auto* handle = static_cast<pcg32*>(
+           luaL_checkudata(state, 1, "random_number_generator"));
        lua_Number randnum = (*handle)();
        switch (lua_gettop(state)) {
          case 1:
@@ -1152,7 +1222,8 @@ const struct luaL_Reg kRandomLib[] = {
        if (lua_gettop(state) != 2) {
          LUA_ERROR(state, "Insufficient arguments");
        }
-       auto* handle = static_cast<pcg32*>(luaL_checkudata(state, 1, "rng"));
+       auto* handle = static_cast<pcg32*>(
+           luaL_checkudata(state, 1, "random_number_generator"));
        if (!lua_istable(state, 2)) {
          LUA_ERROR(state, "Did not pass a sequential table");
        }
@@ -1242,6 +1313,19 @@ void Lua::Crash() {
     return;                    \
   }
 
+void Lua::LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
+                        size_t register_count) {
+  luaL_newmetatable(state_, metatable_name);
+  if (registers == nullptr) return;
+  for (size_t i = 0; i < register_count; ++i) {
+    const luaL_Reg& r = registers[i];
+    lua_pushstring(state_, r.name);
+    lua_pushcfunction(state_, r.func);
+    lua_settable(state_, -3);
+  }
+  lua_pop(state_, 1);  // Pop the metatable from the stack.
+}
+
 void Lua::LoadLibraries() {
   if (state_ != nullptr) lua_close(state_);
   state_ = lua_newstate(&Lua::LuaAlloc, this);
@@ -1253,10 +1337,41 @@ void Lua::LoadLibraries() {
   });
   READY();
   Register(this);
-  luaL_newmetatable(state_, "physics_handle");
-  luaL_newmetatable(state_, "asset_subtexture_ptr");
-  luaL_newmetatable(state_, "rng");
-  lua_pop(state_, 2);
+  LoadMetatable("physics_handle", /*registers=*/nullptr, /*register_count=*/0);
+  LoadMetatable("asset_subtexture_ptr", /*registers=*/nullptr,
+                /*register_count=*/0);
+  LoadMetatable("random_number_generator", /*registers=*/nullptr,
+                /*register_count=*/0);
+  constexpr std::array<luaL_Reg, 3> kByteBufferMethods{
+      {{"__index",
+        [](lua_State* state) {
+          auto* buffer = reinterpret_cast<ByteBuffer*>(
+              luaL_checkudata(state, 1, "byte_buffer"));
+          size_t index = luaL_checkinteger(state, 2);
+          if (index <= 0 || index > buffer->size) {
+            LUA_ERROR(state, "Index out of bounds ", index,
+                      " not in range [1, ", buffer->size, "]");
+          }
+          lua_pushinteger(state, buffer->contents[index]);
+          return 1;
+        }},
+       {"__len",
+        [](lua_State* state) {
+          auto* buffer = reinterpret_cast<ByteBuffer*>(
+              luaL_checkudata(state, 1, "byte_buffer"));
+          lua_pushinteger(state, buffer->size);
+          return 1;
+        }},
+       {"__tostring", [](lua_State* state) {
+          auto* buffer = reinterpret_cast<ByteBuffer*>(
+              luaL_checkudata(state, 1, "byte_buffer"));
+          lua_pushlstring(state,
+                          reinterpret_cast<const char*>(buffer->contents),
+                          buffer->size);
+          return 1;
+        }}}};
+  LoadMetatable("byte_buffer", kByteBufferMethods.data(),
+                kByteBufferMethods.size());
   luaL_openlibs(state_);
   lua_newtable(state_);
   lua_setglobal(state_, "G");

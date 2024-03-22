@@ -125,6 +125,11 @@ bool Filesystem::Stat(std::string_view filename, StatInfo* info,
   return true;
 }
 
+bool Filesystem::Exists(std::string_view filename) {
+  FixedStringBuffer<kMaxPathLength> path(filename);
+  return PHYSFS_exists(path);
+}
+
 void Filesystem::EnumerateDirectory(std::string_view directory,
                                     DirCallback callback, void* userdata) {
   FixedStringBuffer<kMaxPathLength> d(directory);

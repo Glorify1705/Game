@@ -102,6 +102,8 @@ class Lua {
 
  private:
   void LoadAssets();
+  void LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
+                     size_t register_count);
 
   void SetPackagePreload(std::string_view filename);
 
