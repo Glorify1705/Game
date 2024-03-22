@@ -1313,6 +1313,52 @@ void Lua::Crash() {
     return;                    \
   }
 
+constexpr std::array<luaL_Reg, 4> kByteBufferMethods = {
+    {{"__index",
+      [](lua_State* state) {
+        auto* buffer = reinterpret_cast<ByteBuffer*>(
+            luaL_checkudata(state, 1, "byte_buffer"));
+        size_t index = luaL_checkinteger(state, 2);
+        if (index <= 0 || index > buffer->size) {
+          LUA_ERROR(state, "Index out of bounds ", index, " not in range [1, ",
+                    buffer->size, "]");
+        }
+        lua_pushinteger(state, buffer->contents[index]);
+        return 1;
+      }},
+     {"__len",
+      [](lua_State* state) {
+        auto* buffer = reinterpret_cast<ByteBuffer*>(
+            luaL_checkudata(state, 1, "byte_buffer"));
+        lua_pushinteger(state, buffer->size);
+        return 1;
+      }},
+     {"__tostring",
+      [](lua_State* state) {
+        auto* buffer = reinterpret_cast<ByteBuffer*>(
+            luaL_checkudata(state, 1, "byte_buffer"));
+        lua_pushlstring(state, reinterpret_cast<const char*>(buffer->contents),
+                        buffer->size);
+        return 1;
+      }},
+     {"__concat", [](lua_State* state) {
+        lua_getglobal(state, "tostring");
+        lua_pushvalue(state, 1);
+        lua_call(state, 1, 1);
+        lua_getglobal(state, "tostring");
+        lua_pushvalue(state, 2);
+        lua_call(state, 1, 1);
+        std::string_view a = GetLuaString(state, -2);
+        std::string_view b = GetLuaString(state, -1);
+        luaL_Buffer buffer;
+        luaL_buffinit(state, &buffer);
+        luaL_addlstring(&buffer, a.data(), a.size());
+        luaL_addlstring(&buffer, b.data(), b.size());
+        lua_pop(state, 2);
+        luaL_pushresult(&buffer);
+        return 1;
+      }}}};
+
 void Lua::LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
                         size_t register_count) {
   luaL_newmetatable(state_, metatable_name);
@@ -1342,52 +1388,6 @@ void Lua::LoadLibraries() {
                 /*register_count=*/0);
   LoadMetatable("random_number_generator", /*registers=*/nullptr,
                 /*register_count=*/0);
-  constexpr std::array<luaL_Reg, 4> kByteBufferMethods{
-      {{"__index",
-        [](lua_State* state) {
-          auto* buffer = reinterpret_cast<ByteBuffer*>(
-              luaL_checkudata(state, 1, "byte_buffer"));
-          size_t index = luaL_checkinteger(state, 2);
-          if (index <= 0 || index > buffer->size) {
-            LUA_ERROR(state, "Index out of bounds ", index,
-                      " not in range [1, ", buffer->size, "]");
-          }
-          lua_pushinteger(state, buffer->contents[index]);
-          return 1;
-        }},
-       {"__len",
-        [](lua_State* state) {
-          auto* buffer = reinterpret_cast<ByteBuffer*>(
-              luaL_checkudata(state, 1, "byte_buffer"));
-          lua_pushinteger(state, buffer->size);
-          return 1;
-        }},
-       {"__tostring",
-        [](lua_State* state) {
-          auto* buffer = reinterpret_cast<ByteBuffer*>(
-              luaL_checkudata(state, 1, "byte_buffer"));
-          lua_pushlstring(state,
-                          reinterpret_cast<const char*>(buffer->contents),
-                          buffer->size);
-          return 1;
-        }},
-       {"__concat", [](lua_State* state) {
-          lua_getglobal(state, "tostring");
-          lua_pushvalue(state, 1);
-          lua_call(state, 1, 1);
-          lua_getglobal(state, "tostring");
-          lua_pushvalue(state, 2);
-          lua_call(state, 1, 1);
-          std::string_view a = GetLuaString(state, -2);
-          std::string_view b = GetLuaString(state, -1);
-          luaL_Buffer buffer;
-          luaL_buffinit(state, &buffer);
-          luaL_addlstring(&buffer, a.data(), a.size());
-          luaL_addlstring(&buffer, b.data(), b.size());
-          lua_pop(state, 2);
-          luaL_pushresult(&buffer);
-          return 1;
-        }}}};
   LoadMetatable("byte_buffer", kByteBufferMethods.data(),
                 kByteBufferMethods.size());
   luaL_openlibs(state_);
