@@ -1,7 +1,6 @@
 (local Game {})
 
 (fn Game.init []
-  (when (G.input.is_key_pressed :q) (G.system.quit))
   (let [exists (G.filesystem.exists :/app/file.txt)]
     (tset Game :exists exists))
   (let [exists2 (G.filesystem.exists :/app/this-file-does-not-exist.txt)]
@@ -11,7 +10,8 @@
   (let [(data err) (G.filesystem.slurp :/app/file.txt)]
     (if data (tset Game :contents data) (print err))))
 
-(fn Game.update [t dt])
+(fn Game.update [t dt]
+  (when (G.input.is_key_pressed :q) (G.system.quit)))
 
 (fn Game.draw [self]
   (when Game.contents

@@ -1,1 +1,1 @@
-return require('testfilesystem')
+return require('testrenderer')
