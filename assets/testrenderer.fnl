@@ -5,6 +5,7 @@
 (fn Game.update [t dt])
 
 (fn Game.draw []
+  (G.graphics.new_canvas)
   (G.graphics.draw_text :ponderosa.ttf 24 "Hello there!" 200 200)
   (G.graphics.set_color :neonred)
   (G.graphics.draw_text :ponderosa.ttf 24 "Hello there but in red!" 400 400)
