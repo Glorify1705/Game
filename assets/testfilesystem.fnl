@@ -14,6 +14,6 @@
     (G.graphics.draw_text :ponderosa.ttf 24
                           (.. "Contents: " Game.contents "\nHash: "
                               (G.data.hash Game.contents))
-                          200 200)))
+                          100 100)))
 
 Game

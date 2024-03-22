@@ -1384,6 +1384,7 @@ void Lua::LoadLibraries() {
           luaL_buffinit(state, &buffer);
           luaL_addlstring(&buffer, a.data(), a.size());
           luaL_addlstring(&buffer, b.data(), b.size());
+          lua_pop(state, 2);
           luaL_pushresult(&buffer);
           return 1;
         }}}};
