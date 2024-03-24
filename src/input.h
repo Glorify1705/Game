@@ -11,7 +11,7 @@
 #include "array.h"
 #include "assets.h"
 #include "circular_buffer.h"
-#include "lookup_table.h"
+#include "dictionary.h"
 #include "vec.h"
 
 namespace G {
@@ -57,7 +57,7 @@ class Keyboard {
 
   std::bitset<kKeyboardTable + 1> pressed_;
   std::bitset<kKeyboardTable + 1> previous_pressed_;
-  LookupTable<SDL_Scancode> table_;
+  Dictionary<SDL_Scancode> table_;
   FixedArray<Event> events_;
 };
 
@@ -163,8 +163,8 @@ class Controllers {
   std::array<Controller, 64> controllers_;
   std::bitset<64> open_controllers_;
   int active_controller_ = -1;
-  LookupTable<SDL_GameControllerButton> button_table_;
-  LookupTable<SDL_GameControllerAxis> axis_table_;
+  Dictionary<SDL_GameControllerButton> button_table_;
+  Dictionary<SDL_GameControllerAxis> axis_table_;
 };
 
 }  // namespace G

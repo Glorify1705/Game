@@ -1605,6 +1605,20 @@ void Lua::HandleMousePressed(int button) {
   }
 }
 
+void Lua::HandleTextInput(std::string_view input) {
+  if (!error_.empty()) return;
+  READY();
+  lua_getglobal(state_, "_Game");
+  lua_getfield(state_, -1, "textinput");
+  if (lua_isnil(state_, -1)) return;
+  lua_insert(state_, -2);
+  lua_pushlstring(state_, input.data(), input.size());
+  if (lua_pcall(state_, 2, 0, traceback_handler_)) {
+    lua_error(state_);
+    return;
+  }
+}
+
 void Lua::HandleMouseReleased(int button) {
   if (!error_.empty()) return;
   READY();

@@ -189,6 +189,9 @@ struct EngineModules {
                              FVec2(event.motion.xrel, event.motion.yrel));
       }
     }
+    if (event.type == SDL_TEXTINPUT) {
+      lua.HandleTextInput(event.text.text);
+    }
   }
 
   void HandleEvent(const SDL_Event& event) {
@@ -568,6 +571,7 @@ class Game {
       }
       const auto frame_start = NowInSeconds();
       e_->StartFrame();
+      SDL_StartTextInput();
       for (SDL_Event event; SDL_PollEvent(&event);) {
         if (event.type == SDL_QUIT) {
           e_->lua.HandleQuit();
