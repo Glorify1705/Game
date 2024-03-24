@@ -1412,8 +1412,6 @@ void Lua::LoadLibraries() {
   READY();
   Register(this);
   LoadMetatable("physics_handle", /*registers=*/nullptr, /*register_count=*/0);
-  LoadMetatable("asset_subtexture_ptr", /*registers=*/nullptr,
-                /*register_count=*/0);
   LoadMetatable("random_number_generator", /*registers=*/nullptr,
                 /*register_count=*/0);
   LoadMetatable("byte_buffer", kByteBufferMethods.data(),
