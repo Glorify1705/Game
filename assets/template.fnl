@@ -1,9 +1,9 @@
 (local Game {})
 
-(fn Game.init [])
+(fn Game.init [self])
 
-(fn Game.update [t dt])
+(fn Game.update [self t dt])
 
-(fn Game.draw [])
+(fn Game.draw [self])
 
 Game
