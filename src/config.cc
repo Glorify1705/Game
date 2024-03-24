@@ -13,6 +13,11 @@ void CopyLuaString(lua_State* state, char (&buf)[size]) {
   buf[l] = '\0';
 }
 
+void ParseVersionFromString(const char* str, GameConfig* config) {
+  // TODO: error handling.
+  sscanf(str, "%d.%d", &config->version.major, &config->version.minor);
+}
+
 int SetWindowInfo(lua_State* state) {
   auto* config =
       static_cast<GameConfig*>(lua_touserdata(state, lua_upvalueindex(1)));
@@ -39,6 +44,22 @@ int SetWindowInfo(lua_State* state) {
     CopyLuaString(state, config->org_name);
   } else if (key == "app_name") {
     CopyLuaString(state, config->app_name);
+  } else if (key == "version") {
+    switch (lua_type(state, 3)) {
+      case LUA_TSTRING:
+        ParseVersionFromString(luaL_checkstring(state, 3), config);
+        break;
+      case LUA_TTABLE:
+        lua_pushliteral(state, "major");
+        lua_gettable(state, 3);
+        config->version.major = luaL_checknumber(state, -1);
+        lua_pop(state, 1);
+        lua_pushliteral(state, "minor");
+        lua_gettable(state, 3);
+        config->version.minor = luaL_checknumber(state, -1);
+        lua_pop(state, 1);
+        break;
+    }
   }
   return 0;
 }

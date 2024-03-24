@@ -84,6 +84,8 @@ set(GAME_SRCS
     "src/packer.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/assets_generated.h")
 
+configure_file(src/version.h.in version.h)
+    
 add_executable(Game "${GAME_SRCS}")
 
 target_include_directories(Game 

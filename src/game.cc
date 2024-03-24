@@ -38,6 +38,7 @@
 #include "strings.h"
 #include "units.h"
 #include "vec.h"
+#include "version.h"
 #include "zip.h"
 
 namespace G {
@@ -514,6 +515,13 @@ class Game {
                  "Could not initialize PhysFS: ", argv[0]);
     assets_ = GetAssets(arguments_, allocator_);
     LoadConfig(*assets_, &config_, allocator_);
+    LOG("Using engine version ", GAME_VERSION_STR);
+    LOG("Game requested engine version ", config_.version.major, ".",
+        config_.version.minor);
+    CHECK(config_.version.major == GAME_VERSION_MAJOR,
+          "Unsupported major version requested");
+    CHECK(config_.version.minor <= GAME_VERSION_MINOR,
+          "Unsupported minor engine version requested");
     {
       TIMER("SDL2 initialization");
       InitializeSDL(config_);

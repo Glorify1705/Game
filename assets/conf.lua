@@ -7,4 +7,8 @@ function Conf(t)
     t.game.enable_joystick = false
     t.game.org_name = "JPIndustries"
     t.game.app_name = "ShootClicker"
+    t.game.version = {
+        major = 0,
+        minor = 1,
+    }
 end

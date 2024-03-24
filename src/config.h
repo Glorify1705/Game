@@ -24,6 +24,11 @@ struct GameConfig {
   bool enable_debug_rendering = true;
   char org_name[512];
   char app_name[512];
+  struct Version {
+    int major;
+    int minor;
+  };
+  Version version;
 };
 
 void LoadConfig(const Assets& assets, GameConfig* config, Allocator* allocator);
