@@ -1,13 +1,14 @@
 #include "color.h"
+#include "dictionary.h"
 #include "logging.h"
-#include "lookup_table.h"
 #include "units.h"
+
 
 namespace G {
 
 struct ColorTable {
   StaticAllocator<Megabytes(16)> allocator;
-  LookupTable<Color> table;
+  Dictionary<Color> table;
 
   ColorTable() : table(&allocator) {
     table.Insert("red", Color{255, 0, 0, 255});

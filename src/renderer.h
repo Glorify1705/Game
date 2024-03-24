@@ -9,7 +9,6 @@
 #include "color.h"
 #include "dictionary.h"
 #include "libraries/stb_truetype.h"
-#include "lookup_table.h"
 #include "mat.h"
 #include "shaders.h"
 #include "transformations.h"
