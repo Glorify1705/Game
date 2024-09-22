@@ -9,5 +9,6 @@ pkgs.mkShell {
     SDL2_mixer
     zlib
     python3
+    fnlfmt
   ];
 }
