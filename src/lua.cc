@@ -22,6 +22,7 @@ namespace {
                             "]: ", ##__VA_ARGS__);                           \
     lua_pushlstring(state, _luaerror_buffer.str(), _luaerror_buffer.size()); \
     lua_error(state);                                                        \
+    __builtin_unreachable();                                                 \
   } while (0);
 
 Allocator* GetAllocator(lua_State* state) {
@@ -48,7 +49,6 @@ T FromLuaMatrix(lua_State* state, int index) {
   T result;
   if (!lua_istable(state, index)) {
     LUA_ERROR(state, "Not a table");
-    return result;
   }
   for (size_t i = 0; i < T::kDimension; ++i) {
     lua_rawgeti(state, index, i + 1);
