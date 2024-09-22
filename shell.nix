@@ -10,5 +10,6 @@ pkgs.mkShell {
     zlib
     python3
     fnlfmt
+    xorg.xrandr
   ];
 }
