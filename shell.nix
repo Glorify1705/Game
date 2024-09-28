@@ -2,14 +2,16 @@
 
 pkgs.mkShell {
   packages = with pkgs; [
-    cmake
-    libGL
-    clang-tools
     SDL2
     SDL2_mixer
-    zlib
-    python3
+    ccls
+    clang-tools
+    cmake
     fnlfmt
+    gdb
+    libGL
+    python3
     xorg.xrandr
+    zlib
   ];
 }
