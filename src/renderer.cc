@@ -67,7 +67,6 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
           allocator->Alloc(kCommandMemory, alignof(Command)))),
       commands_(1 << 20, allocator),
       tex_(256, allocator),
-      screenshots_(64, allocator),
       shaders_(shaders),
       viewport_(viewport),
       original_viewport_(viewport) {
@@ -488,7 +487,6 @@ void BatchRenderer::Render(Allocator* scratch) {
                                 GL_NEAREST));
   // Second pass.
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-  TakeScreenshots();
   OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
   OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
@@ -504,54 +502,6 @@ void BatchRenderer::Render(Allocator* scratch) {
   WATCH_EXPR("Vertex Memory", vertices.bytes());
   WATCH_EXPR("Indices Memory", indices.size());
   WATCH_EXPR("Render calls", render_calls);
-}
-
-void BatchRenderer::RequestScreenshot(
-    uint8_t* pixels, size_t width, size_t height,
-    void (*callback)(uint8_t*, size_t, size_t, void*), void* userdata) {
-  ScreenshotRequest req;
-  req.out_buffer = pixels;
-  req.width = width;
-  req.height = height;
-  req.callback = callback;
-  req.userdata = userdata;
-  screenshots_.Push(req);
-}
-
-void BatchRenderer::TakeScreenshots() {
-  if (screenshots_.empty()) return;
-  // TODO: use an arena.
-  struct RGBA {
-    uint8_t r, g, b, a;
-  };
-  const size_t width = viewport_.x;
-  const size_t height = viewport_.y;
-  // TODO: The renderer already asks for memory, we should use the provided
-  // one and flip the rows in place.
-  const size_t elements = width * height;
-  auto* buffer = NewArray<RGBA>(elements, allocator_);
-  auto* flipped = NewArray<RGBA>(elements, allocator_);
-  glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-  for (size_t i = 0; i < width * height; ++i) buffer[i].a = 255;
-  {
-    // OpenGL reads memory in reverse row order. Flip the rows.
-    auto* ptr = flipped;
-    for (size_t r = 0; r < height; ++r) {
-      std::memcpy(ptr, &buffer[(height - 1 - r) * width], width * sizeof(RGBA));
-      ptr += width;
-    }
-  }
-  for (const ScreenshotRequest& req : screenshots_) {
-    auto* ptr = req.out_buffer;
-    for (size_t r = 0; r < req.height; ++r) {
-      std::memcpy(ptr, &flipped[r * width], req.width * sizeof(RGBA));
-      ptr += req.width * sizeof(RGBA);
-    }
-    req.callback(req.out_buffer, req.width, req.height, req.userdata);
-  }
-  DeallocArray(flipped, elements, allocator_);
-  DeallocArray(buffer, elements, allocator_);
-  screenshots_.Clear();
 }
 
 Renderer::Renderer(const Assets& assets, BatchRenderer* renderer,

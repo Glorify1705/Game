@@ -79,21 +79,6 @@ class BatchRenderer {
 
   void ToggleDebugRender() { debug_render_ = !debug_render_; }
 
-  void RequestScreenshot(uint8_t* pixels, size_t width, size_t height,
-                         void (*callback)(uint8_t*, size_t, size_t, void*),
-                         void* userdata);
-
-  template <typename T>
-  void RequestScreenshot(uint8_t* pixels, size_t width, size_t height, T* ptr) {
-    RequestScreenshot(
-        pixels, width, height,
-        [](uint8_t* pixels, size_t width, size_t height, void* userdata) {
-          reinterpret_cast<T*>(userdata)->HandleScreenshot(pixels, width,
-                                                           height);
-        },
-        ptr);
-  }
-
  private:
   enum CommandType : uint32_t {
     kRenderQuad = 1,
@@ -182,13 +167,6 @@ class BatchRenderer {
     Color color;
   };
 
-  struct ScreenshotRequest {
-    uint8_t* out_buffer;
-    size_t width, height;
-    void (*callback)(uint8_t*, size_t, size_t, void*);
-    void* userdata = nullptr;
-  };
-
   class CommandIterator;
 
   void SwitchShaderProgram(uint32_t handle) {
@@ -263,14 +241,11 @@ class BatchRenderer {
     return "";
   }
 
-  void TakeScreenshots();
-
   Allocator* allocator_;
   uint8_t* command_buffer_ = nullptr;
   size_t pos_ = 0;
   FixedArray<QueueEntry> commands_;
   FixedArray<GLuint> tex_;
-  FixedArray<ScreenshotRequest> screenshots_;
   Shaders* shaders_;
   GLuint ebo_, vao_, vbo_;
   size_t noop_texture_;

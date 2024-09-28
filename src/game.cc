@@ -381,14 +381,6 @@ class DebugUi {
     if (ImGui::Button("Copy", ImVec2(ImGui::GetWindowSize().x, 0.0f))) {
       CopyToClipboard();
     }
-    ImGui::InputText("Screenshot filename", screenshot_filename_,
-                     sizeof(screenshot_filename_));
-    if (ImGui::Button("Take Screenshot")) {
-      LOG("Requesting screenshot for ", screenshot_filename_);
-      const IVec2 viewport = modules_->batch_renderer.GetViewport();
-      modules_->batch_renderer.RequestScreenshot(screenshot_, viewport.x,
-                                                 viewport.y, this);
-    }
     ImGui::End();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -396,15 +388,6 @@ class DebugUi {
 
   void ProcessEvent(const SDL_Event& event) {
     ImGui_ImplSDL2_ProcessEvent(&event);
-  }
-
-  void HandleScreenshot(uint8_t* buffer, size_t width, size_t height) {
-    TIMER("Screenshot");
-    FixedStringBuffer<kMaxLogLineLength> err;
-    CHECK(WritePixelsToImage(screenshot_filename_, buffer, width, height,
-                             &modules_->filesystem, &err, &allocator_),
-          "Could not write screenshot: ", err);
-    LOG("Wrote screenshot with width ", width, " and height ", height);
   }
 
  private:
@@ -490,12 +473,10 @@ class DebugUi {
   Dictionary<const char*> expression_table_;
   bool show_ = false;
   int frame_stats_location_ = 1;
-  char screenshot_filename_[256];
   static constexpr size_t kWidth = 4096;
   static constexpr size_t kHeight = 4096;
   static constexpr size_t kChannels = 4;
   static constexpr size_t kTotalSize = kWidth * kHeight * kChannels;
-  uint8_t screenshot_[kTotalSize];
   StaticAllocator<kTotalSize> allocator_;
 };
 

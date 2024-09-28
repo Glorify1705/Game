@@ -395,54 +395,6 @@ const struct luaL_Reg kGraphicsLib[] = {
                            luaL_checknumber(state, 2));
        return 0;
      }},
-    {"take_screenshot",
-     [](lua_State* state) {
-       class Context {
-        public:
-         Context(lua_State* state, Allocator* allocator) : state_(state) {
-           output_file_.Set(GetLuaString(state, 1));
-           renderer_ = Registry<BatchRenderer>::Retrieve(state);
-           filesystem_ = Registry<Filesystem>::Retrieve(state);
-           const IVec2 viewport = renderer_->GetViewport();
-           width_ = viewport.x;
-           height_ = viewport.y;
-           allocator_ = allocator;
-           buffer_ = NewArray<uint8_t>(size(), allocator_);
-         }
-         ~Context() { DeallocArray(buffer_, size(), allocator_); }
-
-         void RequestScreenshot() {
-           renderer_->RequestScreenshot(buffer_, width_, height_, this);
-         }
-
-         void HandleScreenshot(uint8_t* pixels, size_t width, size_t height) {
-           LOG("Writing screenshot");
-           FixedStringBuffer<kMaxLogLineLength> err;
-           if (!WritePixelsToImage(output_file_.str(),
-                                   reinterpret_cast<uint8_t*>(pixels), width,
-                                   height, filesystem_, &err, allocator_)) {
-             LUA_ERROR(state_, "Could not write file ", output_file_, ": ",
-                       err);
-           }
-           Destroy(allocator_, this);
-         }
-
-        private:
-         size_t size() const { return width_ * height_ * 4; }
-
-         BatchRenderer* renderer_;
-         Filesystem* filesystem_;
-         lua_State* state_;
-         FixedStringBuffer<kMaxPathLength> output_file_;
-         uint8_t* buffer_;
-         size_t width_, height_;
-         Allocator* allocator_;
-       };
-       auto* allocator = GetAllocator(state);
-       auto* context = New<Context>(allocator, state, allocator);
-       context->RequestScreenshot();
-       return 0;
-     }},
     {"new_shader",
      [](lua_State* state) {
        auto* shaders = Registry<Shaders>::Retrieve(state);
