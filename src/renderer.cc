@@ -1,6 +1,7 @@
 #include "renderer.h"
 
 #include <cmath>
+#include <cstring>
 #include <vector>
 
 #include "clock.h"
@@ -146,7 +147,9 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   SetActiveTexture(noop_texture_);
 }
 
-void BatchRenderer::SetViewport(IVec2 viewport) { viewport_ = viewport; }
+void BatchRenderer::SetViewport(IVec2 viewport) { 
+  viewport_ = viewport;
+}
 
 size_t BatchRenderer::LoadTexture(const ImageAsset& image) {
   TIMER("Decoding ", FlatbufferStringview(image.name()));

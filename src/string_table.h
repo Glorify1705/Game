@@ -2,9 +2,9 @@
 #ifndef _GAME_STRING_TABLE_H
 #define _GAME_STRING_TABLE_H
 
+#include <cstdint>
 #include <cstdlib>
 #include <string_view>
-#include <cstdint>
 
 namespace G {
 
