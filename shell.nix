@@ -15,4 +15,8 @@ pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
     xorg.xrandr
     zlib
   ];
+
+  shellHook= ''
+    export CCLS_LOCATION="${pkgs.ccls}/bin/ccls"
+  '';
 }
