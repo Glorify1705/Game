@@ -1,3 +1,5 @@
+#include "renderer.h"
+
 #include <cmath>
 #include <vector>
 
@@ -5,7 +7,6 @@
 #include "console.h"
 #include "filesystem.h"
 #include "image.h"
-#include "renderer.h"
 #include "strings.h"
 #include "transformations.h"
 
@@ -608,7 +609,11 @@ void Renderer::Draw(const SpriteAsset& sprite, FVec2 position, float angle) {
   const SpritesheetAsset* spritesheet =
       assets_->GetSpritesheetByIndex(spritesheet_index);
   CHECK(spritesheet != nullptr, "No spritesheet for ", sprite_name);
-  renderer_->SetActiveTexture(textures_[spritesheet_index]);
+  auto spritesheet_name = FlatbufferStringview(spritesheet->name());
+  uint32_t texture_index;
+  CHECK(textures_table_.Lookup(spritesheet_name, &texture_index), "No spritesheet texture for ",
+        sprite_name, "(spritesheet ", FlatbufferStringview(spritesheet->name()), ")");
+  renderer_->SetActiveTexture(textures_[texture_index]);
   const float x = sprite.x(), y = sprite.y(), w = sprite.width(),
               h = sprite.height();
   const FVec2 p0(position - FVec(w / 2.0, h / 2.0));
@@ -699,16 +704,18 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
 }
 
 const SpriteAsset* Renderer::LoadSprite(std::string_view name) {
+  LOG("Loading sprite ", name);
   const SpriteAsset* sprite = assets_->GetSprite(name);
   const SpritesheetAsset* sheet =
       assets_->GetSpritesheetByIndex(sprite->spritesheet());
   std::string_view spritesheet_name = FlatbufferStringview(sheet->name());
   if (!textures_table_.Contains(spritesheet_name)) {
+    LOG("Loading texture ", spritesheet_name);
     std::string_view image_name = FlatbufferStringview(sheet->image_name());
     auto* image = assets_->GetImage(image_name);
     CHECK(image != nullptr, "Unknown image ", image_name, " for spritesheet ",
           spritesheet_name);
-    textures_table_.Insert(image_name, textures_.size());
+    textures_table_.Insert(spritesheet_name, textures_.size());
     textures_.Push(renderer_->LoadTexture(*image));
   }
   sprites_table_.Insert(name, sprites_.size());
