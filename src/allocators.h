@@ -9,8 +9,7 @@
 #include <cstdlib>
 #include <limits>
 #include <type_traits>
-
-#include "logging.h"
+#include <cstring>
 
 namespace G {
 
@@ -155,7 +154,9 @@ class BumpAllocator : public Allocator {
   }
 
   void* Alloc(size_t size, size_t align) override {
-    CHECK(pos_ + size <= end_);
+    if (pos_ + size > end_) {
+      return nullptr;
+    }
     pos_ = Align(pos_, align);
     auto* result = reinterpret_cast<void*>(pos_);
     pos_ += size;
@@ -212,7 +213,7 @@ class ArenaAllocator final : public Allocator {
     return a_.Realloc(p, old_size, new_size, align);
   }
 
-  void Reset() { a_.Reset(); }
+  void Reset() override { a_.Reset(); }
 
  private:
   Allocator* const allocator_;

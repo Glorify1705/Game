@@ -5,13 +5,14 @@ pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
     SDL2
     SDL2_mixer
     ccls
-    clang-tools
     clang
+    clang-tools
     cmake
     fnlfmt
     gdb
     libGL
     python3
+    sqlite
     xorg.xrandr
     zlib
   ];

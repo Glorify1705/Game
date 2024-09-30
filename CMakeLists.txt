@@ -9,7 +9,7 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 project(Game 
     VERSION 0.1 
     DESCRIPTION "The game"
-    LANGUAGES CXX)
+    LANGUAGES C CXX)
 
 set(SDL2_DIR  
     "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2/cmake")
@@ -62,12 +62,13 @@ set(GAME_SRCS
     "libraries/glad.cc"
     "src/input.cc"
     "src/color.cc"
+    "libraries/imgui.cc"
+    "libraries/imgui_draw.cc"
     "libraries/imgui_impl_opengl3.cc"
     "libraries/imgui_impl_sdl2.cc"
-    "libraries/imgui_draw.cc"
     "libraries/imgui_tables.cc"
-    "libraries/imgui.cc"
     "libraries/imgui_widgets.cc"
+    "libraries/sqlite3.c"
     "src/config.cc"
     "src/filesystem.cc"
     "src/lua.cc"

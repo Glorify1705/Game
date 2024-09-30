@@ -103,6 +103,7 @@ Assets* GetAssets(const std::vector<const char*>& arguments,
     return ReadAssets(arguments[0], allocator);
   }
   LOG("Packing all files in directory ", arguments[0]);
+  WriteAssetsToDb(arguments[0], "./assets.sqlite3", allocator);
   return PackFiles(arguments[0], allocator);
 }
 
