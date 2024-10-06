@@ -13,6 +13,7 @@ pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
     libGL
     python3
     sqlite
+    sqlitebrowser
     xorg.xrandr
     zlib
   ];
