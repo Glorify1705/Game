@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+set -x
+
+run() {
+  cmake -S . -B build && cmake --build build --target Run -j10
+}
+
+reset_db() {
+  rm -rf build/assets.sqlite3
+  sqlite3 build/assets.sqlite3 < src/schema.sql
+}
+
+clean() {
+  rm -rf build/*
+}
+;
+for cmd in "${@:1}"; do
+  "$cmd"
+done

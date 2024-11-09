@@ -2,6 +2,7 @@
 #ifndef _GAME_SHADERS_H
 #define _GAME_SHADERS_H
 
+#include "array.h"
 #include "assets.h"
 #include "dictionary.h"
 #include "libraries/glad.h"

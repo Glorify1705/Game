@@ -26,6 +26,8 @@ Assets* PackFiles(const char* source_directory, Allocator* allocator);
 
 Assets* ReadAssets(const char* assets_file, Allocator* allocator);
 
+DbAssets* ReadAssetsFromDb(const char* assets_file, Allocator* allocator);
+
 bool WriteAssets(const Assets& assets, const char* output_file);
 
 void WriteAssetsToDb(const char* source_directory, const char* db_file, Allocator* allocator);

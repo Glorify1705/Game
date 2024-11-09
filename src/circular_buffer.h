@@ -6,6 +6,7 @@
 #include <iterator>
 
 #include "allocators.h"
+#include "array.h"
 #include "logging.h"
 
 namespace G {

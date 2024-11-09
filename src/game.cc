@@ -34,6 +34,7 @@
 #include "renderer.h"
 #include "shaders.h"
 #include "sound.h"
+#include "sqlite3.h"
 #include "stats.h"
 #include "strings.h"
 #include "units.h"
@@ -104,6 +105,7 @@ Assets* GetAssets(const std::vector<const char*>& arguments,
   }
   LOG("Packing all files in directory ", arguments[0]);
   WriteAssetsToDb(arguments[0], "./assets.sqlite3", allocator);
+  ReadAssetsFromDb("./assets.sqlite3", allocator);
   return PackFiles(arguments[0], allocator);
 }
 
@@ -287,6 +289,7 @@ void PrintSystemInformation() {
   PHYSFS_getLinkedVersion(&physfs_version);
   LOG("Using PhysFS ", physfs_version.major, ".", physfs_version.minor, ".",
       physfs_version.patch);
+  LOG("Using SQLite Version ", SQLITE_VERSION);
   LOG("Running on platform: ", SDL_GetPlatform());
   LOG("Have ", SDL_GetCPUCount(), " logical cores");
 }

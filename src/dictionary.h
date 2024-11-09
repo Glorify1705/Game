@@ -5,6 +5,7 @@
 #include <array>
 
 #include "allocators.h"
+#include "logging.h"
 #include "string_table.h"
 #include "xxhash.h"
 
@@ -47,7 +48,6 @@ class Dictionary {
 
   bool Contains(std::string_view key) const { return Lookup(key, nullptr); }
 
-  template <typename... Ts>
   void Insert(std::string_view key, T value) {
     Node** n = &root_;
     const uint32_t handle = StringIntern(key);
