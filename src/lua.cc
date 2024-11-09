@@ -174,7 +174,7 @@ int PackageLoader(lua_State* state) {
 }
 
 std::string_view GetLuaString(lua_State* state, int index) {
-  size_t len;
+  std::size_t len;
   const char* data = luaL_checklstring(state, index, &len);
   return std::string_view(data, len);
 }
@@ -189,14 +189,14 @@ PHYSFS_EnumerateCallbackResult LuaListDirectory(void* userdata, const char* dir,
 }
 
 struct ByteBuffer {
-  size_t size;
+  std::size_t size;
   uint8_t contents[];
 };
 
 int LoadFileIntoBuffer(lua_State* state, std::string_view filename) {
   auto* filesystem = Registry<Filesystem>::Retrieve(state);
   FixedStringBuffer<kMaxLogLineLength> err;
-  size_t size = 0;
+  std::size_t size = 0;
   if (!filesystem->Size(filename, &size, &err)) {
     lua_pushnil(state);
     lua_pushlstring(state, err.str(), err.size());
@@ -312,7 +312,7 @@ const struct luaL_Reg kGraphicsLib[] = {
          LUA_ERROR(state, "not a table");
          return 0;
        }
-       const size_t n = lua_objlen(state, 1);
+       const std::size_t n = lua_objlen(state, 1);
        ArenaAllocator scratch(GetAllocator(state), (n + 1) * sizeof(FVec2));
        FixedArray<FVec2> temp(n, &scratch);
        for (size_t i = 1; i <= n; ++i) {
@@ -583,7 +583,7 @@ const struct luaL_Reg kSystemLib[] = {
      }},
     {"get_clipboard", [](lua_State* state) {
        char* result = SDL_GetClipboardText();
-       const size_t length = strlen(result);
+       const std::size_t length = strlen(result);
        if (length == 0) {
          LUA_ERROR(state, "Failed to get the clipboard: %s", SDL_GetError());
          return 0;
@@ -606,7 +606,7 @@ void FillLogLine(lua_State* state, LogLine* l) {
     lua_pushvalue(state, -1);
     lua_pushvalue(state, i + 1);
     lua_call(state, 1, 1);
-    size_t length;
+    std::size_t length;
     const char* s = lua_tolstring(state, -1, &length);
     if (s == nullptr) {
       LUA_ERROR(state, "'tostring' did not return string");
@@ -652,7 +652,7 @@ const struct luaL_Reg kConsoleLib[] = {
        lua_pushvalue(state, -1);
        lua_pushvalue(state, 2);
        lua_call(state, 1, 1);
-       size_t length;
+       std::size_t length;
        const char* s = lua_tolstring(state, -1, &length);
        if (s == nullptr) {
          LUA_ERROR(state, "'tostring' did not return string");
@@ -1265,7 +1265,7 @@ void AddLibrary(lua_State* state, const char* name,
 
 }  // namespace
 
-void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
+void* Lua::Alloc(void* ptr, std::size_t osize, std::size_t nsize) {
   allocator_stats_.AddSample(nsize);
   if (nsize == 0) {
     if (ptr != nullptr) allocator_->Dealloc(ptr, osize);
@@ -1298,7 +1298,7 @@ constexpr std::array<luaL_Reg, 4> kByteBufferMethods = {
       [](lua_State* state) {
         auto* buffer = reinterpret_cast<ByteBuffer*>(
             luaL_checkudata(state, 1, "byte_buffer"));
-        size_t index = luaL_checkinteger(state, 2);
+        std::size_t index = luaL_checkinteger(state, 2);
         if (index <= 0 || index > buffer->size) {
           LUA_ERROR(state, "Index out of bounds ", index, " not in range [1, ",
                     buffer->size, "]");
@@ -1340,7 +1340,7 @@ constexpr std::array<luaL_Reg, 4> kByteBufferMethods = {
       }}}};
 
 void Lua::LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
-                        size_t register_count) {
+                        std::size_t register_count) {
   luaL_newmetatable(state_, metatable_name);
   if (registers == nullptr) return;
   for (size_t i = 0; i < register_count; ++i) {
@@ -1403,16 +1403,16 @@ void Lua::LoadScripts() {
   }
 }
 
-size_t Lua::Error(char* buf, size_t max_size) {
+std::size_t Lua::Error(char* buf, std::size_t max_size) {
   if (error_.empty()) return 0;
-  const size_t size = std::min(error_.size(), max_size);
+  const std::size_t size = std::min(error_.size(), max_size);
   std::memcpy(buf, error_.str(), size);
   buf[size] = '\0';
   return size;
 }
 
 std::string_view Trim(std::string_view s) {
-  size_t i = 0, j = s.size() - 1;
+  std::size_t i = 0, j = s.size() - 1;
   auto is_whitespace = [&](size_t p) {
     return s[p] == ' ' || s[p] == '\t' || s[p] == '\n';
   };
@@ -1424,7 +1424,7 @@ std::string_view Trim(std::string_view s) {
 void Lua::SetError(std::string_view file, int line, std::string_view error) {
   error_.Set("[", file, ":", line, "] ");
   // Remove lines with [C] or "(tail call)" since they are not useful.
-  size_t st = 0, en = 0;
+  std::size_t st = 0, en = 0;
   auto flush = [&] {
     if (en <= st) return;
     std::string_view line = error.substr(st, en - st + 1);

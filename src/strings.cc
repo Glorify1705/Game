@@ -3,7 +3,7 @@
 namespace G {
 
 bool HasSuffix(std::string_view str, std::string_view suffix) {
-  size_t i = 0;
+  std::size_t i = 0;
   for (; i < str.size() && i < suffix.size(); i++) {
     if (suffix[suffix.size() - i] != str[str.size() - i]) return false;
   }

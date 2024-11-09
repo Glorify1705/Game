@@ -11,7 +11,7 @@ namespace G {
 
 struct FVec2 {
   using type = float;
-  inline static constexpr size_t kCardinality = 2;
+  inline static constexpr std::size_t kCardinality = 2;
 
   union {
     struct {
@@ -113,7 +113,7 @@ struct FVec2 {
 
   friend void AppendToString(const FVec2& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %.3f, %.3f }", v.x, v.y);
+    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f }", v.x, v.y);
     sink.append(buf, len);
   }
 };
@@ -122,7 +122,7 @@ inline FVec2 FVec(float x, float y) { return FVec2{x, y}; }
 
 struct FVec3 {
   using type = float;
-  inline static constexpr size_t kCardinality = 3;
+  inline static constexpr std::size_t kCardinality = 3;
 
   union {
     struct {
@@ -257,8 +257,8 @@ struct FVec3 {
 
   friend void AppendToString(const FVec3& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len =
-        snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f }", v.x, v.y, v.z);
+    std::size_t len =
+        std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f }", v.x, v.y, v.z);
     sink.append(buf, len);
   }
 };
@@ -267,7 +267,7 @@ inline FVec3 FVec(float x, float y, float z) { return FVec3(x, y, z); }
 
 struct FVec4 {
   using type = float;
-  inline static constexpr size_t kCardinality = 4;
+  inline static constexpr std::size_t kCardinality = 4;
 
   union {
     struct {
@@ -412,8 +412,7 @@ struct FVec4 {
 
   friend void AppendToString(const FVec4& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f, %.3f }", v.x,
-                          v.y, v.z, v.w);
+    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f, %.3f }", v.x, v.y, v.z, v.w);
     sink.append(buf, len);
   }
 };
@@ -424,7 +423,7 @@ inline FVec4 FVec(float x, float y, float z, float w) {
 
 struct DVec2 {
   using type = double;
-  inline static constexpr size_t kCardinality = 2;
+  inline static constexpr std::size_t kCardinality = 2;
 
   union {
     struct {
@@ -537,7 +536,7 @@ struct DVec2 {
 
   friend void AppendToString(const DVec2& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf }", v.x, v.y);
+    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf }", v.x, v.y);
     sink.append(buf, len);
   }
 };
@@ -546,7 +545,7 @@ inline DVec2 DVec(double x, double y) { return DVec2(x, y); }
 
 struct DVec3 {
   using type = double;
-  inline static constexpr size_t kCardinality = 3;
+  inline static constexpr std::size_t kCardinality = 3;
 
   union {
     struct {
@@ -681,7 +680,7 @@ struct DVec3 {
 
   friend void AppendToString(const DVec3& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len =
+    std::size_t len =
         snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf }", v.x, v.y, v.z);
     sink.append(buf, len);
   }
@@ -691,7 +690,7 @@ inline DVec3 DVec(double x, double y, double z) { return DVec3(x, y, z); }
 
 struct DVec4 {
   using type = double;
-  inline static constexpr size_t kCardinality = 4;
+  inline static constexpr std::size_t kCardinality = 4;
 
   union {
     struct {
@@ -836,7 +835,7 @@ struct DVec4 {
 
   friend void AppendToString(const DVec4& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf, %.3lf }",
+    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf, %.3lf }",
                           v.x, v.y, v.z, v.w);
     sink.append(buf, len);
   }
@@ -848,7 +847,7 @@ inline DVec4 DVec(double x, double y, double z, double w) {
 
 struct IVec2 {
   using type = int;
-  inline static constexpr size_t kCardinality = 2;
+  inline static constexpr std::size_t kCardinality = 2;
 
   union {
     struct {
@@ -958,7 +957,7 @@ struct IVec2 {
 
   friend void AppendToString(const IVec2& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %d, %d }", v.x, v.y);
+    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %d, %d }", v.x, v.y);
     sink.append(buf, len);
   }
 };
@@ -967,7 +966,7 @@ inline IVec2 IVec(int x, int y) { return IVec2(x, y); }
 
 struct IVec3 {
   using type = int;
-  inline static constexpr size_t kCardinality = 3;
+  inline static constexpr std::size_t kCardinality = 3;
 
   union {
     struct {
@@ -1099,7 +1098,7 @@ struct IVec3 {
 
   friend void AppendToString(const IVec3& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len = snprintf(buf, sizeof(buf), "{ %d, %d, %d }", v.x, v.y, v.z);
+    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %d, %d, %d }", v.x, v.y, v.z);
     sink.append(buf, len);
   }
 };
@@ -1108,7 +1107,7 @@ inline IVec3 IVec(int x, int y, int z) { return IVec3(x, y, z); }
 
 struct IVec4 {
   using type = int;
-  inline static constexpr size_t kCardinality = 4;
+  inline static constexpr std::size_t kCardinality = 4;
 
   union {
     struct {
@@ -1250,8 +1249,8 @@ struct IVec4 {
 
   friend void AppendToString(const IVec4& v, std::string& sink) {
     char buf[32] = {0};
-    size_t len =
-        snprintf(buf, sizeof(buf), "{ %d, %d, %d, %d }", v.x, v.y, v.z, v.w);
+    std::size_t len =
+        std::snprintf(buf, sizeof(buf), "{ %d, %d, %d, %d }", v.x, v.y, v.z, v.w);
     sink.append(buf, len);
   }
 };

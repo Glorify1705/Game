@@ -44,7 +44,7 @@
 
 namespace G {
 
-constexpr size_t kEngineMemory = Gigabytes(4);
+constexpr std::size_t kEngineMemory = Gigabytes(4);
 using EngineAllocator = StaticAllocator<kEngineMemory>;
 
 static EngineAllocator* GlobalEngineAllocator() {
@@ -396,7 +396,7 @@ class DebugUi {
 
  private:
   void CopyToClipboard() {
-    size_t buffer_sz = 0, pos = 0;
+    std::size_t buffer_sz = 0, pos = 0;
     auto& console = DebugConsole::Instance();
     console.ForAllLines(
         [&buffer_sz](std::string_view line) { buffer_sz += line.size() + 1; });
@@ -477,10 +477,10 @@ class DebugUi {
   Dictionary<const char*> expression_table_;
   bool show_ = false;
   int frame_stats_location_ = 1;
-  static constexpr size_t kWidth = 4096;
-  static constexpr size_t kHeight = 4096;
-  static constexpr size_t kChannels = 4;
-  static constexpr size_t kTotalSize = kWidth * kHeight * kChannels;
+  static constexpr std::size_t kWidth = 4096;
+  static constexpr std::size_t kHeight = 4096;
+  static constexpr std::size_t kChannels = 4;
+  static constexpr std::size_t kTotalSize = kWidth * kHeight * kChannels;
   StaticAllocator<kTotalSize> allocator_;
 };
 
@@ -493,7 +493,7 @@ class Game {
     // Initialize the debug console.
     DebugConsole::Instance();
     LOG("Program name = ", argv[0], " args = ", arguments_.size());
-    for (size_t i = 0; i < arguments_.size(); ++i) {
+    for (std::size_t i = 0; i < arguments_.size(); ++i) {
       LOG("argv[", i, "] = ", arguments_[i]);
     }
     PHYSFS_CHECK(PHYSFS_init(argv[0]),
@@ -604,7 +604,7 @@ class Game {
     WATCH_VAR(t);
     WATCH_VAR(dt);
     char error[1024];
-    if (size_t error_len = e_->lua.Error(error, sizeof(error) - 1);
+    if (std::size_t error_len = e_->lua.Error(error, sizeof(error) - 1);
         error_len > 0) {
       e_->sound.Stop();
       RenderCrashScreen(std::string_view(error, error_len));

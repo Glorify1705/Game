@@ -131,7 +131,7 @@ bool Shaders::Compile(ShaderType type, std::string_view name,
   const GLuint shader = glCreateShader(shader_type);
   CHECK(shader != 0, "Could not compile shader ", name);
   const char* code = glsl.data();
-  size_t size = glsl.size();
+  std::size_t size = glsl.size();
   glShaderSource(shader, 1, &code, reinterpret_cast<const GLint*>(&size));
   glCompileShader(shader);
   int success;

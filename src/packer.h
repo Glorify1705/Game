@@ -3,7 +3,7 @@
 #define _GAME_PACKER_H
 
 #include <chrono>
-#include <cstddef>
+#include <stddef.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>

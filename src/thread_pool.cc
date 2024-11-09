@@ -4,11 +4,11 @@
 
 namespace G {
 
-ThreadPool::ThreadPool(Allocator* allocator, size_t num_threads)
+ThreadPool::ThreadPool(Allocator* allocator, std::size_t num_threads)
     : threads_(num_threads, allocator),
       user_data_(num_threads, allocator),
       work_(kMaxFunctions, allocator) {
-  for (size_t i = 0; i < num_threads; ++i) threads_[i] = nullptr;
+  for (std::size_t i = 0; i < num_threads; ++i) threads_[i] = nullptr;
 }
 
 ThreadPool::~ThreadPool() {
@@ -17,7 +17,7 @@ ThreadPool::~ThreadPool() {
     exit_ = true;
   }
   SDL_CondBroadcast(cv_);
-  for (size_t i = 0; i < threads_.size(); ++i) {
+  for (std::size_t i = 0; i < threads_.size(); ++i) {
     int status;
     SDL_WaitThread(threads_[i], &status);
     CHECK(status == 0, "Abnormal termination of thread: ", i);
@@ -42,12 +42,12 @@ void ThreadPool::Start() {
   CHECK(mu_ == nullptr, "Thread pool initialized twice");
   mu_ = SDL_CreateMutex();
   cv_ = SDL_CreateCond();
-  for (size_t i = 0; i < threads_.size(); ++i) {
+  for (std::size_t i = 0; i < threads_.size(); ++i) {
     threads_[i] = SDL_CreateThread(LoopFn, "Thread1", this);
   }
 }
 
-int ThreadPool::Loop(size_t /*index*/) {
+int ThreadPool::Loop(std::size_t /*index*/) {
   while (true) {
     LockMutex l(mu_);
     --inflight_;

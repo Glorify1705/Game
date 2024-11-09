@@ -19,10 +19,10 @@ template <typename T>
 class FlatbufferAllocator : public flatbuffers::Allocator {
  public:
   explicit FlatbufferAllocator(T* allocator) : allocator_(allocator) {}
-  uint8_t* allocate(size_t size) override {
+  uint8_t* allocate(std::size_t size) override {
     return reinterpret_cast<uint8_t*>(allocator_->Alloc(size, /*align=*/1));
   }
-  void deallocate(uint8_t* p, size_t size) override {
+  void deallocate(uint8_t* p, std::size_t size) override {
     allocator_->Dealloc(p, size);
   }
 
@@ -41,36 +41,36 @@ class Packer {
  private:
   Assets* Finish();
 
-  void* Alloc(void* ptr, size_t osize, size_t nsize);
+  void* Alloc(void* ptr, std::size_t osize, std::size_t nsize);
 
-  static void* LuaAlloc(void* ud, void* ptr, size_t osize, size_t nsize) {
+  static void* LuaAlloc(void* ud, void* ptr, std::size_t osize, std::size_t nsize) {
     return static_cast<Packer*>(ud)->Alloc(ptr, osize, nsize);
   }
 
   void HandleQoiImage(std::string_view filename, const uint8_t* buf,
-                      size_t size);
+                      std::size_t size);
 
-  void HandleScript(std::string_view filename, const uint8_t* buf, size_t size);
+  void HandleScript(std::string_view filename, const uint8_t* buf, std::size_t size);
 
   void HandleSpritesheet(std::string_view filename, const uint8_t* buf,
-                         size_t size);
+                         std::size_t size);
 
   void HandleOggSound(std::string_view filename, const uint8_t* buf,
-                      size_t size);
+                      std::size_t size);
 
   void HandleWavSound(std::string_view filename, const uint8_t* buf,
-                      size_t size);
+                      std::size_t size);
 
-  void HandleFont(std::string_view filename, const uint8_t* buf, size_t size);
+  void HandleFont(std::string_view filename, const uint8_t* buf, std::size_t size);
 
   void HandleVertexShader(std::string_view filename, const uint8_t* buf,
-                          size_t size);
+                          std::size_t size);
 
   void HandleFragmentShader(std::string_view filename, const uint8_t* buf,
-                            size_t size);
+                            std::size_t size);
 
   void HandleTextFile(std::string_view filename, const uint8_t* buf,
-                      size_t size);
+                      std::size_t size);
 
   const int64_t start_secs_;
   Allocator* allocator_;
@@ -133,7 +133,7 @@ Assets* Packer::Finish() {
   return New<Assets>(allocator_, GetAssetsPack(buffer), fbs_.GetSize());
 }
 
-void* Packer::Alloc(void* ptr, size_t osize, size_t nsize) {
+void* Packer::Alloc(void* ptr, std::size_t osize, std::size_t nsize) {
   if (nsize == 0) {
     if (ptr != nullptr) allocator_->Dealloc(ptr, osize);
     return nullptr;
@@ -145,7 +145,7 @@ void* Packer::Alloc(void* ptr, size_t osize, size_t nsize) {
 }
 
 void Packer::HandleQoiImage(std::string_view filename, const uint8_t* buf,
-                            size_t size) {
+                            std::size_t size) {
   QoiDesc desc;
   QoiDecode(buf, size, &desc, /*components=*/4, allocator_);
   images_.push_back(CreateImageAsset(fbs_, fbs_.CreateString(filename),
@@ -154,13 +154,13 @@ void Packer::HandleQoiImage(std::string_view filename, const uint8_t* buf,
 }
 
 void Packer::HandleScript(std::string_view filename, const uint8_t* buf,
-                          size_t size) {
+                          std::size_t size) {
   scripts_.push_back(CreateScriptAsset(fbs_, fbs_.CreateString(filename),
                                        fbs_.CreateVector(buf, size)));
 }
 
 void Packer::HandleSpritesheet(std::string_view filename, const uint8_t* buf,
-                               size_t size) {
+                               std::size_t size) {
   WithAllocator<std::vector<flatbuffers::Offset<SpriteAsset>>, Allocator>
       sprites(allocator_);
   uint32_t spritesheet_index = spritesheets_.size();
@@ -216,41 +216,41 @@ void Packer::HandleSpritesheet(std::string_view filename, const uint8_t* buf,
 }
 
 void Packer::HandleOggSound(std::string_view filename, const uint8_t* buf,
-                            size_t size) {
+                            std::size_t size) {
   sounds_.push_back(CreateSoundAsset(fbs_, fbs_.CreateString(filename),
                                      SoundType::OGG,
                                      fbs_.CreateVector(buf, size)));
 }
 
 void Packer::HandleWavSound(std::string_view filename, const uint8_t* buf,
-                            size_t size) {
+                            std::size_t size) {
   sounds_.push_back(CreateSoundAsset(fbs_, fbs_.CreateString(filename),
                                      SoundType::WAV,
                                      fbs_.CreateVector(buf, size)));
 }
 
 void Packer::HandleFont(std::string_view filename, const uint8_t* buf,
-                        size_t size) {
+                        std::size_t size) {
   fonts_.push_back(CreateFontAsset(fbs_, fbs_.CreateString(filename),
                                    fbs_.CreateVector(buf, size)));
 }
 
 void Packer::HandleVertexShader(std::string_view filename, const uint8_t* buf,
-                                size_t size) {
+                                std::size_t size) {
   shaders_.push_back(CreateShaderAsset(
       fbs_, fbs_.CreateString(filename), ShaderType::VERTEX,
       fbs_.CreateString(reinterpret_cast<const char*>(buf), size)));
 }
 
 void Packer::HandleFragmentShader(std::string_view filename, const uint8_t* buf,
-                                  size_t size) {
+                                  std::size_t size) {
   shaders_.push_back(CreateShaderAsset(
       fbs_, fbs_.CreateString(filename), ShaderType::FRAGMENT,
       fbs_.CreateString(reinterpret_cast<const char*>(buf), size)));
 }
 
 void Packer::HandleTextFile(std::string_view filename, const uint8_t* buf,
-                            size_t size) {
+                            std::size_t size) {
   text_files_.push_back(CreateTextFileAsset(fbs_, fbs_.CreateString(filename),
                                             fbs_.CreateVector(buf, size)));
 }
@@ -259,7 +259,7 @@ void Packer::HandleFile(std::string_view dirname, std::string_view filename) {
   struct FileHandler {
     std::string_view extension;
     void (Packer::*method)(std::string_view filename, const uint8_t* buf,
-                           size_t size);
+                           std::size_t size);
   };
   FixedStringBuffer<kMaxPathLength> path(dirname, "/", filename);
 
@@ -285,9 +285,9 @@ void Packer::HandleFile(std::string_view dirname, std::string_view filename) {
       auto* handle = PHYSFS_openRead(path.str());
       CHECK(handle != nullptr, "Could not read ", path, ": ",
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
-      const size_t bytes = PHYSFS_fileLength(handle);
+      const std::size_t bytes = PHYSFS_fileLength(handle);
       auto* buffer = static_cast<uint8_t*>(scratch.Alloc(bytes, /*align=*/1));
-      const size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
+      const std::size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
       CHECK(read_bytes == bytes, " failed to read ", path,
             " error = ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       CHECK(PHYSFS_close(handle), "failed to finish reading ", filename, ": ",
@@ -397,7 +397,7 @@ class DbPacker {
       : db_(db), allocator_(allocator) {}
 
   void InsertIntoTable(std::string_view table, std::string_view filename,
-                       const uint8_t* buf, size_t size) {
+                       const uint8_t* buf, std::size_t size) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql("INSERT OR REPLACE INTO ", table,
                                " (name, contents) VALUES (?, ?);");
@@ -414,15 +414,15 @@ class DbPacker {
   }
 
   void InsertScript(std::string_view filename, const uint8_t* buf,
-                    size_t size) {
+                    std::size_t size) {
     InsertIntoTable("scripts", filename, buf, size);
   }
 
-  void InsertFont(std::string_view filename, const uint8_t* buf, size_t size) {
+  void InsertFont(std::string_view filename, const uint8_t* buf, std::size_t size) {
     InsertIntoTable("fonts", filename, buf, size);
   }
 
-  void InsertImage(std::string_view filename, const uint8_t* buf, size_t size) {
+  void InsertImage(std::string_view filename, const uint8_t* buf, std::size_t size) {
     QoiDesc desc;
     QoiDecode(buf, size, &desc, /*components=*/4, allocator_);
     sqlite3_stmt* stmt;
@@ -445,16 +445,16 @@ class DbPacker {
     sqlite3_finalize(stmt);
   }
 
-  void InsertAudio(std::string_view filename, const uint8_t* buf, size_t size) {
+  void InsertAudio(std::string_view filename, const uint8_t* buf, std::size_t size) {
     InsertIntoTable("audios", filename, buf, size);
   }
 
   void InsertTextFile(std::string_view filename, const uint8_t* buf,
-                      size_t size) {
+                      std::size_t size) {
     InsertIntoTable("text_files", filename, buf, size);
   }
 
-  void* Alloc(void* ptr, size_t osize, size_t nsize) {
+  void* Alloc(void* ptr, std::size_t osize, std::size_t nsize) {
     if (nsize == 0) {
       if (ptr != nullptr) allocator_->Dealloc(ptr, osize);
       return nullptr;
@@ -465,7 +465,7 @@ class DbPacker {
     return allocator_->Realloc(ptr, osize, nsize, /*align=*/1);
   }
 
-  static void* LuaAlloc(void* ud, void* ptr, size_t osize, size_t nsize) {
+  static void* LuaAlloc(void* ud, void* ptr, std::size_t osize, std::size_t nsize) {
     return static_cast<DbPacker*>(ud)->Alloc(ptr, osize, nsize);
   }
 
@@ -492,7 +492,7 @@ class DbPacker {
   }
 
   void InsertSpritesheet(std::string_view filename, const uint8_t* buf,
-                         size_t size) {
+                         std::size_t size) {
     auto* state = lua_newstate(&DbPacker::LuaAlloc, this);
     CHECK(luaL_loadbuffer(state, reinterpret_cast<const char*>(buf), size,
                           filename.data()) == 0,
@@ -527,7 +527,7 @@ class DbPacker {
     for (lua_pushnil(state); lua_next(state, -2); lua_pop(state, 1)) {
       lua_pushstring(state, "name");
       lua_gettable(state, -2);
-      size_t namelen; 
+      std::size_t namelen; 
       const char* namestr = luaL_checklstring(state, -1, &namelen);
       lua_pop(state, 1);
 
@@ -564,11 +564,11 @@ class DbPacker {
   }
 
   void InsertShader(std::string_view filename, const uint8_t* buffer,
-                    size_t size) {
+                    std::size_t size) {
     InsertIntoTable("shaders", filename, buffer, size);
   }
 
-  void InsertIntoAssetMeta(std::string_view filename, size_t size,
+  void InsertIntoAssetMeta(std::string_view filename, std::size_t size,
                            std::string_view type, XXH128_hash_t hash) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(
@@ -593,7 +593,7 @@ class DbPacker {
     struct DbHandler {
       std::string_view extension;
       void (DbPacker::*handler)(std::string_view filename, const uint8_t* buf,
-                                size_t size);
+                                std::size_t size);
       std::string_view type;
     };
     FixedStringBuffer<kMaxPathLength> path(directory, "/", filename);
@@ -622,9 +622,9 @@ class DbPacker {
       auto* handle = PHYSFS_openRead(path.str());
       CHECK(handle != nullptr, "Could not read ", path, ": ",
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
-      const size_t bytes = PHYSFS_fileLength(handle);
+      const std::size_t bytes = PHYSFS_fileLength(handle);
       auto* buffer = static_cast<uint8_t*>(scratch.Alloc(bytes, /*align=*/1));
-      const size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
+      const std::size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
       CHECK(read_bytes == bytes, " failed to read ", path,
             " error = ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       CHECK(PHYSFS_close(handle), "failed to finish reading ", filename, ": ",

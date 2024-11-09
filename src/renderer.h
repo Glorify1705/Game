@@ -22,11 +22,11 @@ class BatchRenderer {
 
   ~BatchRenderer();
 
-  size_t LoadTexture(const ImageAsset& image);
+  std::size_t LoadTexture(const ImageAsset& image);
 
-  size_t LoadTexture(const void* data, size_t width, size_t height);
+  std::size_t LoadTexture(const void* data, std::size_t width, std::size_t height);
 
-  void SetActiveTexture(size_t texture_unit) {
+  void SetActiveTexture(std::size_t texture_unit) {
     AddCommand(kSetTexture, SetTexture{texture_unit});
   }
 
@@ -52,7 +52,7 @@ class BatchRenderer {
 
   void FinishLine() { AddCommand(kEndLine, EndLine{}); }
 
-  void PushLinePoints(const FVec2* ps, size_t n) {
+  void PushLinePoints(const FVec2* ps, std::size_t n) {
     AddCommand(kAddLinePoint, /*count=*/n, ps, n * sizeof(FVec2));
   }
 
@@ -106,7 +106,7 @@ class BatchRenderer {
   };
 
   struct SetTexture {
-    size_t texture_unit;
+    std::size_t texture_unit;
   };
 
   struct SetColor {
@@ -183,9 +183,9 @@ class BatchRenderer {
   }
 
   void AddCommand(CommandType type, uint32_t count, const void* data,
-                  size_t size);
+                  std::size_t size);
 
-  static constexpr size_t SizeOfCommand(CommandType t) {
+  static constexpr std::size_t SizeOfCommand(CommandType t) {
     switch (t) {
       case kRenderQuad:
         return sizeof(RenderQuad);
@@ -243,12 +243,12 @@ class BatchRenderer {
 
   Allocator* allocator_;
   uint8_t* command_buffer_ = nullptr;
-  size_t pos_ = 0;
+  std::size_t pos_ = 0;
   FixedArray<QueueEntry> commands_;
   FixedArray<GLuint> tex_;
   Shaders* shaders_;
   GLuint ebo_, vao_, vbo_;
-  size_t noop_texture_;
+  std::size_t noop_texture_;
   GLuint screen_quad_vao_, screen_quad_vbo_;
   GLuint intermediate_target_;
   GLuint render_target_, downsampled_target_, render_texture_,
@@ -279,7 +279,7 @@ class Renderer {
   void DrawText(std::string_view font_name, uint32_t size, std::string_view str,
                 FVec2 position);
   void DrawLine(FVec2 p0, FVec2 p1);
-  void DrawLines(const FVec2* ps, size_t n);
+  void DrawLines(const FVec2* ps, std::size_t n);
 
   IVec2 TextDimensions(std::string_view font_name, uint32_t size,
                        std::string_view str);
@@ -296,10 +296,10 @@ class Renderer {
   void Scale(float x, float y) { ApplyTransform(ScaleXY(x, y)); }
 
  private:
-  inline static constexpr size_t kAtlasWidth = 4096;
-  inline static constexpr size_t kAtlasHeight = 4096;
-  inline static constexpr size_t kAtlasSize = kAtlasWidth * kAtlasHeight;
-  inline static constexpr size_t kFontSize = 32;
+  inline static constexpr std::size_t kAtlasWidth = 4096;
+  inline static constexpr std::size_t kAtlasHeight = 4096;
+  inline static constexpr std::size_t kAtlasSize = kAtlasWidth * kAtlasHeight;
+  inline static constexpr std::size_t kFontSize = 32;
 
   struct FontInfo {
     GLuint texture;

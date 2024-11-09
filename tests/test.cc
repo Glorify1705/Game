@@ -58,7 +58,7 @@ TEST(Tests, DynArray) {
     EXPECT_EQ(array.back(), i);
   }
   EXPECT_EQ(array.size(), 100);
-  for (size_t i = 0; i < array.size(); ++i) {
+  for (std::size_t i = 0; i < array.size(); ++i) {
     EXPECT_EQ(array[i], i);
   }
   int p = 0;

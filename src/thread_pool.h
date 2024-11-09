@@ -10,7 +10,7 @@ namespace G {
 
 class ThreadPool {
  public:
-  ThreadPool(Allocator* allocator, size_t num_threads);
+  ThreadPool(Allocator* allocator, std::size_t num_threads);
 
   ~ThreadPool();
 
@@ -25,7 +25,7 @@ class ThreadPool {
  private:
   struct UserData {
     ThreadPool* self;
-    size_t index;
+    std::size_t index;
   };
   struct Work {
     int (*fn)(void*);
@@ -44,7 +44,7 @@ class ThreadPool {
   SDL_cond* cv_ = nullptr;
   SDL_cond* idle_cv_ = nullptr;
   int inflight_ = 0;
-  static constexpr size_t kMaxFunctions = 4096;
+  static constexpr std::size_t kMaxFunctions = 4096;
   CircularBuffer<Work> work_;
   bool exit_ = false;
 };

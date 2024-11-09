@@ -38,8 +38,8 @@ class StringTable {
 
   bool IsThere(uint32_t pos, std::string_view s);
 
-  inline static constexpr size_t kTotalSize = 1 << 24;
-  inline static constexpr size_t kTotalStringsLog = 16;
+  inline static constexpr std::size_t kTotalSize = 1 << 24;
+  inline static constexpr std::size_t kTotalStringsLog = 16;
 
   char buffer_[kTotalSize + 1];
   uint32_t offsets_[1 << kTotalStringsLog];

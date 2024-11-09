@@ -82,10 +82,10 @@ class DebugConsole {
   }
 
  private:
-  inline static constexpr size_t kMaxLines = 1024;
+  inline static constexpr std::size_t kMaxLines = 1024;
 
   struct Linebuffer {
-    size_t len;
+    std::size_t len;
     char chars[kMaxLogLineLength + 1];
   };
 
@@ -103,7 +103,7 @@ class DebugConsole {
   SDL_LogOutputFunction log_fn_;
   void* log_fn_userdata_;
 
-  inline static constexpr size_t kMaxWatchers = 128;
+  inline static constexpr std::size_t kMaxWatchers = 128;
 
   FixedArray<Linebuffer> linebuffers_;
   FixedArray<uint32_t> watcher_handles_;

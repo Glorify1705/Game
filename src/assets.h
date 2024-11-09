@@ -1,9 +1,8 @@
-
 #pragma once
 #ifndef _GAME_ASSETS_H
 #define _GAME_ASSETS_H
 
-#include <cstddef>
+#include <stddef.h>
 #include <cstdint>
 #include <cstdlib>
 #include <string_view>
@@ -24,53 +23,53 @@ class DbAssets {
  public:
   struct Image {
     std::string_view name;
-    size_t width;
-    size_t height;
-    size_t size;
+    std::size_t width;
+    std::size_t height;
+    std::size_t size;
     uint8_t* contents;
   };
 
   struct Spritesheet{
     std::string_view name;
-    size_t width;
-    size_t height;
+    std::size_t width;
+    std::size_t height;
   };
 
   struct Sprite {
     std::string_view name;
-    size_t x;
-    size_t y;
-    size_t width;
-    size_t height;
+    std::size_t x;
+    std::size_t y;
+    std::size_t width;
+    std::size_t height;
   };
 
   struct Script {
     std::string_view name;
-    size_t size;
+    std::size_t size;
     uint8_t* contents;
   };
 
   struct Sound {
     std::string_view name;
-    size_t size;
+    std::size_t size;
     uint8_t* contents;
   };
 
   struct TextFile {
     std::string_view name;
-    size_t size;
+    std::size_t size;
     uint8_t* contents;
   };
 
   struct Font {
     std::string_view name;
-    size_t size;
+    std::size_t size;
     uint8_t* contents;
   };
 
   struct Shader {
     std::string_view name;
-    size_t size;
+    std::size_t size;
     uint8_t* contents;
   };
 
@@ -115,17 +114,17 @@ class DbAssets {
   }
 
  private:
-  void LoadScript(std::string_view name, uint8_t* buffer, size_t size);
+  void LoadScript(std::string_view name, uint8_t* buffer, std::size_t size);
 
   FixedStringBuffer<256> db_filename_;
 
   sqlite3* db_;
   Allocator* allocator_;
 
-  size_t name_size_;
+  std::size_t name_size_;
   char* name_buffer_;
 
-  size_t content_size_;
+  std::size_t content_size_;
   uint8_t* content_buffer_;
 
   Dictionary<Image> images_;
@@ -140,45 +139,45 @@ class DbAssets {
 
 class Assets {
  public:
-  Assets(const AssetsPack* assets, size_t size) : assets_(assets), size_(size) {
+  Assets(const AssetsPack* assets, std::size_t size) : assets_(assets), size_(size) {
     CHECK(assets_ != nullptr, "Failed to build assets from buffer");
   }
 
   const ImageAsset* GetImage(std::string_view name) const;
   const ScriptAsset* GetScript(std::string_view name) const;
-  size_t scripts() const { return assets_->scripts()->size(); }
-  const ScriptAsset* GetScriptByIndex(size_t idx) const {
+  std::size_t scripts() const { return assets_->scripts()->size(); }
+  const ScriptAsset* GetScriptByIndex(std::size_t idx) const {
     return assets_->scripts()->Get(idx);
   }
   const SpritesheetAsset* GetSpritesheet(std::string_view name) const;
-  size_t spritesheets() const { return assets_->spritesheets()->size(); }
-  const SpritesheetAsset* GetSpritesheetByIndex(size_t idx) const {
+  std::size_t spritesheets() const { return assets_->spritesheets()->size(); }
+  const SpritesheetAsset* GetSpritesheetByIndex(std::size_t idx) const {
     return assets_->spritesheets()->Get(idx);
   }
   const SpriteAsset* GetSprite(std::string_view name) const;
-  size_t sprites() const { return assets_->sprites()->size(); }
-  const SpriteAsset* GetSpriteByIndex(size_t idx) const {
+  std::size_t sprites() const { return assets_->sprites()->size(); }
+  const SpriteAsset* GetSpriteByIndex(std::size_t idx) const {
     return assets_->sprites()->Get(idx);
   }
   const FontAsset* GetFont(std::string_view name) const;
-  size_t fonts() const { return assets_->fonts()->size(); }
-  const FontAsset* GetFontByIndex(size_t idx) const {
+  std::size_t fonts() const { return assets_->fonts()->size(); }
+  const FontAsset* GetFontByIndex(std::size_t idx) const {
     return assets_->fonts()->Get(idx);
   }
   const TextFileAsset* GetText(std::string_view name) const;
-  size_t shaders() const { return assets_->shaders()->size(); }
-  const ShaderAsset* GetShaderByIndex(size_t idx) const {
+  std::size_t shaders() const { return assets_->shaders()->size(); }
+  const ShaderAsset* GetShaderByIndex(std::size_t idx) const {
     return assets_->shaders()->Get(idx);
   }
   const SoundAsset* GetSound(std::string_view name) const;
   const ShaderAsset* GetShader(std::string_view) const;
 
   const AssetsPack* PackedAssets() const { return assets_; }
-  size_t PackerAssetSize() const { return size_; }
+  std::size_t PackerAssetSize() const { return size_; }
 
  private:
   const AssetsPack* assets_;
-  const size_t size_;
+  const std::size_t size_;
 };
 
 }  // namespace G

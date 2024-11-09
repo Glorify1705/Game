@@ -3441,7 +3441,7 @@ inline constexpr uint8_t kProggyCleanFont[] = {
     0x6F, 0x64, 0x65, 0x23, 0x30, 0x78, 0x30, 0x30, 0x39, 0x66, 0x00, 0x00,
 };
 
-constexpr size_t kProggyCleanFontLength = 41208;
+constexpr std::size_t kProggyCleanFontLength = 41208;
 
 }  // namespace G
 #endif

@@ -26,8 +26,8 @@ void *QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
 void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
                 Allocator *allocator);
 
-bool WritePixelsToImage(const char *filename, uint8_t *data, size_t width,
-                        size_t height, Filesystem *filesystem,
+bool WritePixelsToImage(const char *filename, uint8_t *data, std::size_t width,
+                        std::size_t height, Filesystem *filesystem,
                         StringBuffer *err, Allocator *allocator);
 
 }  // namespace G

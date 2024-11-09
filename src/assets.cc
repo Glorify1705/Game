@@ -1,5 +1,8 @@
 #include "assets.h"
+
 #include <cstring>
+
+#include "clock.h"
 
 namespace G {
 namespace {
@@ -19,20 +22,23 @@ const T* Search(const flatbuffers::Vector<flatbuffers::Offset<T>>& v,
 
 }  // namespace
 
-void DbAssets::LoadScript(std::string_view /*name*/, uint8_t* /*buffer*/, size_t /*size*/) {
-  FixedStringBuffer<256> sql("SELECT name, LENGTH(name), type, size FROM asset_metadata");
+void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer, std::size_t size) {
+  FixedStringBuffer<256> sql("SELECT contents FROM scripts WHERE name = ?");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
+  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+  CHECK (sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  std::memcpy(buffer, contents, size);
 }
 
 void DbAssets::Load() {
   if (sqlite3_open(db_filename_.str(), &db_) != SQLITE_OK) {
     DIE("Failed to open ", db_filename_, ": ", sqlite3_errmsg(db_));
   }
-  size_t total_size = 0;
-  size_t total_names = 0;
+  std::size_t total_size = 0, total_names = 0;
   {
     FixedStringBuffer<256> sql("SELECT SUM(size), SUM(LENGTH(name)) FROM asset_metadata");
     sqlite3_stmt* stmt;
@@ -55,10 +61,10 @@ void DbAssets::Load() {
   }
   struct Loader {
     const char* name;
-    void (DbAssets::*load)(std::string_view name, uint8_t* buffer, size_t size);
+    void (DbAssets::*load)(std::string_view name, uint8_t* buffer, std::size_t size);
   };
   static constexpr Loader kLoaders[] = {
-    { .name = "script", .load = nullptr },
+    { .name = "script", .load = &DbAssets::LoadScript },
     { .name = "sheet", .load = nullptr },
     { .name = nullptr, .load = nullptr },
   };
@@ -66,7 +72,7 @@ void DbAssets::Load() {
     auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
     auto name_length = sqlite3_column_int(stmt, 1);
     auto type = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-    const size_t size = sqlite3_column_int(stmt, 3);
+    const std::size_t size = sqlite3_column_int(stmt, 3);
     auto* buffer = &content_buffer_[content_size_];
     content_size_ += size;
     auto* name_ptr = &name_buffer_[name_size_];
@@ -78,6 +84,7 @@ void DbAssets::Load() {
         break;
       }
       if (!std::strcmp(type, loader.name)) {
+        TIMER("Load DB asset ", name);
         auto method = loader.load;
         if (method == nullptr) {
           LOG("While loading ", name, ": unimplemented asset type ", type);

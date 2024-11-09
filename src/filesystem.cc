@@ -33,7 +33,7 @@ Filesystem::~Filesystem() {
 
 bool Filesystem::WriteToFile(std::string_view filename,
                              std::string_view contents, StringBuffer* buf) {
-  size_t handle;
+  std::size_t handle;
   FixedStringBuffer<kMaxPathLength> path(filename);
   if (!filename_to_handle_.Lookup(filename, &handle)) {
     handle = for_write_.size();
@@ -54,8 +54,8 @@ bool Filesystem::WriteToFile(std::string_view filename,
 }
 
 bool Filesystem::ReadFile(std::string_view filename, uint8_t* buffer,
-                          size_t size, StringBuffer* buf) {
-  size_t handle;
+                          std::size_t size, StringBuffer* buf) {
+  std::size_t handle;
   FixedStringBuffer<kMaxPathLength> path(filename);
   if (!filename_to_handle_.Lookup(filename, &handle)) {
     handle = for_read_.size();
@@ -75,9 +75,9 @@ bool Filesystem::ReadFile(std::string_view filename, uint8_t* buffer,
   return true;
 }
 
-bool Filesystem::Size(std::string_view filename, size_t* result,
+bool Filesystem::Size(std::string_view filename, std::size_t* result,
                       StringBuffer* buf) {
-  size_t handle;
+  std::size_t handle;
   FixedStringBuffer<kMaxPathLength> path(filename);
   if (!filename_to_handle_.Lookup(filename, &handle)) {
     handle = for_read_.size();

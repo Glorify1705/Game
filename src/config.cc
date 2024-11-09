@@ -6,7 +6,7 @@ namespace G {
 
 template <size_t size>
 void CopyLuaString(lua_State* state, char (&buf)[size]) {
-  size_t l;
+  std::size_t l;
   const char* k = lua_tolstring(state, 3, &l);
   l = std::min(size - 1, l);
   std::memcpy(buf, k, l);
@@ -15,13 +15,13 @@ void CopyLuaString(lua_State* state, char (&buf)[size]) {
 
 void ParseVersionFromString(const char* str, GameConfig* config) {
   // TODO: error handling.
-  sscanf(str, "%d.%d", &config->version.major, &config->version.minor);
+  std::sscanf(str, "%d.%d", &config->version.major, &config->version.minor);
 }
 
 int SetWindowInfo(lua_State* state) {
   auto* config =
       static_cast<GameConfig*>(lua_touserdata(state, lua_upvalueindex(1)));
-  size_t len;
+  std::size_t len;
   const char* keyv = lua_tolstring(state, 2, &len);
   std::string_view key(keyv, len);
   if (key == "width") {

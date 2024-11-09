@@ -91,7 +91,7 @@ template <typename... T>
 std::string StrCat(T... ts) {
   return [&](std::initializer_list<std::string_view> ss) {
     std::string result;
-    size_t total = 0;
+    std::size_t total = 0;
     for (auto& s : ss) total += s.size();
     result.reserve(total);
     for (auto& s : ss) result.append(s.data(), s.size());
@@ -102,7 +102,7 @@ std::string StrCat(T... ts) {
 template <typename... T>
 void StrAppend(std::string* buf, T... ts) {
   [&](std::initializer_list<std::string_view> ss) {
-    size_t total = 0;
+    std::size_t total = 0;
     for (auto& s : ss) total += s.size();
     buf->reserve(std::max(buf->size() * 2, buf->size() + total));
     for (auto& s : ss) buf->append(s.data(), s.size());
@@ -111,11 +111,11 @@ void StrAppend(std::string* buf, T... ts) {
 
 class StringBuffer {
  public:
-  StringBuffer(char* buf, size_t size) : buf_(buf), size_(size) {
+  StringBuffer(char* buf, std::size_t size) : buf_(buf), size_(size) {
     buf_[pos_] = '\0';
   }
 
-  StringBuffer(size_t size, ArenaAllocator* alloc) {
+  StringBuffer(std::size_t size, ArenaAllocator* alloc) {
     buf_ = static_cast<char*>(alloc->Alloc(size, /*align=*/1));
     size_ = size;
   }
@@ -158,7 +158,7 @@ class StringBuffer {
 
   operator const char*() const { return buf_; }
 
-  size_t size() const { return pos_; }
+  std::size_t size() const { return pos_; }
 
   std::string_view piece() const { return std::string_view(str(), size()); }
 
@@ -172,19 +172,19 @@ class StringBuffer {
   }
 
   void AppendStr(std::string_view s) {
-    const size_t length = capacity(s.size());
+    const std::size_t length = capacity(s.size());
     std::memcpy(buf_ + pos_, s.data(), length);
     pos_ += length;
   }
 
-  size_t remaining() const { return pos_ >= size_ ? 0 : (size_ - pos_); }
-  size_t capacity(size_t cs) const { return std::min(cs, remaining()); }
+  std::size_t remaining() const { return pos_ >= size_ ? 0 : (size_ - pos_); }
+  std::size_t capacity(std::size_t cs) const { return std::min(cs, remaining()); }
 
   char* buf_;
-  size_t pos_ = 0, size_;
+  std::size_t pos_ = 0, size_;
 };
 
-template <size_t N>
+template <std::size_t N>
 class FixedStringBuffer final : public StringBuffer {
  public:
   FixedStringBuffer() : StringBuffer(buf_, N) {}
