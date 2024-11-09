@@ -1,6 +1,5 @@
 #include "assets.h"
 #include <cstring>
-#include "src/allocators.h"
 
 namespace G {
 namespace {
@@ -19,6 +18,14 @@ const T* Search(const flatbuffers::Vector<flatbuffers::Offset<T>>& v,
 }
 
 }  // namespace
+
+void DbAssets::LoadScript(std::string_view /*name*/, uint8_t* /*buffer*/, size_t /*size*/) {
+  FixedStringBuffer<256> sql("SELECT name, LENGTH(name), type, size FROM asset_metadata");
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+  }
+}
 
 void DbAssets::Load() {
   if (sqlite3_open(db_filename_.str(), &db_) != SQLITE_OK) {
@@ -46,17 +53,38 @@ void DbAssets::Load() {
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
+  struct Loader {
+    const char* name;
+    void (DbAssets::*load)(std::string_view name, uint8_t* buffer, size_t size);
+  };
+  static constexpr Loader kLoaders[] = {
+    { .name = "script", .load = nullptr },
+    { .name = "sheet", .load = nullptr },
+    { .name = nullptr, .load = nullptr },
+  };
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
     auto name_length = sqlite3_column_int(stmt, 1);
     auto type = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
     const size_t size = sqlite3_column_int(stmt, 3);
-    std::memcpy(&name_buffer_[name_size_], name, name_length);
-    if (!strcmp(type, "script")) {
-      Script script;
-      script.name = std::string_view(name, name_length);
-      script.contents = 
-    } else if (!strcmp(type, "sheet") {
+    auto* buffer = &content_buffer_[content_size_];
+    content_size_ += size;
+    auto* name_ptr = &name_buffer_[name_size_];
+    std::memcpy(name_ptr, name, name_length);
+    name_size_ += name_length;
+    for (const Loader& loader : kLoaders) {
+      if (loader.name == nullptr) {
+        LOG("No loader for asset ", name, " with type ", type);
+        break;
+      }
+      if (!std::strcmp(type, loader.name)) {
+        auto method = loader.load;
+        if (method == nullptr) {
+          LOG("While loading ", name, ": unimplemented asset type ", type);
+          break;
+        }
+        (this->*method)(std::string_view(name_ptr, name_length), buffer, size);
+      }
     }
   } 
   sqlite3_finalize(stmt);
