@@ -20,6 +20,8 @@
     xorg.xrandr
     zlib
   ];
+
+  languages.cplusplus.enable = true;
   
   env.CCLS_LOCATION = "${pkgs.ccls}/bin/ccls";
 
@@ -35,11 +37,14 @@
     exec = "rm -rf build/*";
   };
 
-  scripts."game-db" = {
+  scripts."game-open-db" = {
     exec = "${pkgs.sqlitebrowser}/bin/sqlitebrowser build/assets.sqlite3";
   };
 
-  enterShell = ''
-    exec zsh
-  '';
+  scripts."game-reset-db" = {
+    exec = ''
+      rm -rf build/assets.sqlite3
+      ${pkgs.sqlite}/bin/sqlite3 build/assets.sqlite3 < src/schema.sql
+    '';
+  };
 }
