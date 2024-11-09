@@ -178,7 +178,9 @@ class StringBuffer {
   }
 
   std::size_t remaining() const { return pos_ >= size_ ? 0 : (size_ - pos_); }
-  std::size_t capacity(std::size_t cs) const { return std::min(cs, remaining()); }
+  std::size_t capacity(std::size_t cs) const {
+    return std::min(cs, remaining());
+  }
 
   char* buf_;
   std::size_t pos_ = 0, size_;

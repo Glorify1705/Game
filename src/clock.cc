@@ -1,8 +1,9 @@
+#include "clock.h"
+
 #include <cmath>
 #include <iostream>
 
 #include "SDL.h"
-#include "clock.h"
 
 namespace G {
 

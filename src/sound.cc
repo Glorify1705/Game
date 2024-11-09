@@ -1,8 +1,9 @@
+#include "sound.h"
+
 #include <algorithm>
 
 #include "SDL_mixer.h"
 #include "assets.h"
-#include "sound.h"
 
 namespace G {
 

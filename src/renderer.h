@@ -24,7 +24,8 @@ class BatchRenderer {
 
   std::size_t LoadTexture(const ImageAsset& image);
 
-  std::size_t LoadTexture(const void* data, std::size_t width, std::size_t height);
+  std::size_t LoadTexture(const void* data, std::size_t width,
+                          std::size_t height);
 
   void SetActiveTexture(std::size_t texture_unit) {
     AddCommand(kSetTexture, SetTexture{texture_unit});

@@ -47,4 +47,10 @@
       ${pkgs.sqlite}/bin/sqlite3 build/assets.sqlite3 < src/schema.sql
     '';
   };
+
+  scripts."game-format" = {
+    exec = ''
+      ${pkgs.clang-tools}/bin/clang-format -i src/*
+    '';
+  };
 }

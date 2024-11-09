@@ -113,7 +113,8 @@ struct FVec2 {
 
   friend void AppendToString(const FVec2& v, std::string& sink) {
     char buf[32] = {0};
-    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f }", v.x, v.y);
+    std::size_t len =
+        std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f }", v.x, v.y);
     sink.append(buf, len);
   }
 };
@@ -412,7 +413,8 @@ struct FVec4 {
 
   friend void AppendToString(const FVec4& v, std::string& sink) {
     char buf[32] = {0};
-    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f, %.3f }", v.x, v.y, v.z, v.w);
+    std::size_t len = std::snprintf(
+        buf, sizeof(buf), "{ %.3f, %.3f, %.3f, %.3f }", v.x, v.y, v.z, v.w);
     sink.append(buf, len);
   }
 };
@@ -536,7 +538,8 @@ struct DVec2 {
 
   friend void AppendToString(const DVec2& v, std::string& sink) {
     char buf[32] = {0};
-    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf }", v.x, v.y);
+    std::size_t len =
+        std::snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf }", v.x, v.y);
     sink.append(buf, len);
   }
 };
@@ -835,8 +838,8 @@ struct DVec4 {
 
   friend void AppendToString(const DVec4& v, std::string& sink) {
     char buf[32] = {0};
-    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf, %.3lf }",
-                          v.x, v.y, v.z, v.w);
+    std::size_t len = std::snprintf(
+        buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf, %.3lf }", v.x, v.y, v.z, v.w);
     sink.append(buf, len);
   }
 };
@@ -1098,7 +1101,8 @@ struct IVec3 {
 
   friend void AppendToString(const IVec3& v, std::string& sink) {
     char buf[32] = {0};
-    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %d, %d, %d }", v.x, v.y, v.z);
+    std::size_t len =
+        std::snprintf(buf, sizeof(buf), "{ %d, %d, %d }", v.x, v.y, v.z);
     sink.append(buf, len);
   }
 };
@@ -1249,8 +1253,8 @@ struct IVec4 {
 
   friend void AppendToString(const IVec4& v, std::string& sink) {
     char buf[32] = {0};
-    std::size_t len =
-        std::snprintf(buf, sizeof(buf), "{ %d, %d, %d, %d }", v.x, v.y, v.z, v.w);
+    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %d, %d, %d, %d }", v.x,
+                                    v.y, v.z, v.w);
     sink.append(buf, len);
   }
 };

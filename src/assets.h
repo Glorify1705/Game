@@ -3,6 +3,7 @@
 #define _GAME_ASSETS_H
 
 #include <stddef.h>
+
 #include <cstdint>
 #include <cstdlib>
 #include <string_view>
@@ -29,7 +30,7 @@ class DbAssets {
     uint8_t* contents;
   };
 
-  struct Spritesheet{
+  struct Spritesheet {
     std::string_view name;
     std::size_t width;
     std::size_t height;
@@ -100,9 +101,7 @@ class DbAssets {
   Sprite GetSprite(std::string_view name) const {
     return sprites_.LookupOrDie(name);
   }
-  Font GetFont(std::string_view name) const {
-    return fonts_.LookupOrDie(name);
-  }
+  Font GetFont(std::string_view name) const { return fonts_.LookupOrDie(name); }
   TextFile GetText(std::string_view name) const {
     return text_files_.LookupOrDie(name);
   }
@@ -139,7 +138,8 @@ class DbAssets {
 
 class Assets {
  public:
-  Assets(const AssetsPack* assets, std::size_t size) : assets_(assets), size_(size) {
+  Assets(const AssetsPack* assets, std::size_t size)
+      : assets_(assets), size_(size) {
     CHECK(assets_ != nullptr, "Failed to build assets from buffer");
   }
 

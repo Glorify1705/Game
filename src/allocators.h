@@ -7,9 +7,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <type_traits>
-#include <cstring>
 
 namespace G {
 

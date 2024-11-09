@@ -1,6 +1,7 @@
+#include "thread_pool.h"
+
 #include "logging.h"
 #include "thread.h"
-#include "thread_pool.h"
 
 namespace G {
 

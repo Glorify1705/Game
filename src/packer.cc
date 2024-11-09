@@ -43,14 +43,16 @@ class Packer {
 
   void* Alloc(void* ptr, std::size_t osize, std::size_t nsize);
 
-  static void* LuaAlloc(void* ud, void* ptr, std::size_t osize, std::size_t nsize) {
+  static void* LuaAlloc(void* ud, void* ptr, std::size_t osize,
+                        std::size_t nsize) {
     return static_cast<Packer*>(ud)->Alloc(ptr, osize, nsize);
   }
 
   void HandleQoiImage(std::string_view filename, const uint8_t* buf,
                       std::size_t size);
 
-  void HandleScript(std::string_view filename, const uint8_t* buf, std::size_t size);
+  void HandleScript(std::string_view filename, const uint8_t* buf,
+                    std::size_t size);
 
   void HandleSpritesheet(std::string_view filename, const uint8_t* buf,
                          std::size_t size);
@@ -61,7 +63,8 @@ class Packer {
   void HandleWavSound(std::string_view filename, const uint8_t* buf,
                       std::size_t size);
 
-  void HandleFont(std::string_view filename, const uint8_t* buf, std::size_t size);
+  void HandleFont(std::string_view filename, const uint8_t* buf,
+                  std::size_t size);
 
   void HandleVertexShader(std::string_view filename, const uint8_t* buf,
                           std::size_t size);
@@ -418,11 +421,13 @@ class DbPacker {
     InsertIntoTable("scripts", filename, buf, size);
   }
 
-  void InsertFont(std::string_view filename, const uint8_t* buf, std::size_t size) {
+  void InsertFont(std::string_view filename, const uint8_t* buf,
+                  std::size_t size) {
     InsertIntoTable("fonts", filename, buf, size);
   }
 
-  void InsertImage(std::string_view filename, const uint8_t* buf, std::size_t size) {
+  void InsertImage(std::string_view filename, const uint8_t* buf,
+                   std::size_t size) {
     QoiDesc desc;
     QoiDecode(buf, size, &desc, /*components=*/4, allocator_);
     sqlite3_stmt* stmt;
@@ -445,7 +450,8 @@ class DbPacker {
     sqlite3_finalize(stmt);
   }
 
-  void InsertAudio(std::string_view filename, const uint8_t* buf, std::size_t size) {
+  void InsertAudio(std::string_view filename, const uint8_t* buf,
+                   std::size_t size) {
     InsertIntoTable("audios", filename, buf, size);
   }
 
@@ -465,7 +471,8 @@ class DbPacker {
     return allocator_->Realloc(ptr, osize, nsize, /*align=*/1);
   }
 
-  static void* LuaAlloc(void* ud, void* ptr, std::size_t osize, std::size_t nsize) {
+  static void* LuaAlloc(void* ud, void* ptr, std::size_t osize,
+                        std::size_t nsize) {
     return static_cast<DbPacker*>(ud)->Alloc(ptr, osize, nsize);
   }
 
@@ -527,7 +534,7 @@ class DbPacker {
     for (lua_pushnil(state); lua_next(state, -2); lua_pop(state, 1)) {
       lua_pushstring(state, "name");
       lua_gettable(state, -2);
-      std::size_t namelen; 
+      std::size_t namelen;
       const char* namestr = luaL_checklstring(state, -1, &namelen);
       lua_pop(state, 1);
 

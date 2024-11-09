@@ -22,14 +22,15 @@ const T* Search(const flatbuffers::Vector<flatbuffers::Offset<T>>& v,
 
 }  // namespace
 
-void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer, std::size_t size) {
+void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
+                          std::size_t size) {
   FixedStringBuffer<256> sql("SELECT contents FROM scripts WHERE name = ?");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK (sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   std::memcpy(buffer, contents, size);
 }
@@ -40,33 +41,39 @@ void DbAssets::Load() {
   }
   std::size_t total_size = 0, total_names = 0;
   {
-    FixedStringBuffer<256> sql("SELECT SUM(size), SUM(LENGTH(name)) FROM asset_metadata");
+    FixedStringBuffer<256> sql(
+        "SELECT SUM(size), SUM(LENGTH(name)) FROM asset_metadata");
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
     }
-    CHECK(sqlite3_step(stmt) == SQLITE_ROW, "Could not read asset metadata: ", sqlite3_errmsg(db_));
+    CHECK(sqlite3_step(stmt) == SQLITE_ROW,
+          "Could not read asset metadata: ", sqlite3_errmsg(db_));
     total_size = sqlite3_column_int(stmt, 0);
     total_names = sqlite3_column_int(stmt, 1);
     sqlite3_finalize(stmt);
   }
   name_size_ = 0;
-  name_buffer_ = reinterpret_cast<char*>(allocator_->Alloc(total_names, /*align=*/1));
+  name_buffer_ =
+      reinterpret_cast<char*>(allocator_->Alloc(total_names, /*align=*/1));
   content_size_ = 0;
-  content_buffer_ = reinterpret_cast<uint8_t*>(allocator_->Alloc(total_size, /*align=*/1));
-  FixedStringBuffer<256> sql("SELECT name, LENGTH(name), type, size FROM asset_metadata");
+  content_buffer_ =
+      reinterpret_cast<uint8_t*>(allocator_->Alloc(total_size, /*align=*/1));
+  FixedStringBuffer<256> sql(
+      "SELECT name, LENGTH(name), type, size FROM asset_metadata");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
   struct Loader {
     const char* name;
-    void (DbAssets::*load)(std::string_view name, uint8_t* buffer, std::size_t size);
+    void (DbAssets::*load)(std::string_view name, uint8_t* buffer,
+                           std::size_t size);
   };
   static constexpr Loader kLoaders[] = {
-    { .name = "script", .load = &DbAssets::LoadScript },
-    { .name = "sheet", .load = nullptr },
-    { .name = nullptr, .load = nullptr },
+      {.name = "script", .load = &DbAssets::LoadScript},
+      {.name = "sheet", .load = nullptr},
+      {.name = nullptr, .load = nullptr},
   };
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
@@ -93,7 +100,7 @@ void DbAssets::Load() {
         (this->*method)(std::string_view(name_ptr, name_length), buffer, size);
       }
     }
-  } 
+  }
   sqlite3_finalize(stmt);
 }
 

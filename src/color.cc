@@ -1,8 +1,8 @@
 #include "color.h"
+
 #include "dictionary.h"
 #include "logging.h"
 #include "units.h"
-
 
 namespace G {
 

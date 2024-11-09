@@ -1,8 +1,9 @@
+#include "input.h"
+
 #include <algorithm>
 
 #include "clock.h"
 #include "controllerdb.h"
-#include "input.h"
 
 namespace G {
 

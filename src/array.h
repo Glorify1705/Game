@@ -2,8 +2,9 @@
 #ifndef _FIXED_ARRAY_H
 #define _FIXED_ARRAY_H
 
-#include <array>
 #include <stddef.h>
+
+#include <array>
 #include <iterator>
 
 #include "allocators.h"
@@ -15,7 +16,8 @@ namespace G {
 template <typename T>
 class FixedArray {
  public:
-  FixedArray(std::size_t n, Allocator* allocator) : allocator_(allocator), size_(n) {
+  FixedArray(std::size_t n, Allocator* allocator)
+      : allocator_(allocator), size_(n) {
     buffer_ = NewArray<T>(size_, allocator);
   }
   ~FixedArray() { DeallocArray<T>(buffer_, size_ * sizeof(T), allocator_); }

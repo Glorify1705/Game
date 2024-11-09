@@ -1,3 +1,5 @@
+#include "lua.h"
+
 #include <random>
 
 #include "SDL.h"
@@ -7,7 +9,6 @@
 #include "image.h"
 #include "input.h"
 #include "libraries/pcg_random.h"
-#include "lua.h"
 #include "physics.h"
 #include "renderer.h"
 #include "sound.h"

@@ -1,4 +1,5 @@
 #include "config.h"
+
 #include "logging.h"
 #include "lua.h"
 

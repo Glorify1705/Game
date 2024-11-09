@@ -1,6 +1,6 @@
-#include <cstdio>
-
 #include "logging.h"
+
+#include <cstdio>
 
 namespace G {
 namespace {

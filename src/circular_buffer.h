@@ -14,7 +14,8 @@ namespace G {
 template <typename T>
 class CircularBuffer {
  public:
-  CircularBuffer(std::size_t size, Allocator* allocator) : buffer_(size, allocator) {
+  CircularBuffer(std::size_t size, Allocator* allocator)
+      : buffer_(size, allocator) {
     buffer_.Resize(buffer_.capacity());
   }
 
@@ -47,7 +48,9 @@ class CircularBuffer {
   }
 
  private:
-  std::size_t Inc(std::size_t v, std::size_t i = 1) { return (v + i) % buffer_.size(); }
+  std::size_t Inc(std::size_t v, std::size_t i = 1) {
+    return (v + i) % buffer_.size();
+  }
   FixedArray<T> buffer_;
   std::size_t start_ = 0, end_ = 0;
   bool full_ = false;

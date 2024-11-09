@@ -1,18 +1,20 @@
+#include "image.h"
+
 #include <stddef.h>
+
 #include <cstdio>
 #include <cstdlib>
 
-#include "image.h"
 #include "logging.h"
 
 namespace G {
 
 #define QOI_OP_INDEX 0x00 /* 00xxxxxx */
-#define QOI_OP_DIFF 0x40 /* 01xxxxxx */
-#define QOI_OP_LUMA 0x80 /* 10xxxxxx */
-#define QOI_OP_RUN 0xc0 /* 11xxxxxx */
-#define QOI_OP_RGB 0xfe /* 11111110 */
-#define QOI_OP_RGBA 0xff /* 11111111 */
+#define QOI_OP_DIFF 0x40  /* 01xxxxxx */
+#define QOI_OP_LUMA 0x80  /* 10xxxxxx */
+#define QOI_OP_RUN 0xc0   /* 11xxxxxx */
+#define QOI_OP_RGB 0xfe   /* 11111110 */
+#define QOI_OP_RGBA 0xff  /* 11111111 */
 
 #define QOI_MASK_2 0xc0 /* 11000000 */
 

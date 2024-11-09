@@ -1,5 +1,6 @@
-#include "logging.h"
 #include "string_table.h"
+
+#include "logging.h"
 #include "xxhash.h"
 
 namespace G {

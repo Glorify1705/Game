@@ -36,7 +36,8 @@ struct FMat2x2 {
   static FMat2x2 Identity() {
     FMat2x2 result;
     std::memset(result.v, 0, sizeof(result.v));
-    for (std::size_t i = 0; i < kDimension; ++i) result.v[i * kDimension + i] = 1;
+    for (std::size_t i = 0; i < kDimension; ++i)
+      result.v[i * kDimension + i] = 1;
     return result;
   }
 
@@ -99,7 +100,9 @@ struct FMat2x2 {
     return *this;
   }
 
-  float val(std::size_t i, std::size_t j) const { return v[i * kDimension + j]; }
+  float val(std::size_t i, std::size_t j) const {
+    return v[i * kDimension + j];
+  }
 
   float& mut(std::size_t i, std::size_t j) { return v[i * kDimension + j]; }
 
@@ -185,7 +188,8 @@ struct FMat3x3 {
   static FMat3x3 Identity() {
     FMat3x3 result;
     std::memset(result.v, 0, sizeof(result.v));
-    for (std::size_t i = 0; i < kDimension; ++i) result.v[i * kDimension + i] = 1;
+    for (std::size_t i = 0; i < kDimension; ++i)
+      result.v[i * kDimension + i] = 1;
     return result;
   }
 
@@ -248,7 +252,9 @@ struct FMat3x3 {
     return *this;
   }
 
-  float val(std::size_t i, std::size_t j) const { return v[i * kDimension + j]; }
+  float val(std::size_t i, std::size_t j) const {
+    return v[i * kDimension + j];
+  }
 
   float& mut(std::size_t i, std::size_t j) { return v[i * kDimension + j]; }
 
@@ -334,7 +340,8 @@ struct FMat4x4 {
   static FMat4x4 Identity() {
     FMat4x4 result;
     std::memset(result.v, 0, sizeof(result.v));
-    for (std::size_t i = 0; i < kDimension; ++i) result.v[i * kDimension + i] = 1;
+    for (std::size_t i = 0; i < kDimension; ++i)
+      result.v[i * kDimension + i] = 1;
     return result;
   }
 
@@ -397,7 +404,9 @@ struct FMat4x4 {
     return *this;
   }
 
-  float val(std::size_t i, std::size_t j) const { return v[i * kDimension + j]; }
+  float val(std::size_t i, std::size_t j) const {
+    return v[i * kDimension + j];
+  }
 
   float& mut(std::size_t i, std::size_t j) { return v[i * kDimension + j]; }
 
@@ -483,7 +492,8 @@ struct DMat2x2 {
   static DMat2x2 Identity() {
     DMat2x2 result;
     std::memset(result.v, 0, sizeof(result.v));
-    for (std::size_t i = 0; i < kDimension; ++i) result.v[i * kDimension + i] = 1;
+    for (std::size_t i = 0; i < kDimension; ++i)
+      result.v[i * kDimension + i] = 1;
     return result;
   }
 
@@ -546,7 +556,9 @@ struct DMat2x2 {
     return *this;
   }
 
-  double val(std::size_t i, std::size_t j) const { return v[i * kDimension + j]; }
+  double val(std::size_t i, std::size_t j) const {
+    return v[i * kDimension + j];
+  }
 
   double& mut(std::size_t i, std::size_t j) { return v[i * kDimension + j]; }
 
@@ -632,7 +644,8 @@ struct DMat3x3 {
   static DMat3x3 Identity() {
     DMat3x3 result;
     std::memset(result.v, 0, sizeof(result.v));
-    for (std::size_t i = 0; i < kDimension; ++i) result.v[i * kDimension + i] = 1;
+    for (std::size_t i = 0; i < kDimension; ++i)
+      result.v[i * kDimension + i] = 1;
     return result;
   }
 
@@ -695,7 +708,9 @@ struct DMat3x3 {
     return *this;
   }
 
-  double val(std::size_t i, std::size_t j) const { return v[i * kDimension + j]; }
+  double val(std::size_t i, std::size_t j) const {
+    return v[i * kDimension + j];
+  }
 
   double& mut(std::size_t i, std::size_t j) { return v[i * kDimension + j]; }
 
@@ -781,7 +796,8 @@ struct DMat4x4 {
   static DMat4x4 Identity() {
     DMat4x4 result;
     std::memset(result.v, 0, sizeof(result.v));
-    for (std::size_t i = 0; i < kDimension; ++i) result.v[i * kDimension + i] = 1;
+    for (std::size_t i = 0; i < kDimension; ++i)
+      result.v[i * kDimension + i] = 1;
     return result;
   }
 
@@ -844,7 +860,9 @@ struct DMat4x4 {
     return *this;
   }
 
-  double val(std::size_t i, std::size_t j) const { return v[i * kDimension + j]; }
+  double val(std::size_t i, std::size_t j) const {
+    return v[i * kDimension + j];
+  }
 
   double& mut(std::size_t i, std::size_t j) { return v[i * kDimension + j]; }
 
@@ -930,7 +948,8 @@ struct IMat2x2 {
   static IMat2x2 Identity() {
     IMat2x2 result;
     std::memset(result.v, 0, sizeof(result.v));
-    for (std::size_t i = 0; i < kDimension; ++i) result.v[i * kDimension + i] = 1;
+    for (std::size_t i = 0; i < kDimension; ++i)
+      result.v[i * kDimension + i] = 1;
     return result;
   }
 
@@ -1079,7 +1098,8 @@ struct IMat3x3 {
   static IMat3x3 Identity() {
     IMat3x3 result;
     std::memset(result.v, 0, sizeof(result.v));
-    for (std::size_t i = 0; i < kDimension; ++i) result.v[i * kDimension + i] = 1;
+    for (std::size_t i = 0; i < kDimension; ++i)
+      result.v[i * kDimension + i] = 1;
     return result;
   }
 
@@ -1228,7 +1248,8 @@ struct IMat4x4 {
   static IMat4x4 Identity() {
     IMat4x4 result;
     std::memset(result.v, 0, sizeof(result.v));
-    for (std::size_t i = 0; i < kDimension; ++i) result.v[i * kDimension + i] = 1;
+    for (std::size_t i = 0; i < kDimension; ++i)
+      result.v[i * kDimension + i] = 1;
     return result;
   }
 

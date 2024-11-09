@@ -110,7 +110,8 @@ class Lua {
 
   void* Alloc(void* ptr, std::size_t osize, std::size_t nsize);
 
-  static void* LuaAlloc(void* ud, void* ptr, std::size_t osize, std::size_t nsize) {
+  static void* LuaAlloc(void* ud, void* ptr, std::size_t osize,
+                        std::size_t nsize) {
     return static_cast<Lua*>(ud)->Alloc(ptr, osize, nsize);
   }
 

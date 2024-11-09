@@ -146,9 +146,7 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   SetActiveTexture(noop_texture_);
 }
 
-void BatchRenderer::SetViewport(IVec2 viewport) { 
-  viewport_ = viewport;
-}
+void BatchRenderer::SetViewport(IVec2 viewport) { viewport_ = viewport; }
 
 std::size_t BatchRenderer::LoadTexture(const ImageAsset& image) {
   TIMER("Decoding ", FlatbufferStringview(image.name()));
@@ -174,7 +172,7 @@ BatchRenderer::~BatchRenderer() {
 }
 
 std::size_t BatchRenderer::LoadTexture(const void* data, std::size_t width,
-                                  std::size_t height) {
+                                       std::size_t height) {
   GLuint tex;
   const std::size_t index = tex_.size();
   OPENGL_CALL(glGenTextures(1, &tex));
@@ -564,8 +562,9 @@ void Renderer::Draw(const SpriteAsset& sprite, FVec2 position, float angle) {
   CHECK(spritesheet != nullptr, "No spritesheet for ", sprite_name);
   auto spritesheet_name = FlatbufferStringview(spritesheet->name());
   uint32_t texture_index;
-  CHECK(textures_table_.Lookup(spritesheet_name, &texture_index), "No spritesheet texture for ",
-        sprite_name, "(spritesheet ", FlatbufferStringview(spritesheet->name()), ")");
+  CHECK(textures_table_.Lookup(spritesheet_name, &texture_index),
+        "No spritesheet texture for ", sprite_name, "(spritesheet ",
+        FlatbufferStringview(spritesheet->name()), ")");
   renderer_->SetActiveTexture(textures_[texture_index]);
   const float x = sprite.x(), y = sprite.y(), w = sprite.width(),
               h = sprite.height();
