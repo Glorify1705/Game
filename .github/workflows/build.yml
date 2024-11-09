@@ -26,4 +26,4 @@ jobs:
         run: devenv test
 
       - name: Run a single command in the devenv shell
-        run: devenv tasks run game:build
+        run: devenv shell game:build
