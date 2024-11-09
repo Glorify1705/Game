@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "clock.h"
+#include "src/sound.h"
 
 namespace G {
 namespace {
@@ -33,6 +34,73 @@ void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   std::memcpy(buffer, contents, size);
+  Script script;
+  script.name = filename;
+  script.contents = buffer;
+  script.size = size;
+  scripts_.Insert(filename, script);
+  sqlite3_finalize(stmt);
+}
+
+void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer,
+                         std::size_t size) {
+  FixedStringBuffer<256> sql("SELECT contents FROM fonts WHERE name = ?");
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+  }
+  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  std::memcpy(buffer, contents, size);
+  Font font;
+  font.name = filename;
+  font.contents = buffer;
+  font.size = size;
+  fonts_.Insert(filename, font);
+  sqlite3_finalize(stmt);
+}
+
+void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
+                         std::size_t size) {
+  FixedStringBuffer<256> sql("SELECT contents FROM audios WHERE name = ?");
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+  }
+  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  std::memcpy(buffer, contents, size);
+  Sound sound;
+  sound.name = filename;
+  sound.contents = buffer;
+  sound.size = size;
+  sounds_.Insert(filename, sound);
+  sqlite3_finalize(stmt);
+}
+
+void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
+                         std::size_t size) {
+  FixedStringBuffer<256> sql("SELECT contents, width, height FROM images WHERE name = ?");
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+  }
+  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No image ", filename);
+  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  std::memcpy(buffer, contents, size);
+  const std::size_t width = sqlite3_column_int(stmt, 1);
+  const std::size_t height = sqlite3_column_int(stmt, 2);
+  Image image;
+  image.name = filename;
+  image.width = width;
+  image.height = height;
+  image.contents = buffer;
+  image.size = size;
+  images_.Insert(filename, image);
+  sqlite3_finalize(stmt);
 }
 
 void DbAssets::Load() {
@@ -73,6 +141,9 @@ void DbAssets::Load() {
   static constexpr Loader kLoaders[] = {
       {.name = "script", .load = &DbAssets::LoadScript},
       {.name = "sheet", .load = nullptr},
+      {.name = "image", .load = &DbAssets::LoadImage},
+      {.name = "audio", .load = &DbAssets::LoadAudio},
+      {.name = "fonts", .load = &DbAssets::LoadFont},
       {.name = nullptr, .load = nullptr},
   };
   while (sqlite3_step(stmt) == SQLITE_ROW) {
