@@ -23,15 +23,23 @@
   
   env.CCLS_LOCATION = "${pkgs.ccls}/bin/ccls";
 
-  tasks."game:build" = {
+  scripts."game-build" = {
     exec = "cmake -S . -B build && cmake --build build --target Game";
   };
 
-  tasks."game:run" = {
+  scripts."game-run" = {
     exec = "cmake -S . -B build && cmake --build build --target Run";
   };
 
-  tasks."game:clean" = {
+  scripts."game-clean" = {
     exec = "rm -rf build/*";
   };
+
+  scripts."game-db" = {
+    exec = "${pkgs.sqlitebrowser}/bin/sqlitebrowser build/assets.sqlite3";
+  };
+
+  enterShell = ''
+    exec zsh
+  '';
 }
