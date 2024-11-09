@@ -117,6 +117,8 @@ class DbAssets {
   void LoadImage(std::string_view name, uint8_t* buffer, std::size_t size);
   void LoadAudio(std::string_view name, uint8_t* buffer, std::size_t size);
   void LoadFont(std::string_view name, uint8_t* buffer, std::size_t size);
+  void LoadSpritesheet(std::string_view name, uint8_t* buffer,
+                       std::size_t size);
 
   FixedStringBuffer<256> db_filename_;
 

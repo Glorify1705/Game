@@ -522,12 +522,13 @@ class DbPacker {
     InsertSpritesheetEntry(filename, width, height, atlas);
     lua_pushstring(state, "sprites");
     lua_gettable(state, -2);
-    sqlite3_stmt* stmt;
+    sqlite3_stmt* sprite_stmt;
     FixedStringBuffer<256> sql(R"(
           INSERT OR REPLACE INTO sprites (name, spritesheet, x, y, width, height)
           VALUES (?, ?, ?, ?, ?, ?);
       )");
-    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    if (sqlite3_prepare_v2(db_, sql.str(), -1, &sprite_stmt, nullptr) !=
+        SQLITE_OK) {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
       return;
     }
@@ -551,21 +552,21 @@ class DbPacker {
       const uint32_t w = get_number("width");
       const uint32_t h = get_number("height");
 
-      sqlite3_bind_text(stmt, 1, namestr, namelen, SQLITE_TRANSIENT);
-      sqlite3_bind_text(stmt, 2, filename.data(), filename.size(),
+      sqlite3_bind_text(sprite_stmt, 1, namestr, namelen, SQLITE_TRANSIENT);
+      sqlite3_bind_text(sprite_stmt, 2, filename.data(), filename.size(),
                         SQLITE_STATIC);
-      sqlite3_bind_int(stmt, 3, x);
-      sqlite3_bind_int(stmt, 4, y);
-      sqlite3_bind_int(stmt, 5, w);
-      sqlite3_bind_int(stmt, 6, h);
-      if (sqlite3_step(stmt) != SQLITE_DONE) {
+      sqlite3_bind_int(sprite_stmt, 3, x);
+      sqlite3_bind_int(sprite_stmt, 4, y);
+      sqlite3_bind_int(sprite_stmt, 5, w);
+      sqlite3_bind_int(sprite_stmt, 6, h);
+      if (sqlite3_step(sprite_stmt) != SQLITE_DONE) {
         DIE("Could not insert data for ", namestr, " in ", filename, ": ",
             sqlite3_errmsg(db_));
       }
-      sqlite3_reset(stmt);
-      sqlite3_clear_bindings(stmt);
+      sqlite3_reset(sprite_stmt);
+      sqlite3_clear_bindings(sprite_stmt);
     }
-    sqlite3_finalize(stmt);
+    sqlite3_finalize(sprite_stmt);
     lua_pop(state, 1);
     lua_close(state);
   }

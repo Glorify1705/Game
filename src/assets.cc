@@ -43,7 +43,7 @@ void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
 }
 
 void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer,
-                         std::size_t size) {
+                        std::size_t size) {
   FixedStringBuffer<256> sql("SELECT contents FROM fonts WHERE name = ?");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -80,9 +80,58 @@ void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
   sqlite3_finalize(stmt);
 }
 
+void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
+                               std::size_t size) {
+  {
+    FixedStringBuffer<256> sql(
+        "SELECT width, height FROM spritesheets WHERE name = ?");
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+      DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+    }
+    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+    CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+    auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+    std::size_t width = sqlite3_column_int(stmt, 0);
+    std::size_t height = sqlite3_column_int(stmt, 1);
+    std::memcpy(buffer, contents, size);
+    Spritesheet sheet;
+    sheet.name = filename;
+    sheet.width = width;
+    sheet.height = height;
+    spritesheets_.Insert(filename, sheet);
+    sqlite3_finalize(stmt);
+  }
+  {
+    FixedStringBuffer<256> sql(
+        "SELECT name, x, y, width, height FROM sprites WHERE spritesheet = ?");
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+      DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+    }
+    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+      auto contents =
+          reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+      std::memcpy(buffer, contents, size);
+      Sprite sprite;
+      auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+      sprite.name = &name_buffer_[name_size_];
+      std::memcpy(&sprite.name, name, std::strlen(name) + 1);
+      sprite.x = sqlite3_column_int(stmt, 1);
+      sprite.y = sqlite3_column_int(stmt, 2);
+      sprite.width = sqlite3_column_int(stmt, 3);
+      sprite.height = sqlite3_column_int(stmt, 4);
+      sprites_.Insert(filename, sprite);
+    }
+    sqlite3_finalize(stmt);
+  }
+}
+
 void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
                          std::size_t size) {
-  FixedStringBuffer<256> sql("SELECT contents, width, height FROM images WHERE name = ?");
+  FixedStringBuffer<256> sql(
+      "SELECT contents, width, height FROM images WHERE name = ?");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
@@ -127,12 +176,6 @@ void DbAssets::Load() {
   content_size_ = 0;
   content_buffer_ =
       reinterpret_cast<uint8_t*>(allocator_->Alloc(total_size, /*align=*/1));
-  FixedStringBuffer<256> sql(
-      "SELECT name, LENGTH(name), type, size FROM asset_metadata");
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-  }
   struct Loader {
     const char* name;
     void (DbAssets::*load)(std::string_view name, uint8_t* buffer,
@@ -146,6 +189,12 @@ void DbAssets::Load() {
       {.name = "fonts", .load = &DbAssets::LoadFont},
       {.name = nullptr, .load = nullptr},
   };
+  FixedStringBuffer<256> sql(
+      "SELECT name, LENGTH(name), type, size FROM asset_metadata");
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+  }
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
     auto name_length = sqlite3_column_int(stmt, 1);
