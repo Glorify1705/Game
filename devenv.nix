@@ -12,6 +12,8 @@
     fnlfmt
     gdb
     libGL
+    libGLU
+    mesa
     python3
     sqlite
     sqlitebrowser
