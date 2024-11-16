@@ -84,7 +84,7 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
                                std::size_t size) {
   {
     FixedStringBuffer<256> sql(
-        "SELECT width, height FROM spritesheets WHERE name = ?");
+        "SELECT image, width, height FROM spritesheets WHERE name = ?");
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
@@ -120,9 +120,10 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
       std::memcpy(&sprite.name, name, std::strlen(name) + 1);
       sprite.x = sqlite3_column_int(stmt, 1);
       sprite.y = sqlite3_column_int(stmt, 2);
+      sprite.spritesheet = filename;
       sprite.width = sqlite3_column_int(stmt, 3);
       sprite.height = sqlite3_column_int(stmt, 4);
-      sprites_.Insert(filename, sprite);
+      sprites_.Insert(sprite.name, sprite);
     }
     sqlite3_finalize(stmt);
   }
@@ -190,7 +191,7 @@ void DbAssets::Load() {
       {.name = nullptr, .load = nullptr},
   };
   FixedStringBuffer<256> sql(
-      "SELECT name, LENGTH(name), type, size FROM asset_metadata");
+      "SELECT name, LENGTH(name), type, size FROM asset_metadata ORDER BY type");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));

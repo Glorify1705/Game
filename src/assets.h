@@ -32,12 +32,14 @@ class DbAssets {
 
   struct Spritesheet {
     std::string_view name;
+    std::string_view image;
     std::size_t width;
     std::size_t height;
   };
 
   struct Sprite {
     std::string_view name;
+    std::string_view spritesheet;
     std::size_t x;
     std::size_t y;
     std::size_t width;
