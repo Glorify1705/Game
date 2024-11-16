@@ -6,16 +6,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS True)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-project(Game 
-    VERSION 0.1 
-    DESCRIPTION "The game"
-    LANGUAGES C CXX)
+project(
+  Game
+  VERSION 0.1
+  DESCRIPTION "The game"
+  LANGUAGES C CXX)
 
-set(SDL2_DIR  
-    "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2/cmake")
-set(SDL2_mixer_DIR  
-    "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2_mixer/cmake")
-
+set(SDL2_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2/cmake")
+set(SDL2_mixer_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2_mixer/cmake")
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -48,13 +46,14 @@ find_package(SDL2 REQUIRED)
 find_package(SDL2_mixer REQUIRED)
 
 add_custom_command(
-        OUTPUT assets_generated.h
-        COMMAND flatc -o "${CMAKE_CURRENT_BINARY_DIR}" --gen-object-api --cpp-std c++17 --cpp-static-reflection --cpp
-                "${CMAKE_CURRENT_SOURCE_DIR}/src/assets.fbs"
-        DEPENDS flatc src/assets.fbs)
+  OUTPUT assets_generated.h
+  COMMAND
+    flatc -o "${CMAKE_CURRENT_BINARY_DIR}" --gen-object-api --cpp-std c++17
+    --cpp-static-reflection --cpp "${CMAKE_CURRENT_SOURCE_DIR}/src/assets.fbs"
+  DEPENDS flatc src/assets.fbs)
 
 set(GAME_SRCS
-    "src/logging.cc" 
+    "src/logging.cc"
     "src/assets.cc"
     "src/clock.cc"
     "src/game.cc"
@@ -88,71 +87,85 @@ set(GAME_SRCS
     "${CMAKE_CURRENT_BINARY_DIR}/assets_generated.h")
 
 configure_file(src/version.h.in version.h)
-    
+
 add_executable(Game "${GAME_SRCS}")
 
-target_include_directories(Game 
-                           PRIVATE 
-                           "${CMAKE_CURRENT_BINARY_DIR}" 
-                           "${PROJECT_SOURCE_DIR}"
-                           "${PROJECT_SOURCE_DIR}/libraries/lua/src")
+target_include_directories(
+  Game PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}"
+               "${PROJECT_SOURCE_DIR}/libraries/lua/src")
 
-set(SUPPORTS_GCC_FLAGS $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>)
-set(GCC_AND_CLANG_FLAGS -Wall -Wextra -Werror -Wno-unused-parameter -ggdb -DNDEBUG -DGAME_WITH_ASSERTS)
+set(SUPPORTS_GCC_FLAGS
+    $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>
+)
+set(GCC_AND_CLANG_FLAGS
+    -Wall
+    -Wextra
+    -Werror
+    -Wno-unused-parameter
+    -ggdb
+    -DNDEBUG
+    -DGAME_WITH_ASSERTS)
 set(MSVC_FLAGS /W4 /WX /DGAME_WITH_ASSERTS /O2 /DEBUG /NDEBUG)
 
-set(COMPILER_FLAGS 
-    $<${SUPPORTS_GCC_FLAGS}:${GCC_AND_CLANG_FLAGS}> $<$<CXX_COMPILER_ID:MSVC>:${MSVC_FLAGS}>)
+set(COMPILER_FLAGS $<${SUPPORTS_GCC_FLAGS}:${GCC_AND_CLANG_FLAGS}>
+                   $<$<CXX_COMPILER_ID:MSVC>:${MSVC_FLAGS}>)
 
 target_compile_options(Game PRIVATE ${COMPILER_FLAGS})
 
-add_custom_target(Run ALL
-                  COMMAND "${CMAKE_CURRENT_BINARY_DIR}/Game" "${PROJECT_SOURCE_DIR}/assets"
-                  DEPENDS Game
-                  VERBATIM COMMAND_EXPAND_LISTS)
+add_custom_target(
+  Run ALL
+  COMMAND "${CMAKE_CURRENT_BINARY_DIR}/Game" "${PROJECT_SOURCE_DIR}/assets"
+  DEPENDS Game
+  VERBATIM COMMAND_EXPAND_LISTS)
 
-target_link_libraries(Game PRIVATE SDL2::Main SDL2::Mixer flatbuffers physfs-static box2d lua zip xxHash::xxhash OpenGL::GL)
+target_link_libraries(
+  Game
+  PRIVATE SDL2::Main
+          SDL2::Mixer
+          flatbuffers
+          physfs-static
+          box2d
+          lua
+          zip
+          xxHash::xxhash
+          OpenGL::GL)
 
-if (WIN32)
-    add_custom_command(
-        TARGET Game POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE_DIR:SDL2::Core>/../bin/SDL2.dll" "$<TARGET_FILE_DIR:Game>"
-        VERBATIM
-    )
-    add_custom_command(
-        TARGET Game POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE_DIR:SDL2::Mixer>/../bin/SDL2_mixer.dll" "$<TARGET_FILE_DIR:Game>"
-        VERBATIM
-    )
+if(WIN32)
+  add_custom_command(
+    TARGET Game
+    POST_BUILD
+    COMMAND
+      "${CMAKE_COMMAND}" -E copy_if_different
+      "$<TARGET_FILE_DIR:SDL2::Core>/../bin/SDL2.dll" "$<TARGET_FILE_DIR:Game>"
+    VERBATIM)
+  add_custom_command(
+    TARGET Game
+    POST_BUILD
+    COMMAND
+      "${CMAKE_COMMAND}" -E copy_if_different
+      "$<TARGET_FILE_DIR:SDL2::Mixer>/../bin/SDL2_mixer.dll"
+      "$<TARGET_FILE_DIR:Game>"
+    VERBATIM)
 endif()
 
 enable_testing()
 
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+set(gtest_force_shared_crt
+    ON
+    CACHE BOOL "" FORCE)
 add_subdirectory(libraries/googletest)
 
-set(TEST_SRCS
-    "src/strings.cc"
-    "src/stats.cc"
-    "src/string_table.cc"
-    "src/logging.cc"
-    "tests/test.cc")
+set(TEST_SRCS "src/strings.cc" "src/stats.cc" "src/string_table.cc"
+              "src/logging.cc" "tests/test.cc")
 
 add_executable(Tests "${TEST_SRCS}")
-      
+
 target_compile_options(Tests PRIVATE ${COMPILER_FLAGS})
 
-target_include_directories(Tests
-                           PRIVATE 
-                           "${CMAKE_CURRENT_BINARY_DIR}"
-                           "${PROJECT_SOURCE_DIR}/src")
+target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
+                                         "${PROJECT_SOURCE_DIR}/src")
 
-target_link_libraries(
-  Tests
-  GTest::gtest_main
-  GTest::gmock
-  xxHash::xxhash
-)
+target_link_libraries(Tests GTest::gtest_main GTest::gmock xxHash::xxhash)
 
 include(GoogleTest)
 gtest_discover_tests(Tests)
