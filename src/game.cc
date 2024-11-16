@@ -105,12 +105,15 @@ Assets* GetAssets(const std::vector<const char*>& arguments,
   }
   LOG("Packing all files in directory ", arguments[0]);
   WriteAssetsToDb(arguments[0], "./assets.sqlite3", allocator);
-  ReadAssetsFromDb("./assets.sqlite3", allocator);
   return PackFiles(arguments[0], allocator);
 }
 
+DbAssets* GetDbAssets(Allocator* allocator) {
+  return ReadAssetsFromDb("./assets.sqlite3", allocator);
+}
+
 struct EngineModules {
-  EngineModules(Assets* assets, const GameConfig& config,
+  EngineModules(Assets* assets, DbAssets* db_assets, const GameConfig& config,
                 SDL_Window* sdl_window, Allocator* allocator)
       : config(&config),
         filesystem(allocator),
@@ -120,7 +123,7 @@ struct EngineModules {
                        &shaders, allocator),
         keyboard(allocator),
         controllers(*assets, allocator),
-        sound(*assets, allocator),
+        sound(*db_assets, allocator),
         renderer(*assets, &batch_renderer, allocator),
         lua(assets, SystemAllocator::Instance()),
         physics(FVec(config.window_width, config.window_height),
@@ -499,6 +502,7 @@ class Game {
     PHYSFS_CHECK(PHYSFS_init(argv[0]),
                  "Could not initialize PhysFS: ", argv[0]);
     assets_ = GetAssets(arguments_, allocator_);
+    db_assets_ = GetDbAssets(allocator_);
     LoadConfig(*assets_, &config_, allocator_);
     LOG("Using engine version ", GAME_VERSION_STR);
     LOG("Game requested engine version ", config_.version.major, ".",
@@ -537,7 +541,8 @@ class Game {
 
   void Init() {
     TIMER("Game Initialization");
-    e_ = New<EngineModules>(allocator_, assets_, config_, window_, allocator_);
+    e_ = New<EngineModules>(allocator_, assets_, db_assets_, config_, window_,
+                            allocator_);
     debug_ui_ =
         New<DebugUi>(allocator_, window_, context_, &stats_, e_, allocator_);
     e_->InitializeLua();
@@ -625,6 +630,7 @@ class Game {
   const std::vector<const char*> arguments_;
   Allocator* allocator_;
   Assets* assets_ = nullptr;
+  DbAssets* db_assets_ = nullptr;
   GameConfig config_;
   SDL_Window* window_ = nullptr;
   SDL_GLContext context_;

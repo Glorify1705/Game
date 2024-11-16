@@ -84,25 +84,6 @@ void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
   sqlite3_finalize(stmt);
 }
 
-void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
-                         std::size_t size) {
-  FixedStringBuffer<256> sql("SELECT contents FROM audios WHERE name = ?");
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-  }
-  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
-  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-  std::memcpy(buffer, contents, size);
-  Sound sound;
-  sound.name = filename;
-  sound.contents = buffer;
-  sound.size = size;
-  sounds_.Insert(filename, sound);
-  sqlite3_finalize(stmt);
-}
-
 void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
                           std::size_t size) {
   FixedStringBuffer<256> sql("SELECT contents FROM shaders WHERE name = ?");

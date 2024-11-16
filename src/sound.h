@@ -11,7 +11,7 @@ namespace G {
 
 class Sound {
  public:
-  explicit Sound(const Assets& assets, Allocator* allocator)
+  explicit Sound(const DbAssets& assets, Allocator* allocator)
       : assets_(&assets),
         chunks_(128, allocator),
         musics_(128, allocator),
@@ -34,7 +34,7 @@ class Sound {
   void Stop();
 
  private:
-  const Assets* assets_;
+  const DbAssets* assets_;
   FixedArray<Mix_Chunk*> chunks_;
   FixedArray<Mix_Music*> musics_;
   Dictionary<uint32_t> chunk_by_name_;
