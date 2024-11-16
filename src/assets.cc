@@ -84,6 +84,63 @@ void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
   sqlite3_finalize(stmt);
 }
 
+void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
+                         std::size_t size) {
+  FixedStringBuffer<256> sql("SELECT contents FROM audios WHERE name = ?");
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+  }
+  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  std::memcpy(buffer, contents, size);
+  Sound sound;
+  sound.name = filename;
+  sound.contents = buffer;
+  sound.size = size;
+  sounds_.Insert(filename, sound);
+  sqlite3_finalize(stmt);
+}
+
+void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
+                          std::size_t size) {
+  FixedStringBuffer<256> sql("SELECT contents FROM shaders WHERE name = ?");
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+  }
+  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  std::memcpy(buffer, contents, size);
+  Shader shader;
+  shader.name = filename;
+  shader.contents = buffer;
+  shader.size = size;
+  shaders_.Insert(filename, shader);
+  sqlite3_finalize(stmt);
+}
+
+void DbAssets::LoadText(std::string_view filename, uint8_t* buffer,
+                        std::size_t size) {
+  FixedStringBuffer<256> sql("SELECT contents FROM text_files WHERE name = ?");
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+  }
+  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  std::memcpy(buffer, contents, size);
+  TextFile file;
+  file.name = filename;
+  file.contents = buffer;
+  file.size = size;
+  text_files_.Insert(filename, file);
+  sqlite3_finalize(stmt);
+}
+
 void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
                                std::size_t size) {
   {
@@ -115,16 +172,13 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
     }
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-      auto contents =
-          reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-      std::memcpy(buffer, contents, size);
       Sprite sprite;
       std::size_t sprite_name_size = sqlite3_column_bytes(stmt, 0);
       auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+      std::memcpy(&name_buffer_[name_size_], name, sprite_name_size);
+      name_size_ += sprite_name_size;
       sprite.name =
           std::string_view(&name_buffer_[name_size_], sprite_name_size);
-      name_size_ += sprite_name_size;
-      std::memcpy(&sprite.name, name, std::strlen(name) + 1);
       sprite.x = sqlite3_column_int(stmt, 1);
       sprite.y = sqlite3_column_int(stmt, 2);
       sprite.spritesheet = filename;
@@ -203,7 +257,7 @@ void DbAssets::Load() {
     }
     CHECK(sqlite3_step(stmt) == SQLITE_ROW,
           "Could not read asset metadata: ", sqlite3_errmsg(db_));
-    total_names += sqlite3_column_int(stmt, 1);
+    total_names += sqlite3_column_int(stmt, 0);
     sqlite3_finalize(stmt);
   }
   name_size_ = 0;
@@ -219,10 +273,12 @@ void DbAssets::Load() {
   };
   static constexpr Loader kLoaders[] = {
       {.name = "script", .load = &DbAssets::LoadScript},
-      {.name = "sheet", .load = &DbAssets::LoadSpritesheet},
+      {.name = "spritesheet", .load = &DbAssets::LoadSpritesheet},
       {.name = "image", .load = &DbAssets::LoadImage},
       {.name = "audio", .load = &DbAssets::LoadAudio},
-      {.name = "fonts", .load = &DbAssets::LoadFont},
+      {.name = "font", .load = &DbAssets::LoadFont},
+      {.name = "shader", .load = &DbAssets::LoadShader},
+      {.name = "text", .load = &DbAssets::LoadText},
       {.name = nullptr, .load = nullptr},
   };
   FixedStringBuffer<256> sql(
