@@ -56,4 +56,9 @@
       ${pkgs.clang-tools}/bin/clang-format -i src/*
     '';
   };
+
+  git-hooks.hooks = {
+    clang-format.enable = true;
+    cmake-format.enable = true;
+  };
 }
