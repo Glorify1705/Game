@@ -6,8 +6,8 @@
 #include <limits>
 #include <string>
 
-#include "array.h"
 #include "logging.h"
+#include "strings.h"
 
 namespace G {
 

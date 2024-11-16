@@ -3,7 +3,6 @@
 #include <cstring>
 
 #include "clock.h"
-#include "src/sound.h"
 
 namespace G {
 namespace {
@@ -19,6 +18,11 @@ const T* Search(const flatbuffers::Vector<flatbuffers::Offset<T>>& v,
     if (Match(*entry->name(), name)) return entry;
   }
   return nullptr;
+}
+
+int TraceCallback(unsigned int type, void* ctx, void* p, void* x) {
+  static_cast<DbAssets*>(ctx)->Trace(type, p, x);
+  return 0;
 }
 
 }  // namespace
@@ -115,8 +119,11 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
           reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
       std::memcpy(buffer, contents, size);
       Sprite sprite;
+      std::size_t sprite_name_size = sqlite3_column_bytes(stmt, 0);
       auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-      sprite.name = &name_buffer_[name_size_];
+      sprite.name =
+          std::string_view(&name_buffer_[name_size_], sprite_name_size);
+      name_size_ += sprite_name_size;
       std::memcpy(&sprite.name, name, std::strlen(name) + 1);
       sprite.x = sqlite3_column_int(stmt, 1);
       sprite.y = sqlite3_column_int(stmt, 2);
@@ -153,10 +160,25 @@ void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
   sqlite3_finalize(stmt);
 }
 
+void DbAssets::Trace(unsigned int type, void* p, void* x) {
+  if (type == SQLITE_TRACE_STMT) {
+    auto sql = static_cast<sqlite3_stmt*>(p);
+    LOG("Executing SQL: ", sqlite3_expanded_sql(sql));
+  }
+  if (type == SQLITE_TRACE_PROFILE) {
+    auto sql = static_cast<sqlite3_stmt*>(p);
+    auto time = reinterpret_cast<long long*>(x);
+    LOG("Executing SQL ", sqlite3_expanded_sql(sql), " took ",
+        (*time) / 1'000'000.0, " milliseconds");
+  }
+}
+
 void DbAssets::Load() {
   if (sqlite3_open(db_filename_.str(), &db_) != SQLITE_OK) {
     DIE("Failed to open ", db_filename_, ": ", sqlite3_errmsg(db_));
   }
+  sqlite3_trace_v2(db_, SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE, TraceCallback,
+                   this);
   std::size_t total_size = 0, total_names = 0;
   {
     FixedStringBuffer<256> sql(
@@ -169,6 +191,19 @@ void DbAssets::Load() {
           "Could not read asset metadata: ", sqlite3_errmsg(db_));
     total_size = sqlite3_column_int(stmt, 0);
     total_names = sqlite3_column_int(stmt, 1);
+    sqlite3_finalize(stmt);
+  }
+  {
+    // Add the length of sprite names of all the spritesheets.
+    FixedStringBuffer<256> sql(
+        "SELECT SUM(sprite_name_length) FROM spritesheets");
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+      DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+    }
+    CHECK(sqlite3_step(stmt) == SQLITE_ROW,
+          "Could not read asset metadata: ", sqlite3_errmsg(db_));
+    total_names += sqlite3_column_int(stmt, 1);
     sqlite3_finalize(stmt);
   }
   name_size_ = 0;
@@ -184,14 +219,15 @@ void DbAssets::Load() {
   };
   static constexpr Loader kLoaders[] = {
       {.name = "script", .load = &DbAssets::LoadScript},
-      {.name = "sheet", .load = nullptr},
+      {.name = "sheet", .load = &DbAssets::LoadSpritesheet},
       {.name = "image", .load = &DbAssets::LoadImage},
       {.name = "audio", .load = &DbAssets::LoadAudio},
       {.name = "fonts", .load = &DbAssets::LoadFont},
       {.name = nullptr, .load = nullptr},
   };
   FixedStringBuffer<256> sql(
-      "SELECT name, LENGTH(name), type, size FROM asset_metadata ORDER BY type");
+      "SELECT name, LENGTH(name), type, size FROM asset_metadata ORDER BY "
+      "type");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
@@ -219,6 +255,7 @@ void DbAssets::Load() {
           break;
         }
         (this->*method)(std::string_view(name_ptr, name_length), buffer, size);
+        break;
       }
     }
   }

@@ -6,11 +6,10 @@ CREATE TABLE IF NOT EXISTS images(id INTEGER PRIMARY KEY AUTOINCREMENT,
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_images_name ON images(name);
 
-CREATE TABLE IF NOT EXISTS spritesheets(id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                        name VARCHAR(255) UNIQUE NOT NULL,
-                                        image VARCHAR(255) NOT NULL,
-                                        width INT NOT NULL,
-                                        height INT NOT NULL);
+CREATE TABLE IF NOT EXISTS spritesheets(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(255) UNIQUE NOT NULL,
+    image VARCHAR(255) NOT NULL, sprites INT NOT NULL,
+    sprite_name_length INT NULL, width INT NOT NULL, height INT NOT NULL);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_spritesheets_name ON spritesheets(name);
 

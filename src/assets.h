@@ -114,6 +114,8 @@ class DbAssets {
     return shaders_.LookupOrDie(name);
   }
 
+  void Trace(unsigned int sql_type, void* p, void* x);
+
  private:
   void LoadScript(std::string_view name, uint8_t* buffer, std::size_t size);
   void LoadImage(std::string_view name, uint8_t* buffer, std::size_t size);

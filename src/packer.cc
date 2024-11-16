@@ -477,11 +477,14 @@ class DbPacker {
   }
 
   void InsertSpritesheetEntry(std::string_view spritesheet, int width,
-                              int height, const char* image) {
+                              int height, std::size_t sprite_count,
+                              std::size_t sprite_name_length,
+                              const char* image) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(R"(
-          INSERT OR REPLACE INTO spritesheets (name, image, width, height)
-          VALUES (?, ?, ?, ?);
+          INSERT OR REPLACE 
+          INTO spritesheets (name, image, width, height, sprites, sprite_name_length)
+          VALUES (?, ?, ?, ?, ?, ?);
       )");
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
@@ -492,6 +495,8 @@ class DbPacker {
     sqlite3_bind_text(stmt, 2, image, -1, SQLITE_STATIC);
     sqlite3_bind_int(stmt, 3, width);
     sqlite3_bind_int(stmt, 4, height);
+    sqlite3_bind_int(stmt, 5, sprite_count);
+    sqlite3_bind_int(stmt, 6, sprite_name_length);
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
@@ -519,7 +524,6 @@ class DbPacker {
     lua_gettable(state, -2);
     const int height = lua_tonumber(state, -1);
     lua_pop(state, 1);
-    InsertSpritesheetEntry(filename, width, height, atlas);
     lua_pushstring(state, "sprites");
     lua_gettable(state, -2);
     sqlite3_stmt* sprite_stmt;
@@ -532,12 +536,17 @@ class DbPacker {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
       return;
     }
+    std::size_t sprite_count = 0, sprite_name_length = 0;
     for (lua_pushnil(state); lua_next(state, -2); lua_pop(state, 1)) {
+      sprite_count++;
+
       lua_pushstring(state, "name");
       lua_gettable(state, -2);
-      std::size_t namelen;
+      std::size_t namelen = 0;
       const char* namestr = luaL_checklstring(state, -1, &namelen);
       lua_pop(state, 1);
+
+      sprite_name_length += namelen;
 
       auto get_number = [&](const char* name) {
         lua_pushstring(state, name);
@@ -567,6 +576,8 @@ class DbPacker {
       sqlite3_clear_bindings(sprite_stmt);
     }
     sqlite3_finalize(sprite_stmt);
+    InsertSpritesheetEntry(filename, width, height, sprite_count,
+                           sprite_name_length, atlas);
     lua_pop(state, 1);
     lua_close(state);
   }
@@ -613,7 +624,7 @@ class DbPacker {
         {".sprites", &DbPacker::InsertSpritesheet, "spritesheet"},
         {".ogg", &DbPacker::InsertAudio, "audio"},
         {".ttf", &DbPacker::InsertFont, "font"},
-        {".wav", &DbPacker::InsertAudio, "font"},
+        {".wav", &DbPacker::InsertAudio, "audio"},
         {".vert", &DbPacker::InsertShader, "shader"},
         {".frag", &DbPacker::InsertShader, "shader"},
         {".txt", &DbPacker::InsertTextFile, "text"}};
