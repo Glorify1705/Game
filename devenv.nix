@@ -17,6 +17,7 @@
     python3
     sqlite
     sqlitebrowser
+    xorg.libXinerama
     xorg.libXrandr
     xorg.xrandr
     zlib
