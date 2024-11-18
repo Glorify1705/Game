@@ -61,5 +61,13 @@
   git-hooks.hooks = {
     clang-format.enable = true;
     cmake-format.enable = true;
+
+		donotsubmit = {
+			enable = false;
+
+			name = "DONOTSUBMIT checker";
+
+			entry = "scripts/donotsubmit.sh";
+		};
   };
 }
