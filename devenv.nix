@@ -63,7 +63,7 @@
     cmake-format.enable = true;
 
 		donotsubmit = {
-			enable = false;
+			enable = true;
 
 			name = "DONOTSUBMIT checker";
 
