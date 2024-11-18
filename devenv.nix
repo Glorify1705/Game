@@ -14,6 +14,7 @@
     libGL
     libGLU
     mesa
+    ninja
     python3
     sqlite
     sqlitebrowser
@@ -29,11 +30,11 @@
   env.CCLS_LOCATION = "${pkgs.ccls}/bin/ccls";
 
   scripts."game-build" = {
-    exec = "cmake -S . -B build && cmake --build build --target Game";
+    exec = "cmake -G Ninja -S . -B build && cmake --build build --target Game";
   };
 
   scripts."game-run" = {
-    exec = "cmake -S . -B build && cmake --build build --target Run";
+    exec = "cmake -G Ninja -S . -B build && cmake --build build --target Run";
   };
 
   scripts."game-clean" = {
