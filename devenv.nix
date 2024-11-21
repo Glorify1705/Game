@@ -11,6 +11,7 @@
     gdb
     clang
     clang-tools
+    ccls
     cmake
     mesa
     ninja
@@ -23,6 +24,8 @@
     xorg.libXrandr
     xorg.xrandr
   ];
+
+  env.CCLS_LOCATION = "${pkgs.ccls}/bin/ccls";
 
   enterShell = ''
     export CC="${pkgs.clang}/bin/clang";
