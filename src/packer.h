@@ -15,14 +15,15 @@
 #include "allocators.h"
 #include "assets.h"
 #include "image.h"
+#include "libraries/sqlite3.h"
 #include "logging.h"
 #include "units.h"
 
 namespace G {
 
-DbAssets* ReadAssetsFromDb(const char* assets_file, Allocator* allocator);
+DbAssets* ReadAssetsFromDb(sqlite3* db, Allocator* allocator);
 
-void WriteAssetsToDb(const char* source_directory, const char* db_file,
+void WriteAssetsToDb(const char* source_directory, sqlite3* db,
                      Allocator* allocator);
 
 }  // namespace G

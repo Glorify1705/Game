@@ -226,9 +226,6 @@ void DbAssets::ReserveBufferForType(std::string_view type, std::size_t count) {
 }
 
 void DbAssets::Load() {
-  if (sqlite3_open(db_filename_.str(), &db_) != SQLITE_OK) {
-    DIE("Failed to open ", db_filename_, ": ", sqlite3_errmsg(db_));
-  }
   sqlite3_trace_v2(db_, SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE, TraceCallback,
                    this);
   std::size_t total_size = 0, total_names = 0;

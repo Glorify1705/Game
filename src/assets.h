@@ -88,8 +88,9 @@ class DbAssets {
     const DynArray<T>* const array_;
   };
 
-  DbAssets(std::string_view dbname, Allocator* allocator)
-      : allocator_(allocator),
+  DbAssets(sqlite3* db, Allocator* allocator)
+      : db_(db),
+        allocator_(allocator),
         images_map_(allocator),
         images_(allocator),
         sprites_map_(allocator),
@@ -105,9 +106,7 @@ class DbAssets {
         shaders_map_(allocator),
         shaders_(allocator),
         text_files_map_(allocator),
-        text_files_(allocator) {
-    db_filename_.Append(dbname);
-  }
+        text_files_(allocator) {}
 
   void Load();
 
@@ -190,8 +189,6 @@ class DbAssets {
   void LoadSpritesheet(std::string_view name, uint8_t* buffer,
                        std::size_t size);
   void ReserveBufferForType(std::string_view type, std::size_t count);
-
-  FixedStringBuffer<256> db_filename_;
 
   sqlite3* db_;
   Allocator* allocator_;

@@ -91,16 +91,34 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
 DbAssets* GetAssets(const char* argv[], size_t argc, Allocator* allocator) {
   if (argc == 0) {
     LOG("Reading assets from default DB since no file was provided");
-    return ReadAssetsFromDb("assets.sqlite3", allocator);
+    sqlite3* db = nullptr;
+    if (sqlite3_open("assets.sqlite3", &db) != SQLITE_OK) {
+      DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db));
+    }
+    DbAssets* result = ReadAssetsFromDb(db, allocator);
+    sqlite3_close(db);
+    return result;
   }
   if (argc == 1) {
     LOG("Reading assets from ", argv[0]);
-    return ReadAssetsFromDb(argv[0], allocator);
+    sqlite3* db = nullptr;
+    if (sqlite3_open(argv[0], &db) != SQLITE_OK) {
+      DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db));
+    }
+    DbAssets* result = ReadAssetsFromDb(db, allocator);
+    sqlite3_close(db);
+    return result;
   }
   CHECK(argc == 2, "Wrong number of arguments passed");
   LOG("Packing all files in directory ", argv[0], " into the database");
-  WriteAssetsToDb(argv[0], argv[1], allocator);
-  return ReadAssetsFromDb(argv[1], allocator);
+  sqlite3* db = nullptr;
+  if (sqlite3_open(argv[1], &db) != SQLITE_OK) {
+    DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db));
+  }
+  WriteAssetsToDb(argv[0], db, allocator);
+  DbAssets* result = ReadAssetsFromDb(db, allocator);
+  sqlite3_close(db);
+  return result;
 }
 
 struct EngineModules {

@@ -315,21 +315,16 @@ class DbPacker {
 
 }  // namespace
 
-DbAssets* ReadAssetsFromDb(const char* assets_file, Allocator* allocator) {
-  auto* result = New<DbAssets>(allocator, assets_file, allocator);
+DbAssets* ReadAssetsFromDb(sqlite3* db, Allocator* allocator) {
+  auto* result = New<DbAssets>(allocator, db, allocator);
   result->Load();
   return result;
 }
 
-void WriteAssetsToDb(const char* source_directory, const char* db_file,
+void WriteAssetsToDb(const char* source_directory, sqlite3* db,
                      Allocator* allocator) {
-  LOG("Opening database ", db_file);
   PHYSFS_CHECK(PHYSFS_mount(source_directory, "/assets", 1),
                " while trying to mount directory ", source_directory);
-  sqlite3* db;
-  if (sqlite3_open(db_file, &db) != SQLITE_OK) {
-    DIE("Failed to open ", db_file, ": ", sqlite3_errmsg(db));
-  }
   sqlite3_exec(db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
   DbPacker packer(db, allocator);
   packer.HandleFiles();
