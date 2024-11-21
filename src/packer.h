@@ -14,9 +14,6 @@
 
 #include "allocators.h"
 #include "assets.h"
-#include "assets_generated.h"
-#include "flatbuffers/flatbuffers.h"
-#include "flatbuffers/idl.h"
 #include "image.h"
 #include "logging.h"
 #include "units.h"

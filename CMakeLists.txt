@@ -17,15 +17,6 @@ set(SDL2_mixer_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2_mixer/cmake")
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-set(FLATBUFFERS_BUILD_TESTS OFF)
-set(FLATBUFFERS_BUILD_FLATLIB ON)
-set(FLATBUFFERS_BUILD_BENCHMARKS OFF)
-set(FLATBUFFERS_BUILD_FLATHASH OFF)
-set(FLATBUFFERS_INSTALL OFF)
-set(FLATBUFFERS_SKIP_MONSTER_EXTRA OFF)
-set(FLATBUFFERS_STRICT_MODE ON)
-add_subdirectory(libraries/flatbuffers EXCLUDE_FROM_ALL)
-
 set(BOX2D_BUILD_TESTBED OFF)
 set(BOX2D_BUILD_UNIT_TESTS OFF)
 add_subdirectory(libraries/box2d EXCLUDE_FROM_ALL)
@@ -39,18 +30,10 @@ set(BUILD_REGRESS OFF)
 set(BUILD_EXAMPLES OFF)
 set(BUILD_DOC OFF)
 set(BUILD_TOOLS OFF)
-add_subdirectory(libraries/libzip EXCLUDE_FROM_ALL)
 
 find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(SDL2_mixer REQUIRED)
-
-add_custom_command(
-  OUTPUT assets_generated.h
-  COMMAND
-    flatc -o "${CMAKE_CURRENT_BINARY_DIR}" --gen-object-api --cpp-std c++17
-    --cpp-static-reflection --cpp "${CMAKE_CURRENT_SOURCE_DIR}/src/assets.fbs"
-  DEPENDS flatc src/assets.fbs)
 
 set(GAME_SRCS
     "src/logging.cc"
@@ -83,8 +66,7 @@ set(GAME_SRCS
     "libraries/stb_rect_pack.cc"
     "src/strings.cc"
     "src/transformations.cc"
-    "src/packer.cc"
-    "${CMAKE_CURRENT_BINARY_DIR}/assets_generated.h")
+    "src/packer.cc")
 
 configure_file(src/version.h.in version.h)
 
@@ -123,11 +105,9 @@ target_link_libraries(
   Game
   PRIVATE SDL2::Main
           SDL2::Mixer
-          flatbuffers
           physfs-static
           box2d
           lua
-          zip
           xxHash::xxhash
           OpenGL::GL)
 

@@ -9,7 +9,6 @@
 #include <string_view>
 
 #include "array.h"
-#include "assets_generated.h"
 #include "dictionary.h"
 #include "logging.h"
 #include "sqlite3.h"

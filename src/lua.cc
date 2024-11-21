@@ -1,5 +1,6 @@
 #include "lua.h"
 
+#include <algorithm>
 #include <random>
 
 #include "SDL.h"

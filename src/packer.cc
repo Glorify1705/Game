@@ -10,7 +10,6 @@
 #include "src/strings.h"
 #include "src/units.h"
 #include "xxhash.h"
-#include "zip.h"
 
 namespace G {
 namespace {

@@ -40,7 +40,6 @@
 #include "units.h"
 #include "vec.h"
 #include "version.h"
-#include "zip.h"
 
 namespace G {
 
@@ -279,8 +278,6 @@ void PrintSystemInformation() {
   LOG("Using Linked SDL Mixer ",
       SDL_VERSIONNUM(mix_version.major, mix_version.minor, mix_version.patch));
   LOG("Using Compiled Mixer ", SDL_MIXER_COMPILEDVERSION);
-  LOG("Using Flatbuffers ", FLATBUFFERS_VERSION_MAJOR, ".",
-      FLATBUFFERS_VERSION_MINOR, ".", FLATBUFFERS_VERSION_REVISION);
   LOG("Using Box2D ", b2_version.major, ".", b2_version.minor, ".",
       b2_version.revision);
   LOG("Using Dear ImGUI Version: ", IMGUI_VERSION);
