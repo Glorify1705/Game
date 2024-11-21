@@ -301,6 +301,9 @@ class DbPacker {
     PHYSFS_enumerate("/assets", WriteFileToDb, this);
     // Ensure we always have the debug font available.
     InsertFont("debug_font.ttf", kProggyCleanFont, kProggyCleanFontLength);
+    const XXH128_hash_t hash =
+        XXH3_128bits(kProggyCleanFont, kProggyCleanFontLength);
+    InsertIntoAssetMeta("debug_font.ttf", kProggyCleanFontLength, "font", hash);
   }
 
  private:

@@ -434,8 +434,10 @@ class Game {
         e_->HandleEvent(event);
         if (event.type == SDL_KEYDOWN) {
           if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
-            if (config_.enable_debug_rendering)
+            if (config_.enable_debug_rendering) {
               e_->batch_renderer.ToggleDebugRender();
+              debug_ = !debug_;
+            }
           }
         }
       }
@@ -472,6 +474,11 @@ class Game {
   }
 
   void Render() {
+    if (debug_ && stats_.samples() > 0) {
+      FixedStringBuffer<kMaxLogLineLength> log("FPS: ", (1.0f / stats_.avg()));
+      e_->renderer.SetColor(Color::White());
+      e_->renderer.DrawText("debug_font.ttf", 20, log.str(), FVec(50, 50));
+    }
     e_->Render();
     SDL_GL_SwapWindow(window_);
   }
@@ -483,6 +490,7 @@ class Game {
   SDL_Window* window_ = nullptr;
   SDL_GLContext context_;
   EngineModules* e_;
+  bool debug_ = false;
   Stats stats_;
 };
 

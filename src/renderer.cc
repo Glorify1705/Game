@@ -616,8 +616,12 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
   if (uint32_t handle = 0; font_table_.Lookup(font_key.str(), &handle)) {
     return &fonts_[handle];
   }
+  LOG("Loading font ", font_name, " with size ", font_size);
   const DbAssets::Font* asset = assets_->GetFont(font_name);
-  if (asset == nullptr) return nullptr;
+  if (asset == nullptr) {
+    LOG("Could not find font ", font_name);
+    return nullptr;
+  }
   ArenaAllocator scratch(allocator_, kAtlasSize * 5);
   const float pixel_height = font_size;
   uint8_t* atlas = NewArray<uint8_t>(kAtlasSize, &scratch);
@@ -676,6 +680,7 @@ Color ParseColor(std::string_view color) {
 void Renderer::DrawText(std::string_view font_name, uint32_t size,
                         std::string_view str, FVec2 position) {
   const FontInfo* info = LoadFont(font_name, size);
+  CHECK(info != nullptr, "No texture found for ", font_name, " size ", size);
   renderer_->SetActiveTexture(info->texture);
   FVec2 p = position;
   const Color color = color_;
