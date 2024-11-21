@@ -13,7 +13,7 @@
 
 namespace G {
 
-constexpr std::size_t kCommandMemory = 1 << 24;
+constexpr size_t kCommandMemory = 1 << 24;
 
 class BatchRenderer::CommandIterator {
  public:
@@ -32,7 +32,7 @@ class BatchRenderer::CommandIterator {
     const QueueEntry& e = (*commands_)[i_];
     remaining_--;
     const auto type = static_cast<CommandType>(e.type);
-    std::size_t size = SizeOfCommand(type);
+    size_t size = SizeOfCommand(type);
     std::memcpy(p, &buffer_[pos_], size);
     pos_ += size;
     return type;
@@ -43,11 +43,11 @@ class BatchRenderer::CommandIterator {
  private:
   FixedArray<QueueEntry>* commands_;
   uint8_t* buffer_;
-  std::size_t pos_ = 0, remaining_ = 0, i_ = 0;
+  size_t pos_ = 0, remaining_ = 0, i_ = 0;
 };
 
 void BatchRenderer::AddCommand(CommandType command, uint32_t count,
-                               const void* data, std::size_t size) {
+                               const void* data, size_t size) {
   if (command != kDone) {
     std::memcpy(&command_buffer_[pos_], data, size);
     pos_ += size;
@@ -148,13 +148,13 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
 
 void BatchRenderer::SetViewport(IVec2 viewport) { viewport_ = viewport; }
 
-std::size_t BatchRenderer::LoadTexture(const DbAssets::Image& image) {
+size_t BatchRenderer::LoadTexture(const DbAssets::Image& image) {
   TIMER("Decoding ", image.name);
   QoiDesc desc;
   constexpr int kChannels = 4;
   auto* image_bytes =
       QoiDecode(image.contents, image.size, &desc, kChannels, allocator_);
-  std::size_t index = LoadTexture(image_bytes, image.width, image.height);
+  size_t index = LoadTexture(image_bytes, image.width, image.height);
   allocator_->Dealloc(image_bytes, image.width * image.height * kChannels);
   return index;
 }
@@ -170,10 +170,10 @@ BatchRenderer::~BatchRenderer() {
   allocator_->Dealloc(command_buffer_, kCommandMemory);
 }
 
-std::size_t BatchRenderer::LoadTexture(const void* data, std::size_t width,
-                                       std::size_t height) {
+size_t BatchRenderer::LoadTexture(const void* data, size_t width,
+                                  size_t height) {
   GLuint tex;
-  const std::size_t index = tex_.size();
+  const size_t index = tex_.size();
   OPENGL_CALL(glGenTextures(1, &tex));
   OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + index));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex));
@@ -203,7 +203,7 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
   OPENGL_CALL(glEnable(GL_LINE_SMOOTH));
   // Compute size of data.
-  std::size_t vertices_count = 0, indices_count = 0;
+  size_t vertices_count = 0, indices_count = 0;
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
     switch (Command c; it.Read(&c)) {
       case kRenderQuad:
@@ -228,7 +228,7 @@ void BatchRenderer::Render(Allocator* scratch) {
   // Add data.
   Color color = Color::White();
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
-    std::size_t current = vertices.size();
+    size_t current = vertices.size();
     switch (Command c; it.Read(&c)) {
       case kRenderQuad: {
         const RenderQuad& q = c.quad;
@@ -336,8 +336,8 @@ void BatchRenderer::Render(Allocator* scratch) {
   shaders_->SetUniform("global_color", FVec4(1, 1, 1, 1));
   // Render batches by finding changes to the OpenGL context.
   int render_calls = 0;
-  std::size_t indices_start = 0;
-  std::size_t indices_end = 0;
+  size_t indices_start = 0;
+  size_t indices_end = 0;
   GLuint texture_unit = 0;
   FMat4x4 transform = FMat4x4::Identity();
   GLint primitives = GL_TRIANGLES;
@@ -583,7 +583,7 @@ void Renderer::DrawLine(FVec2 p0, FVec2 p1) {
   renderer_->FinishLine();
 }
 
-void Renderer::DrawLines(const FVec2* ps, std::size_t n) {
+void Renderer::DrawLines(const FVec2* ps, size_t n) {
   renderer_->ClearTexture();
   renderer_->BeginLine();
   renderer_->PushLinePoints(ps, n);
@@ -597,14 +597,14 @@ void Renderer::DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3) {
 
 void Renderer::DrawCircle(FVec2 center, float radius) {
   renderer_->ClearTexture();
-  constexpr std::size_t kTriangles = 22;
+  constexpr size_t kTriangles = 22;
   auto for_index = [&](int index) {
     const int i = index % kTriangles;
     constexpr double kAngle = (2.0 * M_PI) / kTriangles;
     return FVec(center.x + radius * std::cos(kAngle * i),
                 center.y + radius * std::sin(kAngle * i));
   };
-  for (std::size_t i = 0; i < kTriangles; ++i) {
+  for (size_t i = 0; i < kTriangles; ++i) {
     renderer_->PushTriangle(center, for_index(i), for_index(i + 1), FVec(0, 0),
                             FVec(1, 0), FVec(1, 1));
   }
@@ -636,7 +636,7 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
         "Could not load font");
   stbtt_PackEnd(&font.context);
   uint8_t* buffer = NewArray<uint8_t>(4 * kAtlasSize, &scratch);
-  for (std::size_t i = 0, j = 0; j < kAtlasSize; j++, i += 4) {
+  for (size_t i = 0, j = 0; j < kAtlasSize; j++, i += 4) {
     std::memset(&buffer[i], atlas[j], 4);
   }
   font.texture = renderer_->LoadTexture(buffer, kAtlasWidth, kAtlasHeight);
@@ -679,11 +679,11 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
   renderer_->SetActiveTexture(info->texture);
   FVec2 p = position;
   const Color color = color_;
-  for (std::size_t i = 0; i < str.size();) {
+  for (size_t i = 0; i < str.size();) {
     const char c = str[i];
     if (c == '\033') {
       // Skip ANSI escape sequence.
-      std::size_t st = i + 1, en = i;
+      size_t st = i + 1, en = i;
       while (str[en] != 'm') en++;
       renderer_->SetActiveColor(ParseColor(str.substr(st, en - st)));
       i = en + 1;
@@ -716,7 +716,7 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
   const FontInfo* info = LoadFont(font_name, size);
   auto p = FVec2::Zero();
   p.y = info->scale * (info->ascent - info->descent + info->line_gap);
-  for (std::size_t i = 0; i < str.size(); ++i) {
+  for (size_t i = 0; i < str.size(); ++i) {
     const char c = str[i];
     if (c == '\n') {
       p.y += info->scale * (info->ascent - info->descent + info->line_gap);

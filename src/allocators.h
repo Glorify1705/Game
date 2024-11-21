@@ -13,18 +13,18 @@
 
 namespace G {
 
-inline static std::size_t Align(std::size_t n, std::size_t m) {
+inline static size_t Align(size_t n, size_t m) {
   return (n + m - 1) & ~(m - 1);
 };
 
 class Allocator {
  public:
-  virtual void* Alloc(std::size_t size, std::size_t align) = 0;
+  virtual void* Alloc(size_t size, size_t align) = 0;
 
-  virtual void Dealloc(void* p, std::size_t sz) = 0;
+  virtual void Dealloc(void* p, size_t sz) = 0;
 
-  virtual void* Realloc(void* p, std::size_t old_size, std::size_t new_size,
-                        std::size_t align) = 0;
+  virtual void* Realloc(void* p, size_t old_size, size_t new_size,
+                        size_t align) = 0;
 
   virtual void Reset() = 0;
 };
@@ -63,7 +63,7 @@ T* NewArray(size_t n, Allocator* allocator) {
 }
 
 template <typename T>
-void DeallocArray(T* ptr, std::size_t n, Allocator* allocator) {
+void DeallocArray(T* ptr, size_t n, Allocator* allocator) {
   allocator->Dealloc(ptr, n * sizeof(T));
 }
 
@@ -75,7 +75,7 @@ class STLAllocatorWrapper {
   using const_pointer = const T*;
   using reference = T&;
   using const_reference = const T&;
-  using size_type = std::size_t;
+  using size_type = size_t;
   using difference_type = std::ptrdiff_t;
   using propagate_on_container_move_assignment = std::true_type;
   template <class U>
@@ -94,7 +94,7 @@ class STLAllocatorWrapper {
   pointer allocate(size_type n, const void* /*hint*/ = nullptr) {
     return NewArray<T>(n, &allocator_);
   }
-  void deallocate(T* p, std::size_t n) { allocator_.Dealloc(p, n); }
+  void deallocate(T* p, size_t n) { allocator_.Dealloc(p, n); }
   size_type max_size() const {
     return std::numeric_limits<size_type>::max() / sizeof(value_type);
   }
@@ -123,16 +123,16 @@ class STLAllocatorWrapper {
 
 class SystemAllocator final : public Allocator {
  public:
-  void* Alloc(std::size_t size, std::size_t /*align*/) override {
+  void* Alloc(size_t size, size_t /*align*/) override {
     return std::malloc(size);
   }
 
-  void Dealloc(void* p, std::size_t /*sz*/) override {
+  void Dealloc(void* p, size_t /*sz*/) override {
     if (p != nullptr) std::free(p);
   }
 
-  void* Realloc(void* p, std::size_t /*old_size*/, std::size_t new_size,
-                std::size_t /*align*/) override {
+  void* Realloc(void* p, size_t /*old_size*/, size_t new_size,
+                size_t /*align*/) override {
     return std::realloc(p, new_size);
   }
 
@@ -147,13 +147,13 @@ class SystemAllocator final : public Allocator {
 
 class BumpAllocator : public Allocator {
  public:
-  BumpAllocator(void* buffer, std::size_t size) {
+  BumpAllocator(void* buffer, size_t size) {
     pos_ = reinterpret_cast<uintptr_t>(buffer);
     beginning_ = pos_;
     end_ = pos_ + size;
   }
 
-  void* Alloc(std::size_t size, std::size_t align) override {
+  void* Alloc(size_t size, size_t align) override {
     if (pos_ + size > end_) {
       return nullptr;
     }
@@ -162,13 +162,13 @@ class BumpAllocator : public Allocator {
     pos_ += size;
     return result;
   }
-  void Dealloc(void* ptr, std::size_t sz) override {
+  void Dealloc(void* ptr, size_t sz) override {
     if (ptr == nullptr) return;
     uintptr_t p = reinterpret_cast<uintptr_t>(ptr);
     if ((p + sz) == pos_) pos_ = p;
   }
-  void* Realloc(void* p, std::size_t old_size, std::size_t new_size,
-                std::size_t align) override {
+  void* Realloc(void* p, size_t old_size, size_t new_size,
+                size_t align) override {
     auto* res = Alloc(new_size, align);
     std::memcpy(res, p, old_size);
     return res;
@@ -176,8 +176,8 @@ class BumpAllocator : public Allocator {
 
   void Reset() override { pos_ = beginning_; }
 
-  std::size_t used_memory() const { return pos_ - beginning_; }
-  std::size_t total_memory() const { return end_ - beginning_; }
+  size_t used_memory() const { return pos_ - beginning_; }
+  size_t total_memory() const { return end_ - beginning_; }
 
  private:
   uintptr_t beginning_;
@@ -196,7 +196,7 @@ class StaticAllocator final : public BumpAllocator {
 
 class ArenaAllocator final : public Allocator {
  public:
-  ArenaAllocator(Allocator* allocator, std::size_t size)
+  ArenaAllocator(Allocator* allocator, size_t size)
       : allocator_(allocator),
         buffer_(allocator->Alloc(size, /*align=*/alignof(std::max_align_t))),
         size_(size),
@@ -204,12 +204,12 @@ class ArenaAllocator final : public Allocator {
 
   ~ArenaAllocator() { allocator_->Dealloc(buffer_, size_); }
 
-  void* Alloc(std::size_t size, std::size_t align) override {
+  void* Alloc(size_t size, size_t align) override {
     return a_.Alloc(size, align);
   }
-  void Dealloc(void* ptr, std::size_t sz) override { a_.Dealloc(ptr, sz); }
-  void* Realloc(void* p, std::size_t old_size, std::size_t new_size,
-                std::size_t align) override {
+  void Dealloc(void* ptr, size_t sz) override { a_.Dealloc(ptr, sz); }
+  void* Realloc(void* p, size_t old_size, size_t new_size,
+                size_t align) override {
     return a_.Realloc(p, old_size, new_size, align);
   }
 
@@ -218,7 +218,7 @@ class ArenaAllocator final : public Allocator {
  private:
   Allocator* const allocator_;
   void* const buffer_;
-  std::size_t size_;
+  size_t size_;
   BumpAllocator a_;
 };
 

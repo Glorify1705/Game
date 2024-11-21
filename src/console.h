@@ -41,10 +41,10 @@ class DebugConsole {
   }
 
  private:
-  inline static constexpr std::size_t kMaxLines = 1024;
+  inline static constexpr size_t kMaxLines = 1024;
 
   struct Linebuffer {
-    std::size_t len;
+    size_t len;
     char chars[kMaxLogLineLength + 1];
   };
 

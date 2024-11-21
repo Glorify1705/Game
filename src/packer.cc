@@ -20,7 +20,7 @@ class DbPacker {
       : db_(db), allocator_(allocator) {}
 
   void InsertIntoTable(std::string_view table, std::string_view filename,
-                       const uint8_t* buf, std::size_t size) {
+                       const uint8_t* buf, size_t size) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql("INSERT OR REPLACE INTO ", table,
                                " (name, contents) VALUES (?, ?);");
@@ -37,17 +37,15 @@ class DbPacker {
   }
 
   void InsertScript(std::string_view filename, const uint8_t* buf,
-                    std::size_t size) {
+                    size_t size) {
     InsertIntoTable("scripts", filename, buf, size);
   }
 
-  void InsertFont(std::string_view filename, const uint8_t* buf,
-                  std::size_t size) {
+  void InsertFont(std::string_view filename, const uint8_t* buf, size_t size) {
     InsertIntoTable("fonts", filename, buf, size);
   }
 
-  void InsertImage(std::string_view filename, const uint8_t* buf,
-                   std::size_t size) {
+  void InsertImage(std::string_view filename, const uint8_t* buf, size_t size) {
     QoiDesc desc;
     QoiDecode(buf, size, &desc, /*components=*/4, allocator_);
     sqlite3_stmt* stmt;
@@ -70,17 +68,16 @@ class DbPacker {
     sqlite3_finalize(stmt);
   }
 
-  void InsertAudio(std::string_view filename, const uint8_t* buf,
-                   std::size_t size) {
+  void InsertAudio(std::string_view filename, const uint8_t* buf, size_t size) {
     InsertIntoTable("audios", filename, buf, size);
   }
 
   void InsertTextFile(std::string_view filename, const uint8_t* buf,
-                      std::size_t size) {
+                      size_t size) {
     InsertIntoTable("text_files", filename, buf, size);
   }
 
-  void* Alloc(void* ptr, std::size_t osize, std::size_t nsize) {
+  void* Alloc(void* ptr, size_t osize, size_t nsize) {
     if (nsize == 0) {
       if (ptr != nullptr) allocator_->Dealloc(ptr, osize);
       return nullptr;
@@ -91,15 +88,13 @@ class DbPacker {
     return allocator_->Realloc(ptr, osize, nsize, /*align=*/1);
   }
 
-  static void* LuaAlloc(void* ud, void* ptr, std::size_t osize,
-                        std::size_t nsize) {
+  static void* LuaAlloc(void* ud, void* ptr, size_t osize, size_t nsize) {
     return static_cast<DbPacker*>(ud)->Alloc(ptr, osize, nsize);
   }
 
   void InsertSpritesheetEntry(std::string_view spritesheet, int width,
-                              int height, std::size_t sprite_count,
-                              std::size_t sprite_name_length,
-                              const char* image) {
+                              int height, size_t sprite_count,
+                              size_t sprite_name_length, const char* image) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(R"(
           INSERT OR REPLACE 
@@ -124,7 +119,7 @@ class DbPacker {
   }
 
   void InsertSpritesheet(std::string_view filename, const uint8_t* buf,
-                         std::size_t size) {
+                         size_t size) {
     auto* state = lua_newstate(&DbPacker::LuaAlloc, this);
     CHECK(luaL_loadbuffer(state, reinterpret_cast<const char*>(buf), size,
                           filename.data()) == 0,
@@ -156,13 +151,13 @@ class DbPacker {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
       return;
     }
-    std::size_t sprite_count = 0, sprite_name_length = 0;
+    size_t sprite_count = 0, sprite_name_length = 0;
     for (lua_pushnil(state); lua_next(state, -2); lua_pop(state, 1)) {
       sprite_count++;
 
       lua_pushstring(state, "name");
       lua_gettable(state, -2);
-      std::size_t namelen = 0;
+      size_t namelen = 0;
       const char* namestr = luaL_checklstring(state, -1, &namelen);
       lua_pop(state, 1);
 
@@ -203,7 +198,7 @@ class DbPacker {
   }
 
   void InsertShader(std::string_view filename, const uint8_t* buffer,
-                    std::size_t size) {
+                    size_t size) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(
         "INSERT OR REPLACE INTO shaders"
@@ -222,7 +217,7 @@ class DbPacker {
     sqlite3_finalize(stmt);
   }
 
-  void InsertIntoAssetMeta(std::string_view filename, std::size_t size,
+  void InsertIntoAssetMeta(std::string_view filename, size_t size,
                            std::string_view type, XXH128_hash_t hash) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(
@@ -247,7 +242,7 @@ class DbPacker {
     struct DbHandler {
       std::string_view extension;
       void (DbPacker::*handler)(std::string_view filename, const uint8_t* buf,
-                                std::size_t size);
+                                size_t size);
       std::string_view type;
     };
     FixedStringBuffer<kMaxPathLength> path(directory, "/", filename);
@@ -276,9 +271,9 @@ class DbPacker {
       auto* handle = PHYSFS_openRead(path.str());
       CHECK(handle != nullptr, "Could not read ", path, ": ",
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
-      const std::size_t bytes = PHYSFS_fileLength(handle);
+      const size_t bytes = PHYSFS_fileLength(handle);
       auto* buffer = static_cast<uint8_t*>(scratch.Alloc(bytes, /*align=*/1));
-      const std::size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
+      const size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
       CHECK(read_bytes == bytes, " failed to read ", path,
             " error = ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       CHECK(PHYSFS_close(handle), "failed to finish reading ", filename, ": ",

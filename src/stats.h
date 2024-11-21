@@ -25,7 +25,7 @@ class Stats {
   double Percentile(double percentile) const;
 
  private:
-  void AppendToString(char* buf, std::size_t len) const;
+  void AppendToString(char* buf, size_t len) const;
 
   double min_, max_, avg_, stdev2_, samples_, sum_, m2n_;
   std::array<size_t, 32> buckets_;

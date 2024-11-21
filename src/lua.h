@@ -93,7 +93,7 @@ class Lua {
   Allocator* allocator() const { return allocator_; }
 
   // Checks whether there is a permanent error and returns the message length.
-  std::size_t Error(char* buf, std::size_t max_size);
+  size_t Error(char* buf, size_t max_size);
   bool HasError() { return !error_.empty(); }
 
   void Crash();
@@ -104,14 +104,13 @@ class Lua {
  private:
   void LoadAssets();
   void LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
-                     std::size_t register_count);
+                     size_t register_count);
 
   void SetPackagePreload(std::string_view filename);
 
-  void* Alloc(void* ptr, std::size_t osize, std::size_t nsize);
+  void* Alloc(void* ptr, size_t osize, size_t nsize);
 
-  static void* LuaAlloc(void* ud, void* ptr, std::size_t osize,
-                        std::size_t nsize) {
+  static void* LuaAlloc(void* ud, void* ptr, size_t osize, size_t nsize) {
     return static_cast<Lua*>(ud)->Alloc(ptr, osize, nsize);
   }
 

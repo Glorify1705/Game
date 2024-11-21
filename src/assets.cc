@@ -15,7 +15,7 @@ int TraceCallback(unsigned int type, void* ctx, void* p, void* x) {
 }  // namespace
 
 void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
-                          std::size_t size) {
+                          size_t size) {
   FixedStringBuffer<256> sql("SELECT contents FROM scripts WHERE name = ?");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -35,7 +35,7 @@ void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
 }
 
 void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer,
-                        std::size_t size) {
+                        size_t size) {
   FixedStringBuffer<256> sql("SELECT contents FROM fonts WHERE name = ?");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -55,7 +55,7 @@ void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer,
 }
 
 void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
-                         std::size_t size) {
+                         size_t size) {
   FixedStringBuffer<256> sql("SELECT contents FROM audios WHERE name = ?");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -75,7 +75,7 @@ void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
 }
 
 void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
-                          std::size_t size) {
+                          size_t size) {
   FixedStringBuffer<256> sql(
       "SELECT contents, shader_type FROM shaders WHERE name = ?");
   sqlite3_stmt* stmt;
@@ -99,7 +99,7 @@ void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
 }
 
 void DbAssets::LoadText(std::string_view filename, uint8_t* buffer,
-                        std::size_t size) {
+                        size_t size) {
   FixedStringBuffer<256> sql("SELECT contents FROM text_files WHERE name = ?");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -119,7 +119,7 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer,
 }
 
 void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
-                               std::size_t size) {
+                               size_t size) {
   {
     FixedStringBuffer<256> sql(
         "SELECT image, width, height FROM spritesheets WHERE name = ?");
@@ -130,8 +130,8 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
     auto image = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-    std::size_t width = sqlite3_column_int(stmt, 1);
-    std::size_t height = sqlite3_column_int(stmt, 2);
+    size_t width = sqlite3_column_int(stmt, 1);
+    size_t height = sqlite3_column_int(stmt, 2);
     Spritesheet sheet;
     sheet.name = filename;
     sheet.width = width;
@@ -151,7 +151,7 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     while (sqlite3_step(stmt) == SQLITE_ROW) {
       Sprite sprite;
-      std::size_t sprite_name_size = sqlite3_column_bytes(stmt, 0);
+      size_t sprite_name_size = sqlite3_column_bytes(stmt, 0);
       auto db_name =
           reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
       std::string_view name =
@@ -170,7 +170,7 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
 }
 
 void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
-                         std::size_t size) {
+                         size_t size) {
   FixedStringBuffer<256> sql(
       "SELECT contents, width, height FROM images WHERE name = ?");
   sqlite3_stmt* stmt;
@@ -181,8 +181,8 @@ void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No image ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   std::memcpy(buffer, contents, size);
-  const std::size_t width = sqlite3_column_int(stmt, 1);
-  const std::size_t height = sqlite3_column_int(stmt, 2);
+  const size_t width = sqlite3_column_int(stmt, 1);
+  const size_t height = sqlite3_column_int(stmt, 2);
   Image image;
   image.name = filename;
   image.width = width;
@@ -203,7 +203,7 @@ void DbAssets::Trace(unsigned int type, void* p, void* x) {
   }
 }
 
-void DbAssets::ReserveBufferForType(std::string_view type, std::size_t count) {
+void DbAssets::ReserveBufferForType(std::string_view type, size_t count) {
   if (type == "sound") {
     sounds_.Reserve(count);
   } else if (type == "shader") {
@@ -228,7 +228,7 @@ void DbAssets::ReserveBufferForType(std::string_view type, std::size_t count) {
 void DbAssets::Load() {
   sqlite3_trace_v2(db_, SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE, TraceCallback,
                    this);
-  std::size_t total_size = 0, total_names = 0;
+  size_t total_size = 0, total_names = 0;
   {
     // Presize all the buffers.
     FixedStringBuffer<256> sql(
@@ -252,7 +252,7 @@ void DbAssets::Load() {
     }
     sqlite3_finalize(stmt);
   }
-  std::size_t total_sprites = 0;
+  size_t total_sprites = 0;
   {
     // Add the length and count of sprite names of all the spritesheets.
     // Also add the length of image names for buffers.
@@ -266,7 +266,7 @@ void DbAssets::Load() {
     CHECK(sqlite3_step(stmt) == SQLITE_ROW,
           "Could not read asset metadata: ", sqlite3_errmsg(db_));
     total_names += sqlite3_column_int(stmt, 0);
-    const std::size_t sprites = sqlite3_column_int(stmt, 1);
+    const size_t sprites = sqlite3_column_int(stmt, 1);
     // Count the number of null terminators for all strings.
     total_names += sprites;
     total_sprites += sprites;
@@ -284,8 +284,7 @@ void DbAssets::Load() {
       reinterpret_cast<uint8_t*>(allocator_->Alloc(total_size, /*align=*/1));
   struct Loader {
     std::string_view name;
-    void (DbAssets::*load)(std::string_view name, uint8_t* buffer,
-                           std::size_t size);
+    void (DbAssets::*load)(std::string_view name, uint8_t* buffer, size_t size);
   };
   static constexpr Loader kLoaders[] = {
       {.name = "script", .load = &DbAssets::LoadScript},
@@ -309,7 +308,7 @@ void DbAssets::Load() {
     auto name_length = sqlite3_column_int(stmt, 1);
     auto type_ptr = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
     std::string_view type(type_ptr);
-    const std::size_t size = sqlite3_column_int(stmt, 3);
+    const size_t size = sqlite3_column_int(stmt, 3);
     auto* buffer = &content_buffer_[content_size_];
     content_size_ += size;
     std::string_view namestr(name, name_length);

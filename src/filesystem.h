@@ -13,14 +13,14 @@
 
 namespace G {
 
-inline static constexpr std::size_t kMaxPathLength = 256;
+inline static constexpr size_t kMaxPathLength = 256;
 
 #define PHYSFS_CHECK(cond, ...)                               \
   CHECK(cond, "Failed Phys condition " #cond " with error: ", \
         PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()), " ", ##__VA_ARGS__)
 
 inline std::string_view Basename(std::string_view p) {
-  std::size_t pos = p.size() - 1;
+  size_t pos = p.size() - 1;
   for (; pos != 0 && p[pos] != '/';) {
     pos--;
   }
@@ -28,7 +28,7 @@ inline std::string_view Basename(std::string_view p) {
 }
 
 inline std::string_view WithoutExt(std::string_view p) {
-  std::size_t pos = p.size() - 1;
+  size_t pos = p.size() - 1;
   for (; pos != 0 && p[pos] != '.';) {
     pos--;
   }
@@ -36,7 +36,7 @@ inline std::string_view WithoutExt(std::string_view p) {
 }
 
 inline std::string_view Extension(std::string_view p) {
-  std::size_t pos = p.size() - 1;
+  size_t pos = p.size() - 1;
   for (; pos != 0 && p[pos] != '.';) {
     pos--;
   }
@@ -57,11 +57,11 @@ class Filesystem {
   bool WriteToFile(std::string_view filename, std::string_view contents,
                    StringBuffer* err);
 
-  bool ReadFile(std::string_view filename, uint8_t* buffer, std::size_t size,
+  bool ReadFile(std::string_view filename, uint8_t* buffer, size_t size,
                 StringBuffer* err);
 
   struct StatInfo {
-    std::size_t size;
+    size_t size;
     enum Type { kFile, kDirectory };
     Type type;
     int64_t modtime_secs;
@@ -69,7 +69,7 @@ class Filesystem {
     int64_t access_time_secs;
   };
 
-  bool Size(std::string_view filename, std::size_t* result, StringBuffer* err);
+  bool Size(std::string_view filename, size_t* result, StringBuffer* err);
 
   bool Stat(std::string_view filename, StatInfo* info, StringBuffer* err);
 
@@ -89,7 +89,7 @@ class Filesystem {
   FixedStringBuffer<kMaxPathLength + 1> pref_dir_;
   FixedArray<PHYSFS_File*> for_read_;
   FixedArray<PHYSFS_File*> for_write_;
-  Dictionary<std::size_t> filename_to_handle_;
+  Dictionary<size_t> filename_to_handle_;
 };
 
 }  // namespace G

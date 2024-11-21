@@ -261,8 +261,8 @@ void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
   return pixels;
 }
 
-bool WritePixelsToImage(const char *filename, uint8_t *data, std::size_t width,
-                        std::size_t height, Filesystem *filesystem,
+bool WritePixelsToImage(const char *filename, uint8_t *data, size_t width,
+                        size_t height, Filesystem *filesystem,
                         StringBuffer *err, Allocator *allocator) {
   CHECK(HasSuffix(filename, ".qoi"), "invalid filename ", filename);
   QoiDesc desc;

@@ -36,7 +36,7 @@ uint32_t StringTable::Intern(std::string_view input) {
     if (sizes_[i] != 0) {
       if (IsThere(offsets_[i], input)) return i;
     } else {
-      const std::size_t size = input.size();
+      const size_t size = input.size();
       CHECK((pos_ + size) < kTotalSize, "Failed to insert string ", input);
       std::memcpy(&buffer_[pos_], input.data(), size);
       offsets_[i] = pos_;

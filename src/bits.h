@@ -6,7 +6,7 @@
 
 namespace G {
 
-inline constexpr std::size_t NextPow2(size_t n) {
+inline constexpr size_t NextPow2(size_t n) {
 #ifdef _MSC_VER
   return n < 2 ? 1 : (~size_t{0} >> _lzcnt_u64(n - 1)) + 1;
 #else

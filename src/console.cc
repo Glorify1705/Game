@@ -21,7 +21,7 @@ void DebugConsole::LogWithConsole(void* userdata, int category,
 }
 
 void DebugConsole::CopyToBuffer(std::string_view text, Linebuffer* buffer) {
-  const std::size_t length = std::min(kMaxLogLineLength, text.size());
+  const size_t length = std::min(kMaxLogLineLength, text.size());
   std::memcpy(buffer->chars, text.data(), length);
   buffer->len = length;
 }

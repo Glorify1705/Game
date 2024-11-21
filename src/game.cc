@@ -39,7 +39,7 @@
 
 namespace G {
 
-constexpr std::size_t kEngineMemory = Gigabytes(4);
+constexpr size_t kEngineMemory = Gigabytes(4);
 using EngineAllocator = StaticAllocator<kEngineMemory>;
 
 static EngineAllocator* GlobalEngineAllocator() {
@@ -461,7 +461,7 @@ class Game {
   // Update state given current time t and frame delta dt, both in ms.
   void Update(double t, double dt) {
     char error[1024];
-    if (std::size_t error_len = e_->lua.Error(error, sizeof(error) - 1);
+    if (size_t error_len = e_->lua.Error(error, sizeof(error) - 1);
         error_len > 0) {
       e_->sound.Stop();
       RenderCrashScreen(std::string_view(error, error_len));

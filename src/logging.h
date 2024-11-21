@@ -14,7 +14,7 @@ enum LogLevel { LOG_LEVEL_INFO, LOG_LEVEL_FATAL };
 
 using LogSink = void (*)(LogLevel /*lvl*/, const char* /*message*/);
 
-inline constexpr std::size_t kMaxLogLineLength = 511;
+inline constexpr size_t kMaxLogLineLength = 511;
 
 // Sets the sink for log messages.
 void SetLogSink(LogSink sink);
@@ -72,7 +72,7 @@ void Log(std::string_view file, int line, T&&... ts) {
 
 struct OpenGLSourceLine {
   char file[256] = {0};
-  std::size_t line = 0;
+  size_t line = 0;
 };
 
 inline OpenGLSourceLine* GetOpenGLSourceLine() {
@@ -80,7 +80,7 @@ inline OpenGLSourceLine* GetOpenGLSourceLine() {
   return &l;
 }
 
-inline void SetOpenGLLine(const char* file, std::size_t line) {
+inline void SetOpenGLLine(const char* file, size_t line) {
 #ifdef GAME_WITH_ASSERTS
   auto* ptr = GetOpenGLSourceLine();
   std::memcpy(&ptr->file, file, strlen(file) + 1);

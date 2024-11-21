@@ -19,49 +19,49 @@ class DbAssets {
  public:
   struct Image {
     std::string_view name;
-    std::size_t width;
-    std::size_t height;
-    std::size_t size;
+    size_t width;
+    size_t height;
+    size_t size;
     uint8_t* contents;
   };
 
   struct Spritesheet {
     std::string_view name;
     std::string_view image;
-    std::size_t width;
-    std::size_t height;
+    size_t width;
+    size_t height;
   };
 
   struct Sprite {
     std::string_view name;
     std::string_view spritesheet;
-    std::size_t x;
-    std::size_t y;
-    std::size_t width;
-    std::size_t height;
+    size_t x;
+    size_t y;
+    size_t width;
+    size_t height;
   };
 
   struct Script {
     std::string_view name;
-    std::size_t size;
+    size_t size;
     uint8_t* contents;
   };
 
   struct Sound {
     std::string_view name;
-    std::size_t size;
+    size_t size;
     uint8_t* contents;
   };
 
   struct TextFile {
     std::string_view name;
-    std::size_t size;
+    size_t size;
     uint8_t* contents;
   };
 
   struct Font {
     std::string_view name;
-    std::size_t size;
+    size_t size;
     uint8_t* contents;
   };
 
@@ -70,7 +70,7 @@ class DbAssets {
   struct Shader {
     std::string_view name;
     ShaderType type;
-    std::size_t size;
+    size_t size;
     uint8_t* contents;
   };
 
@@ -180,23 +180,22 @@ class DbAssets {
     return result;
   }
 
-  void LoadScript(std::string_view name, uint8_t* buffer, std::size_t size);
-  void LoadImage(std::string_view name, uint8_t* buffer, std::size_t size);
-  void LoadAudio(std::string_view name, uint8_t* buffer, std::size_t size);
-  void LoadText(std::string_view name, uint8_t* buffer, std::size_t size);
-  void LoadShader(std::string_view name, uint8_t* buffer, std::size_t size);
-  void LoadFont(std::string_view name, uint8_t* buffer, std::size_t size);
-  void LoadSpritesheet(std::string_view name, uint8_t* buffer,
-                       std::size_t size);
-  void ReserveBufferForType(std::string_view type, std::size_t count);
+  void LoadScript(std::string_view name, uint8_t* buffer, size_t size);
+  void LoadImage(std::string_view name, uint8_t* buffer, size_t size);
+  void LoadAudio(std::string_view name, uint8_t* buffer, size_t size);
+  void LoadText(std::string_view name, uint8_t* buffer, size_t size);
+  void LoadShader(std::string_view name, uint8_t* buffer, size_t size);
+  void LoadFont(std::string_view name, uint8_t* buffer, size_t size);
+  void LoadSpritesheet(std::string_view name, uint8_t* buffer, size_t size);
+  void ReserveBufferForType(std::string_view type, size_t count);
 
   sqlite3* db_;
   Allocator* allocator_;
 
-  std::size_t name_size_;
+  size_t name_size_;
   char* name_buffer_;
 
-  std::size_t content_size_;
+  size_t content_size_;
   uint8_t* content_buffer_;
 
   Dictionary<Image*> images_map_;

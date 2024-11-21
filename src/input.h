@@ -47,8 +47,8 @@ class Keyboard {
                         void* userdata);
 
  private:
-  inline static constexpr std::size_t kQueueSize = 256;
-  inline static constexpr std::size_t kKeyboardTable = SDL_NUM_SCANCODES;
+  inline static constexpr size_t kQueueSize = 256;
+  inline static constexpr size_t kKeyboardTable = SDL_NUM_SCANCODES;
 
   struct Event {
     SDL_Scancode code;
