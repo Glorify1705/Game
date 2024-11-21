@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS scripts(id INTEGER PRIMARY KEY AUTOINCREMENT,
 
 CREATE TABLE IF NOT EXISTS shaders(id INTEGER PRIMARY KEY AUTOINCREMENT,
                                    name VARCHAR(255) UNIQUE NOT NULL,
+                                   shader_type VARCHAR(255) NOT NULL,
                                    contents BLOB NOT NULL);
 
 CREATE TABLE IF NOT EXISTS fonts(id INTEGER PRIMARY KEY AUTOINCREMENT,

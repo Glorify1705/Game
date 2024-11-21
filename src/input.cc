@@ -112,20 +112,25 @@ void Mouse::PushEvent(const SDL_Event& event) {
   }
 }
 
-Controllers::Controllers(const Assets& assets, Allocator* allocator)
+Controllers::Controllers(DbAssets* assets, Allocator* allocator)
     : button_table_(allocator), axis_table_(allocator) {
   SDL_RWops* rwops = nullptr;
-  const TextFileAsset* asset = assets.GetText("gamecontrollerdb.txt");
-  if (asset == nullptr) {
+  const DbAssets::TextFile* controller_db =
+      assets->GetText("gamecontrollerdb.txt");
+  if (controller_db == nullptr) {
     LOG("Could not find game controller database, using the default one");
     rwops = SDL_RWFromMem(
         const_cast<void*>(static_cast<const void*>(kControllerDatabase)),
         sizeof(kControllerDatabase));
   } else {
     rwops = SDL_RWFromMem(
-        const_cast<void*>(static_cast<const void*>(asset->contents()->Data())),
-        asset->contents()->size());
+        const_cast<void*>(static_cast<const void*>(controller_db->contents)),
+        controller_db->size);
   }
+  LOG("Using the default controllers database");
+  rwops = SDL_RWFromMem(
+      const_cast<void*>(static_cast<const void*>(kControllerDatabase)),
+      sizeof(kControllerDatabase));
   CHECK(rwops != nullptr);
   CHECK(SDL_GameControllerAddMappingsFromRW(rwops, /*freerw=*/true) > 0,
         "Could not add Joystick database: ", SDL_GetError());

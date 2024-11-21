@@ -87,27 +87,31 @@ constexpr std::string_view kPostPassFragmentShader = R"(
 
 }  // namespace
 
-Shaders::Shaders(const Assets& assets, Allocator* allocator)
+Shaders::Shaders(const DbAssets& assets, Allocator* allocator)
     : compiled_shaders_(allocator),
       compiled_programs_(allocator),
       gl_shader_handles_(128, allocator),
       gl_program_handles_(128, allocator) {
-  for (size_t i = 0; i < assets.shaders(); ++i) {
-    const ShaderAsset* asset = assets.GetShaderByIndex(i);
-    CHECK(Compile(asset->type(), FlatbufferStringview(asset->name()),
-                  FlatbufferStringview(asset->contents())),
-          LastError());
-  }
-  CHECK(Compile(ShaderType::VERTEX, "pre_pass.vert", kPrePassVertexShader),
+  for (const auto& shader : assets.GetShaders()) {
+    CHECK(
+        Compile(shader.type, shader.name,
+                std::string_view(reinterpret_cast<const char*>(shader.contents),
+                                 shader.size)),
         LastError());
-  CHECK(Compile(ShaderType::FRAGMENT, "pre_pass.frag", kPrePassFragmentShader),
+  }
+  CHECK(Compile(DbAssets::ShaderType::kVertex, "pre_pass.vert",
+                kPrePassVertexShader),
+        LastError());
+  CHECK(Compile(DbAssets::ShaderType::kFragment, "pre_pass.frag",
+                kPrePassFragmentShader),
         LastError());
   CHECK(Link("pre_pass", "pre_pass.vert", "pre_pass.frag"), LastError());
-  CHECK(Compile(ShaderType::VERTEX, "post_pass.vert", kPostPassVertexShader),
+  CHECK(Compile(DbAssets::ShaderType::kVertex, "post_pass.vert",
+                kPostPassVertexShader),
         LastError());
-  CHECK(
-      Compile(ShaderType::FRAGMENT, "post_pass.frag", kPostPassFragmentShader),
-      LastError());
+  CHECK(Compile(DbAssets::ShaderType::kFragment, "post_pass.frag",
+                kPostPassFragmentShader),
+        LastError());
   CHECK(Link("post_pass", "post_pass.vert", "post_pass.frag"), LastError());
 }
 
@@ -120,14 +124,15 @@ Shaders::~Shaders() {
   }
 }
 
-bool Shaders::Compile(ShaderType type, std::string_view name,
+bool Shaders::Compile(DbAssets::ShaderType type, std::string_view name,
                       std::string_view glsl) {
   if (compiled_shaders_.Contains(name)) {
     LOG("Ignoring already processed shader ", name);
     return true;
   }
-  const GLuint shader_type =
-      type == ShaderType::VERTEX ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
+  const GLuint shader_type = type == DbAssets::ShaderType::kVertex
+                                 ? GL_VERTEX_SHADER
+                                 : GL_FRAGMENT_SHADER;
   const GLuint shader = glCreateShader(shader_type);
   CHECK(shader != 0, "Could not compile shader ", name);
   const char* code = glsl.data();
@@ -141,7 +146,8 @@ bool Shaders::Compile(ShaderType type, std::string_view name,
     glGetShaderInfoLog(shader, sizeof(info_log), nullptr, info_log);
     return FillError("Could not compile shader ", name, ": ", info_log);
   }
-  LOG("Compiled ", (type == ShaderType::VERTEX ? "vertex" : "fragment"),
+  LOG("Compiled ",
+      (type == DbAssets::ShaderType::kVertex ? "vertex" : "fragment"),
       " shader ", name, " with id ", shader);
   gl_shader_handles_.Push(shader);
   compiled_shaders_.Insert(name, shader);

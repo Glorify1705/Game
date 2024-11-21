@@ -93,39 +93,35 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
   }
 }
 
-Assets* GetAssets(const std::vector<const char*>& arguments,
-                  Allocator* allocator) {
+DbAssets* GetAssets(const std::vector<const char*>& arguments,
+                    Allocator* allocator) {
   if (arguments.empty()) {
-    LOG("Reading assets from assets.zip since no file was provided");
-    return ReadAssets("assets.zip", allocator);
+    LOG("Reading assets from default DB since no file was provided");
+    return ReadAssetsFromDb("assets.sqlite3", allocator);
   }
-  if (Extension(arguments[0]) == "zip") {
+  if (arguments.size() == 1) {
     LOG("Reading assets from ", arguments[0]);
-    return ReadAssets(arguments[0], allocator);
+    return ReadAssetsFromDb(arguments[0], allocator);
   }
-  LOG("Packing all files in directory ", arguments[0]);
-  WriteAssetsToDb(arguments[0], "./assets.sqlite3", allocator);
-  return PackFiles(arguments[0], allocator);
-}
-
-DbAssets* GetDbAssets(Allocator* allocator) {
-  return ReadAssetsFromDb("./assets.sqlite3", allocator);
+  LOG("Packing all files in directory ", arguments[0], " into the database");
+  WriteAssetsToDb(arguments[0], arguments[1], allocator);
+  return ReadAssetsFromDb(arguments[1], allocator);
 }
 
 struct EngineModules {
-  EngineModules(Assets* assets, DbAssets* db_assets, const GameConfig& config,
+  EngineModules(DbAssets* db_assets, const GameConfig& config,
                 SDL_Window* sdl_window, Allocator* allocator)
       : config(&config),
         filesystem(allocator),
         window(sdl_window),
-        shaders(*assets, allocator),
+        shaders(*db_assets, allocator),
         batch_renderer(IVec2(config.window_width, config.window_height),
                        &shaders, allocator),
         keyboard(allocator),
-        controllers(*assets, allocator),
+        controllers(db_assets, allocator),
         sound(*db_assets, allocator),
-        renderer(*assets, &batch_renderer, allocator),
-        lua(assets, SystemAllocator::Instance()),
+        renderer(*db_assets, &batch_renderer, allocator),
+        lua(db_assets, SystemAllocator::Instance()),
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)) {
@@ -232,7 +228,7 @@ struct EngineModules {
     batch_renderer.Render(&frame_allocator);
   }
 
-  const GameConfig* config;
+  const GameConfig* config = nullptr;
   Filesystem filesystem;
   SDL_Window* window;
   Shaders shaders;
@@ -501,9 +497,8 @@ class Game {
     }
     PHYSFS_CHECK(PHYSFS_init(argv[0]),
                  "Could not initialize PhysFS: ", argv[0]);
-    assets_ = GetAssets(arguments_, allocator_);
-    db_assets_ = GetDbAssets(allocator_);
-    LoadConfig(*assets_, &config_, allocator_);
+    db_assets_ = GetAssets(arguments_, allocator_);
+    LoadConfig(*db_assets_, &config_, allocator_);
     LOG("Using engine version ", GAME_VERSION_STR);
     LOG("Game requested engine version ", config_.version.major, ".",
         config_.version.minor);
@@ -541,7 +536,7 @@ class Game {
 
   void Init() {
     TIMER("Game Initialization");
-    e_ = New<EngineModules>(allocator_, assets_, db_assets_, config_, window_,
+    e_ = New<EngineModules>(allocator_, db_assets_, config_, window_,
                             allocator_);
     debug_ui_ =
         New<DebugUi>(allocator_, window_, context_, &stats_, e_, allocator_);
@@ -629,7 +624,6 @@ class Game {
  private:
   const std::vector<const char*> arguments_;
   Allocator* allocator_;
-  Assets* assets_ = nullptr;
   DbAssets* db_assets_ = nullptr;
   GameConfig config_;
   SDL_Window* window_ = nullptr;

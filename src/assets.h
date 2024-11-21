@@ -8,17 +8,13 @@
 #include <cstdlib>
 #include <string_view>
 
+#include "array.h"
 #include "assets_generated.h"
 #include "dictionary.h"
 #include "logging.h"
 #include "sqlite3.h"
 
 namespace G {
-
-inline std::string_view FlatbufferStringview(const flatbuffers::String* s) {
-  if (s == nullptr) return std::string_view("", 0);
-  return std::string_view(s->data(), s->size());
-}
 
 class DbAssets {
  public:
@@ -70,53 +66,122 @@ class DbAssets {
     uint8_t* contents;
   };
 
+  enum class ShaderType { kVertex, kFragment };
+
   struct Shader {
     std::string_view name;
+    ShaderType type;
     std::size_t size;
     uint8_t* contents;
   };
 
+  template <typename T>
+  class ArrayView {
+   public:
+    explicit ArrayView(const DynArray<T>* array) : array_(array){};
+
+    using const_iterator = const T*;
+
+    const_iterator begin() const { return array_->cbegin(); }
+    const_iterator end() const { return array_->cend(); }
+
+   private:
+    const DynArray<T>* const array_;
+  };
+
   DbAssets(std::string_view dbname, Allocator* allocator)
       : allocator_(allocator),
+        images_map_(allocator),
         images_(allocator),
+        sprites_map_(allocator),
         sprites_(allocator),
+        spritesheets_map_(allocator),
         spritesheets_(allocator),
+        scripts_map_(allocator),
         scripts_(allocator),
+        sounds_map_(allocator),
         sounds_(allocator),
+        fonts_map_(allocator),
         fonts_(allocator),
+        shaders_map_(allocator),
         shaders_(allocator),
+        text_files_map_(allocator),
         text_files_(allocator) {
     db_filename_.Append(dbname);
   }
 
   void Load();
 
-  Image GetImage(std::string_view name) const {
-    return images_.LookupOrDie(name);
+  Image* GetImage(std::string_view name) const {
+    Image* image;
+    if (!images_map_.Lookup(name, &image)) return nullptr;
+    return image;
   }
-  Script GetScript(std::string_view name) const {
-    return scripts_.LookupOrDie(name);
+
+  Script* GetScript(std::string_view name) const {
+    Script* script;
+    if (!scripts_map_.Lookup(name, &script)) return nullptr;
+    return script;
   }
-  Spritesheet GetSpritesheet(std::string_view name) const {
-    return spritesheets_.LookupOrDie(name);
+
+  ArrayView<Script> GetScripts() const { return MakeArrayView(&scripts_); }
+
+  Spritesheet* GetSpritesheet(std::string_view name) const {
+    Spritesheet* spritesheet;
+    if (!spritesheets_map_.Lookup(name, &spritesheet)) return nullptr;
+    return spritesheet;
   }
-  Sprite GetSprite(std::string_view name) const {
-    return sprites_.LookupOrDie(name);
+
+  Sprite* GetSprite(std::string_view name) const {
+    Sprite* sprite;
+    if (!sprites_map_.Lookup(name, &sprite)) return nullptr;
+    return sprite;
   }
-  Font GetFont(std::string_view name) const { return fonts_.LookupOrDie(name); }
-  TextFile GetText(std::string_view name) const {
-    return text_files_.LookupOrDie(name);
+
+  ArrayView<Sprite> GetSprites() const { return MakeArrayView(&sprites_); }
+
+  Font* GetFont(std::string_view name) const {
+    Font* font;
+    if (!fonts_map_.Lookup(name, &font)) return nullptr;
+    return font;
   }
-  Sound GetSound(std::string_view name) const {
-    return sounds_.LookupOrDie(name);
+
+  TextFile* GetText(std::string_view name) const {
+    TextFile* text_file;
+    if (!text_files_map_.Lookup(name, &text_file)) return nullptr;
+    return text_file;
   }
-  Shader GetShader(std::string_view name) const {
-    return shaders_.LookupOrDie(name);
+
+  Sound* GetSound(std::string_view name) const {
+    Sound* sound;
+    if (!sounds_map_.Lookup(name, &sound)) return nullptr;
+    return sound;
   }
+
+  Shader* GetShader(std::string_view name) const {
+    Shader* shader;
+    if (!shaders_map_.Lookup(name, &shader)) return nullptr;
+    return shader;
+  }
+
+  ArrayView<Shader> GetShaders() const { return MakeArrayView(&shaders_); }
 
   void Trace(unsigned int sql_type, void* p, void* x);
 
  private:
+  template <typename T>
+  static ArrayView<T> MakeArrayView(const DynArray<T>* a) {
+    return ArrayView<T>(a);
+  }
+
+  std::string_view PushName(std::string_view s) {
+    std::string_view result(&name_buffer_[name_size_], s.size());
+    std::memcpy(&name_buffer_[name_size_], s.data(), s.size());
+    name_size_ += s.size();
+    name_buffer_[name_size_++] = '\0';
+    return result;
+  }
+
   void LoadScript(std::string_view name, uint8_t* buffer, std::size_t size);
   void LoadImage(std::string_view name, uint8_t* buffer, std::size_t size);
   void LoadAudio(std::string_view name, uint8_t* buffer, std::size_t size);
@@ -125,6 +190,7 @@ class DbAssets {
   void LoadFont(std::string_view name, uint8_t* buffer, std::size_t size);
   void LoadSpritesheet(std::string_view name, uint8_t* buffer,
                        std::size_t size);
+  void ReserveBufferForType(std::string_view type, std::size_t count);
 
   FixedStringBuffer<256> db_filename_;
 
@@ -137,58 +203,22 @@ class DbAssets {
   std::size_t content_size_;
   uint8_t* content_buffer_;
 
-  Dictionary<Image> images_;
-  Dictionary<Sprite> sprites_;
-  Dictionary<Spritesheet> spritesheets_;
-  Dictionary<Script> scripts_;
-  Dictionary<Sound> sounds_;
-  Dictionary<Font> fonts_;
-  Dictionary<Shader> shaders_;
-  Dictionary<TextFile> text_files_;
-};
-
-class Assets {
- public:
-  Assets(const AssetsPack* assets, std::size_t size)
-      : assets_(assets), size_(size) {
-    CHECK(assets_ != nullptr, "Failed to build assets from buffer");
-  }
-
-  const ImageAsset* GetImage(std::string_view name) const;
-  const ScriptAsset* GetScript(std::string_view name) const;
-  std::size_t scripts() const { return assets_->scripts()->size(); }
-  const ScriptAsset* GetScriptByIndex(std::size_t idx) const {
-    return assets_->scripts()->Get(idx);
-  }
-  const SpritesheetAsset* GetSpritesheet(std::string_view name) const;
-  std::size_t spritesheets() const { return assets_->spritesheets()->size(); }
-  const SpritesheetAsset* GetSpritesheetByIndex(std::size_t idx) const {
-    return assets_->spritesheets()->Get(idx);
-  }
-  const SpriteAsset* GetSprite(std::string_view name) const;
-  std::size_t sprites() const { return assets_->sprites()->size(); }
-  const SpriteAsset* GetSpriteByIndex(std::size_t idx) const {
-    return assets_->sprites()->Get(idx);
-  }
-  const FontAsset* GetFont(std::string_view name) const;
-  std::size_t fonts() const { return assets_->fonts()->size(); }
-  const FontAsset* GetFontByIndex(std::size_t idx) const {
-    return assets_->fonts()->Get(idx);
-  }
-  const TextFileAsset* GetText(std::string_view name) const;
-  std::size_t shaders() const { return assets_->shaders()->size(); }
-  const ShaderAsset* GetShaderByIndex(std::size_t idx) const {
-    return assets_->shaders()->Get(idx);
-  }
-  const SoundAsset* GetSound(std::string_view name) const;
-  const ShaderAsset* GetShader(std::string_view) const;
-
-  const AssetsPack* PackedAssets() const { return assets_; }
-  std::size_t PackerAssetSize() const { return size_; }
-
- private:
-  const AssetsPack* assets_;
-  const std::size_t size_;
+  Dictionary<Image*> images_map_;
+  DynArray<Image> images_;
+  Dictionary<Sprite*> sprites_map_;
+  DynArray<Sprite> sprites_;
+  Dictionary<Spritesheet*> spritesheets_map_;
+  DynArray<Spritesheet> spritesheets_;
+  Dictionary<Script*> scripts_map_;
+  DynArray<Script> scripts_;
+  Dictionary<Sound*> sounds_map_;
+  DynArray<Sound> sounds_;
+  Dictionary<Font*> fonts_map_;
+  DynArray<Font> fonts_;
+  Dictionary<Shader*> shaders_map_;
+  DynArray<Shader> shaders_;
+  Dictionary<TextFile*> text_files_map_;
+  DynArray<TextFile> text_files_;
 };
 
 }  // namespace G

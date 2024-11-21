@@ -65,7 +65,7 @@ int SetWindowInfo(lua_State* state) {
   return 0;
 }
 
-void LoadConfig(const Assets& assets, GameConfig* config,
+void LoadConfig(const DbAssets& assets, GameConfig* config,
                 Allocator* /*allocator*/) {
   TIMER("Loading configuration");
   auto* state = luaL_newstate();
@@ -74,15 +74,14 @@ void LoadConfig(const Assets& assets, GameConfig* config,
     LOG("No config file detected, skipping");
     return;
   }
-  std::string_view filename = FlatbufferStringview(conf->name());
-  LOG("Loading configuration from ", filename);
-  CHECK(luaL_loadbuffer(state,
-                        reinterpret_cast<const char*>(conf->contents()->Data()),
-                        conf->contents()->size(), filename.data()) == 0,
-        "Failed to load ", filename, ": ", luaL_checkstring(state, -1));
+  LOG("Loading configuration from ", conf->name);
+  CHECK(luaL_loadbuffer(state, reinterpret_cast<const char*>(conf->contents),
+                        conf->size, conf->name.data()) == 0,
+        "Failed to load ", conf->name, ": ", luaL_checkstring(state, -1));
   lua_call(state, 0, 0);
   lua_getglobal(state, "Conf");
-  CHECK(!lua_isnil(state, -1), "no Conf function defined in ", filename);
+  CHECK(!lua_isnil(state, -1), "no configuration function defined in ",
+        conf->name);
   // Set table.
   lua_newtable(state);
   lua_pushstring(state, "game");
@@ -97,7 +96,8 @@ void LoadConfig(const Assets& assets, GameConfig* config,
   lua_settable(state, -3);
   // Now that table should be at the top.
   CHECK(lua_pcall(state, 1, LUA_MULTRET, 0) == 0,
-        "Failed to load script: ", filename, ": ", luaL_checkstring(state, -1));
+        "Failed to load script: ", conf->name, ": ",
+        luaL_checkstring(state, -1));
   lua_close(state);
 }
 

@@ -22,7 +22,7 @@ class BatchRenderer {
 
   ~BatchRenderer();
 
-  std::size_t LoadTexture(const ImageAsset& image);
+  std::size_t LoadTexture(const DbAssets::Image& image);
 
   std::size_t LoadTexture(const void* data, std::size_t width,
                           std::size_t height);
@@ -261,13 +261,14 @@ class BatchRenderer {
 
 class Renderer {
  public:
-  Renderer(const Assets& assets, BatchRenderer* renderer, Allocator* allocator);
+  Renderer(const DbAssets& assets, BatchRenderer* renderer,
+           Allocator* allocator);
 
   void BeginFrame();
   void FlushFrame() { renderer_->Finish(); }
 
   void Draw(std::string_view spritename, FVec2 position, float angle);
-  void Draw(const SpriteAsset& asset, FVec2 position, float angle);
+  void Draw(const DbAssets::Sprite& asset, FVec2 position, float angle);
 
   // Returns the previous color.
   Color SetColor(Color color);
@@ -311,7 +312,7 @@ class Renderer {
     std::array<stbtt_packedchar, 256> chars;
   };
 
-  const SpriteAsset* LoadSprite(std::string_view name);
+  const DbAssets::Sprite* LoadSprite(std::string_view name);
   const FontInfo* LoadFont(std::string_view font_name, uint32_t font_size);
 
   void ApplyTransform(const FMat4x4& mat) {
@@ -323,7 +324,7 @@ class Renderer {
   float line_width_;
 
   Allocator* allocator_;
-  const Assets* assets_;
+  const DbAssets* assets_;
   BatchRenderer* renderer_;
 
   FixedArray<FMat4x4> transform_stack_;
@@ -331,8 +332,8 @@ class Renderer {
   Dictionary<uint32_t> textures_table_;
   FixedArray<GLuint> textures_;
 
-  Dictionary<uint32_t> sprites_table_;
-  FixedArray<const SpriteAsset*> sprites_;
+  Dictionary<uint32_t> loaded_sprites_table_;
+  FixedArray<const DbAssets::Sprite*> loaded_sprites_;
 
   Dictionary<uint32_t> font_table_;
   FixedArray<FontInfo> fonts_;

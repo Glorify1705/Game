@@ -11,10 +11,10 @@ void Sound::PlayMusic(std::string_view file, int times) {
   uint32_t handle;
   if (!music_by_name_.Lookup(file, &handle)) {
     handle = musics_.size();
-    auto music = assets_->GetSound(file);
+    auto* music = assets_->GetSound(file);
     SDL_RWops* rwops = SDL_RWFromMem(
-        const_cast<void*>(reinterpret_cast<const void*>(music.contents)),
-        music.size);
+        const_cast<void*>(reinterpret_cast<const void*>(music->contents)),
+        music->size);
     auto* mixed = Mix_LoadMUS_RW(rwops, /*freesrc=*/true);
     music_by_name_.Insert(file, handle);
     musics_.Push(mixed);
@@ -36,10 +36,10 @@ void Sound::PlaySoundEffect(std::string_view file) {
   uint32_t handle;
   if (!chunk_by_name_.Lookup(file, &handle)) {
     handle = chunks_.size();
-    auto sound = assets_->GetSound(file);
+    auto* sound = assets_->GetSound(file);
     SDL_RWops* rwops = SDL_RWFromMem(
-        const_cast<void*>(reinterpret_cast<const void*>(sound.contents)),
-        sound.size);
+        const_cast<void*>(reinterpret_cast<const void*>(sound->contents)),
+        sound->size);
     auto* chunk = Mix_LoadWAV_RW(rwops, /*freesrc=*/true);
     music_by_name_.Insert(file, handle);
     chunks_.Push(chunk);

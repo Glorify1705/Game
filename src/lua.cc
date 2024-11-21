@@ -85,13 +85,11 @@ int Traceback(lua_State* L) {
   return 1;
 }
 
-int LoadLuaAsset(lua_State* state, const ScriptAsset& asset,
+int LoadLuaAsset(lua_State* state, const DbAssets::Script& asset,
                  int traceback_handler = INT_MAX) {
-  const char* name = asset.name()->c_str();
-  FixedStringBuffer<kMaxPathLength + 1> buf("@", name);
-  if (luaL_loadbuffer(state,
-                      reinterpret_cast<const char*>(asset.contents()->Data()),
-                      asset.contents()->size(), buf.str()) != 0) {
+  FixedStringBuffer<kMaxPathLength + 1> buf("@", asset.name);
+  if (luaL_loadbuffer(state, reinterpret_cast<const char*>(asset.contents),
+                      asset.size, buf.str()) != 0) {
     lua_error(state);
     return 0;
   }
@@ -106,9 +104,9 @@ int LoadLuaAsset(lua_State* state, const ScriptAsset& asset,
   return 1;
 }
 
-int LoadFennelAsset(lua_State* state, const ScriptAsset& asset,
+int LoadFennelAsset(lua_State* state, const DbAssets::Script& asset,
                     int traceback_handler = INT_MAX) {
-  const char* name = asset.name()->c_str();
+  std::string_view name = asset.name;
   TIMER("Compiling ", name);
   // Load fennel module if not present.
   lua_getfield(state, LUA_GLOBALSINDEX, "package");
@@ -118,7 +116,7 @@ int LoadFennelAsset(lua_State* state, const ScriptAsset& asset,
   if (lua_isnil(state, -1)) {
     LOG("Proactively loading Fennel compiler");
     lua_pop(state, 1);
-    Assets* assets = Registry<Assets>::Retrieve(state);
+    DbAssets* assets = Registry<DbAssets>::Retrieve(state);
     auto* fennel = assets->GetScript("fennel.lua");
     if (fennel == nullptr) {
       LUA_ERROR(state, "Fennel compiler is absent, cannot load fennel files");
@@ -134,9 +132,8 @@ int LoadFennelAsset(lua_State* state, const ScriptAsset& asset,
   lua_getfield(state, -1, "eval");
   CHECK(lua_isfunction(state, -1),
         "Invalid fennel compiler has no function 'eval'");
-  lua_pushlstring(state,
-                  reinterpret_cast<const char*>(asset.contents()->Data()),
-                  asset.contents()->size());
+  lua_pushlstring(state, reinterpret_cast<const char*>(asset.contents),
+                  asset.size);
   FixedStringBuffer<kMaxPathLength + 1> buf(name);
   lua_newtable(state);
   lua_pushstring(state, "filename");
@@ -156,7 +153,7 @@ int LoadFennelAsset(lua_State* state, const ScriptAsset& asset,
 int PackageLoader(lua_State* state) {
   const char* modname = luaL_checkstring(state, 1);
   FixedStringBuffer<kMaxPathLength> buf(modname, ".lua");
-  Assets* assets = Registry<Assets>::Retrieve(state);
+  DbAssets* assets = Registry<DbAssets>::Retrieve(state);
   LOG("Attempting to load package ", modname, " from file ", buf);
   auto* asset = assets->GetScript(buf.piece());
   if (asset != nullptr) {
@@ -402,7 +399,8 @@ const struct luaL_Reg kGraphicsLib[] = {
        std::string_view name = GetLuaString(state, 1);
        std::string_view code = GetLuaString(state, 2);
        const bool compiles = shaders->Compile(
-           HasSuffix(name, ".vert") ? ShaderType::VERTEX : ShaderType::FRAGMENT,
+           HasSuffix(name, ".vert") ? DbAssets::ShaderType::kVertex
+                                    : DbAssets::ShaderType::kFragment,
            name, code);
        if (!compiles) {
          LUA_ERROR(state, "Could not compile shader %s: %s", name,
@@ -807,59 +805,56 @@ const struct luaL_Reg kAssetsLib[] = {
     {"sprite",
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
-       auto* assets = Registry<Assets>::Retrieve(state);
+       auto* assets = Registry<DbAssets>::Retrieve(state);
        auto* sprite = assets->GetSprite(name);
        if (sprite == nullptr) {
          LUA_ERROR(state, "Could not find a sprite called ", name);
        }
-       lua_pushlightuserdata(state, const_cast<SpriteAsset*>(sprite));
+       lua_pushlightuserdata(state, const_cast<DbAssets::Sprite*>(sprite));
        lua_getfield(state, LUA_REGISTRYINDEX, "asset_sprite_ptr");
        lua_setmetatable(state, -2);
        return 1;
      }},
     {"sprite_info",
      [](lua_State* state) {
-       const SpriteAsset* ptr = nullptr;
+       const DbAssets::Sprite* ptr = nullptr;
        if (lua_isstring(state, 1)) {
-         auto* assets = Registry<Assets>::Retrieve(state);
+         auto* assets = Registry<DbAssets>::Retrieve(state);
          std::string_view name = GetLuaString(state, 1);
          ptr = assets->GetSprite(name);
-         if (ptr == nullptr) {
-           LUA_ERROR(state, "Could not find an image called ", name);
-         }
        } else {
-         ptr = reinterpret_cast<const SpriteAsset*>(
+         ptr = reinterpret_cast<const DbAssets::Sprite*>(
              luaL_checkudata(state, 1, "asset_sprite_ptr"));
        }
+       if (ptr == nullptr) {
+         LUA_ERROR(state, "Could not find sprite");
+       }
        lua_newtable(state);
-       lua_pushnumber(state, ptr->width());
+       lua_pushnumber(state, ptr->width);
        lua_setfield(state, -2, "width");
-       lua_pushnumber(state, ptr->height());
+       lua_pushnumber(state, ptr->height);
        lua_setfield(state, -2, "height");
        return 1;
      }},
     {"list_sprites", [](lua_State* state) {
-       auto* assets = Registry<Assets>::Retrieve(state);
+       auto* assets = Registry<DbAssets>::Retrieve(state);
        lua_newtable(state);
-       for (size_t i = 0; i < assets->sprites(); ++i) {
-         const SpriteAsset* asset = assets->GetSpriteByIndex(i);
-         lua_pushlstring(state,
-                         reinterpret_cast<const char*>(asset->name()->Data()),
-                         asset->name()->size());
+       for (const auto& sprite : assets->GetSprites()) {
+         lua_pushlstring(state, sprite.name.data(), sprite.name.size());
          lua_newtable(state);
-         lua_pushnumber(state, asset->width());
+         lua_pushnumber(state, sprite.width);
          lua_setfield(state, -2, "width");
-         lua_pushnumber(state, asset->height());
+         lua_pushnumber(state, sprite.height);
          lua_setfield(state, -2, "height");
-         lua_pushnumber(state, asset->x());
+         lua_pushnumber(state, sprite.x);
          lua_setfield(state, -2, "x");
-         lua_pushnumber(state, asset->y());
+         lua_pushnumber(state, sprite.y);
          lua_setfield(state, -2, "y");
-         const SpritesheetAsset* spritesheet =
-             assets->GetSpritesheetByIndex(asset->spritesheet());
-         lua_pushlstring(
-             state, reinterpret_cast<const char*>(spritesheet->name()->Data()),
-             spritesheet->name()->size());
+         const auto* spritesheet = assets->GetSpritesheet(sprite.spritesheet);
+         CHECK(spritesheet != nullptr, "No spritesheet named ",
+               sprite.spritesheet);
+         lua_pushlstring(state, spritesheet->name.data(),
+                         spritesheet->name.size());
          lua_setfield(state, -2, "spritesheet");
          lua_settable(state, -2);
        }
@@ -1278,7 +1273,7 @@ void* Lua::Alloc(void* ptr, std::size_t osize, std::size_t nsize) {
   return allocator_->Realloc(ptr, osize, nsize, /*align=*/1);
 }
 
-Lua::Lua(Assets* assets, Allocator* allocator)
+Lua::Lua(DbAssets* assets, Allocator* allocator)
     : allocator_(allocator), assets_(assets) {}
 
 void Lua::Crash() {
@@ -1381,10 +1376,10 @@ void Lua::LoadLibraries() {
   AddLibrary(state_, "sound", kSoundLib);
   AddLibrary(state_, "filesystem", kFilesystem);
   AddLibrary(state_, "physics", kPhysicsLib);
-  AddLibrary(state_, "assets", kAssetsLib);
   AddLibrary(state_, "data", kDataLib);
   AddLibrary(state_, "clock", kClockLib);
   AddLibrary(state_, "system", kSystemLib);
+  AddLibrary(state_, "assets", kAssetsLib);
   AddLibrary(state_, "window", kWindowLib);
   AddLibrary(state_, "random", kRandomLib);
   // Set print as G.console.log for consistency.
@@ -1394,9 +1389,8 @@ void Lua::LoadLibraries() {
 
 void Lua::LoadScripts() {
   READY();
-  for (size_t i = 0; i < assets_->scripts(); ++i) {
-    auto* script = assets_->GetScriptByIndex(i);
-    std::string_view asset_name(script->name()->c_str());
+  for (const auto& script : assets_->GetScripts()) {
+    std::string_view asset_name = script.name;
     if (asset_name == "main.lua") continue;
     ConsumeSuffix(&asset_name, ".lua");
     ConsumeSuffix(&asset_name, ".fnl");
@@ -1462,6 +1456,7 @@ void Lua::LoadMain() {
     lua_pop(state_, 1);
   }
   lua_setglobal(state_, "_Game");
+  LOG("Loaded main successfully");
 }
 
 void Lua::SetPackagePreload(std::string_view filename) {
@@ -1475,10 +1470,15 @@ void Lua::SetPackagePreload(std::string_view filename) {
 }
 
 void Lua::Init() {
+  LOG("Initializing game");
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "init");
+  if (lua_isnil(state_, -1)) {
+    LUA_ERROR(state_, "No main function");
+    return;
+  }
   lua_insert(state_, -2);
   if (lua_pcall(state_, 1, LUA_MULTRET, traceback_handler_)) {
     lua_error(state_);

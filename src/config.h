@@ -31,7 +31,8 @@ struct GameConfig {
   Version version;
 };
 
-void LoadConfig(const Assets& assets, GameConfig* config, Allocator* allocator);
+void LoadConfig(const DbAssets& assets, GameConfig* config,
+                Allocator* allocator);
 
 }  // namespace G
 

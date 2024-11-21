@@ -148,15 +148,14 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
 
 void BatchRenderer::SetViewport(IVec2 viewport) { viewport_ = viewport; }
 
-std::size_t BatchRenderer::LoadTexture(const ImageAsset& image) {
-  TIMER("Decoding ", FlatbufferStringview(image.name()));
+std::size_t BatchRenderer::LoadTexture(const DbAssets::Image& image) {
+  TIMER("Decoding ", image.name);
   QoiDesc desc;
   constexpr int kChannels = 4;
   auto* image_bytes =
-      QoiDecode(image.contents()->Data(), image.contents()->size(), &desc,
-                kChannels, allocator_);
-  std::size_t index = LoadTexture(image_bytes, image.width(), image.height());
-  allocator_->Dealloc(image_bytes, image.width() * image.height() * kChannels);
+      QoiDecode(image.contents, image.size, &desc, kChannels, allocator_);
+  std::size_t index = LoadTexture(image_bytes, image.width, image.height);
+  allocator_->Dealloc(image_bytes, image.width * image.height * kChannels);
   return index;
 }
 
@@ -502,7 +501,7 @@ void BatchRenderer::Render(Allocator* scratch) {
   WATCH_EXPR("Render calls", render_calls);
 }
 
-Renderer::Renderer(const Assets& assets, BatchRenderer* renderer,
+Renderer::Renderer(const DbAssets& assets, BatchRenderer* renderer,
                    Allocator* allocator)
     : allocator_(allocator),
       assets_(&assets),
@@ -510,8 +509,8 @@ Renderer::Renderer(const Assets& assets, BatchRenderer* renderer,
       transform_stack_(128, allocator),
       textures_table_(allocator),
       textures_(256, allocator),
-      sprites_table_(allocator),
-      sprites_(1 << 20, allocator),
+      loaded_sprites_table_(allocator),
+      loaded_sprites_(1 << 20, allocator),
       font_table_(allocator),
       fonts_(512, allocator) {}
 
@@ -545,35 +544,32 @@ float Renderer::SetLineWidth(float width) {
 }
 
 void Renderer::Draw(std::string_view spritename, FVec2 position, float angle) {
-  const SpriteAsset* sprite = nullptr;
-  if (uint32_t handle; sprites_table_.Lookup(spritename, &handle)) {
-    sprite = sprites_[handle];
+  const DbAssets::Sprite* sprite = nullptr;
+  if (uint32_t handle; loaded_sprites_table_.Lookup(spritename, &handle)) {
+    sprite = loaded_sprites_[handle];
   } else {
     sprite = LoadSprite(spritename);
   }
   Draw(*sprite, position, angle);
 }
 
-void Renderer::Draw(const SpriteAsset& sprite, FVec2 position, float angle) {
-  auto sprite_name = FlatbufferStringview(sprite.name());
-  uint32_t spritesheet_index = sprite.spritesheet();
-  const SpritesheetAsset* spritesheet =
-      assets_->GetSpritesheetByIndex(spritesheet_index);
-  CHECK(spritesheet != nullptr, "No spritesheet for ", sprite_name);
-  auto spritesheet_name = FlatbufferStringview(spritesheet->name());
+void Renderer::Draw(const DbAssets::Sprite& sprite, FVec2 position,
+                    float angle) {
+  const DbAssets::Spritesheet* spritesheet =
+      assets_->GetSpritesheet(sprite.spritesheet);
+  CHECK(spritesheet != nullptr, "No spritesheet for ", sprite.name);
   uint32_t texture_index;
-  CHECK(textures_table_.Lookup(spritesheet_name, &texture_index),
-        "No spritesheet texture for ", sprite_name, "(spritesheet ",
-        FlatbufferStringview(spritesheet->name()), ")");
+  CHECK(textures_table_.Lookup(spritesheet->name, &texture_index),
+        "No spritesheet texture for ", sprite.name, "(spritesheet ",
+        spritesheet->name, ")");
   renderer_->SetActiveTexture(textures_[texture_index]);
-  const float x = sprite.x(), y = sprite.y(), w = sprite.width(),
-              h = sprite.height();
+  const float x = sprite.x, y = sprite.y, w = sprite.width, h = sprite.height;
   const FVec2 p0(position - FVec(w / 2.0, h / 2.0));
   const FVec2 p1(position + FVec(w / 2.0, h / 2.0));
   const FVec2 q0(
-      FVec(1.0 * x / spritesheet->width(), 1.0 * y / spritesheet->height()));
-  const FVec2 q1(1.0f * (x + w) / spritesheet->width(),
-                 1.0f * (y + h) / spritesheet->height());
+      FVec(1.0 * x / spritesheet->width, 1.0 * y / spritesheet->height));
+  const FVec2 q1(1.0f * (x + w) / spritesheet->width,
+                 1.0f * (y + h) / spritesheet->height);
   renderer_->PushQuad(p0, p1, q0, q1, position, angle);
 }
 
@@ -625,24 +621,23 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
   if (uint32_t handle = 0; font_table_.Lookup(font_key.str(), &handle)) {
     return &fonts_[handle];
   }
-  const FontAsset* asset = assets_->GetFont(font_name);
+  const DbAssets::Font* asset = assets_->GetFont(font_name);
   if (asset == nullptr) return nullptr;
   ArenaAllocator scratch(allocator_, kAtlasSize * 5);
   const float pixel_height = font_size;
   uint8_t* atlas = NewArray<uint8_t>(kAtlasSize, &scratch);
   FontInfo font;
-  const uint8_t* font_buffer = asset->contents()->data();
-  CHECK(stbtt_InitFont(&font.font_info, font_buffer,
-                       stbtt_GetFontOffsetForIndex(font_buffer, 0)),
-        "Could not initialize ", FlatbufferStringview(asset->name()));
+  CHECK(stbtt_InitFont(&font.font_info, asset->contents,
+                       stbtt_GetFontOffsetForIndex(asset->contents, 0)),
+        "Could not initialize ", asset->name);
   font.scale = stbtt_ScaleForPixelHeight(&font.font_info, pixel_height);
   stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
                         &font.line_gap);
   stbtt_PackBegin(&font.context, atlas, kAtlasWidth, kAtlasHeight, kAtlasWidth,
                   1, /*alloc_context=*/allocator_);
   stbtt_PackSetOversampling(&font.context, 2, 2);
-  CHECK(stbtt_PackFontRange(&font.context, font_buffer, 0, pixel_height, 0, 256,
-                            font.chars.data()) == 1,
+  CHECK(stbtt_PackFontRange(&font.context, asset->contents, 0, pixel_height, 0,
+                            256, font.chars.data()) == 1,
         "Could not load font");
   stbtt_PackEnd(&font.context);
   uint8_t* buffer = NewArray<uint8_t>(4 * kAtlasSize, &scratch);
@@ -655,23 +650,20 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
   return &fonts_.back();
 }
 
-const SpriteAsset* Renderer::LoadSprite(std::string_view name) {
-  LOG("Loading sprite ", name);
-  const SpriteAsset* sprite = assets_->GetSprite(name);
-  const SpritesheetAsset* sheet =
-      assets_->GetSpritesheetByIndex(sprite->spritesheet());
-  std::string_view spritesheet_name = FlatbufferStringview(sheet->name());
-  if (!textures_table_.Contains(spritesheet_name)) {
-    LOG("Loading texture ", spritesheet_name);
-    std::string_view image_name = FlatbufferStringview(sheet->image_name());
-    auto* image = assets_->GetImage(image_name);
-    CHECK(image != nullptr, "Unknown image ", image_name, " for spritesheet ",
-          spritesheet_name);
-    textures_table_.Insert(spritesheet_name, textures_.size());
+const DbAssets::Sprite* Renderer::LoadSprite(std::string_view name) {
+  const DbAssets::Sprite* sprite = assets_->GetSprite(name);
+  const DbAssets::Spritesheet* spritesheet =
+      assets_->GetSpritesheet(sprite->spritesheet);
+  if (!textures_table_.Contains(spritesheet->name)) {
+    LOG("Loading texture ", spritesheet->name);
+    auto* image = assets_->GetImage(spritesheet->image);
+    CHECK(image != nullptr, "Unknown image ", spritesheet->image,
+          " for spritesheet ", spritesheet->name);
+    textures_table_.Insert(spritesheet->name, textures_.size());
     textures_.Push(renderer_->LoadTexture(*image));
   }
-  sprites_table_.Insert(name, sprites_.size());
-  sprites_.Push(sprite);
+  loaded_sprites_table_.Insert(name, loaded_sprites_.size());
+  loaded_sprites_.Push(sprite);
   return sprite;
 }
 

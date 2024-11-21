@@ -99,7 +99,7 @@ class Mouse {
 
 class Controllers {
  public:
-  Controllers(const Assets& assets, Allocator* allocator);
+  Controllers(DbAssets* assets, Allocator* allocator);
   ~Controllers();
 
   void PushEvent(const SDL_Event& event);

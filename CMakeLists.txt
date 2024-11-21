@@ -115,6 +115,7 @@ target_compile_options(Game PRIVATE ${COMPILER_FLAGS})
 add_custom_target(
   Run ALL
   COMMAND "${CMAKE_CURRENT_BINARY_DIR}/Game" "${PROJECT_SOURCE_DIR}/assets"
+          "${CMAKE_CURRENT_BINARY_DIR}/assets.sqlite3"
   DEPENDS Game
   VERBATIM COMMAND_EXPAND_LISTS)
 

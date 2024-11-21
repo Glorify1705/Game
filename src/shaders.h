@@ -65,10 +65,11 @@ inline void AsOpenglUniform(const DMat4x4 m, GLint location) {
 
 class Shaders {
  public:
-  Shaders(const Assets& assets, Allocator* allocator);
+  Shaders(const DbAssets& assets, Allocator* allocator);
   ~Shaders();
 
-  bool Compile(ShaderType type, std::string_view name, std::string_view glsl);
+  bool Compile(DbAssets::ShaderType type, std::string_view name,
+               std::string_view glsl);
 
   bool Link(std::string_view name, std::string_view vertex_shader,
             std::string_view fragment_shader);

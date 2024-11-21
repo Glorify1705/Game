@@ -56,7 +56,7 @@ class Registry {
 
 class Lua {
  public:
-  Lua(Assets* assets, Allocator* allocator);
+  Lua(DbAssets* assets, Allocator* allocator);
   ~Lua() { lua_close(state_); }
 
   template <typename T>
@@ -122,7 +122,7 @@ class Lua {
   int traceback_handler_;
 
   Allocator* allocator_;
-  Assets* assets_;
+  DbAssets* assets_;
 
   FixedStringBuffer<1024> error_;
   std::jmp_buf on_error_buf_;

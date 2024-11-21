@@ -66,11 +66,11 @@ class FixedArray {
 
   T* data() { return buffer_; }
 
-  T* begin() { return buffer_; }
-  T* end() { return buffer_ + elems_; }
+  T* begin() const { return buffer_; }
+  T* end() const { return buffer_ + elems_; }
 
-  const T* cbegin() const { return data(); }
-  const T* cend() const { return data() + elems_; }
+  const T* cbegin() const { return buffer_; }
+  const T* cend() const { return buffer_ + elems_; }
 
   std::size_t size() const { return elems_; }
   std::size_t capacity() const { return size_; }
@@ -159,16 +159,15 @@ class DynArray {
   T* begin() { return buffer_; }
   T* end() { return buffer_ + elems_; }
 
-  const T* cbegin() const { return data(); }
-  const T* cend() const { return data() + elems_; }
+  const T* cbegin() const { return buffer_; }
+  const T* cend() const { return buffer_ + elems_; }
 
   std::size_t size() const { return elems_; }
   std::size_t capacity() const { return capacity_; }
   std::size_t bytes() const { return elems_ * sizeof(T); }
 
-  void Resize(size_t size) {
+  void Reserve(size_t size) {
     std::size_t new_capacity = NextPow2(size);
-    elems_ = size;
     if (buffer_ == nullptr) {
       capacity_ = new_capacity;
       buffer_ = NewArray<T>(capacity_, allocator_);

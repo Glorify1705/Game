@@ -7,19 +7,6 @@
 namespace G {
 namespace {
 
-bool Match(const flatbuffers::String& a, std::string_view b) {
-  return a.size() == b.size() && !std::memcmp(a.data(), b.data(), a.size());
-}
-
-template <typename T>
-const T* Search(const flatbuffers::Vector<flatbuffers::Offset<T>>& v,
-                std::string_view name) {
-  for (const auto* entry : v) {
-    if (Match(*entry->name(), name)) return entry;
-  }
-  return nullptr;
-}
-
 int TraceCallback(unsigned int type, void* ctx, void* p, void* x) {
   static_cast<DbAssets*>(ctx)->Trace(type, p, x);
   return 0;
@@ -42,7 +29,8 @@ void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
   script.name = filename;
   script.contents = buffer;
   script.size = size;
-  scripts_.Insert(filename, script);
+  scripts_.Push(script);
+  scripts_map_.Insert(filename, &scripts_.back());
   sqlite3_finalize(stmt);
 }
 
@@ -61,7 +49,8 @@ void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer,
   font.name = filename;
   font.contents = buffer;
   font.size = size;
-  fonts_.Insert(filename, font);
+  fonts_.Push(font);
+  fonts_map_.Insert(filename, &fonts_.back());
   sqlite3_finalize(stmt);
 }
 
@@ -80,13 +69,15 @@ void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
   sound.name = filename;
   sound.contents = buffer;
   sound.size = size;
-  sounds_.Insert(filename, sound);
+  sounds_.Push(sound);
+  sounds_map_.Insert(filename, &sounds_.back());
   sqlite3_finalize(stmt);
 }
 
 void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
                           std::size_t size) {
-  FixedStringBuffer<256> sql("SELECT contents FROM shaders WHERE name = ?");
+  FixedStringBuffer<256> sql(
+      "SELECT contents, shader_type FROM shaders WHERE name = ?");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
@@ -94,12 +85,16 @@ void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  auto type_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  std::string_view type(type_str);
   std::memcpy(buffer, contents, size);
   Shader shader;
   shader.name = filename;
   shader.contents = buffer;
   shader.size = size;
-  shaders_.Insert(filename, shader);
+  shader.type = type == "vertex" ? ShaderType::kVertex : ShaderType::kFragment;
+  shaders_.Push(shader);
+  shaders_map_.Insert(filename, &shaders_.back());
   sqlite3_finalize(stmt);
 }
 
@@ -118,7 +113,8 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer,
   file.name = filename;
   file.contents = buffer;
   file.size = size;
-  text_files_.Insert(filename, file);
+  text_files_.Push(file);
+  text_files_map_.Insert(filename, &text_files_.back());
   sqlite3_finalize(stmt);
 }
 
@@ -133,15 +129,16 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
     }
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
-    auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-    std::size_t width = sqlite3_column_int(stmt, 0);
-    std::size_t height = sqlite3_column_int(stmt, 1);
-    std::memcpy(buffer, contents, size);
+    auto image = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+    std::size_t width = sqlite3_column_int(stmt, 1);
+    std::size_t height = sqlite3_column_int(stmt, 2);
     Spritesheet sheet;
     sheet.name = filename;
     sheet.width = width;
     sheet.height = height;
-    spritesheets_.Insert(filename, sheet);
+    sheet.image = PushName(image);
+    spritesheets_.Push(sheet);
+    spritesheets_map_.Insert(filename, &spritesheets_.back());
     sqlite3_finalize(stmt);
   }
   {
@@ -155,17 +152,18 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
     while (sqlite3_step(stmt) == SQLITE_ROW) {
       Sprite sprite;
       std::size_t sprite_name_size = sqlite3_column_bytes(stmt, 0);
-      auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-      std::memcpy(&name_buffer_[name_size_], name, sprite_name_size);
-      name_size_ += sprite_name_size;
-      sprite.name =
-          std::string_view(&name_buffer_[name_size_], sprite_name_size);
+      auto db_name =
+          reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+      std::string_view name =
+          PushName(std::string_view(db_name, sprite_name_size));
+      sprite.name = name;
       sprite.x = sqlite3_column_int(stmt, 1);
       sprite.y = sqlite3_column_int(stmt, 2);
       sprite.spritesheet = filename;
       sprite.width = sqlite3_column_int(stmt, 3);
       sprite.height = sqlite3_column_int(stmt, 4);
-      sprites_.Insert(sprite.name, sprite);
+      sprites_.Push(sprite);
+      sprites_map_.Insert(sprite.name, &sprites_.back());
     }
     sqlite3_finalize(stmt);
   }
@@ -191,20 +189,39 @@ void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
   image.height = height;
   image.contents = buffer;
   image.size = size;
-  images_.Insert(filename, image);
+  images_.Push(image);
+  images_map_.Insert(filename, &images_.back());
   sqlite3_finalize(stmt);
 }
 
 void DbAssets::Trace(unsigned int type, void* p, void* x) {
-  if (type == SQLITE_TRACE_STMT) {
-    auto sql = static_cast<sqlite3_stmt*>(p);
-    LOG("Executing SQL: ", sqlite3_expanded_sql(sql));
-  }
   if (type == SQLITE_TRACE_PROFILE) {
     auto sql = static_cast<sqlite3_stmt*>(p);
     auto time = reinterpret_cast<long long*>(x);
     LOG("Executing SQL ", sqlite3_expanded_sql(sql), " took ",
         (*time) / 1'000'000.0, " milliseconds");
+  }
+}
+
+void DbAssets::ReserveBufferForType(std::string_view type, std::size_t count) {
+  if (type == "sound") {
+    sounds_.Reserve(count);
+  } else if (type == "shader") {
+    shaders_.Reserve(count);
+  } else if (type == "text_file") {
+    text_files_.Reserve(count);
+  } else if (type == "font") {
+    fonts_.Reserve(count);
+  } else if (type == "script") {
+    scripts_.Reserve(count);
+  } else if (type == "spritesheet") {
+    spritesheets_.Reserve(count);
+  } else if (type == "shader") {
+    shaders_.Reserve(count);
+  } else if (type == "font") {
+    fonts_.Reserve(count);
+  } else if (type == "text_file") {
+    text_files_.Reserve(count);
   }
 }
 
@@ -216,22 +233,35 @@ void DbAssets::Load() {
                    this);
   std::size_t total_size = 0, total_names = 0;
   {
+    // Presize all the buffers.
     FixedStringBuffer<256> sql(
-        "SELECT SUM(size), SUM(LENGTH(name)) FROM asset_metadata");
+        "SELECT type, SUM(size), SUM(LENGTH(name)), COUNT(*) FROM "
+        "asset_metadata GROUP BY type");
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
     }
-    CHECK(sqlite3_step(stmt) == SQLITE_ROW,
-          "Could not read asset metadata: ", sqlite3_errmsg(db_));
-    total_size = sqlite3_column_int(stmt, 0);
-    total_names = sqlite3_column_int(stmt, 1);
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+      const size_t size_by_type = sqlite3_column_int(stmt, 1);
+      const size_t names_by_type = sqlite3_column_int(stmt, 2);
+      const size_t count = sqlite3_column_int(stmt, 3);
+      total_size += size_by_type;
+      total_names += names_by_type;
+      // Count the number of null terminators for all strings.
+      total_names += count;
+      std::string_view type(
+          reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
+      ReserveBufferForType(type, count);
+    }
     sqlite3_finalize(stmt);
   }
+  std::size_t total_sprites = 0;
   {
-    // Add the length of sprite names of all the spritesheets.
+    // Add the length and count of sprite names of all the spritesheets.
+    // Also add the length of image names for buffers.
     FixedStringBuffer<256> sql(
-        "SELECT SUM(sprite_name_length) FROM spritesheets");
+        "SELECT SUM(sprite_name_length), SUM(sprites), SUM(LENGTH(image)), "
+        "COUNT(*) FROM spritesheets");
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
@@ -239,8 +269,16 @@ void DbAssets::Load() {
     CHECK(sqlite3_step(stmt) == SQLITE_ROW,
           "Could not read asset metadata: ", sqlite3_errmsg(db_));
     total_names += sqlite3_column_int(stmt, 0);
+    const std::size_t sprites = sqlite3_column_int(stmt, 1);
+    // Count the number of null terminators for all strings.
+    total_names += sprites;
+    total_sprites += sprites;
+    // Count the length of images. Also add one null terminator for image.
+    total_names += sqlite3_column_int(stmt, 2);
+    total_names += sqlite3_column_int(stmt, 3);
     sqlite3_finalize(stmt);
   }
+  sprites_.Reserve(total_sprites);
   name_size_ = 0;
   name_buffer_ =
       reinterpret_cast<char*>(allocator_->Alloc(total_names, /*align=*/1));
@@ -248,7 +286,7 @@ void DbAssets::Load() {
   content_buffer_ =
       reinterpret_cast<uint8_t*>(allocator_->Alloc(total_size, /*align=*/1));
   struct Loader {
-    const char* name;
+    std::string_view name;
     void (DbAssets::*load)(std::string_view name, uint8_t* buffer,
                            std::size_t size);
   };
@@ -260,7 +298,7 @@ void DbAssets::Load() {
       {.name = "font", .load = &DbAssets::LoadFont},
       {.name = "shader", .load = &DbAssets::LoadShader},
       {.name = "text", .load = &DbAssets::LoadText},
-      {.name = nullptr, .load = nullptr},
+      {.name = std::string_view(), .load = nullptr},
   };
   FixedStringBuffer<256> sql(
       "SELECT name, LENGTH(name), type, size FROM asset_metadata ORDER BY "
@@ -272,62 +310,31 @@ void DbAssets::Load() {
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
     auto name_length = sqlite3_column_int(stmt, 1);
-    auto type = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+    auto type_ptr = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+    std::string_view type(type_ptr);
     const std::size_t size = sqlite3_column_int(stmt, 3);
     auto* buffer = &content_buffer_[content_size_];
     content_size_ += size;
-    auto* name_ptr = &name_buffer_[name_size_];
-    std::memcpy(name_ptr, name, name_length);
-    name_size_ += name_length;
+    std::string_view namestr(name, name_length);
+    std::string_view saved_name = PushName(namestr);
     for (const Loader& loader : kLoaders) {
-      if (loader.name == nullptr) {
+      if (loader.name.empty()) {
         LOG("No loader for asset ", name, " with type ", type);
         break;
       }
-      if (!std::strcmp(type, loader.name)) {
+      if (type == loader.name) {
         TIMER("Load DB asset ", name);
         auto method = loader.load;
         if (method == nullptr) {
           LOG("While loading ", name, ": unimplemented asset type ", type);
           break;
         }
-        (this->*method)(std::string_view(name_ptr, name_length), buffer, size);
+        (this->*method)(saved_name, buffer, size);
         break;
       }
     }
   }
   sqlite3_finalize(stmt);
-}
-
-const ImageAsset* Assets::GetImage(std::string_view name) const {
-  return Search(*assets_->images(), name);
-}
-
-const SpriteAsset* Assets::GetSprite(std::string_view name) const {
-  return Search(*assets_->sprites(), name);
-}
-
-const ScriptAsset* Assets::GetScript(std::string_view name) const {
-  return Search(*assets_->scripts(), name);
-}
-const SpritesheetAsset* Assets::GetSpritesheet(std::string_view name) const {
-  return Search(*assets_->spritesheets(), name);
-}
-
-const SoundAsset* Assets::GetSound(std::string_view name) const {
-  return Search(*assets_->sounds(), name);
-}
-
-const FontAsset* Assets::GetFont(std::string_view name) const {
-  return Search(*assets_->fonts(), name);
-}
-
-const TextFileAsset* Assets::GetText(std::string_view name) const {
-  return Search(*assets_->texts(), name);
-}
-
-const ShaderAsset* Assets::GetShader(std::string_view name) const {
-  return Search(*assets_->shaders(), name);
 }
 
 }  // namespace G
