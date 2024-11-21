@@ -251,7 +251,6 @@ class BatchRenderer {
   GLuint ebo_, vao_, vbo_;
   std::size_t noop_texture_;
   GLuint screen_quad_vao_, screen_quad_vbo_;
-  GLuint intermediate_target_;
   GLuint render_target_, downsampled_target_, render_texture_,
       downsampled_texture_, depth_buffer_;
   GLint antialiasing_samples_;

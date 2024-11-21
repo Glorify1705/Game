@@ -37,7 +37,6 @@ class ThreadPool {
     return in->self->Loop(in->index);
   }
 
-  Allocator* allocator_ = nullptr;
   DynArray<SDL_Thread*> threads_;
   DynArray<UserData> user_data_;
   SDL_mutex* mu_ = nullptr;

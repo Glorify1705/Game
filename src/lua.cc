@@ -1154,7 +1154,7 @@ const struct luaL_Reg kClockLib[] = {
        return 1;
      }}};
 
-constexpr double kRandomRange = std::pow(2.0, 32);
+constexpr double kRandomRange = 1LL << 32;
 
 const struct luaL_Reg kRandomLib[] = {
     {"from_seed",

@@ -18,8 +18,7 @@ namespace G {
 class DebugConsole {
  public:
   DebugConsole(Allocator* allocator)
-      : allocator_(allocator),
-        lines_(kMaxLines, allocator),
+      : lines_(kMaxLines, allocator),
         linebuffers_(kMaxWatchers, allocator),
         watcher_handles_(kMaxWatchers, allocator),
         watcher_values_(allocator) {
@@ -97,7 +96,6 @@ class DebugConsole {
   void CopyToBuffer(std::string_view text, Linebuffer* buffer);
   void LogLine(std::string_view text);
 
-  Allocator* allocator_;
   StaticAllocator<2 * kMaxLines * sizeof(Linebuffer)> buffers_;
   CircularBuffer<Linebuffer*> lines_;
   SDL_LogOutputFunction log_fn_;

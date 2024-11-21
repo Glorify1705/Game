@@ -174,7 +174,7 @@ class BumpAllocator : public Allocator {
     return res;
   }
 
-  void Reset() { pos_ = beginning_; }
+  void Reset() override { pos_ = beginning_; }
 
   std::size_t used_memory() const { return pos_ - beginning_; }
   std::size_t total_memory() const { return end_ - beginning_; }
