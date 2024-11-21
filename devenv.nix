@@ -5,14 +5,13 @@
   packages = with pkgs; [ 
     SDL2
     SDL2_mixer
-    ccls
+    fnlfmt
+    libGL
+    libGLU
+    gdb
     clang
     clang-tools
     cmake
-    fnlfmt
-    gdb
-    libGL
-    libGLU
     mesa
     ninja
     python3
@@ -23,12 +22,12 @@
     xorg.libXinerama
     xorg.libXrandr
     xorg.xrandr
-    zlib
   ];
 
-  languages.cplusplus.enable = true;
-  
-  env.CCLS_LOCATION = "${pkgs.ccls}/bin/ccls";
+  enterShell = ''
+    export CC="${pkgs.clang}/bin/clang";
+    export CXX="${pkgs.clang}/bin/clang++";
+  '';
 
   scripts."game-build" = {
     exec = "cmake -G Ninja -S . -B build && cmake --build build --target Game";
@@ -67,7 +66,6 @@
 
   git-hooks.hooks = {
     clang-format.enable = true;
-    cmake-format.enable = true;
 
 		donotsubmit = {
 			enable = true;
