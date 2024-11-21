@@ -18,6 +18,7 @@
     python3
     sqlite
     sqlitebrowser
+    valgrind
     xorg.libXcursor
     xorg.libXinerama
     xorg.libXrandr
@@ -55,6 +56,12 @@
   scripts."game-format" = {
     exec = ''
       ${pkgs.clang-tools}/bin/clang-format -i src/*
+    '';
+  };
+
+  scripts."game-debug" = {
+    exec = ''
+      ${pkgs.gdb}/bin/gdb --args ./build/Game assets ./build/assets.sqlite3
     '';
   };
 
