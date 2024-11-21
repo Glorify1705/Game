@@ -494,11 +494,6 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   render_calls++;
-  WATCH_EXPR("Vertexes ", vertices.size());
-  WATCH_EXPR("Indices ", indices.size());
-  WATCH_EXPR("Vertex Memory", vertices.bytes());
-  WATCH_EXPR("Indices Memory", indices.size());
-  WATCH_EXPR("Render calls", render_calls);
 }
 
 Renderer::Renderer(const DbAssets& assets, BatchRenderer* renderer,

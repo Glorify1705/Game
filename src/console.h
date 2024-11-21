@@ -17,12 +17,7 @@ namespace G {
 
 class DebugConsole {
  public:
-  DebugConsole(Allocator* allocator)
-      : lines_(kMaxLines, allocator),
-        linebuffers_(kMaxWatchers, allocator),
-        watcher_handles_(kMaxWatchers, allocator),
-        watcher_values_(allocator) {
-    linebuffers_.Resize(linebuffers_.capacity());
+  DebugConsole(Allocator* allocator) : lines_(kMaxLines, allocator) {
     mu_ = SDL_CreateMutex();
     SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
     SDL_LogSetOutputFunction(LogWithConsole, this);
@@ -38,41 +33,6 @@ class DebugConsole {
     LockMutex l(mu_);
     FixedStringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
     LogLine(buf.piece());
-  }
-
-  template <typename Fn>
-  void ForAllLines(Fn&& fn) {
-    LockMutex l(mu_);
-    for (size_t i = 0; i < lines_.size(); ++i) {
-      Linebuffer* buffer = lines_[i];
-      fn(std::string_view(buffer->chars, buffer->len));
-    }
-  }
-
-  template <typename... Ts>
-  void AddWatcher(std::string_view key, Ts... ts) {
-    LockMutex l(mu_);
-    FixedStringBuffer<kMaxLogLineLength> buf(std::forward<Ts>(ts)...);
-    if (Linebuffer * linebuffer; watcher_values_.Lookup(key, &linebuffer)) {
-      CopyToBuffer(buf.piece(), linebuffer);
-      return;
-    }
-    uint32_t handle = StringIntern(key);
-    auto* linebuffer = &linebuffers_[watcher_handles_.size()];
-    CopyToBuffer(buf.piece(), linebuffer);
-    watcher_values_.Insert(key, linebuffer);
-    watcher_handles_.Push(handle);
-  }
-
-  template <typename Fn>
-  void ForAllWatchers(Fn&& fn) {
-    LockMutex l(mu_);
-    for (uint32_t handle : watcher_handles_) {
-      std::string_view key = StringByHandle(handle);
-      if (Linebuffer * val; watcher_values_.Lookup(key, &val)) {
-        fn(key, std::string_view(val->chars, val->len));
-      }
-    }
   }
 
   static DebugConsole& Instance() {
@@ -100,12 +60,6 @@ class DebugConsole {
   CircularBuffer<Linebuffer*> lines_;
   SDL_LogOutputFunction log_fn_;
   void* log_fn_userdata_;
-
-  inline static constexpr std::size_t kMaxWatchers = 128;
-
-  FixedArray<Linebuffer> linebuffers_;
-  FixedArray<uint32_t> watcher_handles_;
-  Dictionary<Linebuffer*> watcher_values_;
 
   SDL_mutex* mu_ = nullptr;
 };

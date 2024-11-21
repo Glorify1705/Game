@@ -35,8 +35,6 @@ int SetWindowInfo(lua_State* state) {
     config->borderless = lua_toboolean(state, 3);
   } else if (key == "enable_joystick") {
     config->enable_joystick = lua_toboolean(state, 3);
-  } else if (key == "enable_debug_ui") {
-    config->enable_debug_ui = lua_toboolean(state, 3);
   } else if (key == "enable_debug_rendering") {
     config->enable_debug_rendering = lua_toboolean(state, 3);
   } else if (key == "title") {

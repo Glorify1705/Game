@@ -28,9 +28,6 @@ function Player:update(dt)
     elseif G.input.is_key_down('a') then
         self.physics:apply_torque(-ANGLE_DELTA)
     end
-
-    G.console.watch("Player Position", self.physics:position())
-    G.console.watch("Player Angle", self.physics:angle())
 end
 
 function Player:on_collision(other)

@@ -636,30 +636,13 @@ int LuaLogPrint(lua_State* state) {
   return 0;
 }
 
-const struct luaL_Reg kConsoleLib[] = {
-    {"log", LuaLogPrint},
-    {"crash",
-     [](lua_State* state) {
-       LogLine l;
-       FillLogLine(state, &l);
-       Crash(l.file.str(), l.line, l.log);
-       return 0;
-     }},
-    {"watch", [](lua_State* state) {
-       auto* console = Registry<DebugConsole>::Retrieve(state);
-       lua_getglobal(state, "tostring");
-       const std::string_view key = GetLuaString(state, 1);
-       lua_pushvalue(state, -1);
-       lua_pushvalue(state, 2);
-       lua_call(state, 1, 1);
-       std::size_t length;
-       const char* s = lua_tolstring(state, -1, &length);
-       if (s == nullptr) {
-         LUA_ERROR(state, "'tostring' did not return string");
-       }
-       console->AddWatcher(key, std::string_view(s, length));
-       return 0;
-     }}};
+const struct luaL_Reg kConsoleLib[] = {{"log", LuaLogPrint},
+                                       {"crash", [](lua_State* state) {
+                                          LogLine l;
+                                          FillLogLine(state, &l);
+                                          Crash(l.file.str(), l.line, l.log);
+                                          return 0;
+                                        }}};
 
 const struct luaL_Reg kInputLib[] = {
     {"mouse_position",

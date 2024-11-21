@@ -21,9 +21,6 @@
 #include "image.h"
 #include "input.h"
 #include "libraries/glad.h"
-#include "libraries/imgui.h"
-#include "libraries/imgui_impl_opengl3.h"
-#include "libraries/imgui_impl_sdl2.h"
 #include "logging.h"
 #include "lua.h"
 #include "mat.h"
@@ -153,20 +150,16 @@ struct EngineModules {
   }
 
   void ForwardEventToLua(const SDL_Event& event) {
-    ImGuiIO& io = ImGui::GetIO();
     if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
-      if (!config->enable_debug_ui || !io.WantCaptureKeyboard) {
-        if (event.type == SDL_KEYDOWN) {
-          lua.HandleKeypressed(event.key.keysym.scancode);
-        }
-        if (event.type == SDL_KEYUP) {
-          lua.HandleKeyreleased(event.key.keysym.scancode);
-        }
+      if (event.type == SDL_KEYDOWN) {
+        lua.HandleKeypressed(event.key.keysym.scancode);
+      }
+      if (event.type == SDL_KEYUP) {
+        lua.HandleKeyreleased(event.key.keysym.scancode);
       }
     }
     if ((event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP ||
-         event.type == SDL_MOUSEMOTION) &&
-        (!config->enable_debug_ui || !io.WantCaptureKeyboard)) {
+         event.type == SDL_MOUSEMOTION)) {
       if (event.type == SDL_MOUSEBUTTONDOWN) {
         if (event.button.button == SDL_BUTTON_LEFT) {
           lua.HandleMousePressed(0);
@@ -203,17 +196,12 @@ struct EngineModules {
         physics.UpdateDimensions(new_viewport);
       }
     }
-    ImGuiIO& io = ImGui::GetIO();
     if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
-      if (!config->enable_debug_ui || !io.WantCaptureKeyboard) {
-        keyboard.PushEvent(event);
-      }
+      keyboard.PushEvent(event);
     }
     if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP ||
         event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEWHEEL) {
-      if (!config->enable_debug_ui || !io.WantCaptureMouse) {
-        mouse.PushEvent(event);
-      }
+      mouse.PushEvent(event);
     }
     controllers.PushEvent(event);
     ForwardEventToLua(event);
@@ -279,7 +267,6 @@ void PrintSystemInformation() {
   LOG("Using Compiled Mixer ", SDL_MIXER_COMPILEDVERSION);
   LOG("Using Box2D ", b2_version.major, ".", b2_version.minor, ".",
       b2_version.revision);
-  LOG("Using Dear ImGUI Version: ", IMGUI_VERSION);
   PHYSFS_Version physfs_version;
   PHYSFS_getLinkedVersion(&physfs_version);
   LOG("Using PhysFS ", physfs_version.major, ".", physfs_version.minor, ".",
@@ -342,143 +329,6 @@ SDL_GLContext CreateOpenglContext(const GameConfig& config,
   return context;
 }
 
-class DebugUi {
- public:
-  DebugUi(SDL_Window* window, SDL_GLContext context, Stats* frame_stats,
-          EngineModules* modules, Allocator* allocator)
-      : stats_(frame_stats), modules_(modules), expression_table_(allocator) {
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-    ImGui_ImplSDL2_InitForOpenGL(window, context);
-    ImGui_ImplOpenGL3_Init("#version 130");
-  }
-
-  ~DebugUi() {
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
-  }
-
-  void Toggle() { show_ = !show_; }
-
-  void Render() {
-    if (!show_) return;
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
-    RenderTopWidget();
-    ImGui::Begin("Debug Information");
-    if (ImGui::TreeNode("Console")) {
-      ImGui::BeginChild("Scrolling");
-      DebugConsole::Instance().ForAllLines([](std::string_view line) {
-        ImGui::TextUnformatted(line.data(), line.end());
-      });
-      ImGui::EndChild();
-      ImGui::TreePop();
-    }
-    if (ImGui::Button("Copy", ImVec2(ImGui::GetWindowSize().x, 0.0f))) {
-      CopyToClipboard();
-    }
-    ImGui::End();
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-  }
-
-  void ProcessEvent(const SDL_Event& event) {
-    ImGui_ImplSDL2_ProcessEvent(&event);
-  }
-
- private:
-  void CopyToClipboard() {
-    std::size_t buffer_sz = 0, pos = 0;
-    auto& console = DebugConsole::Instance();
-    console.ForAllLines(
-        [&buffer_sz](std::string_view line) { buffer_sz += line.size() + 1; });
-    auto* buffer = new char[buffer_sz + 1];
-    console.ForAllLines([&buffer, &pos](std::string_view line) {
-      std::memcpy(&buffer[pos], line.data(), line.size());
-      pos += line.size();
-      buffer[pos++] = '\n';
-    });
-    buffer[pos] = '\0';
-    SDL_SetClipboardText(buffer);
-    delete[] buffer;
-  }
-  void RenderTopWidget() {
-    ImGuiWindowFlags window_flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
-        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
-        ImGuiWindowFlags_NoNav;
-    if (frame_stats_location_ >= 0) {
-      constexpr float kPad = 10.0f;
-      const ImGuiViewport* viewport = ImGui::GetMainViewport();
-      ImVec2 work_pos = viewport->WorkPos;
-      ImVec2 work_size = viewport->WorkSize;
-      ImVec2 window_pos, window_pos_pivot;
-      window_pos.x = (frame_stats_location_ & 1)
-                         ? (work_pos.x + work_size.x - kPad)
-                         : (work_pos.x + kPad);
-      window_pos.y = (frame_stats_location_ & 2)
-                         ? (work_pos.y + work_size.y - kPad)
-                         : (work_pos.y + kPad);
-      window_pos_pivot.x = (frame_stats_location_ & 1) ? 1.0f : 0.0f;
-      window_pos_pivot.y = (frame_stats_location_ & 2) ? 1.0f : 0.0f;
-      ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
-      window_flags |= ImGuiWindowFlags_NoMove;
-    }
-    ImGui::SetNextWindowBgAlpha(0.35f);
-    ImGui::Begin("Frame Stats", nullptr, window_flags);
-    if (stats_->samples() > 1) {
-      FixedStringBuffer<kMaxLogLineLength> fps_line(
-          "Frame Stats: ", *stats_, " FPS: ", 1.0 / stats_->avg());
-      ImGui::TextUnformatted(fps_line.str());
-    }
-    FixedStringBuffer<kMaxLogLineLength> allocs_line(
-        "Lua Allocations: ", modules_->lua.AllocatorStats());
-    ImGui::TextUnformatted(allocs_line.str());
-    auto* allocator = GlobalEngineAllocator();
-    FixedStringBuffer<kMaxLogLineLength> memory_used_line(
-        "Allocator memory used: ", allocator->used_memory(), " / ",
-        allocator->total_memory(), " (",
-        ((100.0 * allocator->used_memory()) / allocator->total_memory()), ")");
-    ImGui::TextUnformatted(memory_used_line.str());
-    const StringTable::Stats stats = StringTable::Instance().stats();
-    FixedStringBuffer<kMaxLogLineLength> strings_used_line;
-    strings_used_line.Set(
-        "Strings used: ", stats.strings_used, " / ", stats.total_strings, " (",
-        ((100.0 * stats.strings_used) / stats.total_strings), ")");
-    ImGui::TextUnformatted(strings_used_line.str());
-    strings_used_line.Set(
-        "String space used: ", stats.space_used, " / ", stats.total_space, " (",
-        ((100.0 * stats.space_used) / stats.total_space), ")");
-    ImGui::TextUnformatted(strings_used_line.str());
-    if (ImGui::BeginTable("Watchers", 2)) {
-      DebugConsole::Instance().ForAllWatchers(
-          [](std::string_view key, std::string_view value) {
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(key.data(), key.end());
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(value.data(), value.end());
-          });
-      ImGui::EndTable();
-    }
-    ImGui::End();
-  }
-
-  Stats* stats_;
-  EngineModules* modules_;
-  Dictionary<const char*> expression_table_;
-  bool show_ = false;
-  int frame_stats_location_ = 1;
-  static constexpr std::size_t kWidth = 4096;
-  static constexpr std::size_t kHeight = 4096;
-  static constexpr std::size_t kChannels = 4;
-  static constexpr std::size_t kTotalSize = kWidth * kHeight * kChannels;
-  StaticAllocator<kTotalSize> allocator_;
-};
-
 class Game {
  public:
   Game(int argc, const char* argv[], Allocator* allocator)
@@ -513,7 +363,6 @@ class Game {
 
   ~Game() {
     Destroy(allocator_, e_);
-    Destroy(allocator_, debug_ui_);
     if (SDL_WasInit(SDL_INIT_HAPTIC) != 0) {
       SDL_QuitSubSystem(SDL_INIT_HAPTIC);
     }
@@ -534,8 +383,6 @@ class Game {
     TIMER("Game Initialization");
     e_ = New<EngineModules>(allocator_, db_assets_, config_, window_,
                             allocator_);
-    debug_ui_ =
-        New<DebugUi>(allocator_, window_, context_, &stats_, e_, allocator_);
     e_->InitializeLua();
     e_->lua.Init();
   }
@@ -566,13 +413,11 @@ class Game {
           e_->lua.HandleQuit();
           return;
         }
-        ImGui_ImplSDL2_ProcessEvent(&event);
         e_->HandleEvent(event);
         if (event.type == SDL_KEYDOWN) {
           if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
             if (config_.enable_debug_rendering)
               e_->batch_renderer.ToggleDebugRender();
-            if (config_.enable_debug_ui) debug_ui_->Toggle();
           }
         }
       }
@@ -597,8 +442,6 @@ class Game {
 
   // Update state given current time t and frame delta dt, both in ms.
   void Update(double t, double dt) {
-    WATCH_VAR(t);
-    WATCH_VAR(dt);
     char error[1024];
     if (std::size_t error_len = e_->lua.Error(error, sizeof(error) - 1);
         error_len > 0) {
@@ -608,12 +451,10 @@ class Game {
       e_->physics.Update(dt);
       e_->lua.Update(t, dt);
     }
-    WATCH_EXPR("Mouse Position ", e_->mouse.GetPosition());
   }
 
   void Render() {
     e_->Render();
-    debug_ui_->Render();
     SDL_GL_SwapWindow(window_);
   }
 
@@ -623,7 +464,6 @@ class Game {
   GameConfig config_;
   SDL_Window* window_ = nullptr;
   SDL_GLContext context_;
-  DebugUi* debug_ui_;
   EngineModules* e_;
   Stats stats_;
 };

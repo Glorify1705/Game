@@ -9,7 +9,6 @@
 - [X] Assets as a zip file.
 - [X] Pixelated effect by rendering to a small framebuffer.
 - [X] Log lines using circular buffer.
-- [X] IMGUI and copy of log.
 - [ ] Convert all vendored repos into Git submodules.
 - [ ] Compilable with Visual Studio.
 - [ ] Hot asset/code reloading.

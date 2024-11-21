@@ -20,7 +20,6 @@ struct GameConfig {
   bool resizable = true;
   bool enable_opengl_debug = true;
   bool enable_joystick = false;
-  bool enable_debug_ui = true;
   bool enable_debug_rendering = true;
   char org_name[512];
   char app_name[512];
