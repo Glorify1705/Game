@@ -7,7 +7,6 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #define SDL_MAIN_HANDLED
 #include "SDL.h"
@@ -92,19 +91,19 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
   }
 }
 
-DbAssets* GetAssets(const std::vector<const char*>& arguments,
-                    Allocator* allocator) {
-  if (arguments.empty()) {
+DbAssets* GetAssets(const char* argv[], size_t argc, Allocator* allocator) {
+  if (argc == 0) {
     LOG("Reading assets from default DB since no file was provided");
     return ReadAssetsFromDb("assets.sqlite3", allocator);
   }
-  if (arguments.size() == 1) {
-    LOG("Reading assets from ", arguments[0]);
-    return ReadAssetsFromDb(arguments[0], allocator);
+  if (argc == 1) {
+    LOG("Reading assets from ", argv[0]);
+    return ReadAssetsFromDb(argv[0], allocator);
   }
-  LOG("Packing all files in directory ", arguments[0], " into the database");
-  WriteAssetsToDb(arguments[0], arguments[1], allocator);
-  return ReadAssetsFromDb(arguments[1], allocator);
+  CHECK(argc == 2, "Wrong number of arguments passed");
+  LOG("Packing all files in directory ", argv[0], " into the database");
+  WriteAssetsToDb(argv[0], argv[1], allocator);
+  return ReadAssetsFromDb(argv[1], allocator);
 }
 
 struct EngineModules {
@@ -483,18 +482,18 @@ class DebugUi {
 class Game {
  public:
   Game(int argc, const char* argv[], Allocator* allocator)
-      : arguments_(argv + 1, argv + argc), allocator_(allocator) {
+      : allocator_(allocator) {
     TIMER("Setup");
     InitializeLogging();
     // Initialize the debug console.
     DebugConsole::Instance();
-    LOG("Program name = ", argv[0], " args = ", arguments_.size());
-    for (std::size_t i = 0; i < arguments_.size(); ++i) {
-      LOG("argv[", i, "] = ", arguments_[i]);
+    LOG("Program name = ", argv[0], " args = ", argc);
+    for (int i = 1; i < argc; ++i) {
+      LOG("argv[", i, "] = ", argv[i]);
     }
     PHYSFS_CHECK(PHYSFS_init(argv[0]),
                  "Could not initialize PhysFS: ", argv[0]);
-    db_assets_ = GetAssets(arguments_, allocator_);
+    db_assets_ = GetAssets(argv + 1, argc - 1, allocator_);
     LoadConfig(*db_assets_, &config_, allocator_);
     LOG("Using engine version ", GAME_VERSION_STR);
     LOG("Game requested engine version ", config_.version.major, ".",
@@ -619,7 +618,6 @@ class Game {
   }
 
  private:
-  const std::vector<const char*> arguments_;
   Allocator* allocator_;
   DbAssets* db_assets_ = nullptr;
   GameConfig config_;
