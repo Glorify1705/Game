@@ -405,76 +405,6 @@ void BatchRenderer::Render(Allocator* scratch) {
         break;
     }
   }
-  if (debug_render_) {
-    indices_end = indices_start = 0;
-    // Draw a red semi transparent quad for all quads.
-    SwitchShaderProgram("pre_pass");
-    shaders_->SetUniform("tex", noop_texture_);
-    shaders_->SetUniform("global_color", FVec4(1, 0, 0, 0.7));
-    FMat4x4 transform = FMat4x4::Identity();
-    GLint primitives = GL_TRIANGLES;
-    float line_width = 1.0;
-    auto flush = [&] {
-      if (indices_start == indices_end) return;
-      glLineWidth(line_width);
-      shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
-      shaders_->SetUniform("transform", transform);
-      OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
-      OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex_[noop_texture_]));
-      const auto indices_start_ptr =
-          reinterpret_cast<uintptr_t>(&indices[indices_start]) -
-          reinterpret_cast<uintptr_t>(&indices[0]);
-      OPENGL_CALL(glDrawElementsInstanced(
-          GL_TRIANGLES, indices_end - indices_start, GL_UNSIGNED_INT,
-          reinterpret_cast<void*>(indices_start_ptr), 1));
-    };
-    for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
-      switch (Command c; it.Read(&c)) {
-        case kRenderQuad:
-          if (primitives != GL_TRIANGLES) flush();
-          primitives = GL_TRIANGLES;
-          indices_end += 6;
-          break;
-        case kRenderTrig:
-          if (primitives != GL_TRIANGLES) flush();
-          primitives = GL_TRIANGLES;
-          indices_end += 3;
-          break;
-        case kStartLine:
-          if (primitives != GL_LINE_STRIP) flush();
-          primitives = GL_LINE_STRIP;
-          break;
-        case kAddLinePoint:
-          indices_end += 1;
-          break;
-        case kEndLine:
-          flush();
-          break;
-        case kSetTransform:
-          flush();
-          transform = c.set_transform.transform;
-          break;
-        case kSetTexture:
-          flush();
-          texture_unit = c.set_texture.texture_unit;
-          break;
-        case kSetColor:
-          flush();
-          break;
-        case kSetShader:
-          // Not gonna use the shader here since its debug drawing.
-          flush();
-          break;
-        case kSetLineWidth:
-          flush();
-          line_width = c.set_line_width.width;
-          break;
-        case kDone:
-          flush();
-          break;
-      }
-    }
-  }
   // Downsample framebuffer.
   OPENGL_CALL(glActiveTexture(GL_TEXTURE0));
   OPENGL_CALL(glBindFramebuffer(GL_READ_FRAMEBUFFER, render_target_));
@@ -636,12 +566,12 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
                   1, /*alloc_context=*/allocator_);
   stbtt_PackSetOversampling(&font.context, 2, 2);
   CHECK(stbtt_PackFontRange(&font.context, asset->contents, 0, pixel_height, 0,
-                            256, font.chars.data()) == 1,
+                            256, font.chars) == 1,
         "Could not load font");
   stbtt_PackEnd(&font.context);
   uint8_t* buffer = NewArray<uint8_t>(4 * kAtlasSize, &scratch);
   for (size_t i = 0, j = 0; j < kAtlasSize; j++, i += 4) {
-    std::memset(&buffer[i], atlas[j], 4);
+    std::memset(&buffer[i], atlas[j] ? ~0 : 0, 4);
   }
   font.texture = renderer_->LoadTexture(buffer, kAtlasWidth, kAtlasHeight);
   font_table_.Insert(font_key.str(), fonts_.size());
@@ -701,8 +631,8 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
       continue;
     }
     stbtt_aligned_quad q;
-    stbtt_GetPackedQuad(info->chars.data(), kAtlasWidth, kAtlasHeight, c, &p.x,
-                        &p.y, &q,
+    stbtt_GetPackedQuad(info->chars, kAtlasWidth, kAtlasHeight, c, &p.x, &p.y,
+                        &q,
                         /*align_to_integer=*/false);
     renderer_->PushQuad(FVec(q.x0, q.y0), FVec(q.x1, q.y1), FVec(q.s0, q.t0),
                         FVec(q.s1, q.t1), FVec(0, 0),

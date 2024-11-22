@@ -435,7 +435,6 @@ class Game {
         if (event.type == SDL_KEYDOWN) {
           if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
             if (config_.enable_debug_rendering) {
-              e_->batch_renderer.ToggleDebugRender();
               debug_ = !debug_;
             }
           }

@@ -77,8 +77,6 @@ class BatchRenderer {
 
   void Render(Allocator* scratch);
 
-  void ToggleDebugRender() { debug_render_ = !debug_render_; }
-
  private:
   enum CommandType : uint32_t {
     kRenderQuad = 1,
@@ -254,7 +252,6 @@ class BatchRenderer {
       downsampled_texture_, depth_buffer_;
   GLint antialiasing_samples_;
   IVec2 viewport_, original_viewport_;
-  bool debug_render_ = false;
 };
 
 class Renderer {
@@ -307,7 +304,7 @@ class Renderer {
     int ascent, descent, line_gap;
     stbtt_fontinfo font_info;
     stbtt_pack_context context;
-    std::array<stbtt_packedchar, 256> chars;
+    stbtt_packedchar chars[256];
   };
 
   const DbAssets::Sprite* LoadSprite(std::string_view name);

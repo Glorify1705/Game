@@ -23,6 +23,15 @@
   (G.graphics.set_color :white)
   (G.graphics.draw_text :ponderosa.ttf 16
                         "The quick brown fox jumps over the lazy dog" 100 300)
+  (G.graphics.draw_text :terminus.ttf 16
+                        "The quick brown fox jumps over the lazy dog" 100 400)
+  (G.graphics.draw_text :terminus.ttf 20
+                        "The quick brown fox jumps over the lazy dog" 100 500)
+  (G.graphics.draw_text :terminus.ttf 24
+                        "The quick brown fox jumps over the lazy dog" 100 600)
+  (G.graphics.draw_text :terminus.ttf 32
+                        "The quick brown fox jumps over the lazy dog" 100 800)
+  (G.graphics.draw_sprite :playerShip1_green 500 500 10)
   (G.graphics.draw_sprite :playerShip1_green 500 500 10)
   (G.graphics.set_color :darkcream)
   (G.graphics.draw_triangle 200 600 250 650 500 700)

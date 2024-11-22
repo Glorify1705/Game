@@ -5,17 +5,18 @@
   packages = with pkgs; [ 
     SDL2
     SDL2_mixer
-    fnlfmt
-    libGL
-    libGLU
-    gdb
+    ccls
     clang
     clang-tools
-    ccls
     cmake
+    fnlfmt
+    gdb
+    libGL
+    libGLU
     mesa
     ninja
     python3
+    renderdoc
     sqlite
     sqlitebrowser
     valgrind
