@@ -564,7 +564,7 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
   stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
                         &font.line_gap);
   stbtt_PackBegin(&font.context, atlas, kAtlasWidth, kAtlasHeight, kAtlasWidth,
-                  1, /*alloc_context=*/allocator_);
+                  1, /*alloc_context=*/&scratch);
   stbtt_PackSetOversampling(&font.context, 2, 2);
   CHECK(stbtt_PackFontRange(&font.context, asset->contents, 0, pixel_height, 0,
                             256, font.chars) == 1,
