@@ -10,6 +10,7 @@
 
 #define SDL_MAIN_HANDLED
 #include "SDL.h"
+#include "SDL_hints.h"
 #include "SDL_mixer.h"
 #include "allocators.h"
 #include "assets.h"
@@ -308,10 +309,38 @@ SDL_Window* CreateWindow(const GameConfig& config) {
   uint32_t flags = SDL_WINDOW_OPENGL;
   if (config.resizable) flags |= SDL_WINDOW_RESIZABLE;
   if (config.borderless) flags |= SDL_WINDOW_BORDERLESS;
-  auto* window = SDL_CreateWindow(config.window_title, SDL_WINDOWPOS_UNDEFINED,
-                                  SDL_WINDOWPOS_UNDEFINED, config.window_width,
-                                  config.window_height, flags);
-  CHECK(window != nullptr, "Could not initialize window: ", SDL_GetError());
+
+  SDL_Window* window = nullptr;
+
+  if (config.centered) {
+    LOG("Creating centered window");
+
+    SDL_SetHint(SDL_HINT_X11_WINDOW_TYPE, "_NET_WM_WINDOW_TYPE_DIALOG");
+
+    SDL_DisplayMode display_mode;
+    CHECK(SDL_GetCurrentDisplayMode(0, &display_mode) == 0,
+          "Could not get display mode ", SDL_GetError());
+
+    const int screen_width = display_mode.w;
+    const int screen_height = display_mode.h;
+
+    LOG("Display mode: width = ", display_mode.w, " height = ", display_mode.h,
+        " refresh rate = ", display_mode.refresh_rate);
+
+    const int window_x = (screen_width - config.window_width) / 2;
+    const int window_y = (screen_height - config.window_height) / 2;
+
+    window = SDL_CreateWindow(config.window_title, window_x, window_y,
+                              config.window_width, config.window_height,
+                              flags | SDL_WINDOW_SHOWN);
+  } else {
+    window = SDL_CreateWindow(config.window_title, SDL_WINDOWPOS_UNDEFINED,
+                              SDL_WINDOWPOS_UNDEFINED, config.window_width,
+                              config.window_height, flags);
+    CHECK(window != nullptr, "Could not initialize window: ", SDL_GetError());
+  }
+
+  CHECK(window != nullptr);
   return window;
 }
 

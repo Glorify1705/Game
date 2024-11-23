@@ -33,6 +33,8 @@ int SetWindowInfo(lua_State* state) {
     config->msaa_samples = lua_tointeger(state, 3);
   } else if (key == "borderless") {
     config->borderless = lua_toboolean(state, 3);
+  } else if (key == "centered") {
+    config->centered = lua_toboolean(state, 3);
   } else if (key == "enable_joystick") {
     config->enable_joystick = lua_toboolean(state, 3);
   } else if (key == "enable_debug_rendering") {
