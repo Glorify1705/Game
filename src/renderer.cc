@@ -546,7 +546,7 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
   if (uint32_t handle = 0; font_table_.Lookup(font_key.str(), &handle)) {
     return &fonts_[handle];
   }
-  LOG("Loading font ", font_name, " with size ", font_size);
+  TIMER("Loading font ", font_name, " size ", font_size);
   const DbAssets::Font* asset = assets_->GetFont(font_name);
   if (asset == nullptr) {
     LOG("Could not find font ", font_name);
