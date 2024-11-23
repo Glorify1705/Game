@@ -296,7 +296,6 @@ class Renderer {
   inline static constexpr size_t kAtlasWidth = 4096;
   inline static constexpr size_t kAtlasHeight = 4096;
   inline static constexpr size_t kAtlasSize = kAtlasWidth * kAtlasHeight;
-  inline static constexpr size_t kFontSize = 32;
 
   struct FontInfo {
     GLuint texture;
