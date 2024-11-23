@@ -18,22 +18,45 @@ namespace G {
 
 class Keyboard {
  public:
-  Keyboard(Allocator* allocator);
-  bool IsDown(SDL_Scancode k) const { return pressed_[k]; }
+  struct PressConditions {
+    SDL_Scancode code;
+    SDL_Keymod mods;
 
-  bool IsReleased(SDL_Scancode k) const {
-    return previous_pressed_[k] && !pressed_[k];
-  }
+    PressConditions(SDL_Scancode c) : code(c), mods(KMOD_NONE) {}
 
-  bool IsPressed(SDL_Scancode k) const {
-    return !previous_pressed_[k] && pressed_[k];
-  }
+    PressConditions() : PressConditions(SDL_SCANCODE_UNKNOWN) {}
 
-  SDL_Scancode StrToScancode(std::string_view key) const {
-    SDL_Scancode result;
-    if (!table_.Lookup(key, &result)) {
-      return SDL_SCANCODE_UNKNOWN;
+    template <SDL_Keymod... Mods>
+    PressConditions(SDL_Scancode c, std::initializer_list<SDL_Keymod> ms)
+        : code(c), mods(KMOD_NONE) {
+      for (SDL_Keymod mod : ms) mods = static_cast<SDL_Keymod>(mods | mod);
     }
+  };
+
+  Keyboard(Allocator* allocator);
+
+  bool IsDown(const PressConditions& p) const {
+    const bool result = pressed_[p.code] && ((mods_ & p.mods) == p.mods);
+    return result;
+  }
+
+  bool IsReleased(const PressConditions& p) const {
+    if (previous_pressed_[p.code] && !pressed_[p.code]) {
+      return true;
+    }
+    return !(mods_ & p.mods);
+  }
+
+  bool IsPressed(const PressConditions& p) const {
+    if (!previous_pressed_[p.code] && pressed_[p.code]) {
+      return !p.mods || (mods_ & p.mods);
+    }
+    return false;
+  }
+
+  PressConditions MapKey(std::string_view key) const {
+    PressConditions result;
+    table_.Lookup(key, &result);
     return result;
   }
 
@@ -42,9 +65,6 @@ class Keyboard {
   void PushEvent(const SDL_Event& event);
 
   enum EventType { kDown, kUp };
-
-  void ForAllKeypresses(void (*fn)(SDL_Scancode, EventType, void*),
-                        void* userdata);
 
  private:
   inline static constexpr size_t kQueueSize = 256;
@@ -57,7 +77,9 @@ class Keyboard {
 
   std::bitset<kKeyboardTable + 1> pressed_;
   std::bitset<kKeyboardTable + 1> previous_pressed_;
-  Dictionary<SDL_Scancode> table_;
+  SDL_Keymod previous_mods_;
+  SDL_Keymod mods_;
+  Dictionary<PressConditions> table_;
   FixedArray<Event> events_;
 };
 

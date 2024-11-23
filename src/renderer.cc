@@ -569,9 +569,10 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
                             256, font.chars) == 1,
         "Could not load font");
   stbtt_PackEnd(&font.context);
-  uint8_t* buffer = NewArray<uint8_t>(4 * kAtlasSize, &scratch);
-  for (size_t i = 0, j = 0; j < kAtlasSize; j++, i += 4) {
-    std::memset(&buffer[i], atlas[j] ? ~0 : 0, 4);
+  uint32_t* buffer = NewArray<uint32_t>(kAtlasSize, &scratch);
+  std::memset(buffer, 0, kAtlasSize * sizeof(uint32_t));
+  for (size_t j = 0; j < kAtlasSize; j++) {
+    if (atlas[j]) buffer[j] = ~0U;
   }
   font.texture = renderer_->LoadTexture(buffer, kAtlasWidth, kAtlasHeight);
   font_table_.Insert(font_key.str(), fonts_.size());

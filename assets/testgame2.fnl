@@ -92,8 +92,7 @@
     (tset g :dimensions [sx sy])
     (for [_ 1 10] (add-rectangle! g 0)))
   (G.sound.set_music_volume 1)
-  (G.sound.set_sfx_volume 0.8)
-  (G.sound.play_music :weapons_mode.ogg))
+  (G.sound.set_sfx_volume 0.8))
 
 (fn Game.quit [g]
   (print "Thanks for playing!"))
@@ -136,8 +135,8 @@
             :inside (tset g :reticule :size (linear-interpolate dt 10 15))
             :moving (tset g :reticule :size (linear-interpolate dt 10 5))))))))
 
-(local *font-name* :ponderosa.ttf)
-(local *font-size* 16)
+(local *font-name* :terminus.ttf)
+(local *font-size* 24)
 
 (fn text-dimensions [msg]
   (G.graphics.text_dimensions *font-name* *font-size* msg))

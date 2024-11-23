@@ -15,46 +15,24 @@ void Keyboard::InitForFrame() {
   for (int i = 0; i < size; ++i) {
     previous_pressed_[i] = keyboard[i];
   }
+  previous_mods_ = mods_;
+  mods_ = SDL_GetModState();
 }
 
 Keyboard::Keyboard(Allocator* allocator)
     : table_(allocator), events_(256, allocator) {
-  table_.Insert("a", SDL_SCANCODE_A);
-  table_.Insert("b", SDL_SCANCODE_B);
-  table_.Insert("c", SDL_SCANCODE_C);
-  table_.Insert("d", SDL_SCANCODE_D);
-  table_.Insert("e", SDL_SCANCODE_E);
-  table_.Insert("f", SDL_SCANCODE_F);
-  table_.Insert("g", SDL_SCANCODE_G);
-  table_.Insert("h", SDL_SCANCODE_H);
-  table_.Insert("i", SDL_SCANCODE_I);
-  table_.Insert("j", SDL_SCANCODE_J);
-  table_.Insert("k", SDL_SCANCODE_K);
-  table_.Insert("l", SDL_SCANCODE_L);
-  table_.Insert("m", SDL_SCANCODE_M);
-  table_.Insert("n", SDL_SCANCODE_N);
-  table_.Insert("o", SDL_SCANCODE_O);
-  table_.Insert("p", SDL_SCANCODE_P);
-  table_.Insert("q", SDL_SCANCODE_Q);
-  table_.Insert("r", SDL_SCANCODE_R);
-  table_.Insert("s", SDL_SCANCODE_S);
-  table_.Insert("t", SDL_SCANCODE_T);
-  table_.Insert("u", SDL_SCANCODE_U);
-  table_.Insert("v", SDL_SCANCODE_V);
-  table_.Insert("w", SDL_SCANCODE_W);
-  table_.Insert("x", SDL_SCANCODE_X);
-  table_.Insert("y", SDL_SCANCODE_Y);
-  table_.Insert("z", SDL_SCANCODE_Z);
-  table_.Insert("0", SDL_SCANCODE_0);
-  table_.Insert("1", SDL_SCANCODE_1);
-  table_.Insert("2", SDL_SCANCODE_2);
-  table_.Insert("3", SDL_SCANCODE_3);
-  table_.Insert("4", SDL_SCANCODE_4);
-  table_.Insert("5", SDL_SCANCODE_5);
-  table_.Insert("6", SDL_SCANCODE_6);
-  table_.Insert("7", SDL_SCANCODE_7);
-  table_.Insert("8", SDL_SCANCODE_8);
-  table_.Insert("9", SDL_SCANCODE_9);
+  char buf[256];
+  for (int i = SDL_SCANCODE_UNKNOWN; i < SDL_NUM_SCANCODES; ++i) {
+    auto scancode = static_cast<SDL_Scancode>(i);
+    const char* name = SDL_GetScancodeName(scancode);
+    if (name == nullptr) continue;
+    if (!*name) continue;
+    strcpy(buf, name);
+    for (char* c = buf; *c; c++) {
+      if (*c >= 'A' && *c <= 'Z') *c = *c - 'A' + 'a';
+    }
+    table_.Insert(buf, scancode);
+  }
   table_.Insert("tab", SDL_SCANCODE_TAB);
   table_.Insert("backspace", SDL_SCANCODE_BACKSPACE);
   table_.Insert("enter", SDL_SCANCODE_RETURN);
@@ -79,19 +57,20 @@ Keyboard::Keyboard(Allocator* allocator)
   table_.Insert("f12", SDL_SCANCODE_F12);
   table_.Insert("escape", SDL_SCANCODE_ESCAPE);
   table_.Insert("esc", SDL_SCANCODE_ESCAPE);
+  table_.Insert("+", {SDL_SCANCODE_EQUALS, {KMOD_SHIFT}});
 }
 
 void Keyboard::PushEvent(const SDL_Event& event) {
-  if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+  if (event.type == SDL_KEYDOWN) {
     const SDL_Scancode c = event.key.keysym.scancode;
-    pressed_[c] = event.type == SDL_KEYDOWN;
-  }
-}
-
-void Keyboard::ForAllKeypresses(void (*fn)(SDL_Scancode, EventType, void*),
-                                void* userdata) {
-  for (const Event& e : events_) {
-    fn(e.code, e.type, userdata);
+    const auto mod = event.key.keysym.mod;
+    pressed_[c] = true;
+    mods_ = static_cast<SDL_Keymod>(mods_ | mod);
+  } else if (event.type == SDL_KEYUP) {
+    const SDL_Scancode c = event.key.keysym.scancode;
+    const auto mod = event.key.keysym.mod;
+    pressed_[c] = false;
+    mods_ = static_cast<SDL_Keymod>(mods_ & ~mod);
   }
 }
 

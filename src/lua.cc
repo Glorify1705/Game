@@ -592,6 +592,15 @@ const struct luaL_Reg kSystemLib[] = {
        return 1;
      }}};
 
+const struct luaL_Reg kMathLib[] = {
+    {"clamp", [](lua_State* state) {
+       const float x = luaL_checknumber(state, 1);
+       const float low = luaL_checknumber(state, 2);
+       const float high = luaL_checknumber(state, 3);
+       lua_pushnumber(state, std::clamp(x, low, high));
+       return 1;
+     }}};
+
 struct LogLine {
   FixedStringBuffer<kMaxLogLineLength> file;
   int line;
@@ -656,21 +665,21 @@ const struct luaL_Reg kInputLib[] = {
      [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
-       lua_pushboolean(state, keyboard->IsDown(keyboard->StrToScancode(c)));
+       lua_pushboolean(state, keyboard->IsDown(keyboard->MapKey(c)));
        return 1;
      }},
     {"is_key_released",
      [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
-       lua_pushboolean(state, keyboard->IsReleased(keyboard->StrToScancode(c)));
+       lua_pushboolean(state, keyboard->IsReleased(keyboard->MapKey(c)));
        return 1;
      }},
     {"is_key_pressed",
      [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
-       lua_pushboolean(state, keyboard->IsPressed(keyboard->StrToScancode(c)));
+       lua_pushboolean(state, keyboard->IsPressed(keyboard->MapKey(c)));
        return 1;
      }},
     {"mouse_wheel",
@@ -1363,6 +1372,7 @@ void Lua::LoadLibraries() {
   AddLibrary(state_, "data", kDataLib);
   AddLibrary(state_, "clock", kClockLib);
   AddLibrary(state_, "system", kSystemLib);
+  AddLibrary(state_, "math", kMathLib);
   AddLibrary(state_, "assets", kAssetsLib);
   AddLibrary(state_, "window", kWindowLib);
   AddLibrary(state_, "random", kRandomLib);

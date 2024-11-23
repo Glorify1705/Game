@@ -1,1 +1,1 @@
-return require('testrenderer')
+return require('testtextinput')
