@@ -35,6 +35,8 @@ int SetWindowInfo(lua_State* state) {
     config->borderless = lua_toboolean(state, 3);
   } else if (key == "centered") {
     config->centered = lua_toboolean(state, 3);
+  } else if (key == "fullscreen") {
+    config->fullscreen = lua_toboolean(state, 3);
   } else if (key == "enable_joystick") {
     config->enable_joystick = lua_toboolean(state, 3);
   } else if (key == "enable_debug_rendering") {

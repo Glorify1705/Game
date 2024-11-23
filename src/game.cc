@@ -309,10 +309,11 @@ SDL_Window* CreateWindow(const GameConfig& config) {
   uint32_t flags = SDL_WINDOW_OPENGL;
   if (config.resizable) flags |= SDL_WINDOW_RESIZABLE;
   if (config.borderless) flags |= SDL_WINDOW_BORDERLESS;
+  if (config.fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
 
   SDL_Window* window = nullptr;
 
-  if (config.centered) {
+  if (config.centered && !config.fullscreen) {
     LOG("Creating centered window");
 
     SDL_SetHint(SDL_HINT_X11_WINDOW_TYPE, "_NET_WM_WINDOW_TYPE_DIALOG");

@@ -19,6 +19,7 @@ struct GameConfig {
   bool borderless = false;
   bool resizable = true;
   bool centered = true;
+  bool fullscreen = false;
   bool enable_opengl_debug = true;
   bool enable_joystick = false;
   bool enable_debug_rendering = true;
