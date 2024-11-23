@@ -3,8 +3,9 @@ function Conf(t)
     t.game.height = 800
     t.game.msaa_samples = 16
     t.game.title = "Shoot clicker"
-    t.game.borderless = true
-    t.game.fullscreen = true
+    t.game.borderless = false
+    t.game.fullscreen = false
+    t.game.centered = true
     t.game.enable_joystick = false
     t.game.org_name = "JPIndustries"
     t.game.app_name = "ShootClicker"

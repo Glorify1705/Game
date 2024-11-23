@@ -122,6 +122,12 @@ DbAssets* GetAssets(const char* argv[], size_t argc, Allocator* allocator) {
   return result;
 }
 
+IVec2 GetWindowViewport(SDL_Window* window) {
+  IVec2 result;
+  SDL_GL_GetDrawableSize(window, &result.x, &result.y);
+  return result;
+}
+
 struct EngineModules {
   EngineModules(DbAssets* db_assets, const GameConfig& config,
                 SDL_Window* sdl_window, Allocator* allocator)
@@ -129,8 +135,7 @@ struct EngineModules {
         filesystem(allocator),
         window(sdl_window),
         shaders(*db_assets, allocator),
-        batch_renderer(IVec2(config.window_width, config.window_height),
-                       &shaders, allocator),
+        batch_renderer(GetWindowViewport(sdl_window), &shaders, allocator),
         keyboard(allocator),
         controllers(db_assets, allocator),
         sound(*db_assets, allocator),

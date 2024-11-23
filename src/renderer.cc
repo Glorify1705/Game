@@ -73,6 +73,7 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   TIMER();
   glGetIntegerv(GL_MAX_SAMPLES, &antialiasing_samples_);
   LOG("Using ", antialiasing_samples_, " MSAA samples");
+  LOG("Using viewport = ", viewport.x, " ", viewport.y);
   OPENGL_CALL(glGenVertexArrays(1, &vao_));
   OPENGL_CALL(glGenBuffers(1, &vbo_));
   OPENGL_CALL(glGenBuffers(1, &ebo_));
