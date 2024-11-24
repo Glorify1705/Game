@@ -59,6 +59,7 @@
   scripts."game-format" = {
     exec = ''
       ${pkgs.clang-tools}/bin/clang-format -i src/*
+      for f in assets/*.fnl; do ${pkgs.fnlfmt}/bin/fnlfmt --fix "$f"; done
     '';
   };
 
