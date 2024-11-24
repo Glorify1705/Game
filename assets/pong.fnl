@@ -70,7 +70,10 @@
     (let [{:left-score ls :right-score rs} g]
       (G.graphics.draw_text *font-name* *font-size* (.. "Player 1: " ls) 40 24)
       (G.graphics.draw_text *font-name* *font-size* (.. "Player 2: " rs)
-                            (- w 180) 20)))
+                            (- w 180) 20))
+    (for [i 0 30]
+      (let [lx (/ w 2) ly (* 30 i)]
+        (G.graphics.draw_rect (- lx 1) ly (+ lx 1) (+ ly 20)))))
   (let [{:player-width pw :player-height ph :ball-radius br} g]
     (let [{: x : y} (. g :left-player)]
       (G.graphics.draw_rect x y (+ x pw) (+ y ph)))
