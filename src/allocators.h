@@ -9,7 +9,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <type_traits>
 
 namespace G {
 
@@ -66,60 +65,6 @@ template <typename T>
 void DeallocArray(T* ptr, size_t n, Allocator* allocator) {
   allocator->Dealloc(ptr, n * sizeof(T));
 }
-
-template <class T, class Allocator>
-class STLAllocatorWrapper {
- public:
-  using value_type = T;
-  using pointer = T*;
-  using const_pointer = const T*;
-  using reference = T&;
-  using const_reference = const T&;
-  using size_type = size_t;
-  using difference_type = std::ptrdiff_t;
-  using propagate_on_container_move_assignment = std::true_type;
-  template <class U>
-  struct rebind {
-    using other = STLAllocatorWrapper<U, Allocator>;
-  };
-  using is_always_equal = std::false_type;
-
-  STLAllocatorWrapper(Allocator* allocator = nullptr)
-      : allocator_(*allocator) {}
-
-  Allocator& allocator() const { return allocator_; }
-
-  pointer address(reference x) const { return &x; }
-  const_pointer address(const_reference x) const { return &x; }
-  pointer allocate(size_type n, const void* /*hint*/ = nullptr) {
-    return NewArray<T>(n, &allocator_);
-  }
-  void deallocate(T* p, size_t n) { allocator_.Dealloc(p, n); }
-  size_type max_size() const {
-    return std::numeric_limits<size_type>::max() / sizeof(value_type);
-  }
-
-  template <class U, class... Args>
-  void construct(U* p, Args&&... args) {
-    ::new (const_cast<void*>(static_cast<const void*>(p)))
-        U(std::forward<Args>(args)...);
-  }
-
-  template <class U>
-  void destroy(U* p) {
-    p->~U();
-  }
-
-  bool operator==(const STLAllocatorWrapper& other) const {
-    return &allocator_ == &other.allocator_;
-  }
-  bool operator!=(const STLAllocatorWrapper& other) const {
-    return &allocator_ != &other.allocator_;
-  }
-
- private:
-  Allocator& allocator_;
-};
 
 class SystemAllocator final : public Allocator {
  public:
@@ -221,26 +166,6 @@ class ArenaAllocator final : public Allocator {
   size_t size_;
   BumpAllocator a_;
 };
-
-template <class C, class Allocator>
-struct WrapAllocator;
-
-template <template <class, class> class C, class T1, class A, class Allocator>
-struct WrapAllocator<C<T1, A>, Allocator> {
-  using type =
-      C<T1, STLAllocatorWrapper<typename C<T1, A>::value_type, Allocator>>;
-};
-
-template <template <class, class, class> class C, class T1, class T2, class A,
-          class Allocator>
-struct WrapAllocator<C<T1, T2, A>, Allocator> {
-  using type =
-      C<T1, T2,
-        STLAllocatorWrapper<typename C<T1, T2, A>::value_type, Allocator>>;
-};
-
-template <class C, class Allocator>
-using WithAllocator = typename WrapAllocator<C, Allocator>::type;
 
 }  // namespace G
 
