@@ -8,7 +8,7 @@
 namespace G {
 namespace {
 
-static constexpr double kMax = 50.0;
+static constexpr double kMax = 16.0;
 
 }  // namespace
 
@@ -34,9 +34,10 @@ void Stats::AddSample(double sample) {
 }
 
 double Stats::Percentile(double percentile) const {
-  for (size_t i = 0, sum = 0; i < buckets_.size(); ++i) {
+  double sum = 0;
+  for (size_t i = 0; i < buckets_.size(); ++i) {
     sum += buckets_[i];
-    if (sum >= samples_ * (percentile / 100)) {
+    if (sum >= samples_ * (percentile / 100.0)) {
       return (kMax * i) / buckets_.size();
     }
   }

@@ -429,6 +429,7 @@ class Game {
     PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
     SDL_GL_DeleteContext(context_);
     SDL_DestroyWindow(window_);
+    LOG("Statistics (in ms): ", stats_);
     SDL_Quit();
   }
 
@@ -481,7 +482,7 @@ class Game {
         accum -= kStep;
       }
       Render();
-      stats_.AddSample(NowInSeconds() - frame_start);
+      stats_.AddSample((NowInSeconds() - frame_start) * 1000.0);
     }
   }
 
