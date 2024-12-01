@@ -111,7 +111,7 @@ DbAssets* GetAssets(const char* argv[], size_t argc, Allocator* allocator) {
     sqlite3_close(db);
     return result;
   }
-  CHECK(argc == 2, "Wrong number of arguments passed");
+  CHECK(argc >= 2, "Wrong number of arguments passed");
   LOG("Packing all files in directory ", argv[0], " into the database");
   sqlite3* db = nullptr;
   if (sqlite3_open(argv[1], &db) != SQLITE_OK) {
@@ -130,8 +130,9 @@ IVec2 GetWindowViewport(SDL_Window* window) {
 }
 
 struct EngineModules {
-  EngineModules(DbAssets* db_assets, const GameConfig& config,
-                SDL_Window* sdl_window, Allocator* allocator)
+  EngineModules(size_t argc, const char* argv[], DbAssets* db_assets,
+                const GameConfig& config, SDL_Window* sdl_window,
+                Allocator* allocator)
       : config(&config),
         filesystem(allocator),
         window(sdl_window),
@@ -141,7 +142,7 @@ struct EngineModules {
         controllers(db_assets, allocator),
         sound(*db_assets, allocator),
         renderer(*db_assets, &batch_renderer, allocator),
-        lua(db_assets, SystemAllocator::Instance()),
+        lua(argc, argv, db_assets, SystemAllocator::Instance()),
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)),
@@ -396,8 +397,8 @@ SDL_GLContext CreateOpenglContext(const GameConfig& config,
 
 class Game {
  public:
-  Game(int argc, const char* argv[], Allocator* allocator)
-      : allocator_(allocator) {
+  Game(int argc, const char** argv, Allocator* allocator)
+      : argc_(argc), argv_(argv), allocator_(allocator) {
     TIMER("Setup");
     InitializeLogging();
     // Initialize the debug console.
@@ -449,8 +450,8 @@ class Game {
 
   void Init() {
     TIMER("Game Initialization");
-    e_ = New<EngineModules>(allocator_, db_assets_, config_, window_,
-                            allocator_);
+    e_ = New<EngineModules>(allocator_, argc_, argv_, db_assets_, config_,
+                            window_, allocator_);
     e_->InitializeLua();
     e_->lua.Init();
   }
@@ -533,6 +534,8 @@ class Game {
   }
 
  private:
+  const size_t argc_;
+  const char** const argv_;
   Allocator* allocator_;
   DbAssets* db_assets_ = nullptr;
   GameConfig config_;

@@ -581,6 +581,17 @@ const struct luaL_Reg kSystemLib[] = {
        }
        return 1;
      }},
+    {"cli_arguments",
+     [](lua_State* state) {
+       auto* lua = Registry<Lua>::Retrieve(state);
+       lua_createtable(state, lua->argc(), 0);
+       for (size_t i = 0; i < lua->argc(); ++i) {
+         std::string_view arg = lua->argv(i);
+         lua_pushlstring(state, arg.data(), arg.size());
+         lua_rawseti(state, -2, i + 1);
+       }
+       return 1;
+     }},
     {"get_clipboard", [](lua_State* state) {
        char* result = SDL_GetClipboardText();
        const size_t length = strlen(result);
@@ -1266,8 +1277,8 @@ void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
   return allocator_->Realloc(ptr, osize, nsize, /*align=*/1);
 }
 
-Lua::Lua(DbAssets* assets, Allocator* allocator)
-    : allocator_(allocator), assets_(assets) {}
+Lua::Lua(size_t argc, const char** argv, DbAssets* assets, Allocator* allocator)
+    : argc_(argc), argv_(argv), allocator_(allocator), assets_(assets) {}
 
 void Lua::Crash() {
   std::string_view message = GetLuaString(state_, 1);

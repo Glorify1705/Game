@@ -56,7 +56,7 @@ class Registry {
 
 class Lua {
  public:
-  Lua(DbAssets* assets, Allocator* allocator);
+  Lua(size_t argc, const char** argv, DbAssets* assets, Allocator* allocator);
   ~Lua() { lua_close(state_); }
 
   template <typename T>
@@ -101,6 +101,9 @@ class Lua {
   double time() const { return t_; }
   double dt() const { return dt_; }
 
+  size_t argc() const { return argc_; }
+  std::string_view argv(size_t i) const { return argv_[i]; }
+
  private:
   void LoadAssets();
   void LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
@@ -115,6 +118,9 @@ class Lua {
   }
 
   void SetError(std::string_view file, int line, std::string_view error);
+
+  const size_t argc_;
+  const char** const argv_;
 
   lua_State* state_ = nullptr;
   bool stopped_ = false;
