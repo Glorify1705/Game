@@ -43,6 +43,8 @@ Keyboard::Keyboard(Allocator* allocator)
   table_.Insert("ralt", SDL_SCANCODE_RALT);
   table_.Insert("lshift", SDL_SCANCODE_LSHIFT);
   table_.Insert("rshift", SDL_SCANCODE_RSHIFT);
+  table_.Insert("space", SDL_SCANCODE_SPACE);
+  table_.Insert("spacebar", SDL_SCANCODE_SPACE);
   table_.Insert("f1", SDL_SCANCODE_F1);
   table_.Insert("f2", SDL_SCANCODE_F2);
   table_.Insert("f3", SDL_SCANCODE_F3);
