@@ -34,6 +34,7 @@
 #include "sqlite3.h"
 #include "stats.h"
 #include "strings.h"
+#include "thread_pool.h"
 #include "units.h"
 #include "vec.h"
 #include "version.h"
@@ -143,8 +144,18 @@ struct EngineModules {
         lua(db_assets, SystemAllocator::Instance()),
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
-        frame_allocator(allocator, Megabytes(128)) {
+        frame_allocator(allocator, Megabytes(128)),
+        pool_(allocator, 4) {
     filesystem.Initialize(config);
+    pool_.Start();
+    pool_.Queue(DoWorkStatic, this);
+  }
+
+  void DoWork() { LOG("Hello from a thread!"); }
+
+  static int DoWorkStatic(void* ctx) {
+    reinterpret_cast<EngineModules*>(ctx)->DoWork();
+    return 0;
   }
 
   void InitializeLua() {
@@ -251,6 +262,7 @@ struct EngineModules {
   Lua lua;
   Physics physics;
   ArenaAllocator frame_allocator;
+  ThreadPool pool_;
 };
 
 void InitializeLogging() {
@@ -415,6 +427,8 @@ class Game {
   }
 
   ~Game() {
+    e_->pool_.Stop();
+    e_->pool_.Wait();
     Destroy(allocator_, e_);
     if (SDL_WasInit(SDL_INIT_HAPTIC) != 0) {
       SDL_QuitSubSystem(SDL_INIT_HAPTIC);

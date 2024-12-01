@@ -16,11 +16,11 @@ class ThreadPool {
 
   void Start();
 
+  void Stop();
+
   void Wait();
 
   void Queue(int (*fn)(void*), void* userdata);
-
-  int Loop(size_t index);
 
  private:
   struct UserData {
@@ -37,13 +37,14 @@ class ThreadPool {
     return in->self->Loop(in->index);
   }
 
-  DynArray<SDL_Thread*> threads_;
-  DynArray<UserData> user_data_;
+  int Loop(size_t index);
+
+  FixedArray<SDL_Thread*> threads_;
+  FixedArray<UserData> user_data_;
   SDL_mutex* mu_ = nullptr;
   SDL_cond* cv_ = nullptr;
-  SDL_cond* idle_cv_ = nullptr;
-  int inflight_ = 0;
-  static constexpr std::size_t kMaxFunctions = 4096;
+  size_t num_threads_;
+  static constexpr size_t kMaxFunctions = 4096;
   CircularBuffer<Work> work_;
   bool exit_ = false;
 };

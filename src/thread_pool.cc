@@ -5,73 +5,79 @@
 
 namespace G {
 
-ThreadPool::ThreadPool(Allocator* allocator, std::size_t num_threads)
+ThreadPool::ThreadPool(Allocator* allocator, size_t num_threads)
     : threads_(num_threads, allocator),
       user_data_(num_threads, allocator),
-      work_(kMaxFunctions, allocator) {
-  for (std::size_t i = 0; i < num_threads; ++i) threads_[i] = nullptr;
-}
+      num_threads_(num_threads),
+      work_(kMaxFunctions, allocator) {}
 
 ThreadPool::~ThreadPool() {
-  {
-    LockMutex l(mu_);
-    exit_ = true;
-  }
-  SDL_CondBroadcast(cv_);
-  for (std::size_t i = 0; i < threads_.size(); ++i) {
-    int status;
-    SDL_WaitThread(threads_[i], &status);
-    CHECK(status == 0, "Abnormal termination of thread: ", i);
-  }
+  Stop();
   SDL_DestroyMutex(mu_);
-  SDL_DestroyCond(idle_cv_);
   SDL_DestroyCond(cv_);
 }
 
 void ThreadPool::Queue(int (*fn)(void*), void* userdata) {
+  CHECK(mu_ != nullptr, "Thread pool not initialized");
   {
     LockMutex l(mu_);
-    Work work;
-    work.fn = fn;
-    work.userdata = userdata;
+    Work work = {fn, userdata};
     work_.Push(work);
   }
   SDL_CondSignal(cv_);
 }
 
 void ThreadPool::Start() {
+  LOG("Starting thread pool with ", num_threads_, " threads.");
   CHECK(mu_ == nullptr, "Thread pool initialized twice");
   mu_ = SDL_CreateMutex();
   cv_ = SDL_CreateCond();
-  for (std::size_t i = 0; i < threads_.size(); ++i) {
-    threads_[i] = SDL_CreateThread(LoopFn, "Thread1", this);
+  LockMutex l(mu_);
+  for (size_t i = 0; i < num_threads_; ++i) {
+    FixedStringBuffer<32> thread_name("Thread", i);
+    user_data_.Push(UserData{this, i});
+    threads_.Push(
+        SDL_CreateThread(LoopFn, thread_name.str(), &user_data_.back()));
   }
 }
 
-int ThreadPool::Loop(std::size_t /*index*/) {
+int ThreadPool::Loop(size_t index) {
+  LOG("Started thread ", index);
   while (true) {
-    LockMutex l(mu_);
-    --inflight_;
-    if (work_.empty() && inflight_ == 0) {
-      SDL_CondBroadcast(idle_cv_);
+    SDL_LockMutex(mu_);
+    while (work_.empty() && !exit_) {
+      SDL_CondWait(cv_, mu_);
     }
-    if (exit_) return 0;
-    if (work_.empty()) {
-      SDL_CondWait(cv_, l.mu);
-      // Here l.mu is reacquired.
-      continue;
+    if (exit_) {
+      SDL_UnlockMutex(mu_);
+      return 0;
     }
-    Work& fn = work_.Pop();
+    Work fn = work_.Pop();
+    SDL_UnlockMutex(mu_);
     int result = fn.fn(fn.userdata);
-    if (result != 0) return result;
+    if (result != 0) {
+      SDL_UnlockMutex(mu_);
+      return result;
+    }
   }
   return 0;
 }
 
 void ThreadPool::Wait() {
-  LockMutex l(mu_);
-  SDL_CondWait(idle_cv_, mu_);
-  // Here l.mu is reacquired.
+  for (size_t i = 0; i < threads_.size(); ++i) {
+    int status;
+    SDL_WaitThread(threads_[i], &status);
+    CHECK(status == 0, "Abnormal termination of thread: ", i);
+  }
+}
+
+void ThreadPool::Stop() {
+  LOG("Stopping all threads");
+  {
+    LockMutex l(mu_);
+    exit_ = true;
+  }
+  SDL_CondBroadcast(cv_);
 }
 
 }  // namespace G

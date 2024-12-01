@@ -19,12 +19,17 @@ class CircularBuffer {
   }
 
   void Push(T t) {
+    DCHECK(!full());
     buffer_[start_] = std::move(t);
+    if (full_) {
+      end_ = Inc(end_);
+    }
     start_ = Inc(start_);
-    if (start_ == end_) full_ = true;
+    full_ = start_ == end_;
   }
 
   T& Pop() {
+    DCHECK(!empty());
     auto& result = front();
     end_ = Inc(end_);
     full_ = false;
@@ -35,15 +40,21 @@ class CircularBuffer {
     DCHECK(i < buffer_.capacity());
     return buffer_[Inc(end_, i)];
   }
-  T& front() { return buffer_[end_]; }
-  T& back() { return buffer_[start_]; }
+  T& front() {
+    DCHECK(!empty());
+    return buffer_[end_];
+  }
+  T& back() {
+    DCHECK(!empty());
+    return buffer_[start_];
+  }
 
   bool full() const { return full_; }
   bool empty() const { return size() == 0; }
 
   size_t size() const {
-    return (start_ <= end_) ? (buffer_.size() + start_ - end_)
-                            : (start_ - end_);
+    if (full_) return buffer_.size();
+    return (start_ < end_) ? (buffer_.size() + start_ - end_) : (start_ - end_);
   }
 
  private:
