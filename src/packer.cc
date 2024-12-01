@@ -17,7 +17,7 @@ namespace {
 class DbPacker {
  public:
   explicit DbPacker(sqlite3* db, Allocator* allocator)
-      : db_(db), allocator_(allocator) {}
+      : db_(db), allocator_(allocator), checksums_(allocator) {}
 
   void InsertIntoTable(std::string_view table, std::string_view filename,
                        const uint8_t* buf, size_t size) {
@@ -262,6 +262,7 @@ class DbPacker {
     std::string_view fname = Basename(filename);
     bool handled = false;
     ArenaAllocator scratch(allocator_, Megabytes(128));
+
     for (const DbHandler& handler : kHandlers) {
       if (!HasSuffix(filename, handler.extension)) {
         continue;
@@ -280,6 +281,13 @@ class DbPacker {
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       auto method = handler.handler;
       const XXH128_hash_t hash = XXH3_128bits(buffer, bytes);
+      XXH128_hash_t saved;
+      if (checksums_.Lookup(filename, &saved) &&
+          !std::memcmp(&saved, &hash, sizeof(hash))) {
+        LOG("Skipping loading ", filename, " because file is the same");
+        handled = true;
+        break;
+      }
       InsertIntoAssetMeta(fname, bytes, handler.type, hash);
       (this->*method)(fname, buffer, bytes);
       scratch.Dealloc(buffer, bytes);
@@ -297,6 +305,25 @@ class DbPacker {
     return PHYSFS_ENUM_OK;
   }
 
+  void LoadChecksums() {
+    // Load all checksums to avoid reprocessing files that have not changed.
+    FixedStringBuffer<256> sql(
+        "SELECT name, hash_low, hash_high FROM asset_metadata");
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+      DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+    }
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+      auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+      int64_t hash_low = sqlite3_column_int64(stmt, 1);
+      int64_t hash_high = sqlite3_column_int64(stmt, 1);
+      XXH128_hash_t hash;
+      hash.low64 = hash_low;
+      hash.high64 = hash_high;
+      checksums_.Insert(name, hash);
+    }
+  }
+
   void HandleFiles() {
     PHYSFS_enumerate("/assets", WriteFileToDb, this);
     // Ensure we always have the debug font available.
@@ -309,6 +336,7 @@ class DbPacker {
  private:
   sqlite3* db_ = nullptr;
   Allocator* allocator_ = nullptr;
+  Dictionary<XXH128_hash_t> checksums_;
 };
 
 }  // namespace
@@ -325,6 +353,7 @@ void WriteAssetsToDb(const char* source_directory, sqlite3* db,
                " while trying to mount directory ", source_directory);
   sqlite3_exec(db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
   DbPacker packer(db, allocator);
+  packer.LoadChecksums();
   packer.HandleFiles();
   sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
 }
