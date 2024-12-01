@@ -1,6 +1,5 @@
 (local Game {:left-score 0
              :right-score 0
-             :timer 0
              :width 0
              :height 0
              :player-width 20
@@ -11,13 +10,12 @@
 
 (lambda Game.init [g]
   (G.window.set_title :Pong!)
-  (tset g :timer 60)
   (let [(w h) (G.window.dimensions)]
-    (tset g :width w)
-    (tset g :height h)
-    (tset g :left-player {:x 10 :y (/ h 2)})
-    (tset g :right-player {:x (- w 30) :y (/ h 2)})
-    (tset g :ball {:x (/ w 2) :y (/ h 2) :speed {:x 400 :y 400}})))
+    (set g.width w)
+    (set g.height h)
+    (set g.left-player {:x 10 :y (- (/ h 2) (/ g.player-height 2))})
+    (set g.right-player {:x (- w 30) :y (- (/ h 2) (/ g.player-height 2))})
+    (set g.ball {:x (/ w 2) :y (/ h 2) :speed {:x 400 :y 400}})))
 
 (local *font-name* :terminus.ttf)
 (local *font-size* 24)
@@ -36,83 +34,83 @@
   (when (or (G.input.is_key_pressed :q) (G.input.is_key_pressed :esc))
     (G.system.quit))
   (let [(w h) (G.window.dimensions)]
-    (tset g :width w)
-    (tset g :height h))
-  (when (= (. g :state) :serve)
+    (set g.width w)
+    (set g.height h))
+  (when (= g.state :serve)
     (let [{: max-score} g]
-      (if (or (>= (. g :left-score) max-score)
-              (>= (. g :right-score) max-score))
+      (if (or (>= g.left-score max-score) (>= g.right-score max-score))
           (tset g :state :finished)
           (when (G.input.is_key_pressed :space)
-            (tset g :ball :speed {:x 400 :y 400})
-            (tset g :state :running)))))
-  (when (= (. g :state) :running)
+            (set g.ball.speed {:x 400 :y 400})
+            (set g.state :running)))))
+  (when (= g.state :running)
     (let [{:width w
            :height h
+           :player-width pw
+           :player-height ph
            :ball-radius br
            :ball {: x : y :speed {:x dx :y dy}}} g]
       (let [nx (+ x (* dt dx))
             ny (+ y (* dt dy))]
-        (let [{:player-width pw :player-height ph} g]
-          (let [{:x px :y py} (. g :left-player)]
-            (when (collides-with-pad? px py (+ px pw) (+ py ph) nx ny br)
-              (tset g :ball :speed :x (- (-> g (. :ball) (. :speed) (. :x))))))
-          (let [{:x px :y py} (. g :right-player)]
-            (when (collides-with-pad? px py (+ px pw) (+ py ph) nx ny br)
-              (tset g :ball :speed :x (- (-> g (. :ball) (. :speed) (. :x)))))))
-        (when (= (. g :state) :running)
+        (let [{:x px :y py} g.left-player]
+          (when (collides-with-pad? px py (+ px pw) (+ py ph) nx ny br)
+            (set g.ball.speed.x (- g.ball.speed.x))))
+        (let [{:x px :y py} g.right-player]
+          (when (collides-with-pad? px py (+ px pw) (+ py ph) nx ny br)
+            (set g.ball.speed.x (- g.ball.speed.x))))
+        (when (= g.state :running)
           (if (>= nx (/ br 2))
               (do
-                (tset g :ball :x nx))
+                (set g.ball.x nx))
               (do
-                (tset g :right-score (+ 1 (. g :right-score)))
-                (tset g :ball {:x (/ w 2) :y (/ h 2) :speed {:x 0 :y 0}})
-                (tset g :state :serve))))
-        (when (= (. g :state) :running)
+                (set g.right-score (+ 1 g.right-score))
+                (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
+                (set g.right-player {:x (- w 30) :y (- (/ h 2) (/ ph 2))})
+                (set g.ball {:x (/ w 2) :y (/ h 2) :speed {:x 0 :y 0}})
+                (set g.state :serve))))
+        (when (= g.state :running)
           (if (<= nx (- w (/ br 2)))
               (do
-                (tset g :ball :x nx))
+                (set g.ball.x nx))
               (do
-                (tset g :left-score (+ 1 (. g :left-score)))
-                (tset g :ball {:x (/ w 2) :y (/ h 2) :speed {:x 0 :y 0}})
-                (tset g :state :serve))))
+                (set g.left-score (+ 1 g.left-score))
+                (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
+                (set g.right-player {:x (- w 30) :y (- (/ h 2) (/ ph 2))})
+                (set g.ball {:x (/ w 2) :y (/ h 2) :speed {:x 0 :y 0}})
+                (set g.state :serve))))
         (when (= (. g :state) :running)
           (if (>= ny br)
               (do
-                (tset g :ball :y ny))
+                (set g.ball.y ny))
               (do
-                (tset g :ball :y br)
-                (tset g :ball :speed :y (- (-> g (. :ball) (. :speed) (. :y)))))))
+                (set g.ball.y br)
+                (set g.ball.speed.y (- g.ball.speed.y)))))
         (when (= (. g :state) :running)
           (if (<= ny (- h br))
               (do
-                (tset g :ball :y ny))
+                (set g.ball.y ny))
               (do
-                (tset g :ball :y (- h br))
-                (tset g :ball :speed :y (- (-> g (. :ball) (. :speed) (. :y))))))))))
-  (when (let [s (. g :state)] (or (= s :running) (= s :serve)))
+                (set g.ball.y (- h br))
+                (set g.ball.speed.y (- g.ball.speed.y))))))))
+  (when (let [s g.state] (or (= s :running) (= s :serve)))
     (let [{:width w :height h} g]
       (when (G.input.is_key_down :w)
-        (tset g :left-player :y
-              (G.math.clamp (- (. g :left-player :y) 5) -10 h)))
+        (set g.left-player.y (G.math.clamp (- g.left-player.y 5) -10 h)))
       (when (G.input.is_key_down :s)
-        (tset g :left-player :y
-              (G.math.clamp (+ (. g :left-player :y) 5) -10 (- h 120))))
+        (set g.left-player.y (G.math.clamp (+ g.left-player.y 5) -10 (- h 120))))
       (when (G.input.is_key_down :i)
-        (tset g :right-player :y
-              (G.math.clamp (- (. g :right-player :y) 5) -10 h)))
+        (set g.right-player.y (G.math.clamp (- g.right-player.y 5) -10 h)))
       (when (G.input.is_key_down :k)
-        (tset g :right-player :y
-              (G.math.clamp (+ (. g :right-player :y) 5) -10 (- h 120)))))))
+        (set g.right-player.y
+             (G.math.clamp (+ g.right-player.y 5) -10 (- h 120)))))))
 
 (fn draw-text! [text x y]
   (G.graphics.draw_text *font-name* *font-size* text x y))
 
 (fn Game.draw [g]
   (let [{:width w :height h} g]
-    (if (= (. g :state) :finished)
-        (let [winner-text (if (> (. g :left-score) (. g :right-score))
-                              "Player 1 wins"
+    (if (= g.state :finished)
+        (let [winner-text (if (> g.left-score g.right-score) "Player 1 wins"
                               "Player 2 wins")]
           (let [(tx ty) (G.graphics.text_dimensions *font-name* *font-size*
                                                     winner-text)]
