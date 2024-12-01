@@ -90,33 +90,8 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
   }
 }
 
-DbAssets* GetAssets(const char* argv[], size_t argc, Allocator* allocator) {
-  if (argc == 0) {
-    LOG("Reading assets from default DB since no file was provided");
-    sqlite3* db = nullptr;
-    if (sqlite3_open("assets.sqlite3", &db) != SQLITE_OK) {
-      DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db));
-    }
-    DbAssets* result = ReadAssetsFromDb(db, allocator);
-    sqlite3_close(db);
-    return result;
-  }
-  if (argc == 1) {
-    LOG("Reading assets from ", argv[0]);
-    sqlite3* db = nullptr;
-    if (sqlite3_open(argv[0], &db) != SQLITE_OK) {
-      DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db));
-    }
-    DbAssets* result = ReadAssetsFromDb(db, allocator);
-    sqlite3_close(db);
-    return result;
-  }
-  CHECK(argc >= 2, "Wrong number of arguments passed");
-  LOG("Packing all files in directory ", argv[0], " into the database");
-  sqlite3* db = nullptr;
-  if (sqlite3_open(argv[1], &db) != SQLITE_OK) {
-    DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db));
-  }
+DbAssets* GetAssets(const char* argv[], size_t argc, sqlite3* db,
+                    Allocator* allocator) {
   WriteAssetsToDb(argv[0], db, allocator);
   DbAssets* result = ReadAssetsFromDb(db, allocator);
   sqlite3_close(db);
@@ -130,9 +105,9 @@ IVec2 GetWindowViewport(SDL_Window* window) {
 }
 
 struct EngineModules {
-  EngineModules(size_t argc, const char* argv[], DbAssets* db_assets,
-                const GameConfig& config, SDL_Window* sdl_window,
-                Allocator* allocator)
+  EngineModules(size_t argc, const char* argv[], sqlite3* db,
+                DbAssets* db_assets, const GameConfig& config,
+                SDL_Window* sdl_window, Allocator* allocator)
       : config(&config),
         filesystem(allocator),
         window(sdl_window),
@@ -142,7 +117,7 @@ struct EngineModules {
         controllers(db_assets, allocator),
         sound(*db_assets, allocator),
         renderer(*db_assets, &batch_renderer, allocator),
-        lua(argc, argv, db_assets, SystemAllocator::Instance()),
+        lua(argc, argv, db, db_assets, SystemAllocator::Instance()),
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)),
@@ -409,7 +384,8 @@ class Game {
     }
     PHYSFS_CHECK(PHYSFS_init(argv[0]),
                  "Could not initialize PhysFS: ", argv[0]);
-    db_assets_ = GetAssets(argv + 1, argc - 1, allocator_);
+    LoadDb(argc_ - 1, argv_ + 1);
+    db_assets_ = GetAssets(argv + 1, argc - 1, db_, allocator_);
     LoadConfig(*db_assets_, &config_, allocator_);
     LOG("Using engine version ", GAME_VERSION_STR);
     LOG("Game requested engine version ", config_.version.major, ".",
@@ -425,6 +401,25 @@ class Game {
       context_ = CreateOpenglContext(config_, window_);
     }
     PrintSystemInformation();
+  }
+
+  void LoadDb(size_t argc, const char** argv) {
+    if (argc == 0) {
+      LOG("Reading assets from default DB since no file was provided");
+      if (sqlite3_open("assets.sqlite3", &db_) != SQLITE_OK) {
+        DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db_));
+      }
+    } else if (argc_ == 1) {
+      LOG("Reading assets from ", argv[0]);
+      if (sqlite3_open(argv[0], &db_) != SQLITE_OK) {
+        DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db_));
+      }
+    } else {
+      LOG("Packing all files in directory ", argv[0], " into the database");
+      if (sqlite3_open(argv[1], &db_) != SQLITE_OK) {
+        DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db_));
+      }
+    }
   }
 
   ~Game() {
@@ -446,11 +441,12 @@ class Game {
     SDL_DestroyWindow(window_);
     LOG("Statistics (in ms): ", stats_);
     SDL_Quit();
+    sqlite3_close(db_);
   }
 
   void Init() {
     TIMER("Game Initialization");
-    e_ = New<EngineModules>(allocator_, argc_, argv_, db_assets_, config_,
+    e_ = New<EngineModules>(allocator_, argc_, argv_, db_, db_assets_, config_,
                             window_, allocator_);
     e_->InitializeLua();
     e_->lua.Init();
@@ -537,6 +533,7 @@ class Game {
   const size_t argc_;
   const char** const argv_;
   Allocator* allocator_;
+  sqlite3* db_;
   DbAssets* db_assets_ = nullptr;
   GameConfig config_;
   SDL_Window* window_ = nullptr;

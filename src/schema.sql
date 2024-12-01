@@ -50,4 +50,12 @@ CREATE TABLE IF NOT EXISTS asset_metadata(id INTEGER PRIMARY KEY AUTOINCREMENT,
                                           hash_low INTEGER NOT NULL,
                                           hash_high INTEGER NOT NULL);
 
+CREATE TABLE IF NOT EXISTS compilation_cache(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_name VARCHAR(255) UNIQUE NOT NULL, source_hash_low INTEGER NOT NULL,
+    source_hash_high INTEGER NOT NULL, compiled BLOB NOT NULL);
+
+CREATE INDEX IF NOT EXISTS idx_compilation_cache ON
+    compilation_cache(source_name);
+
 CREATE INDEX IF NOT EXISTS idx_asset_metadata ON asset_metadata(name);

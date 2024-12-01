@@ -14,8 +14,10 @@ extern "C" {
 #include "SDL.h"
 #include "assets.h"
 #include "clock.h"
+#include "libraries/sqlite3.h"
 #include "stats.h"
 #include "vec.h"
+#include "xxhash.h"
 
 namespace G {
 
@@ -56,7 +58,8 @@ class Registry {
 
 class Lua {
  public:
-  Lua(size_t argc, const char** argv, DbAssets* assets, Allocator* allocator);
+  Lua(size_t argc, const char** argv, sqlite3* db, DbAssets* assets,
+      Allocator* allocator);
   ~Lua() { lua_close(state_); }
 
   template <typename T>
@@ -75,6 +78,10 @@ class Lua {
   void Update(float t, float dt);
 
   void Draw();
+
+  bool LoadFromCache(std::string_view script_name, lua_State* state);
+
+  void InsertIntoCache(std::string_view script_name, lua_State* state);
 
   // Handles events if callbacks are present
   void HandleKeypressed(int scancode);
@@ -105,6 +112,10 @@ class Lua {
   std::string_view argv(size_t i) const { return argv_[i]; }
 
  private:
+  void BuildCompilationCache();
+
+  void FlushCompilationCache();
+
   void LoadAssets();
   void LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
                      size_t register_count);
@@ -127,12 +138,15 @@ class Lua {
   int traceback_handler_;
 
   Allocator* allocator_;
+  sqlite3* db_;
   DbAssets* assets_;
 
   FixedStringBuffer<1024> error_;
   std::jmp_buf on_error_buf_;
 
   Stats allocator_stats_;
+
+  Dictionary<std::string_view> compilation_cache_;
 
   double t_ = 0;
   double dt_ = 0;

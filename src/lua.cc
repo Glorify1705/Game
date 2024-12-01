@@ -31,6 +31,12 @@ Allocator* GetAllocator(lua_State* state) {
   return Registry<Lua>::Retrieve(state)->allocator();
 }
 
+std::string_view GetLuaString(lua_State* state, int index) {
+  size_t len;
+  const char* data = luaL_checklstring(state, index, &len);
+  return std::string_view(data, len);
+}
+
 template <typename T>
 T FromLuaTable(lua_State* state, int index) {
   T result;
@@ -108,45 +114,66 @@ int LoadLuaAsset(lua_State* state, const DbAssets::Script& asset,
 int LoadFennelAsset(lua_State* state, const DbAssets::Script& asset,
                     int traceback_handler = INT_MAX) {
   std::string_view name = asset.name;
-  TIMER("Compiling ", name);
-  // Load fennel module if not present.
-  lua_getfield(state, LUA_GLOBALSINDEX, "package");
-  lua_getfield(state, -1, "loaded");
-  CHECK(lua_istable(state, -1), "Missing loaded table");
-  lua_getfield(state, -1, "fennel");
-  if (lua_isnil(state, -1)) {
-    LOG("Proactively loading Fennel compiler");
-    lua_pop(state, 1);
-    DbAssets* assets = Registry<DbAssets>::Retrieve(state);
-    auto* fennel = assets->GetScript("fennel.lua");
-    if (fennel == nullptr) {
-      LUA_ERROR(state, "Fennel compiler is absent, cannot load fennel files");
-      return 0;
+  auto* lua = Registry<Lua>::Retrieve(state);
+  if (!lua->LoadFromCache(name, state)) {
+    LOG("Explicitly compiling ", name);
+    TIMER("Compiling ", name);
+    // Load fennel module if not present.
+    lua_getfield(state, LUA_GLOBALSINDEX, "package");
+    lua_getfield(state, -1, "loaded");
+    CHECK(lua_istable(state, -1), "Missing loaded table");
+    lua_getfield(state, -1, "fennel");
+    if (lua_isnil(state, -1)) {
+      LOG("Proactively loading Fennel compiler");
+      lua_pop(state, 1);
+      DbAssets* assets = Registry<DbAssets>::Retrieve(state);
+      auto* fennel = assets->GetScript("fennel.lua");
+      if (fennel == nullptr) {
+        LUA_ERROR(state, "Fennel compiler is absent, cannot load fennel files");
+        return 0;
+      }
+      // Fennel is not loaded. Load it.
+      LoadLuaAsset(state, *fennel);
+      CHECK(lua_istable(state, -1), "Invalid fennel compilation result");
+      lua_pushvalue(state, -1);
+      lua_setfield(state, -3, "fennel");
     }
-    // Fennel is not loaded. Load it.
-    LoadLuaAsset(state, *fennel);
-    CHECK(lua_istable(state, -1), "Invalid fennel compilation result");
-    lua_pushvalue(state, -1);
-    lua_setfield(state, -3, "fennel");
+    LOG("Compiling ", name);
+    // Run string on the script contents.
+    lua_getfield(state, -1, "compileString");
+    CHECK(lua_isfunction(state, -1),
+          "Invalid fennel compiler has no function 'eval'");
+    lua_pushlstring(state, reinterpret_cast<const char*>(asset.contents),
+                    asset.size);
+    FixedStringBuffer<kMaxPathLength + 1> buf(name);
+    lua_newtable(state);
+    lua_pushstring(state, "filename");
+    lua_pushstring(state, buf.str());
+    lua_settable(state, -3);
+    if (traceback_handler != INT_MAX) {
+      if (lua_pcall(state, 2, 1, traceback_handler)) {
+        lua_error(state);
+        return 0;
+      }
+    } else {
+      lua_call(state, 2, 1);
+    }
+    lua->InsertIntoCache(asset.name, state);
   }
-  // Run eval on the script contents.
-  lua_getfield(state, -1, "eval");
-  CHECK(lua_isfunction(state, -1),
-        "Invalid fennel compiler has no function 'eval'");
-  lua_pushlstring(state, reinterpret_cast<const char*>(asset.contents),
-                  asset.size);
-  FixedStringBuffer<kMaxPathLength + 1> buf(name);
-  lua_newtable(state);
-  lua_pushstring(state, "filename");
-  lua_pushstring(state, buf.str());
-  lua_settable(state, -3);
+  LOG("Executing script ", name);
+  std::string_view script = GetLuaString(state, -1);
+  FixedStringBuffer<kMaxPathLength + 1> buf("@", asset.name);
+  if (luaL_loadbuffer(state, script.data(), script.size(), buf) != 0) {
+    lua_error(state);
+    return 0;
+  }
   if (traceback_handler != INT_MAX) {
-    if (lua_pcall(state, 2, 1, traceback_handler)) {
+    if (lua_pcall(state, 0, 1, traceback_handler)) {
       lua_error(state);
       return 0;
     }
   } else {
-    lua_call(state, 2, 1);
+    lua_call(state, 0, 1);
   }
   return 1;
 }
@@ -170,12 +197,6 @@ int PackageLoader(lua_State* state) {
     return 0;
   }
   return LoadFennelAsset(state, *asset);
-}
-
-std::string_view GetLuaString(lua_State* state, int index) {
-  size_t len;
-  const char* data = luaL_checklstring(state, index, &len);
-  return std::string_view(data, len);
 }
 
 PHYSFS_EnumerateCallbackResult LuaListDirectory(void* userdata, const char* dir,
@@ -1277,8 +1298,14 @@ void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
   return allocator_->Realloc(ptr, osize, nsize, /*align=*/1);
 }
 
-Lua::Lua(size_t argc, const char** argv, DbAssets* assets, Allocator* allocator)
-    : argc_(argc), argv_(argv), allocator_(allocator), assets_(assets) {}
+Lua::Lua(size_t argc, const char** argv, sqlite3* db, DbAssets* assets,
+         Allocator* allocator)
+    : argc_(argc),
+      argv_(argv),
+      allocator_(allocator),
+      db_(db),
+      assets_(assets),
+      compilation_cache_(allocator) {}
 
 void Lua::Crash() {
   std::string_view message = GetLuaString(state_, 1);
@@ -1339,6 +1366,56 @@ constexpr std::array<luaL_Reg, 4> kByteBufferMethods = {
         return 1;
       }}}};
 
+bool Lua::LoadFromCache(std::string_view script_name, lua_State* state) {
+  std::string_view cached;
+  if (compilation_cache_.Lookup(script_name, &cached)) {
+    LOG("Found cached compilation for ", script_name);
+    lua_pushlstring(state, cached.data(), cached.size());
+    return true;
+  }
+  return false;
+}
+
+void Lua::InsertIntoCache(std::string_view script_name, lua_State* state) {
+  std::string_view compiled = GetLuaString(state, -1);
+  auto* buffer = allocator_->Alloc(compiled.size(), 1);
+  std::memcpy(buffer, compiled.data(), compiled.size());
+  compilation_cache_.Insert(script_name, compiled);
+}
+
+void Lua::FlushCompilationCache() {
+  LOG("Flushing compilation cache");
+  sqlite3_exec(db_, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
+  FixedStringBuffer<256> sql(R"(
+    INSERT OR REPLACE 
+    INTO compilation_cache (source_name, source_hash_low, source_hash_high, compiled) 
+    VALUES (?, ?, ?, ?);"
+  )");
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
+    return;
+  }
+  for (const auto& script : assets_->GetScripts()) {
+    std::string_view contents;
+    if (!compilation_cache_.Lookup(script.name, &contents)) {
+      continue;
+    }
+    XXH128_hash_t checksum = assets_->GetChecksum(script.name);
+    sqlite3_bind_text(stmt, 1, script.name.data(), script.name.size(),
+                      SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 2, checksum.low64);
+    sqlite3_bind_int64(stmt, 3, checksum.high64);
+    sqlite3_bind_text(stmt, 4, contents.data(), contents.size(), SQLITE_STATIC);
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+      DIE("Failed to flush compilation cache: ", sqlite3_errmsg(db_));
+    }
+    sqlite3_reset(stmt);
+  }
+  sqlite3_finalize(stmt);
+  sqlite3_exec(db_, "END TRANSACTION", nullptr, nullptr, nullptr);
+}
+
 void Lua::LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
                         size_t register_count) {
   luaL_newmetatable(state_, metatable_name);
@@ -1394,6 +1471,7 @@ void Lua::LoadLibraries() {
 
 void Lua::LoadScripts() {
   READY();
+  BuildCompilationCache();
   for (const auto& script : assets_->GetScripts()) {
     std::string_view asset_name = script.name;
     if (asset_name == "main.lua") continue;
@@ -1445,6 +1523,29 @@ void Lua::SetError(std::string_view file, int line, std::string_view error) {
   flush();
 }
 
+void Lua::BuildCompilationCache() {
+  FixedStringBuffer<256> sql(R"(
+      SELECT c.source_name, c.compiled FROM asset_metadata a 
+      INNER JOIN compilation_cache c 
+      WHERE a.name = c.source_name AND c.source_hash_low = a.hash_low 
+      AND c.source_hash_high = a.hash_high
+    )");
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+  }
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    auto* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+    auto* contents =
+        reinterpret_cast<const char*>(sqlite3_column_blob(stmt, 1));
+    size_t content_size = sqlite3_column_bytes(stmt, 1);
+    auto* buffer = static_cast<char*>(allocator_->Alloc(content_size, 1));
+    std::memcpy(buffer, contents, content_size);
+    compilation_cache_.Insert(name, std::string_view(buffer, content_size));
+  }
+  sqlite3_finalize(stmt);
+}
+
 void Lua::LoadMain() {
   READY();
   LOG("Loading main file main.lua");
@@ -1452,6 +1553,7 @@ void Lua::LoadMain() {
   CHECK(main != nullptr, "Unknown script main.lua");
   LoadLuaAsset(state_, *main, traceback_handler_);
   CHECK(lua_istable(state_, -1), "Main script does not define a table");
+  FlushCompilationCache();
   // Check all important functions are defined.
   for (const char* fn : {"init", "update", "draw"}) {
     lua_getfield(state_, -1, fn);

@@ -106,7 +106,8 @@ class DbAssets {
         shaders_map_(allocator),
         shaders_(allocator),
         text_files_map_(allocator),
-        text_files_(allocator) {}
+        text_files_(allocator),
+        checksums_(allocator) {}
 
   void Load();
 
@@ -162,6 +163,8 @@ class DbAssets {
     return shader;
   }
 
+  XXH128_hash_t GetChecksum(std::string_view asset);
+
   ArrayView<Shader> GetShaders() const { return MakeArrayView(&shaders_); }
 
   void Trace(unsigned int sql_type, void* p, void* x);
@@ -207,6 +210,8 @@ class DbAssets {
   DynArray<Shader> shaders_;
   Dictionary<TextFile*> text_files_map_;
   DynArray<TextFile> text_files_;
+
+  Dictionary<XXH128_hash_t> checksums_;
 };
 
 }  // namespace G

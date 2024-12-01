@@ -42,9 +42,7 @@ class Dictionary {
 
   T LookupOrDie(std::string_view key) const {
     T result;
-    T* ptr;
-    CHECK(Lookup(key, &ptr), "No key ", key, " found");
-    result = *ptr;
+    CHECK(Lookup(key, &result), "No key ", key, " found");
     return result;
   }
 

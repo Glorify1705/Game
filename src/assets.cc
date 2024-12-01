@@ -5,14 +5,6 @@
 #include "clock.h"
 
 namespace G {
-namespace {
-
-int TraceCallback(unsigned int type, void* ctx, void* p, void* x) {
-  static_cast<DbAssets*>(ctx)->Trace(type, p, x);
-  return 0;
-}
-
-}  // namespace
 
 void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
                           size_t size) {
@@ -225,9 +217,11 @@ void DbAssets::ReserveBufferForType(std::string_view type, size_t count) {
   }
 }
 
+XXH128_hash_t DbAssets::GetChecksum(std::string_view asset) {
+  return checksums_.LookupOrDie(asset);
+}
+
 void DbAssets::Load() {
-  sqlite3_trace_v2(db_, SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE, TraceCallback,
-                   this);
   size_t total_size = 0;
   {
     // Presize all the buffers.
@@ -281,7 +275,8 @@ void DbAssets::Load() {
       {.name = std::string_view(), .load = nullptr},
   };
   FixedStringBuffer<256> sql(
-      "SELECT name, LENGTH(name), type, size FROM asset_metadata ORDER BY "
+      "SELECT name, LENGTH(name), type, size, hash_low, hash_high FROM "
+      "asset_metadata ORDER BY "
       "type");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -297,6 +292,9 @@ void DbAssets::Load() {
     content_size_ += size;
     std::string_view namestr(name, name_length);
     std::string_view saved_name = PushName(namestr);
+    XXH128_hash_t checksum;
+    checksum.low64 = sqlite3_column_int(stmt, 4);
+    checksum.high64 = sqlite3_column_int(stmt, 5);
     for (const Loader& loader : kLoaders) {
       if (loader.name.empty()) {
         LOG("No loader for asset ", name, " with type ", type);
@@ -310,6 +308,7 @@ void DbAssets::Load() {
           break;
         }
         (this->*method)(saved_name, buffer, size);
+        checksums_.Insert(namestr, checksum);
         break;
       }
     }
