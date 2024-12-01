@@ -173,11 +173,7 @@ class DbAssets {
   }
 
   std::string_view PushName(std::string_view s) {
-    std::string_view result(&name_buffer_[name_size_], s.size());
-    std::memcpy(&name_buffer_[name_size_], s.data(), s.size());
-    name_size_ += s.size();
-    name_buffer_[name_size_++] = '\0';
-    return result;
+    return StringByHandle(StringIntern(s));
   }
 
   void LoadScript(std::string_view name, uint8_t* buffer, size_t size);
@@ -191,9 +187,6 @@ class DbAssets {
 
   sqlite3* db_;
   Allocator* allocator_;
-
-  size_t name_size_;
-  char* name_buffer_;
 
   size_t content_size_;
   uint8_t* content_buffer_;

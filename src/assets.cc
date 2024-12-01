@@ -228,24 +228,19 @@ void DbAssets::ReserveBufferForType(std::string_view type, size_t count) {
 void DbAssets::Load() {
   sqlite3_trace_v2(db_, SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE, TraceCallback,
                    this);
-  size_t total_size = 0, total_names = 0;
+  size_t total_size = 0;
   {
     // Presize all the buffers.
     FixedStringBuffer<256> sql(
-        "SELECT type, SUM(size), SUM(LENGTH(name)), COUNT(*) FROM "
-        "asset_metadata GROUP BY type");
+        "SELECT type, SUM(size), COUNT(*) FROM asset_metadata GROUP BY type");
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
     }
     while (sqlite3_step(stmt) == SQLITE_ROW) {
       const size_t size_by_type = sqlite3_column_int(stmt, 1);
-      const size_t names_by_type = sqlite3_column_int(stmt, 2);
-      const size_t count = sqlite3_column_int(stmt, 3);
+      const size_t count = sqlite3_column_int(stmt, 2);
       total_size += size_by_type;
-      total_names += names_by_type;
-      // Count the number of null terminators for all strings.
-      total_names += count;
       std::string_view type(
           reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
       ReserveBufferForType(type, count);
@@ -256,29 +251,18 @@ void DbAssets::Load() {
   {
     // Add the length and count of sprite names of all the spritesheets.
     // Also add the length of image names for buffers.
-    FixedStringBuffer<256> sql(
-        "SELECT SUM(sprite_name_length), SUM(sprites), SUM(LENGTH(image)), "
-        "COUNT(*) FROM spritesheets");
+    FixedStringBuffer<256> sql("SELECT SUM(sprites) FROM spritesheets");
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
     }
     CHECK(sqlite3_step(stmt) == SQLITE_ROW,
           "Could not read asset metadata: ", sqlite3_errmsg(db_));
-    total_names += sqlite3_column_int(stmt, 0);
-    const size_t sprites = sqlite3_column_int(stmt, 1);
-    // Count the number of null terminators for all strings.
-    total_names += sprites;
+    const size_t sprites = sqlite3_column_int(stmt, 0);
     total_sprites += sprites;
-    // Count the length of images. Also add one null terminator for image.
-    total_names += sqlite3_column_int(stmt, 2);
-    total_names += sqlite3_column_int(stmt, 3);
     sqlite3_finalize(stmt);
   }
   sprites_.Reserve(total_sprites);
-  name_size_ = 0;
-  name_buffer_ =
-      reinterpret_cast<char*>(allocator_->Alloc(total_names, /*align=*/1));
   content_size_ = 0;
   content_buffer_ =
       reinterpret_cast<uint8_t*>(allocator_->Alloc(total_size, /*align=*/1));
