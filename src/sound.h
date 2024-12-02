@@ -13,8 +13,8 @@ class Sound {
  public:
   explicit Sound(const DbAssets& assets, Allocator* allocator)
       : assets_(&assets),
-        chunks_(128, allocator),
-        musics_(128, allocator),
+        chunks_(256, allocator),
+        musics_(256, allocator),
         chunk_by_name_(allocator),
         music_by_name_(allocator) {}
   ~Sound();

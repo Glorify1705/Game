@@ -787,14 +787,14 @@ const struct luaL_Reg kSoundLib[] = {
        int repeat = Sound::kLoop;
        const int num_args = lua_gettop(state);
        if (num_args == 2) repeat = luaL_checknumber(state, 2);
-       sound->PlayMusic(name.data(), repeat);
+       sound->PlayMusic(name, repeat);
        return 0;
      }},
     {"play_sfx",
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
        auto* sound = Registry<Sound>::Retrieve(state);
-       sound->PlaySoundEffect(name.data());
+       sound->PlaySoundEffect(name);
        return 0;
      }},
     {"stop",

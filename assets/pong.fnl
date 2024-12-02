@@ -5,7 +5,7 @@
              :player-width 20
              :state :serve
              :player-height 150
-             :max-score 3
+             :max-score 10
              :ball-radius 10})
 
 (lambda Game.init [g]
@@ -39,10 +39,11 @@
   (when (= g.state :serve)
     (let [{: max-score} g]
       (if (or (>= g.left-score max-score) (>= g.right-score max-score))
-          (tset g :state :finished)
+          (do (tset g :state :finished) (G.sound.play_music :game-over.ogg 0))
           (when (G.input.is_key_pressed :space)
             (set g.ball.speed {:x 400 :y 400})
             (set g.state :running)))))
+  (var collided false)
   (when (= g.state :running)
     (let [{:width w
            :height h
@@ -50,48 +51,62 @@
            :player-height ph
            :ball-radius br
            :ball {: x : y :speed {:x dx :y dy}}} g]
-      (let [nx (+ x (* dt dx))
-            ny (+ y (* dt dy))]
-        (let [{:x px :y py} g.left-player]
-          (when (collides-with-pad? px py (+ px pw) (+ py ph) nx ny br)
-            (set g.ball.speed.x (- g.ball.speed.x))))
-        (let [{:x px :y py} g.right-player]
-          (when (collides-with-pad? px py (+ px pw) (+ py ph) nx ny br)
-            (set g.ball.speed.x (- g.ball.speed.x))))
-        (when (= g.state :running)
-          (if (>= nx (/ br 2))
-              (do
-                (set g.ball.x nx))
-              (do
-                (set g.right-score (+ 1 g.right-score))
-                (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
-                (set g.right-player {:x (- w 30) :y (- (/ h 2) (/ ph 2))})
-                (set g.ball {:x (/ w 2) :y (/ h 2) :speed {:x 0 :y 0}})
-                (set g.state :serve))))
-        (when (= g.state :running)
-          (if (<= nx (- w (/ br 2)))
-              (do
-                (set g.ball.x nx))
-              (do
-                (set g.left-score (+ 1 g.left-score))
-                (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
-                (set g.right-player {:x (- w 30) :y (- (/ h 2) (/ ph 2))})
-                (set g.ball {:x (/ w 2) :y (/ h 2) :speed {:x 0 :y 0}})
-                (set g.state :serve))))
-        (when (= (. g :state) :running)
-          (if (>= ny br)
-              (do
-                (set g.ball.y ny))
-              (do
-                (set g.ball.y br)
-                (set g.ball.speed.y (- g.ball.speed.y)))))
-        (when (= (. g :state) :running)
-          (if (<= ny (- h br))
-              (do
-                (set g.ball.y ny))
-              (do
-                (set g.ball.y (- h br))
-                (set g.ball.speed.y (- g.ball.speed.y))))))))
+      (for [i 0 10 &until collided]
+        (let [step (* i (/ dt 10))
+              nx (+ x (* step dx))
+              ny (+ y (* step dy))]
+          (let [{:x px :y py} g.left-player]
+            (when (collides-with-pad? px py (+ px pw) (+ py ph) nx ny br)
+              (G.sound.play_sfx :pong-blip1.wav)
+              (set g.ball.speed.x (- g.ball.speed.x))
+              (set g.ball.x (+ pw 15 (/ br 2)))
+              (set collided true)))
+          (let [{:x px :y py} g.right-player]
+            (when (collides-with-pad? px py (+ px pw) (+ py ph) nx ny br)
+              (G.sound.play_sfx :pong-blip1.wav)
+              (set g.ball.x (- w 15 pw (/ br 2)))
+              (set g.ball.speed.x (- g.ball.speed.x))
+              (set collided true)))
+          (when (and (not collided) (= g.state :running))
+            (if (>= nx (/ br 2))
+                (do
+                  (set g.ball.x nx))
+                (do
+                  (G.sound.play_sfx :pong-score.wav)
+                  (set g.right-score (+ 1 g.right-score))
+                  (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
+                  (set g.right-player {:x (- w 30) :y (- (/ h 2) (/ ph 2))})
+                  (set g.ball {:x (/ w 2) :y (/ h 2) :speed {:x 0 :y 0}})
+                  (set g.state :serve))))
+          (when (and (not collided) (= g.state :running))
+            (if (<= nx (- w (/ br 2)))
+                (do
+                  (set g.ball.x nx))
+                (do
+                  (G.sound.play_sfx :pong-score.wav)
+                  (set g.left-score (+ 1 g.left-score))
+                  (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
+                  (set g.right-player {:x (- w 30) :y (- (/ h 2) (/ ph 2))})
+                  (set g.ball {:x (/ w 2) :y (/ h 2) :speed {:x 0 :y 0}})
+                  (set g.state :serve))))
+          (when (and (not collided) (= g.state :running))
+            (if (>= ny br)
+                (do
+                  (set g.ball.y ny))
+                (do
+                  (G.sound.play_sfx :pong-blip2.wav)
+                  (set g.ball.y br)
+                  (set g.ball.speed.y (- g.ball.speed.y))
+                  (set collided true))))
+          (when (and (not collided) (= g.state :running))
+            (if (<= ny (- h br))
+                (do
+                  (set g.ball.y ny))
+                (do
+                  (G.sound.play_sfx :pong-blip2.wav)
+                  (set g.ball.y (- h br))
+                  (set g.ball.speed.y (- g.ball.speed.y))
+                  (set collided true))))))))
   (when (let [s g.state] (or (= s :running) (= s :serve)))
     (let [{:width w :height h} g]
       (when (G.input.is_key_down :w)

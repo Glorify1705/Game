@@ -4721,16 +4721,13 @@ package.preload["fennel.parser"] = package.preload["fennel.parser"]
 					end
 				end
 				local function parse_prefix(b)
-					table.insert(
-						stack,
-						{
-							bytestart = byteindex,
-							col = (col - 1),
-							filename = filename,
-							line = line,
-							prefix = prefixes[b],
-						}
-					)
+					table.insert(stack, {
+						bytestart = byteindex,
+						col = (col - 1),
+						filename = filename,
+						line = line,
+						prefix = prefixes[b],
+					})
 					local nextb = getb()
 					if whitespace_3f(nextb) or (true == delims[nextb]) then
 						if b ~= 35 then

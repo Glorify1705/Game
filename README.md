@@ -4,6 +4,12 @@
 
 `sheet.xml` and `sheet.qoi` from asset pack SpaceShooterRedux https://www.kenney.nl/assets/space-shooter-redux.
 
+`game-over.ogg` is converted with ffmpeg from https://pixabay.com/sound-effects/game-over-arcade-6435.
+
+`pong-blip1.wav` and `pong-blip2.wav` are from https://freesound.org/people/NoiseCollector/packs/254/
+
+`pong-score.wav` is from https://freesound.org/people/KSAplay/sounds/758958.
+
 # TODO
 
 - [X] Assets as a zip file.
