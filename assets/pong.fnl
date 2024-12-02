@@ -39,7 +39,9 @@
   (when (= g.state :serve)
     (let [{: max-score} g]
       (if (or (>= g.left-score max-score) (>= g.right-score max-score))
-          (do (tset g :state :finished) (G.sound.play_music :game-over.ogg 0))
+          (do
+            (tset g :state :finished)
+            (G.sound.play_music :game-over.ogg 0))
           (when (G.input.is_key_pressed :space)
             (set g.ball.speed {:x 400 :y 400})
             (set g.state :running)))))
