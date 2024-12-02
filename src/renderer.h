@@ -56,8 +56,8 @@ class BatchRenderer {
     AddCommand(kAddLinePoint, /*count=*/n, ps, n * sizeof(FVec2));
   }
 
-  void SetShaderProgram(std::string_view fragment_shader_name) {
-    AddCommand(kSetShader, SetShader{StringIntern(fragment_shader_name)});
+  void SetShaderProgram(std::string_view program_name) {
+    AddCommand(kSetShader, SetShader{StringIntern(program_name)});
   }
 
   void SetActiveLineWidth(float width) {
@@ -166,14 +166,6 @@ class BatchRenderer {
   };
 
   class CommandIterator;
-
-  void SwitchShaderProgram(uint32_t handle) {
-    shaders_->UseProgram(StringByHandle(handle));
-  }
-
-  void SwitchShaderProgram(std::string_view fragment_shader_name) {
-    SwitchShaderProgram(StringIntern(fragment_shader_name));
-  }
 
   template <typename T>
   void AddCommand(CommandType command, const T& data) {

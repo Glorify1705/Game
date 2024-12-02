@@ -177,10 +177,20 @@ bool Shaders::Link(std::string_view name, std::string_view vertex_shader,
     glGetProgramInfoLog(shader_program, sizeof(info_log), nullptr, info_log);
     return FillError("Could not link shaders into ", name, ": ", info_log);
   }
-  LOG("Linked program ", name, " with id ", shader_program);
+  LOG("Linked program ", name, " with id ", shader_program,
+      " from vertex shader ", vertex, " (", vertex_shader,
+      ") and fragment shader ", fragment, " (", fragment_shader, ")");
   gl_program_handles_.Push(shader_program);
   compiled_programs_.Insert(name, shader_program);
   return true;
+}
+
+void Shaders::UseProgram(std::string_view program) {
+  GLuint program_id;
+  CHECK(compiled_programs_.Lookup(program, &program_id),
+        " could not find program ", program);
+  current_program_ = program_id;
+  OPENGL_CALL(glUseProgram(current_program_));
 }
 
 }  // namespace G

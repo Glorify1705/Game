@@ -74,13 +74,7 @@ class Shaders {
   bool Link(std::string_view name, std::string_view vertex_shader,
             std::string_view fragment_shader);
 
-  void UseProgram(std::string_view program) {
-    GLuint program_id;
-    CHECK(compiled_programs_.Lookup(program, &program_id),
-          " could not find program ", program);
-    current_program_ = program_id;
-    OPENGL_CALL(glUseProgram(current_program_));
-  }
+  void UseProgram(std::string_view program);
 
   std::string_view LastError() const { return last_error_.piece(); };
 

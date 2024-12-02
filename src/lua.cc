@@ -425,7 +425,7 @@ const struct luaL_Reg kGraphicsLib[] = {
                                     : DbAssets::ShaderType::kFragment,
            name, code);
        if (!compiles) {
-         LUA_ERROR(state, "Could not compile shader %s: %s", name,
+         LUA_ERROR(state, "Could not compile shader ", name, ": ",
                    shaders->LastError());
        }
        return 0;
@@ -436,16 +436,15 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        std::string_view fragment_shader = GetLuaString(state, 1);
        std::string_view program_name = fragment_shader;
-       FixedStringBuffer<kMaxPathLength> buf(fragment_shader);
        if (!ConsumeSuffix(&program_name, ".frag")) {
-         LUA_ERROR(state,
-                   "Could not switch shader %s: not a fragment shader (i.e. "
+         LUA_ERROR(state, "Could not switch shader ", program_name,
+                   ": not a fragment shader (i.e. "
                    "name does not end in .frag)",
-                   buf, shaders->LastError());
+                   program_name);
          return 0;
        }
-       if (!shaders->Link(program_name, "post_pass.vert", fragment_shader)) {
-         LUA_ERROR(state, "Could not switch shader %s: %s", buf,
+       if (!shaders->Link(program_name, "pre_pass.vert", fragment_shader)) {
+         LUA_ERROR(state, "Could not switch shader ", program_name, ": ",
                    shaders->LastError());
          return 0;
        }
