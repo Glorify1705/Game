@@ -2,6 +2,7 @@
 
 #include "clock.h"
 #include "debug_font.h"
+#include "defer.h"
 #include "filesystem.h"
 #include "libraries/sqlite3.h"
 #include "lua.h"
@@ -28,12 +29,12 @@ class DbPacker {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
       return;
     }
+    DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     sqlite3_bind_blob(stmt, 2, buf, size, SQLITE_STATIC);
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
-    sqlite3_finalize(stmt);
   }
 
   void InsertScript(std::string_view filename, const uint8_t* buf,
@@ -57,6 +58,7 @@ class DbPacker {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
       return;
     }
+    DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     sqlite3_bind_int(stmt, 2, desc.width);
     sqlite3_bind_int(stmt, 3, desc.height);
@@ -65,7 +67,6 @@ class DbPacker {
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
-    sqlite3_finalize(stmt);
   }
 
   void InsertAudio(std::string_view filename, const uint8_t* buf, size_t size) {
@@ -105,6 +106,7 @@ class DbPacker {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
       return;
     }
+    DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, spritesheet.data(), spritesheet.size(),
                       SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, image, -1, SQLITE_STATIC);
@@ -115,7 +117,6 @@ class DbPacker {
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
-    sqlite3_finalize(stmt);
   }
 
   void InsertSpritesheet(std::string_view filename, const uint8_t* buf,
@@ -141,16 +142,16 @@ class DbPacker {
     lua_pop(state, 1);
     lua_pushstring(state, "sprites");
     lua_gettable(state, -2);
-    sqlite3_stmt* sprite_stmt;
+    sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(R"(
           INSERT OR REPLACE INTO sprites (name, spritesheet, x, y, width, height)
           VALUES (?, ?, ?, ?, ?, ?);
       )");
-    if (sqlite3_prepare_v2(db_, sql.str(), -1, &sprite_stmt, nullptr) !=
-        SQLITE_OK) {
+    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
       return;
     }
+    DEFER([&] { sqlite3_finalize(stmt); });
     size_t sprite_count = 0, sprite_name_length = 0;
     for (lua_pushnil(state); lua_next(state, -2); lua_pop(state, 1)) {
       sprite_count++;
@@ -176,21 +177,20 @@ class DbPacker {
       const uint32_t w = get_number("width");
       const uint32_t h = get_number("height");
 
-      sqlite3_bind_text(sprite_stmt, 1, namestr, namelen, SQLITE_TRANSIENT);
-      sqlite3_bind_text(sprite_stmt, 2, filename.data(), filename.size(),
+      sqlite3_bind_text(stmt, 1, namestr, namelen, SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 2, filename.data(), filename.size(),
                         SQLITE_STATIC);
-      sqlite3_bind_int(sprite_stmt, 3, x);
-      sqlite3_bind_int(sprite_stmt, 4, y);
-      sqlite3_bind_int(sprite_stmt, 5, w);
-      sqlite3_bind_int(sprite_stmt, 6, h);
-      if (sqlite3_step(sprite_stmt) != SQLITE_DONE) {
+      sqlite3_bind_int(stmt, 3, x);
+      sqlite3_bind_int(stmt, 4, y);
+      sqlite3_bind_int(stmt, 5, w);
+      sqlite3_bind_int(stmt, 6, h);
+      if (sqlite3_step(stmt) != SQLITE_DONE) {
         DIE("Could not insert data for ", namestr, " in ", filename, ": ",
             sqlite3_errmsg(db_));
       }
-      sqlite3_reset(sprite_stmt);
-      sqlite3_clear_bindings(sprite_stmt);
+      sqlite3_reset(stmt);
+      sqlite3_clear_bindings(stmt);
     }
-    sqlite3_finalize(sprite_stmt);
     InsertSpritesheetEntry(filename, width, height, sprite_count,
                            sprite_name_length, atlas);
     lua_pop(state, 1);
@@ -207,14 +207,43 @@ class DbPacker {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
       return;
     }
+    DEFER([&] { sqlite3_finalize(stmt); });
+    ArenaAllocator scratch(allocator_, Megabytes(1));
+    constexpr std::string_view kFragmentShaderPreamble = R"(
+      #version 460 core
+    )";
+    constexpr std::string_view kFragmentShaderPostamble = R"(
+      out vec4 frag_color;
+
+      in vec2 tex_coord;
+      in vec4 global_color;
+
+      uniform sampler2D screen_texture;
+
+      void main() { 
+          frag_color = effect(global_color, screen_texture, tex_coord);
+      }
+    )";
+    const size_t total_size = kFragmentShaderPreamble.size() + size +
+                              kFragmentShaderPostamble.size() + 1;
+    auto* assembled = reinterpret_cast<uint8_t*>(scratch.Alloc(total_size, 1));
+    size_t assembled_size = 0;
+    auto assemble = [&](const void* b, size_t s) {
+      std::memcpy(&assembled[assembled_size], b, s);
+      assembled_size += s;
+    };
+    assemble(kFragmentShaderPreamble.data(), kFragmentShaderPostamble.size());
+    assemble(buffer, size);
+    assemble(kFragmentShaderPreamble.data(), kFragmentShaderPostamble.size());
+    assembled[assembled_size] = 0;
+    LOG(assembled);
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    sqlite3_bind_blob(stmt, 2, buffer, size, SQLITE_STATIC);
+    sqlite3_bind_blob(stmt, 2, assembled, assembled_size, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 3,
                       HasSuffix(filename, "vert") ? "vertex" : "fragment", -1,
                       SQLITE_STATIC);
     CHECK(sqlite3_step(stmt) == SQLITE_DONE, "Could not insert data for ",
           filename, ": ", sqlite3_errmsg(db_));
-    sqlite3_finalize(stmt);
   }
 
   void InsertIntoAssetMeta(std::string_view filename, size_t size,
@@ -227,6 +256,7 @@ class DbPacker {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
       return;
     }
+    DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     sqlite3_bind_int(stmt, 2, size);
     sqlite3_bind_text(stmt, 3, type.data(), type.size(), SQLITE_STATIC);
@@ -235,7 +265,6 @@ class DbPacker {
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
-    sqlite3_finalize(stmt);
   }
 
   void HandleFile(const char* directory, const char* filename) {
@@ -313,6 +342,7 @@ class DbPacker {
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
     }
+    DEFER([&] { sqlite3_finalize(stmt); });
     while (sqlite3_step(stmt) == SQLITE_ROW) {
       auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
       int64_t hash_low = sqlite3_column_int64(stmt, 1);

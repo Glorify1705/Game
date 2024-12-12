@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "clock.h"
+#include "defer.h"
 
 namespace G {
 
@@ -13,6 +14,7 @@ void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
+  DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
@@ -23,7 +25,6 @@ void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
   script.size = size;
   scripts_.Push(script);
   scripts_map_.Insert(filename, &scripts_.back());
-  sqlite3_finalize(stmt);
 }
 
 void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer,
@@ -33,6 +34,7 @@ void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer,
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
+  DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
@@ -43,7 +45,6 @@ void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer,
   font.size = size;
   fonts_.Push(font);
   fonts_map_.Insert(filename, &fonts_.back());
-  sqlite3_finalize(stmt);
 }
 
 void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
@@ -53,6 +54,7 @@ void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
+  DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
@@ -63,7 +65,6 @@ void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
   sound.size = size;
   sounds_.Push(sound);
   sounds_map_.Insert(filename, &sounds_.back());
-  sqlite3_finalize(stmt);
 }
 
 void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
@@ -74,6 +75,7 @@ void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
+  DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
@@ -87,7 +89,6 @@ void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
   shader.type = type == "vertex" ? ShaderType::kVertex : ShaderType::kFragment;
   shaders_.Push(shader);
   shaders_map_.Insert(filename, &shaders_.back());
-  sqlite3_finalize(stmt);
 }
 
 void DbAssets::LoadText(std::string_view filename, uint8_t* buffer,
@@ -97,6 +98,7 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer,
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
+  DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
@@ -107,7 +109,6 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer,
   file.size = size;
   text_files_.Push(file);
   text_files_map_.Insert(filename, &text_files_.back());
-  sqlite3_finalize(stmt);
 }
 
 void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
@@ -119,6 +120,7 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
     }
+    DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
     auto image = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
@@ -131,7 +133,6 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
     sheet.image = PushName(image);
     spritesheets_.Push(sheet);
     spritesheets_map_.Insert(filename, &spritesheets_.back());
-    sqlite3_finalize(stmt);
   }
   {
     FixedStringBuffer<256> sql(
@@ -140,6 +141,7 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
     }
+    DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     while (sqlite3_step(stmt) == SQLITE_ROW) {
       Sprite sprite;
@@ -157,7 +159,6 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
       sprites_.Push(sprite);
       sprites_map_.Insert(sprite.name, &sprites_.back());
     }
-    sqlite3_finalize(stmt);
   }
 }
 
@@ -169,6 +170,7 @@ void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
+  DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No image ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
@@ -183,7 +185,6 @@ void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
   image.size = size;
   images_.Push(image);
   images_map_.Insert(filename, &images_.back());
-  sqlite3_finalize(stmt);
 }
 
 void DbAssets::Trace(unsigned int type, void* p, void* x) {
@@ -231,6 +232,7 @@ void DbAssets::Load() {
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
     }
+    DEFER([&] { sqlite3_finalize(stmt); });
     while (sqlite3_step(stmt) == SQLITE_ROW) {
       const size_t size_by_type = sqlite3_column_int(stmt, 1);
       const size_t count = sqlite3_column_int(stmt, 2);
@@ -239,7 +241,6 @@ void DbAssets::Load() {
           reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
       ReserveBufferForType(type, count);
     }
-    sqlite3_finalize(stmt);
   }
   size_t total_sprites = 0;
   {
@@ -250,11 +251,11 @@ void DbAssets::Load() {
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
     }
+    DEFER([&] { sqlite3_finalize(stmt); });
     CHECK(sqlite3_step(stmt) == SQLITE_ROW,
           "Could not read asset metadata: ", sqlite3_errmsg(db_));
     const size_t sprites = sqlite3_column_int(stmt, 0);
     total_sprites += sprites;
-    sqlite3_finalize(stmt);
   }
   sprites_.Reserve(total_sprites);
   content_size_ = 0;
@@ -282,6 +283,7 @@ void DbAssets::Load() {
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
+  DEFER([&] { sqlite3_finalize(stmt); });
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
     auto name_length = sqlite3_column_int(stmt, 1);
@@ -313,7 +315,6 @@ void DbAssets::Load() {
       }
     }
   }
-  sqlite3_finalize(stmt);
 }
 
 }  // namespace G
