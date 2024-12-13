@@ -120,6 +120,12 @@ class Lua {
   void LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
                      size_t register_count);
 
+  template <size_t N>
+  void LoadMetatable(const char* metatable_name,
+                     const luaL_Reg (&registers)[N]) {
+    LoadMetatable(metatable_name, registers, N);
+  }
+
   void SetPackagePreload(std::string_view filename);
 
   void* Alloc(void* ptr, size_t osize, size_t nsize);

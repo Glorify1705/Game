@@ -208,37 +208,8 @@ class DbPacker {
       return;
     }
     DEFER([&] { sqlite3_finalize(stmt); });
-    ArenaAllocator scratch(allocator_, Megabytes(1));
-    constexpr std::string_view kFragmentShaderPreamble = R"(
-      #version 460 core
-    )";
-    constexpr std::string_view kFragmentShaderPostamble = R"(
-      out vec4 frag_color;
-
-      in vec2 tex_coord;
-      in vec4 global_color;
-
-      uniform sampler2D screen_texture;
-
-      void main() { 
-          frag_color = effect(global_color, screen_texture, tex_coord);
-      }
-    )";
-    const size_t total_size = kFragmentShaderPreamble.size() + size +
-                              kFragmentShaderPostamble.size() + 1;
-    auto* assembled = reinterpret_cast<uint8_t*>(scratch.Alloc(total_size, 1));
-    size_t assembled_size = 0;
-    auto assemble = [&](const void* b, size_t s) {
-      std::memcpy(&assembled[assembled_size], b, s);
-      assembled_size += s;
-    };
-    assemble(kFragmentShaderPreamble.data(), kFragmentShaderPostamble.size());
-    assemble(buffer, size);
-    assemble(kFragmentShaderPreamble.data(), kFragmentShaderPostamble.size());
-    assembled[assembled_size] = 0;
-    LOG(assembled);
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    sqlite3_bind_blob(stmt, 2, assembled, assembled_size, SQLITE_STATIC);
+    sqlite3_bind_blob(stmt, 2, buffer, size, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 3,
                       HasSuffix(filename, "vert") ? "vertex" : "fragment", -1,
                       SQLITE_STATIC);

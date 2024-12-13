@@ -11,10 +11,12 @@
     cmake
     fnlfmt
     gdb
+    gperftools
     libGL
     libGLU
     mesa
     ninja
+    pprof
     python3
     renderdoc
     sqlite

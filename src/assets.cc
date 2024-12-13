@@ -79,7 +79,7 @@ void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-  auto type_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  auto type_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
   std::string_view type(type_str);
   std::memcpy(buffer, contents, size);
   Shader shader;

@@ -403,6 +403,7 @@ void BatchRenderer::Render(Allocator* scratch) {
         line_width = c.set_line_width.width;
         break;
       case kSetColor:
+        color = c.set_color.color;
         break;
       case kDone:
         flush();
@@ -424,6 +425,7 @@ void BatchRenderer::Render(Allocator* scratch) {
   shaders_->UseProgram("post_pass");
   glActiveTexture(GL_TEXTURE1);
   shaders_->SetUniform("screen_texture", 1);
+  shaders_->SetUniform("color", color.ToFloat());
   OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));

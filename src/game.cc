@@ -85,7 +85,8 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
   auto l = static_cast<const OpenGLSourceLine*>(user_param);
   if (type == GL_DEBUG_TYPE_ERROR) {
     Log(l->file, l->line, "GL ERROR ", " type = ", type,
-        " severity = ", severity, " message = ", message);
+        " severity = ", severity, " message = ", message,
+        ". Context = ", l->buffer);
     _INTERNAL_GAME_TRAP();
   }
 }
@@ -94,7 +95,6 @@ DbAssets* GetAssets(const char* argv[], size_t argc, sqlite3* db,
                     Allocator* allocator) {
   WriteAssetsToDb(argv[0], db, allocator);
   DbAssets* result = ReadAssetsFromDb(db, allocator);
-  sqlite3_close(db);
   return result;
 }
 

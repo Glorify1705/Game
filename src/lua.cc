@@ -6,6 +6,7 @@
 #include "SDL.h"
 #include "clock.h"
 #include "console.h"
+#include "defer.h"
 #include "filesystem.h"
 #include "image.h"
 #include "input.h"
@@ -434,7 +435,12 @@ const struct luaL_Reg kGraphicsLib[] = {
      [](lua_State* state) {
        auto* renderer = Registry<BatchRenderer>::Retrieve(state);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       std::string_view fragment_shader = GetLuaString(state, 1);
+       std::string_view fragment_shader;
+       if (lua_gettop(state) == 0) {
+         fragment_shader = "post_pass.frag";
+       } else {
+         fragment_shader = GetLuaString(state, 1);
+       }
        std::string_view program_name = fragment_shader;
        if (!ConsumeSuffix(&program_name, ".frag")) {
          LUA_ERROR(state, "Could not switch shader ", program_name,
@@ -460,92 +466,11 @@ const struct luaL_Reg kGraphicsLib[] = {
            LUA_ERROR(state, "Could not set uniform ", name, ": ",
                      shaders->LastError());
          }
-         return 0;
-       }
-       if (!lua_istable(state, 2)) {
-         LUA_ERROR(state, "Not a table");
-         return 0;
-       }
-       switch (lua_objlen(state, 2)) {
-         case 2:
-           if (!shaders->SetUniform(name, FromLuaTable<FVec2>(state, 2))) {
-             LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                       shaders->LastError());
-           };
-           break;
-         case 3:
-           if (!shaders->SetUniform(name, FromLuaTable<FVec3>(state, 2))) {
-             LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                       shaders->LastError());
-           };
-           break;
-         case 4:
-           if (!shaders->SetUniform(name, FromLuaTable<FVec4>(state, 2))) {
-             LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                       shaders->LastError());
-           }
-
-           break;
-       }
-       return 0;
-     }},
-    {"send_f2_uniform",
-     [](lua_State* state) {
-       auto* shaders = Registry<Shaders>::Retrieve(state);
-       const char* name = luaL_checkstring(state, 1);
-       if (!shaders->SetUniform(name, FromLuaTable<FVec2>(state, 2))) {
-         LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError());
-       }
-       return 0;
-     }},
-    {"send_f3_uniform",
-     [](lua_State* state) {
-       auto* shaders = Registry<Shaders>::Retrieve(state);
-       const char* name = luaL_checkstring(state, 1);
-       if (!shaders->SetUniform(name, FromLuaTable<FVec3>(state, 2))) {
-         LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError());
-       }
-       return 0;
-     }},
-    {"send_f4_uniform",
-     [](lua_State* state) {
-       auto* shaders = Registry<Shaders>::Retrieve(state);
-       const char* name = luaL_checkstring(state, 1);
-       if (!shaders->SetUniform(name, FromLuaTable<FVec4>(state, 2))) {
-         LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError());
-       }
-       return 0;
-     }},
-    {"send_f2x2_uniform",
-     [](lua_State* state) {
-       auto* shaders = Registry<Shaders>::Retrieve(state);
-       const char* name = luaL_checkstring(state, 1);
-       if (!shaders->SetUniform(name, FromLuaTable<FMat2x2>(state, 2))) {
-         LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError());
-       }
-       return 0;
-     }},
-    {"send_f3x3_uniform",
-     [](lua_State* state) {
-       auto* shaders = Registry<Shaders>::Retrieve(state);
-       const char* name = luaL_checkstring(state, 1);
-       if (!shaders->SetUniform(name, FromLuaTable<FMat3x3>(state, 2))) {
-         LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError());
-       }
-       return 0;
-     }},
-    {"send_f4x4_uniform",
-     [](lua_State* state) {
-       auto* shaders = Registry<Shaders>::Retrieve(state);
-       const char* name = luaL_checkstring(state, 1);
-       if (!shaders->SetUniform(name, FromLuaTable<FMat4x4>(state, 2))) {
-         LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                   shaders->LastError());
+       } else {
+         if (!lua_getmetatable(state, 1)) {
+           LUA_ERROR(state, "Invalid parameter");
+         }
+         LUA_ERROR(state, "Unimplemented");
        }
        return 0;
      }},
@@ -623,12 +548,132 @@ const struct luaL_Reg kSystemLib[] = {
        return 1;
      }}};
 
+template <typename T, typename... Args>
+T* NewUserData(const char* metatable, lua_State* state, Args... args) {
+  auto* userdata = static_cast<T*>(lua_newuserdata(state, sizeof(T)));
+  luaL_getmetatable(state, metatable);
+  new (userdata) T(args...);
+  lua_setmetatable(state, -2);
+  return userdata;
+}
+
 const struct luaL_Reg kMathLib[] = {
-    {"clamp", [](lua_State* state) {
+    {"clamp",
+     [](lua_State* state) {
        const float x = luaL_checknumber(state, 1);
        const float low = luaL_checknumber(state, 2);
        const float high = luaL_checknumber(state, 3);
        lua_pushnumber(state, std::clamp(x, low, high));
+       return 1;
+     }},
+    {"v2",
+     [](lua_State* state) {
+       const float x = luaL_checknumber(state, 1);
+       const float y = luaL_checknumber(state, 2);
+       NewUserData<FVec2>("fvec2", state, x, y);
+       return 1;
+     }},
+    {"v3",
+     [](lua_State* state) {
+       const float x = luaL_checknumber(state, 1);
+       const float y = luaL_checknumber(state, 2);
+       const float z = luaL_checknumber(state, 3);
+       NewUserData<FVec3>("fvec3", state, x, y, z);
+       return 1;
+     }},
+    {"v4",
+     [](lua_State* state) {
+       const float x = luaL_checknumber(state, 1);
+       const float y = luaL_checknumber(state, 2);
+       const float z = luaL_checknumber(state, 3);
+       const float w = luaL_checknumber(state, 4);
+       NewUserData<FVec4>("fvec4", state, x, y, z, w);
+       return 1;
+     }},
+    {"m2x2",
+     [](lua_State* state) {
+       std::array<float, FMat2x2::kCardinality> values;
+       for (size_t i = 0; i < values.size(); i++) {
+         values[i] = luaL_checknumber(state, i + 1);
+       }
+       NewUserData<FMat2x2>("fmat2x2", state, values.data());
+       return 1;
+     }},
+    {"m3x3",
+     [](lua_State* state) {
+       std::array<float, FMat3x3::kCardinality> values;
+       for (size_t i = 0; i < values.size(); i++) {
+         values[i] = luaL_checknumber(state, i + 1);
+       }
+       NewUserData<FMat2x2>("fmat3x3", state, values.data());
+       return 1;
+     }},
+    {"m4x4", [](lua_State* state) {
+       std::array<float, FMat4x4::kCardinality> values;
+       for (size_t i = 0; i < values.size(); i++) {
+         values[i] = luaL_checknumber(state, i + 1);
+       }
+       NewUserData<FMat2x2>("fmat4x4", state, values.data());
+       return 1;
+     }}};
+
+constexpr luaL_Reg kV2Methods[] = {
+    {"send", [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
+       auto name = GetLuaString(state, 2);
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       bool result = shaders->SetUniform(name.data(), *v);
+       lua_pushboolean(state, result);
+       return 1;
+     }}};
+
+constexpr luaL_Reg kV3Methods[] = {
+    {"send", [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec3"));
+       auto name = GetLuaString(state, 2);
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       bool result = shaders->SetUniform(name.data(), *v);
+       lua_pushboolean(state, result);
+       return 1;
+     }}};
+
+constexpr luaL_Reg kV4Methods[] = {
+    {"send", [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec4"));
+       auto name = GetLuaString(state, 2);
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       bool result = shaders->SetUniform(name.data(), *v);
+       lua_pushboolean(state, result);
+       return 1;
+     }}};
+
+constexpr luaL_Reg kM2x2Methods[] = {
+    {"send", [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fmat2x2"));
+       auto name = GetLuaString(state, 2);
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       bool result = shaders->SetUniform(name.data(), *v);
+       lua_pushboolean(state, result);
+       return 1;
+     }}};
+
+constexpr luaL_Reg kM3x3Methods[] = {
+    {"send", [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fmat3x3"));
+       auto name = GetLuaString(state, 2);
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       bool result = shaders->SetUniform(name.data(), *v);
+       lua_pushboolean(state, result);
+       return 1;
+     }}};
+
+constexpr luaL_Reg kM4x4Methods[] = {
+    {"send", [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fmat4x4"));
+       auto name = GetLuaString(state, 2);
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       bool result = shaders->SetUniform(name.data(), *v);
+       lua_pushboolean(state, result);
        return 1;
      }}};
 
@@ -1319,51 +1364,51 @@ void Lua::Crash() {
     return;                    \
   }
 
-constexpr std::array<luaL_Reg, 4> kByteBufferMethods = {
-    {{"__index",
-      [](lua_State* state) {
-        auto* buffer = reinterpret_cast<ByteBuffer*>(
-            luaL_checkudata(state, 1, "byte_buffer"));
-        size_t index = luaL_checkinteger(state, 2);
-        if (index <= 0 || index > buffer->size) {
-          LUA_ERROR(state, "Index out of bounds ", index, " not in range [1, ",
-                    buffer->size, "]");
-        }
-        lua_pushinteger(state, buffer->contents[index]);
-        return 1;
-      }},
-     {"__len",
-      [](lua_State* state) {
-        auto* buffer = reinterpret_cast<ByteBuffer*>(
-            luaL_checkudata(state, 1, "byte_buffer"));
-        lua_pushinteger(state, buffer->size);
-        return 1;
-      }},
-     {"__tostring",
-      [](lua_State* state) {
-        auto* buffer = reinterpret_cast<ByteBuffer*>(
-            luaL_checkudata(state, 1, "byte_buffer"));
-        lua_pushlstring(state, reinterpret_cast<const char*>(buffer->contents),
-                        buffer->size);
-        return 1;
-      }},
-     {"__concat", [](lua_State* state) {
-        lua_getglobal(state, "tostring");
-        lua_pushvalue(state, 1);
-        lua_call(state, 1, 1);
-        lua_getglobal(state, "tostring");
-        lua_pushvalue(state, 2);
-        lua_call(state, 1, 1);
-        std::string_view a = GetLuaString(state, -2);
-        std::string_view b = GetLuaString(state, -1);
-        luaL_Buffer buffer;
-        luaL_buffinit(state, &buffer);
-        luaL_addlstring(&buffer, a.data(), a.size());
-        luaL_addlstring(&buffer, b.data(), b.size());
-        lua_pop(state, 2);
-        luaL_pushresult(&buffer);
-        return 1;
-      }}}};
+constexpr luaL_Reg kByteBufferMethods[] = {
+    {"__index",
+     [](lua_State* state) {
+       auto* buffer = reinterpret_cast<ByteBuffer*>(
+           luaL_checkudata(state, 1, "byte_buffer"));
+       size_t index = luaL_checkinteger(state, 2);
+       if (index <= 0 || index > buffer->size) {
+         LUA_ERROR(state, "Index out of bounds ", index, " not in range [1, ",
+                   buffer->size, "]");
+       }
+       lua_pushinteger(state, buffer->contents[index]);
+       return 1;
+     }},
+    {"__len",
+     [](lua_State* state) {
+       auto* buffer = reinterpret_cast<ByteBuffer*>(
+           luaL_checkudata(state, 1, "byte_buffer"));
+       lua_pushinteger(state, buffer->size);
+       return 1;
+     }},
+    {"__tostring",
+     [](lua_State* state) {
+       auto* buffer = reinterpret_cast<ByteBuffer*>(
+           luaL_checkudata(state, 1, "byte_buffer"));
+       lua_pushlstring(state, reinterpret_cast<const char*>(buffer->contents),
+                       buffer->size);
+       return 1;
+     }},
+    {"__concat", [](lua_State* state) {
+       lua_getglobal(state, "tostring");
+       lua_pushvalue(state, 1);
+       lua_call(state, 1, 1);
+       lua_getglobal(state, "tostring");
+       lua_pushvalue(state, 2);
+       lua_call(state, 1, 1);
+       std::string_view a = GetLuaString(state, -2);
+       std::string_view b = GetLuaString(state, -1);
+       luaL_Buffer buffer;
+       luaL_buffinit(state, &buffer);
+       luaL_addlstring(&buffer, a.data(), a.size());
+       luaL_addlstring(&buffer, b.data(), b.size());
+       lua_pop(state, 2);
+       luaL_pushresult(&buffer);
+       return 1;
+     }}};
 
 bool Lua::LoadFromCache(std::string_view script_name, lua_State* state) {
   std::string_view cached;
@@ -1395,6 +1440,7 @@ void Lua::FlushCompilationCache() {
     DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
     return;
   }
+  DEFER([&] { sqlite3_finalize(stmt); });
   for (const auto& script : assets_->GetScripts()) {
     std::string_view contents;
     if (!compilation_cache_.Lookup(script.name, &contents)) {
@@ -1411,7 +1457,6 @@ void Lua::FlushCompilationCache() {
     }
     sqlite3_reset(stmt);
   }
-  sqlite3_finalize(stmt);
   sqlite3_exec(db_, "END TRANSACTION", nullptr, nullptr, nullptr);
 }
 
@@ -1439,17 +1484,27 @@ void Lua::LoadLibraries() {
   });
   READY();
   Register(this);
+  // Load metatables.
+  LoadMetatable("fvec2", kV2Methods);
+  LoadMetatable("fvec3", kV3Methods);
+  LoadMetatable("fvec4", kV4Methods);
+  LoadMetatable("fmat2x2", kM2x2Methods);
+  LoadMetatable("fmat3x3", kM3x3Methods);
+  LoadMetatable("fmat4x4", kM4x4Methods);
   LoadMetatable("physics_handle", /*registers=*/nullptr, /*register_count=*/0);
   LoadMetatable("random_number_generator", /*registers=*/nullptr,
                 /*register_count=*/0);
-  LoadMetatable("byte_buffer", kByteBufferMethods.data(),
-                kByteBufferMethods.size());
+  LoadMetatable("byte_buffer", kByteBufferMethods);
+  // Create basic initial state.
   luaL_openlibs(state_);
+  // Create the global namespace table (G) so functions live under it (e.g.
+  // G.graphics.draw_rect).
   lua_newtable(state_);
   lua_setglobal(state_, "G");
   lua_pushcfunction(state_, Traceback);
   traceback_handler_ = lua_gettop(state_);
   Register(assets_);
+  // Add all libraries.
   AddLibrary(state_, "console", kConsoleLib);
   AddLibrary(state_, "graphics", kGraphicsLib);
   AddLibrary(state_, "input", kInputLib);
@@ -1523,16 +1578,17 @@ void Lua::SetError(std::string_view file, int line, std::string_view error) {
 }
 
 void Lua::BuildCompilationCache() {
-  FixedStringBuffer<256> sql(R"(
+  FixedStringBuffer<512> sql(R"(
       SELECT c.source_name, c.compiled FROM asset_metadata a 
       INNER JOIN compilation_cache c 
       WHERE a.name = c.source_name AND c.source_hash_low = a.hash_low 
-      AND c.source_hash_high = a.hash_high
+      AND c.source_hash_high = a.hash_high;
     )");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
+  DEFER([&] { sqlite3_finalize(stmt); });
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
     auto* contents =
@@ -1542,7 +1598,6 @@ void Lua::BuildCompilationCache() {
     std::memcpy(buffer, contents, content_size);
     compilation_cache_.Insert(name, std::string_view(buffer, content_size));
   }
-  sqlite3_finalize(stmt);
 }
 
 void Lua::LoadMain() {

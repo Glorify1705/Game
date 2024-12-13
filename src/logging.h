@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string_view>
 
+#include "constants.h"
 #include "strings.h"
 
 namespace G {
@@ -13,8 +14,6 @@ namespace G {
 enum LogLevel { LOG_LEVEL_INFO, LOG_LEVEL_FATAL };
 
 using LogSink = void (*)(LogLevel /*lvl*/, const char* /*message*/);
-
-inline constexpr size_t kMaxLogLineLength = 511;
 
 // Sets the sink for log messages.
 void SetLogSink(LogSink sink);
@@ -53,6 +52,28 @@ void Log(std::string_view file, int line, T&&... ts) {
   GetLogSink()(LOG_LEVEL_INFO, buf.str());
 }
 
+struct OpenGLSourceLine {
+  char file[kMaxPathLength] = {0};
+  size_t line = 0;
+  FixedStringBuffer<kMaxLogLineLength> buffer;
+};
+
+inline OpenGLSourceLine* GetOpenGLSourceLine() {
+  static OpenGLSourceLine l;
+  return &l;
+}
+
+template <typename... T>
+inline void SetOpenGLLine(const char* file, size_t line, T&&... ts) {
+#ifdef GAME_WITH_ASSERTS
+  auto* ptr = GetOpenGLSourceLine();
+  std::memcpy(&ptr->file, file, strlen(file) + 1);
+  ptr->buffer.Clear();
+  ptr->buffer.Append<T...>(std::forward<T>(ts)...);
+  ptr->line = line;
+#endif
+}
+
 }  // namespace G
 
 #define CHECK(cond, ...) \
@@ -70,28 +91,10 @@ void Log(std::string_view file, int line, T&&... ts) {
 #define DCHECK(...) CHECK(__VA_ARGS__)
 #endif
 
-struct OpenGLSourceLine {
-  char file[256] = {0};
-  size_t line = 0;
-};
-
-inline OpenGLSourceLine* GetOpenGLSourceLine() {
-  static OpenGLSourceLine l;
-  return &l;
-}
-
-inline void SetOpenGLLine(const char* file, size_t line) {
-#ifdef GAME_WITH_ASSERTS
-  auto* ptr = GetOpenGLSourceLine();
-  std::memcpy(&ptr->file, file, strlen(file) + 1);
-  ptr->line = line;
-#endif
-}
-
-#define OPENGL_CALL(f)                 \
-  do {                                 \
-    SetOpenGLLine(__FILE__, __LINE__); \
-    f;                                 \
+#define OPENGL_CALL(f, ...)                           \
+  do {                                                \
+    SetOpenGLLine(__FILE__, __LINE__, ##__VA_ARGS__); \
+    f;                                                \
   } while (0)
 
 #endif  // _GAME_LOGGING_H

@@ -8,12 +8,11 @@
 #include "allocators.h"
 #include "array.h"
 #include "config.h"
+#include "constants.h"
 #include "dictionary.h"
 #include "physfs.h"
 
 namespace G {
-
-inline static constexpr size_t kMaxPathLength = 256;
 
 #define PHYSFS_CHECK(cond, ...)                               \
   CHECK(cond, "Failed Phys condition " #cond " with error: ", \
