@@ -14,9 +14,12 @@
     (G.graphics.send_uniform :iResolution (G.math.v2 w h))))
 
 (fn Game.draw [self]
+  (G.graphics.set_color :green)
   (G.graphics.attach_shader :testshader.frag)
   (G.graphics.send_uniform :iTime self.t)
   (let [(w h) (G.window.dimensions)]
-    (G.graphics.send_uniform :iResolution (G.math.v2 w h))))
+    (G.graphics.send_uniform :iResolution (G.math.v2 w h))
+    (G.graphics.set_color :white)
+    (G.graphics.draw_rect 0 0 w h)))
 
 Game

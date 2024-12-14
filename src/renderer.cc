@@ -345,7 +345,7 @@ void BatchRenderer::Render(Allocator* scratch) {
           reinterpret_cast<void*>(offsetof(VertexData, color))));
       OPENGL_CALL(glEnableVertexAttribArray(color_attribute));
     }
-    shaders_->SetUniform("global_color", FVec4(1, 1, 1, 1));
+    shaders_->SetUniform("global_color", color.ToFloat());
   };
   set_program_state("pre_pass");
   // Render batches by finding changes to the OpenGL context.

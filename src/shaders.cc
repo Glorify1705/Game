@@ -20,6 +20,7 @@ constexpr std::string_view kPrePassVertexShader = R"(
 
     out vec2 tex_coord;
     out vec4 out_color;
+    out vec2 screen_coord;
 
     mat4 RotateZ(float angle) {
       mat4 result = mat4(1.0);
@@ -42,6 +43,7 @@ constexpr std::string_view kPrePassVertexShader = R"(
         gl_Position = projection * transform * rotation * vec4(input_position, 1.0);
         tex_coord = input_tex_coord;
         out_color = global_color * (color / 256.0);
+        screen_coord = input_position.xy;
     }
   )";
 
@@ -51,6 +53,7 @@ constexpr std::string_view kPrePassFragmentShader = R"(
 
     in vec2 tex_coord;
     in vec4 out_color;
+    in vec2 screen_coord;
 
     uniform sampler2D tex;
 
@@ -95,11 +98,13 @@ constexpr std::string_view kFragmentShaderPostamble = R"(
   out vec4 frag_color;
 
   in vec2 tex_coord;
+  in vec2 screen_coord;
+  in vec4 out_color;
 
   uniform sampler2D screen_texture;
 
   void main() { 
-      frag_color = effect(screen_texture, tex_coord);
+      frag_color = effect(out_color, screen_texture, tex_coord, screen_coord);
   }
 )";
 

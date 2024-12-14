@@ -21,8 +21,8 @@ vec3 palette( float t ) {
 }
 
 //https://www.shadertoy.com/view/mtyGWy
-vec4 effect( sampler2D screen_texture, vec2 fragCoord ) {
-    vec2 uv = (fragCoord * 2.0 - iResolution.xy) / iResolution.y;
+vec4 effect(vec4 color, sampler2D tex, vec2 tex_coord, vec2 screen_coord) {
+    vec2 uv = (screen_coord * 2.0 - iResolution.xy) / iResolution.y;
     vec2 uv0 = uv;
     vec3 finalColor = vec3(0.0);
     
@@ -41,5 +41,5 @@ vec4 effect( sampler2D screen_texture, vec2 fragCoord ) {
         finalColor += col * d;
     }
         
-    return vec4(finalColor, 1.0);
+    return vec4(finalColor, 1.0) * color;
 }

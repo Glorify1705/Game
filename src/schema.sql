@@ -59,3 +59,15 @@ CREATE INDEX IF NOT EXISTS idx_compilation_cache ON
     compilation_cache(source_name);
 
 CREATE INDEX IF NOT EXISTS idx_asset_metadata ON asset_metadata(name);
+
+CREATE TABLE IF NOT EXISTS trace_span(id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                      parent INTEGER,
+                                      name VARCHAR(255) NOT NULL,
+                                      begin_source_line VARCHAR(255) NOT NULL,
+                                      start TIMESTAMP,
+                                      end TIMESTAMP);
+
+CREATE TABLE IF NOT EXISTS trace_span_attribute(id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                parent INTEGER,
+                                                key VARCHAR(255),
+                                                value VARCHAR(255));
