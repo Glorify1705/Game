@@ -1,10 +1,11 @@
 (local Game {})
 
-(fn Game.init [])
+(fn Game.init [self]
+  (tset self :t 0))
 
 (fn Game.update [self t dt]
   (when (G.input.is_key_pressed :q) (G.system.quit))
-  (tset self t t))
+  (tset self :t t))
 
 (fn Game.draw1 [self]
   (G.graphics.attach_shader :testshader.frag)
@@ -12,6 +13,10 @@
   (let [(w h) (G.window.dimensions)]
     (G.graphics.send_uniform :iResolution (G.math.v2 w h))))
 
-(fn Game.draw [self] (G.graphics.attach_shader :crt.frag))
+(fn Game.draw [self]
+  (G.graphics.attach_shader :testshader.frag)
+  (G.graphics.send_uniform :iTime self.t)
+  (let [(w h) (G.window.dimensions)]
+    (G.graphics.send_uniform :iResolution (G.math.v2 w h))))
 
 Game

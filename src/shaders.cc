@@ -168,7 +168,6 @@ bool Shaders::Compile(DbAssets::ShaderType type, std::string_view name,
   size_t size = glsl.size();
   OPENGL_CALL(
       glShaderSource(shader, 1, &code, reinterpret_cast<const GLint*>(&size)));
-  LOG("Shader = [", name, "] = [", glsl, "]");
   OPENGL_CALL(glCompileShader(shader), "Compiling shader ", name, ": ", glsl);
   int success;
   glGetShaderiv(shader, GL_COMPILE_STATUS, &success);

@@ -21,7 +21,7 @@ namespace {
 #define LUA_ERROR(state, ...)                                                \
   do {                                                                       \
     FixedStringBuffer<kMaxLogLineLength> _luaerror_buffer;                   \
-    _luaerror_buffer.Append("[", Basename(__FILE__), ":", __LINE__,          \
+    _luaerror_buffer.Append(Basename(__FILE__), ":", __LINE__,               \
                             "]: ", ##__VA_ARGS__);                           \
     lua_pushlstring(state, _luaerror_buffer.str(), _luaerror_buffer.size()); \
     lua_error(state);                                                        \
@@ -455,6 +455,7 @@ const struct luaL_Reg kGraphicsLib[] = {
          return 0;
        }
        renderer->SetShaderProgram(program_name);
+       shaders->UseProgram(program_name);
        return 0;
      }},
     {"send_uniform",
@@ -467,10 +468,18 @@ const struct luaL_Reg kGraphicsLib[] = {
                      shaders->LastError());
          }
        } else {
-         if (!lua_getmetatable(state, 1)) {
+         if (!lua_getmetatable(state, 2)) {
            LUA_ERROR(state, "Invalid parameter");
          }
-         LUA_ERROR(state, "Unimplemented");
+         lua_getfield(state, -1, "__name");
+         lua_pop(state, 1);
+         lua_getfield(state, -1, "send_as_uniform");
+         if (!lua_isfunction(state, -1)) {
+           LUA_ERROR(state, "Passed parameter has no `send_as_uniform` method");
+         }
+         lua_pushvalue(state, 2);
+         lua_pushvalue(state, 1);
+         lua_call(state, 2, LUA_MULTRET);
        }
        return 0;
      }},
@@ -618,7 +627,7 @@ const struct luaL_Reg kMathLib[] = {
      }}};
 
 constexpr luaL_Reg kV2Methods[] = {
-    {"send", [](lua_State* state) {
+    {"send_as_uniform", [](lua_State* state) {
        auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
@@ -628,7 +637,7 @@ constexpr luaL_Reg kV2Methods[] = {
      }}};
 
 constexpr luaL_Reg kV3Methods[] = {
-    {"send", [](lua_State* state) {
+    {"send_as_uniform", [](lua_State* state) {
        auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec3"));
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
@@ -638,7 +647,7 @@ constexpr luaL_Reg kV3Methods[] = {
      }}};
 
 constexpr luaL_Reg kV4Methods[] = {
-    {"send", [](lua_State* state) {
+    {"send_as_uniform", [](lua_State* state) {
        auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec4"));
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
@@ -648,7 +657,7 @@ constexpr luaL_Reg kV4Methods[] = {
      }}};
 
 constexpr luaL_Reg kM2x2Methods[] = {
-    {"send", [](lua_State* state) {
+    {"send_as_uniform", [](lua_State* state) {
        auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fmat2x2"));
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
@@ -658,7 +667,7 @@ constexpr luaL_Reg kM2x2Methods[] = {
      }}};
 
 constexpr luaL_Reg kM3x3Methods[] = {
-    {"send", [](lua_State* state) {
+    {"send_as_uniform", [](lua_State* state) {
        auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fmat3x3"));
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
@@ -668,7 +677,7 @@ constexpr luaL_Reg kM3x3Methods[] = {
      }}};
 
 constexpr luaL_Reg kM4x4Methods[] = {
-    {"send", [](lua_State* state) {
+    {"send_as_uniform", [](lua_State* state) {
        auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fmat4x4"));
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
@@ -1464,6 +1473,8 @@ void Lua::LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
                         size_t register_count) {
   luaL_newmetatable(state_, metatable_name);
   if (registers == nullptr) return;
+  lua_pushstring(state_, metatable_name);
+  lua_setfield(state_, -2, "__name");
   for (size_t i = 0; i < register_count; ++i) {
     const luaL_Reg& r = registers[i];
     lua_pushstring(state_, r.name);

@@ -306,35 +306,45 @@ void BatchRenderer::Render(Allocator* scratch) {
   auto set_program_state = [&](std::string_view program_name) {
     shaders_->UseProgram(program_name);
     const GLint pos_attribute = shaders_->AttributeLocation("input_position");
-    OPENGL_CALL(glVertexAttribPointer(
-        pos_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
-        sizeof(VertexData),
-        reinterpret_cast<void*>(offsetof(VertexData, position))));
-    OPENGL_CALL(glEnableVertexAttribArray(pos_attribute));
+    if (pos_attribute != -1) {
+      OPENGL_CALL(glVertexAttribPointer(
+          pos_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
+          sizeof(VertexData),
+          reinterpret_cast<void*>(offsetof(VertexData, position))));
+      OPENGL_CALL(glEnableVertexAttribArray(pos_attribute));
+    }
     const GLint tex_coord_attribute =
         shaders_->AttributeLocation("input_tex_coord");
-    OPENGL_CALL(glVertexAttribPointer(
-        tex_coord_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
-        sizeof(VertexData),
-        reinterpret_cast<void*>(offsetof(VertexData, tex_coords))));
-    OPENGL_CALL(glEnableVertexAttribArray(tex_coord_attribute));
+    if (tex_coord_attribute != -1) {
+      OPENGL_CALL(glVertexAttribPointer(
+          tex_coord_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
+          sizeof(VertexData),
+          reinterpret_cast<void*>(offsetof(VertexData, tex_coords))));
+      OPENGL_CALL(glEnableVertexAttribArray(tex_coord_attribute));
+    }
     const GLint origin_attribute = shaders_->AttributeLocation("origin");
-    OPENGL_CALL(glVertexAttribPointer(
-        origin_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
-        sizeof(VertexData),
-        reinterpret_cast<void*>(offsetof(VertexData, origin))));
-    OPENGL_CALL(glEnableVertexAttribArray(origin_attribute));
+    if (origin_attribute != -1) {
+      OPENGL_CALL(glVertexAttribPointer(
+          origin_attribute, FVec2::kCardinality, GL_FLOAT, GL_FALSE,
+          sizeof(VertexData),
+          reinterpret_cast<void*>(offsetof(VertexData, origin))));
+      OPENGL_CALL(glEnableVertexAttribArray(origin_attribute));
+    }
     const GLint angle_attribute = shaders_->AttributeLocation("angle");
-    OPENGL_CALL(glVertexAttribPointer(
-        angle_attribute, 1, GL_FLOAT, GL_FALSE, sizeof(VertexData),
-        reinterpret_cast<void*>(offsetof(VertexData, angle))));
-    OPENGL_CALL(glEnableVertexAttribArray(angle_attribute));
+    if (angle_attribute != -1) {
+      OPENGL_CALL(glVertexAttribPointer(
+          angle_attribute, 1, GL_FLOAT, GL_FALSE, sizeof(VertexData),
+          reinterpret_cast<void*>(offsetof(VertexData, angle))));
+      OPENGL_CALL(glEnableVertexAttribArray(angle_attribute));
+    }
     const GLint color_attribute = shaders_->AttributeLocation("color");
-    OPENGL_CALL(glVertexAttribPointer(
-        color_attribute, sizeof(Color), GL_UNSIGNED_BYTE, GL_FALSE,
-        sizeof(VertexData),
-        reinterpret_cast<void*>(offsetof(VertexData, color))));
-    OPENGL_CALL(glEnableVertexAttribArray(color_attribute));
+    if (color_attribute != -1) {
+      OPENGL_CALL(glVertexAttribPointer(
+          color_attribute, sizeof(Color), GL_UNSIGNED_BYTE, GL_FALSE,
+          sizeof(VertexData),
+          reinterpret_cast<void*>(offsetof(VertexData, color))));
+      OPENGL_CALL(glEnableVertexAttribArray(color_attribute));
+    }
     shaders_->SetUniform("global_color", FVec4(1, 1, 1, 1));
   };
   set_program_state("pre_pass");
