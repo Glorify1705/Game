@@ -125,7 +125,9 @@
   (G.graphics.draw_text *font-name* *font-size* text x y))
 
 (fn Game.draw [g]
+  (G.graphics.attach_shader :crt.frag)
   (let [{:width w :height h} g]
+    (G.graphics.send_uniform :iResolution (G.math.v2 w h))
     (if (= g.state :finished)
         (let [winner-text (if (> g.left-score g.right-score) "Player 1 wins"
                               "Player 2 wins")]
