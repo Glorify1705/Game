@@ -290,6 +290,7 @@ void PrintSystemInformation() {
 
 SDL_Window* CreateWindow(const GameConfig& config) {
   TIMER("Initializing basic attributes");
+  SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
   CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4) == 0,
         "Could not set major version", SDL_GetError());
   CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6) == 0,
