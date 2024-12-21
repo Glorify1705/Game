@@ -639,6 +639,34 @@ const struct luaL_Reg kMathLib[] = {
      }}};
 
 constexpr luaL_Reg kV2Methods[] = {
+    {"dot",
+     [](lua_State* state) {
+       auto* a = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
+       auto* b = reinterpret_cast<FVec2*>(luaL_checkudata(state, 2, "fvec2"));
+       lua_pushnumber(state, a->Dot(*b));
+       return 1;
+     }},
+    {"len2",
+     [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
+       lua_pushnumber(state, v->Length2());
+       return 1;
+     }},
+    {"normalized",
+     [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
+       NewUserData<FVec2>("fvec2", state, v->Normalized());
+       return 1;
+     }},
+    {"__tostring",
+     [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
+       char buf[32];
+       size_t size =
+           std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f }", v->x, v->y);
+       lua_pushlstring(state, buf, size);
+       return 1;
+     }},
     {"send_as_uniform", [](lua_State* state) {
        auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
        auto name = GetLuaString(state, 2);
@@ -649,6 +677,34 @@ constexpr luaL_Reg kV2Methods[] = {
      }}};
 
 constexpr luaL_Reg kV3Methods[] = {
+    {"dot",
+     [](lua_State* state) {
+       auto* a = reinterpret_cast<FVec3*>(luaL_checkudata(state, 1, "fvec3"));
+       auto* b = reinterpret_cast<FVec3*>(luaL_checkudata(state, 2, "fvec3"));
+       lua_pushnumber(state, a->Dot(*b));
+       return 1;
+     }},
+    {"len2",
+     [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec3*>(luaL_checkudata(state, 1, "fvec3"));
+       lua_pushnumber(state, v->Length2());
+       return 1;
+     }},
+    {"__tostring",
+     [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec3*>(luaL_checkudata(state, 1, "fvec3"));
+       char buf[64];
+       size_t size = std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f }",
+                                   v->x, v->y, v->z);
+       lua_pushlstring(state, buf, size);
+       return 1;
+     }},
+    {"normalized",
+     [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec3*>(luaL_checkudata(state, 1, "fvec3"));
+       NewUserData<FVec3>("fvec2", state, v->Normalized());
+       return 1;
+     }},
     {"send_as_uniform", [](lua_State* state) {
        auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec3"));
        auto name = GetLuaString(state, 2);
@@ -659,6 +715,35 @@ constexpr luaL_Reg kV3Methods[] = {
      }}};
 
 constexpr luaL_Reg kV4Methods[] = {
+    {"dot",
+     [](lua_State* state) {
+       auto* a = reinterpret_cast<FVec4*>(luaL_checkudata(state, 1, "fvec4"));
+       auto* b = reinterpret_cast<FVec4*>(luaL_checkudata(state, 2, "fvec4"));
+       lua_pushnumber(state, a->Dot(*b));
+       return 1;
+     }},
+    {"len2",
+     [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec4*>(luaL_checkudata(state, 1, "fvec4"));
+       lua_pushnumber(state, v->Length2());
+       return 1;
+     }},
+    {"__tostring",
+     [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec4*>(luaL_checkudata(state, 1, "fvec4"));
+       char buf[64];
+       size_t size =
+           std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f, %.3f }", v->x,
+                         v->y, v->z, v->w);
+       lua_pushlstring(state, buf, size);
+       return 1;
+     }},
+    {"normalized",
+     [](lua_State* state) {
+       auto* v = reinterpret_cast<FVec4*>(luaL_checkudata(state, 1, "fvec4"));
+       NewUserData<FVec4>("fvec2", state, v->Normalized());
+       return 1;
+     }},
     {"send_as_uniform", [](lua_State* state) {
        auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec4"));
        auto name = GetLuaString(state, 2);
