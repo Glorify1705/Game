@@ -452,6 +452,8 @@ Renderer::Renderer(const DbAssets& assets, BatchRenderer* renderer,
       textures_(256, allocator),
       loaded_sprites_table_(allocator),
       loaded_sprites_(1 << 20, allocator),
+      loaded_images_table_(allocator),
+      loaded_images_(1 << 10, allocator),
       font_table_(allocator),
       fonts_(512, allocator) {}
 
@@ -484,18 +486,31 @@ float Renderer::SetLineWidth(float width) {
   return result;
 }
 
-void Renderer::Draw(std::string_view spritename, FVec2 position, float angle) {
+void Renderer::DrawSprite(std::string_view sprite_name, FVec2 position,
+                          float angle) {
   const DbAssets::Sprite* sprite = nullptr;
-  if (uint32_t handle; loaded_sprites_table_.Lookup(spritename, &handle)) {
+  if (uint32_t handle; loaded_sprites_table_.Lookup(sprite_name, &handle)) {
     sprite = loaded_sprites_[handle];
   } else {
-    sprite = LoadSprite(spritename);
+    sprite = assets_->GetSprite(sprite_name);
+    const DbAssets::Spritesheet* spritesheet =
+        assets_->GetSpritesheet(sprite->spritesheet);
+    if (!textures_table_.Contains(spritesheet->name)) {
+      LOG("Loading texture ", spritesheet->name);
+      auto* image = assets_->GetImage(spritesheet->image);
+      CHECK(image != nullptr, "Unknown image ", spritesheet->image,
+            " for spritesheet ", spritesheet->name);
+      textures_table_.Insert(spritesheet->name, textures_.size());
+      textures_.Push(renderer_->LoadTexture(*image));
+    }
+    loaded_sprites_table_.Insert(sprite_name, loaded_sprites_.size());
+    loaded_sprites_.Push(sprite);
   }
-  Draw(*sprite, position, angle);
+  DrawSprite(*sprite, position, angle);
 }
 
-void Renderer::Draw(const DbAssets::Sprite& sprite, FVec2 position,
-                    float angle) {
+void Renderer::DrawSprite(const DbAssets::Sprite& sprite, FVec2 position,
+                          float angle) {
   const DbAssets::Spritesheet* spritesheet =
       assets_->GetSpritesheet(sprite.spritesheet);
   CHECK(spritesheet != nullptr, "No spritesheet for ", sprite.name);
@@ -511,6 +526,38 @@ void Renderer::Draw(const DbAssets::Sprite& sprite, FVec2 position,
       FVec(1.0 * x / spritesheet->width, 1.0 * y / spritesheet->height));
   const FVec2 q1(1.0f * (x + w) / spritesheet->width,
                  1.0f * (y + h) / spritesheet->height);
+  renderer_->PushQuad(p0, p1, q0, q1, position, angle);
+}
+
+void Renderer::DrawImage(std::string_view image_name, FVec2 position,
+                         float angle) {
+  const DbAssets::Image* image = nullptr;
+  if (uint32_t handle; loaded_images_table_.Lookup(image_name, &handle)) {
+    image = loaded_images_[handle];
+  } else {
+    image = assets_->GetImage(image_name);
+    if (!textures_table_.Contains(image->name)) {
+      LOG("Loading texture for image ", image->name);
+      textures_table_.Insert(image->name, textures_.size());
+      textures_.Push(renderer_->LoadTexture(*image));
+    }
+    loaded_images_table_.Insert(image_name, loaded_images_.size());
+    loaded_images_.Push(image);
+  }
+  DrawImage(*image, position, angle);
+}
+
+void Renderer::DrawImage(const DbAssets::Image& image, FVec2 position,
+                         float angle) {
+  uint32_t texture_index;
+  CHECK(textures_table_.Lookup(image.name, &texture_index),
+        "No spritesheet texture for image ", image.name);
+  renderer_->SetActiveTexture(textures_[texture_index]);
+  const float w = image.width, h = image.height;
+  const FVec2 p0(position - FVec(w / 2.0, h / 2.0));
+  const FVec2 p1(position + FVec(w / 2.0, h / 2.0));
+  const FVec2 q0(0, 0);
+  const FVec2 q1(1.0, 1.0);
   renderer_->PushQuad(p0, p1, q0, q1, position, angle);
 }
 
@@ -594,23 +641,6 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
   font_table_.Insert(font_key.str(), fonts_.size());
   fonts_.Push(font);
   return &fonts_.back();
-}
-
-const DbAssets::Sprite* Renderer::LoadSprite(std::string_view name) {
-  const DbAssets::Sprite* sprite = assets_->GetSprite(name);
-  const DbAssets::Spritesheet* spritesheet =
-      assets_->GetSpritesheet(sprite->spritesheet);
-  if (!textures_table_.Contains(spritesheet->name)) {
-    LOG("Loading texture ", spritesheet->name);
-    auto* image = assets_->GetImage(spritesheet->image);
-    CHECK(image != nullptr, "Unknown image ", spritesheet->image,
-          " for spritesheet ", spritesheet->name);
-    textures_table_.Insert(spritesheet->name, textures_.size());
-    textures_.Push(renderer_->LoadTexture(*image));
-  }
-  loaded_sprites_table_.Insert(name, loaded_sprites_.size());
-  loaded_sprites_.Push(sprite);
-  return sprite;
 }
 
 Color ParseColor(std::string_view color) {

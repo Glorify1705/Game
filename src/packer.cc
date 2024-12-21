@@ -12,41 +12,53 @@
 #include "src/units.h"
 #include "xxhash.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_FAILURE_USERMSG
+#define STBI_LOG(...) LOG(__VA_ARGS__)
+#include "libraries/stb_image.h"
+
 namespace G {
 namespace {
 
 class DbPacker {
  public:
+  struct AssetInfo {
+    size_t size;
+  };
+
   explicit DbPacker(sqlite3* db, Allocator* allocator)
       : db_(db), allocator_(allocator), checksums_(allocator) {}
 
-  void InsertIntoTable(std::string_view table, std::string_view filename,
-                       const uint8_t* buf, size_t size) {
+  AssetInfo InsertIntoTable(std::string_view table, std::string_view filename,
+                            const uint8_t* buf, size_t size) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql("INSERT OR REPLACE INTO ", table,
                                " (name, contents) VALUES (?, ?);");
-    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
-      DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-      return;
-    }
+    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
+          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
     DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     sqlite3_bind_blob(stmt, 2, buf, size, SQLITE_STATIC);
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
+
+    return AssetInfo{.size = size};
   }
 
-  void InsertScript(std::string_view filename, const uint8_t* buf,
-                    size_t size) {
-    InsertIntoTable("scripts", filename, buf, size);
+  AssetInfo InsertScript(std::string_view filename, const uint8_t* buf,
+                         size_t size) {
+    return InsertIntoTable("scripts", filename, buf, size);
   }
 
-  void InsertFont(std::string_view filename, const uint8_t* buf, size_t size) {
-    InsertIntoTable("fonts", filename, buf, size);
+  AssetInfo InsertFont(std::string_view filename, const uint8_t* buf,
+                       size_t size) {
+    return InsertIntoTable("fonts", filename, buf, size);
   }
 
-  void InsertImage(std::string_view filename, const uint8_t* buf, size_t size) {
+  AssetInfo InsertQoi(std::string_view filename, const uint8_t* buf,
+                      size_t size) {
     QoiDesc desc;
     QoiDecode(buf, size, &desc, /*components=*/4, allocator_);
     sqlite3_stmt* stmt;
@@ -54,28 +66,63 @@ class DbPacker {
           INSERT OR REPLACE INTO images (name, width, height, components, contents)
           VALUES (?, ?, ?, ?, ?);
       )");
-    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
-      DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-      return;
-    }
+    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
+          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
     DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     sqlite3_bind_int(stmt, 2, desc.width);
     sqlite3_bind_int(stmt, 3, desc.height);
     sqlite3_bind_int(stmt, 4, desc.channels);
     sqlite3_bind_blob(stmt, 5, buf, size, SQLITE_STATIC);
+    CHECK(sqlite3_step(stmt) == SQLITE_DONE, "Could not insert data ",
+          sqlite3_errmsg(db_));
+    return AssetInfo{.size = size};
+  }
+
+  AssetInfo InsertPng(std::string_view filename, const uint8_t* buf,
+                      size_t size) {
+    int x, y, channels;
+    auto* contents = stbi_load_from_memory(buf, size, &x, &y, &channels,
+                                           /*desired_channels=*/0);
+    DCHECK(contents != nullptr, "Could not load ", filename, ": ",
+           stbi_failure_reason());
+    DEFER([&] { stbi_image_free(contents); });
+    QoiDesc desc;
+    desc.width = x;
+    desc.height = y;
+    desc.channels = channels;
+    desc.colorspace = 1;
+    int out_len;
+    auto* qoi_encoded = QoiEncode(contents, &desc, &out_len, allocator_);
+    DCHECK(qoi_encoded != nullptr);
+    DEFER([&] { allocator_->Dealloc(qoi_encoded, out_len); });
+    sqlite3_stmt* stmt;
+    FixedStringBuffer<256> sql(R"(
+          INSERT OR REPLACE INTO images (name, width, height, components, contents)
+          VALUES (?, ?, ?, ?, ?);
+      )");
+    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
+          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
+    DEFER([&] { sqlite3_finalize(stmt); });
+    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, x);
+    sqlite3_bind_int(stmt, 3, y);
+    sqlite3_bind_int(stmt, 4, channels);
+    sqlite3_bind_blob(stmt, 5, qoi_encoded, out_len, SQLITE_STATIC);
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
+    return AssetInfo{.size = static_cast<size_t>(out_len)};
   }
 
-  void InsertAudio(std::string_view filename, const uint8_t* buf, size_t size) {
-    InsertIntoTable("audios", filename, buf, size);
+  AssetInfo InsertAudio(std::string_view filename, const uint8_t* buf,
+                        size_t size) {
+    return InsertIntoTable("audios", filename, buf, size);
   }
 
-  void InsertTextFile(std::string_view filename, const uint8_t* buf,
-                      size_t size) {
-    InsertIntoTable("text_files", filename, buf, size);
+  AssetInfo InsertTextFile(std::string_view filename, const uint8_t* buf,
+                           size_t size) {
+    return InsertIntoTable("text_files", filename, buf, size);
   }
 
   void* Alloc(void* ptr, size_t osize, size_t nsize) {
@@ -119,8 +166,8 @@ class DbPacker {
     }
   }
 
-  void InsertSpritesheet(std::string_view filename, const uint8_t* buf,
-                         size_t size) {
+  AssetInfo InsertSpritesheet(std::string_view filename, const uint8_t* buf,
+                              size_t size) {
     auto* state = lua_newstate(&DbPacker::LuaAlloc, this);
     CHECK(luaL_loadbuffer(state, reinterpret_cast<const char*>(buf), size,
                           filename.data()) == 0,
@@ -147,10 +194,8 @@ class DbPacker {
           INSERT OR REPLACE INTO sprites (name, spritesheet, x, y, width, height)
           VALUES (?, ?, ?, ?, ?, ?);
       )");
-    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
-      DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-      return;
-    }
+    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
+          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
     DEFER([&] { sqlite3_finalize(stmt); });
     size_t sprite_count = 0, sprite_name_length = 0;
     for (lua_pushnil(state); lua_next(state, -2); lua_pop(state, 1)) {
@@ -195,17 +240,18 @@ class DbPacker {
                            sprite_name_length, atlas);
     lua_pop(state, 1);
     lua_close(state);
+
+    return AssetInfo{.size = size};
   }
 
-  void InsertShader(std::string_view filename, const uint8_t* buffer,
-                    size_t size) {
+  AssetInfo InsertShader(std::string_view filename, const uint8_t* buffer,
+                         size_t size) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(
         "INSERT OR REPLACE INTO shaders"
         " (name, contents, shader_type) VALUES (?, ?, ?);");
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-      return;
     }
     DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
@@ -215,6 +261,7 @@ class DbPacker {
                       SQLITE_STATIC);
     CHECK(sqlite3_step(stmt) == SQLITE_DONE, "Could not insert data for ",
           filename, ": ", sqlite3_errmsg(db_));
+    return AssetInfo{.size = size};
   }
 
   void InsertIntoAssetMeta(std::string_view filename, size_t size,
@@ -241,8 +288,8 @@ class DbPacker {
   void HandleFile(const char* directory, const char* filename) {
     struct DbHandler {
       std::string_view extension;
-      void (DbPacker::*handler)(std::string_view filename, const uint8_t* buf,
-                                size_t size);
+      AssetInfo (DbPacker::*handler)(std::string_view filename,
+                                     const uint8_t* buf, size_t size);
       std::string_view type;
     };
     FixedStringBuffer<kMaxPathLength> path(directory, "/", filename);
@@ -250,7 +297,8 @@ class DbPacker {
     static constexpr DbHandler kHandlers[] = {
         {".lua", &DbPacker::InsertScript, "script"},
         {".fnl", &DbPacker::InsertScript, "script"},
-        {".qoi", &DbPacker::InsertImage, "image"},
+        {".qoi", &DbPacker::InsertQoi, "image"},
+        {".png", &DbPacker::InsertPng, "image"},
         {".sprites", &DbPacker::InsertSpritesheet, "spritesheet"},
         {".ogg", &DbPacker::InsertAudio, "audio"},
         {".ttf", &DbPacker::InsertFont, "font"},
@@ -288,13 +336,15 @@ class DbPacker {
         handled = true;
         break;
       }
-      InsertIntoAssetMeta(fname, bytes, handler.type, hash);
-      (this->*method)(fname, buffer, bytes);
+      const AssetInfo info = (this->*method)(fname, buffer, bytes);
+      InsertIntoAssetMeta(fname, info.size, handler.type, hash);
       scratch.Dealloc(buffer, bytes);
       handled = true;
       break;
     }
-    CHECK(handled, "No handler for file ", filename);
+    if (!handled) {
+      LOG("No handler for file ", filename);
+    }
   }
 
   static PHYSFS_EnumerateCallbackResult WriteFileToDb(void* ud,

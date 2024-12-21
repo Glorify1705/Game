@@ -709,7 +709,7 @@ typedef unsigned char validate_uint32[sizeof(stbi__uint32) == 4 ? 1 : -1];
 #ifdef STBI_HAS_LROTL
 #define stbi_lrot(x, y) _lrotl(x, y)
 #else
-#define stbi_lrot(x, y) (((x) << (y)) | ((x) >> (-(y)&31)))
+#define stbi_lrot(x, y) (((x) << (y)) | ((x) >> (-(y) & 31)))
 #endif
 
 #if defined(STBI_MALLOC) && defined(STBI_FREE) && \
@@ -727,6 +727,10 @@ typedef unsigned char validate_uint32[sizeof(stbi__uint32) == 4 ? 1 : -1];
 #define STBI_MALLOC(sz) malloc(sz)
 #define STBI_REALLOC(p, newsz) realloc(p, newsz)
 #define STBI_FREE(p) free(p)
+#endif
+
+#ifndef STBI_LOG
+#define STBI_LOG(...)
 #endif
 
 #ifndef STBI_REALLOC_SIZED
@@ -778,7 +782,7 @@ typedef unsigned char validate_uint32[sizeof(stbi__uint32) == 4 ? 1 : -1];
 #ifdef _MSC_VER
 
 #if _MSC_VER >= 1400  // not VC6
-#include <intrin.h>  // __cpuid
+#include <intrin.h>   // __cpuid
 static int stbi__cpuid3(void) {
   int info[4];
   __cpuid(info, 1);
@@ -1098,6 +1102,7 @@ static void *stbi__malloc_mad4(int a, int b, int c, int d, int add) {
 }
 #endif
 
+#if !defined(STBI_NO_JPEG) || defined(SBTI_ONLY_JPEG)
 // returns 1 if the sum of two signed ints is valid (between -2^31 and 2^31-1
 // inclusive), 0 on overflow.
 static int stbi__addints_valid(int a, int b) {
@@ -1120,6 +1125,7 @@ static int stbi__mul2shorts_valid(short a, short b) {
   if (b < 0) return a <= SHRT_MIN / b;  // same as a * b >= SHRT_MIN
   return a >= SHRT_MIN / b;
 }
+#endif
 
 // stbi__err - error
 // stbi__errpf - error returning pointer to float
@@ -1259,9 +1265,9 @@ static stbi__uint16 *stbi__convert_8_to_16(stbi_uc *orig, int w, int h,
     return (stbi__uint16 *)stbi__errpuc("outofmem", "Out of memory");
 
   for (i = 0; i < img_len; ++i)
-    enlarged[i] = (stbi__uint16)(
-        (orig[i] << 8) +
-        orig[i]);  // replicate to high and low byte, maps 0->0, 255->0xffff
+    enlarged[i] = (stbi__uint16)((orig[i] << 8) +
+                                 orig[i]);  // replicate to high and low byte,
+                                            // maps 0->0, 255->0xffff
 
   STBI_FREE(orig);
   return enlarged;
@@ -1782,7 +1788,7 @@ static stbi__uint32 stbi__get32le(stbi__context *s) {
 #endif
 
 #define STBI__BYTECAST(x) \
-  ((stbi_uc)((x)&255))  // truncate int to byte without warnings
+  ((stbi_uc)((x) & 255))  // truncate int to byte without warnings
 
 #if defined(STBI_NO_JPEG) && defined(STBI_NO_PNG) && defined(STBI_NO_BMP) && \
     defined(STBI_NO_PSD) && defined(STBI_NO_TGA) && defined(STBI_NO_GIF) &&  \
@@ -1829,7 +1835,7 @@ static unsigned char *stbi__convert_format(unsigned char *data, int img_n,
     unsigned char *src = data + j * x * img_n;
     unsigned char *dest = good + j * x * req_comp;
 
-#define STBI__COMBO(a, b) ((a)*8 + (b))
+#define STBI__COMBO(a, b) ((a) * 8 + (b))
 #define STBI__CASE(a, b)  \
   case STBI__COMBO(a, b): \
     for (i = x - 1; i >= 0; --i, src += a, dest += b)
@@ -1929,7 +1935,7 @@ static stbi__uint16 *stbi__convert_format16(stbi__uint16 *data, int img_n,
     stbi__uint16 *src = data + j * x * img_n;
     stbi__uint16 *dest = good + j * x * req_comp;
 
-#define STBI__COMBO(a, b) ((a)*8 + (b))
+#define STBI__COMBO(a, b) ((a) * 8 + (b))
 #define STBI__CASE(a, b)  \
   case STBI__COMBO(a, b): \
     for (i = x - 1; i >= 0; --i, src += a, dest += b)
@@ -2588,8 +2594,8 @@ stbi_inline static stbi_uc stbi__clamp(int x) {
   return (stbi_uc)x;
 }
 
-#define stbi__f2f(x) ((int)(((x)*4096 + 0.5)))
-#define stbi__fsh(x) ((x)*4096)
+#define stbi__f2f(x) ((int)(((x) * 4096 + 0.5)))
+#define stbi__fsh(x) ((x) * 4096)
 
 // derived from jidctint -- DCT_ISLOW
 #define STBI__IDCT_1D(s0, s1, s2, s3, s4, s5, s6, s7)     \
@@ -3927,7 +3933,7 @@ static stbi_uc *stbi__resample_row_generic(stbi_uc *out, stbi_uc *in_near,
 
 // this is a reduced-precision calculation of YCbCr-to-RGB introduced
 // to make sure the code produces the same results in both SIMD and scalar
-#define stbi__float2fixed(x) (((int)((x)*4096.0f + 0.5f)) << 8)
+#define stbi__float2fixed(x) (((int)((x) * 4096.0f + 0.5f)) << 8)
 static void stbi__YCbCr_to_RGB_row(stbi_uc *out, const stbi_uc *y,
                                    const stbi_uc *pcb, const stbi_uc *pcr,
                                    int count, int step) {

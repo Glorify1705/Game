@@ -254,8 +254,11 @@ class Renderer {
   void BeginFrame();
   void FlushFrame() { renderer_->Finish(); }
 
-  void Draw(std::string_view spritename, FVec2 position, float angle);
-  void Draw(const DbAssets::Sprite& asset, FVec2 position, float angle);
+  void DrawSprite(std::string_view sprite_name, FVec2 position, float angle);
+  void DrawSprite(const DbAssets::Sprite& asset, FVec2 position, float angle);
+
+  void DrawImage(std::string_view imagename, FVec2 position, float angle);
+  void DrawImage(const DbAssets::Image& asset, FVec2 position, float angle);
 
   // Returns the previous color.
   Color SetColor(Color color);
@@ -298,7 +301,6 @@ class Renderer {
     stbtt_packedchar chars[256];
   };
 
-  const DbAssets::Sprite* LoadSprite(std::string_view name);
   const FontInfo* LoadFont(std::string_view font_name, uint32_t font_size);
 
   void ApplyTransform(const FMat4x4& mat) {
@@ -320,6 +322,9 @@ class Renderer {
 
   Dictionary<uint32_t> loaded_sprites_table_;
   FixedArray<const DbAssets::Sprite*> loaded_sprites_;
+
+  Dictionary<uint32_t> loaded_images_table_;
+  FixedArray<const DbAssets::Image*> loaded_images_;
 
   Dictionary<uint32_t> font_table_;
   FixedArray<FontInfo> fonts_;

@@ -63,8 +63,8 @@ void *QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
   if (data == NULL || out_len == NULL || desc == NULL || desc->width == 0 ||
       desc->height == 0 || desc->channels < 3 || desc->channels > 4 ||
       desc->colorspace > 1 || desc->height >= QOI_PIXELS_MAX / desc->width) {
-    LOG("Invalid QOI data: ", desc->width, " ", desc->height, " ",
-        desc->channels);
+    LOG("Invalid QOI data: width = ", desc->width, " height = ", desc->height,
+        " channels = ", desc->channels);
     return NULL;
   }
 

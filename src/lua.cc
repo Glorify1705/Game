@@ -242,13 +242,25 @@ const struct luaL_Reg kGraphicsLib[] = {
     {"draw_sprite",
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
-       std::string_view spritename = GetLuaString(state, 1);
+       std::string_view sprite_name = GetLuaString(state, 1);
        const float x = luaL_checknumber(state, 2);
        const float y = luaL_checknumber(state, 3);
        float angle = 0;
        if (parameters == 4) angle = luaL_checknumber(state, 4);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->Draw(spritename, FVec(x, y), angle);
+       renderer->DrawSprite(sprite_name, FVec(x, y), angle);
+       return 0;
+     }},
+    {"draw_image",
+     [](lua_State* state) {
+       const int parameters = lua_gettop(state);
+       std::string_view image_name = GetLuaString(state, 1);
+       const float x = luaL_checknumber(state, 2);
+       const float y = luaL_checknumber(state, 3);
+       float angle = 0;
+       if (parameters == 4) angle = luaL_checknumber(state, 4);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawImage(image_name, FVec(x, y), angle);
        return 0;
      }},
     {"draw_rect",

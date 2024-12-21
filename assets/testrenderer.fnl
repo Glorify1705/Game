@@ -36,6 +36,8 @@
   (G.graphics.set_color :darkcream)
   (G.graphics.draw_triangle 200 600 250 650 500 700)
   (G.graphics.set_color :white)
+  (G.graphics.draw_image :jill.qoi 850 550)
+  (G.graphics.draw_image :jill.png 850 650)
   (G.graphics.draw_lines [[0 0]
                           [300 300]
                           [300 600]
