@@ -238,6 +238,41 @@ int LoadFileIntoBuffer(lua_State* state, std::string_view filename) {
   return 2;
 }
 
+template <typename T>
+struct UserdataName;
+
+#define USERDATA_ENTRY(type, name)                    \
+  template <>                                         \
+  struct UserdataName<type> {                         \
+    inline static constexpr const char* kName = name; \
+  }
+
+USERDATA_ENTRY(FVec2, "fvec2");
+USERDATA_ENTRY(FVec3, "fvec3");
+USERDATA_ENTRY(FVec4, "fvec4");
+USERDATA_ENTRY(FMat2x2, "fmat2x2");
+USERDATA_ENTRY(FMat3x3, "fmat3x3");
+USERDATA_ENTRY(FMat4x4, "fmat4x4");
+USERDATA_ENTRY(DbAssets::Sprite, "asset_sprite_ptr");
+USERDATA_ENTRY(ByteBuffer, "byte_buffer");
+
+#undef USERDATA_ENTRY
+
+template <typename T, typename... Args>
+T* NewUserdata(lua_State* state, Args... args) {
+  auto* userdata = static_cast<T*>(lua_newuserdata(state, sizeof(T)));
+  new (userdata) T(args...);
+  luaL_getmetatable(state, UserdataName<T>::kName);
+  lua_setmetatable(state, -2);
+  return userdata;
+}
+
+template <typename T>
+T* AsUserdata(lua_State* state, int index) {
+  return reinterpret_cast<T*>(
+      luaL_checkudata(state, index, UserdataName<T>::kName));
+}
+
 const struct luaL_Reg kGraphicsLib[] = {
     {"draw_sprite",
      [](lua_State* state) {
@@ -373,8 +408,7 @@ const struct luaL_Reg kGraphicsLib[] = {
          std::string_view text = GetLuaString(state, 3);
          renderer->DrawText(font, font_size, text, FVec(x, y));
        } else if (lua_type(state, 3) == LUA_TUSERDATA) {
-         auto* buf = reinterpret_cast<ByteBuffer*>(
-             luaL_checkudata(state, 3, "byte_buffer"));
+         auto* buf = AsUserdata<ByteBuffer>(state, 3);
          std::string_view text(reinterpret_cast<const char*>(buf->contents),
                                buf->size);
          renderer->DrawText(font, font_size, text, FVec(x, y));
@@ -563,15 +597,6 @@ const struct luaL_Reg kSystemLib[] = {
        return 1;
      }}};
 
-template <typename T, typename... Args>
-T* NewUserData(const char* metatable, lua_State* state, Args... args) {
-  auto* userdata = static_cast<T*>(lua_newuserdata(state, sizeof(T)));
-  new (userdata) T(args...);
-  luaL_getmetatable(state, metatable);
-  lua_setmetatable(state, -2);
-  return userdata;
-}
-
 const struct luaL_Reg kMathLib[] = {
     {"clamp",
      [](lua_State* state) {
@@ -585,7 +610,7 @@ const struct luaL_Reg kMathLib[] = {
      [](lua_State* state) {
        const float x = luaL_checknumber(state, 1);
        const float y = luaL_checknumber(state, 2);
-       NewUserData<FVec2>("fvec2", state, x, y);
+       NewUserdata<FVec2>(state, x, y);
        return 1;
      }},
     {"v3",
@@ -593,7 +618,7 @@ const struct luaL_Reg kMathLib[] = {
        const float x = luaL_checknumber(state, 1);
        const float y = luaL_checknumber(state, 2);
        const float z = luaL_checknumber(state, 3);
-       NewUserData<FVec3>("fvec3", state, x, y, z);
+       NewUserdata<FVec3>(state, x, y, z);
        return 1;
      }},
     {"v4",
@@ -602,7 +627,7 @@ const struct luaL_Reg kMathLib[] = {
        const float y = luaL_checknumber(state, 2);
        const float z = luaL_checknumber(state, 3);
        const float w = luaL_checknumber(state, 4);
-       NewUserData<FVec4>("fvec4", state, x, y, z, w);
+       NewUserdata<FVec4>(state, x, y, z, w);
        return 1;
      }},
     {"m2x2",
@@ -611,7 +636,7 @@ const struct luaL_Reg kMathLib[] = {
        for (size_t i = 0; i < values.size(); i++) {
          values[i] = luaL_checknumber(state, i + 1);
        }
-       NewUserData<FMat2x2>("fmat2x2", state, values.data());
+       NewUserdata<FMat2x2>(state, values.data());
        return 1;
      }},
     {"m3x3",
@@ -620,7 +645,7 @@ const struct luaL_Reg kMathLib[] = {
        for (size_t i = 0; i < values.size(); i++) {
          values[i] = luaL_checknumber(state, i + 1);
        }
-       NewUserData<FMat2x2>("fmat3x3", state, values.data());
+       NewUserdata<FMat3x3>(state, values.data());
        return 1;
      }},
     {"m4x4", [](lua_State* state) {
@@ -628,33 +653,60 @@ const struct luaL_Reg kMathLib[] = {
        for (size_t i = 0; i < values.size(); i++) {
          values[i] = luaL_checknumber(state, i + 1);
        }
-       NewUserData<FMat2x2>("fmat4x4", state, values.data());
+       NewUserdata<FMat4x4>(state, values.data());
        return 1;
      }}};
 
 constexpr luaL_Reg kV2Methods[] = {
     {"dot",
      [](lua_State* state) {
-       auto* a = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
-       auto* b = reinterpret_cast<FVec2*>(luaL_checkudata(state, 2, "fvec2"));
+       auto* a = AsUserdata<FVec2>(state, 1);
+       auto* b = AsUserdata<FVec2>(state, 2);
        lua_pushnumber(state, a->Dot(*b));
        return 1;
      }},
     {"len2",
      [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
+       auto* v = AsUserdata<FVec2>(state, 1);
        lua_pushnumber(state, v->Length2());
        return 1;
      }},
     {"normalized",
      [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
-       NewUserData<FVec2>("fvec2", state, v->Normalized());
+       auto* v = AsUserdata<FVec2>(state, 1);
+       NewUserdata<FVec2>(state, v->Normalized());
+       return 1;
+     }},
+    {"__add",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec2>(state, 1);
+       auto* w = AsUserdata<FVec2>(state, 2);
+       NewUserdata<FVec2>(state, *v + *w);
+       return 1;
+     }},
+    {"__sub",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec2>(state, 1);
+       auto* w = AsUserdata<FVec2>(state, 2);
+       NewUserdata<FVec2>(state, *v - *w);
+       return 1;
+     }},
+    {"__mul",
+     [](lua_State* state) {
+       if (lua_type(state, 1) == LUA_TNUMBER) {
+         auto* v = AsUserdata<FVec2>(state, 2);
+         const float w = luaL_checknumber(state, 1);
+         NewUserdata<FVec2>(state, (*v) * w);
+       } else {
+         auto* v = AsUserdata<FVec2>(state, 1);
+         const float w = luaL_checknumber(state, 2);
+         NewUserdata<FVec2>(state, (*v) * w);
+       }
        return 1;
      }},
     {"__tostring",
      [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
+       auto* v = AsUserdata<FVec2>(state, 1);
        char buf[32];
        size_t size =
            std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f }", v->x, v->y);
@@ -662,7 +714,7 @@ constexpr luaL_Reg kV2Methods[] = {
        return 1;
      }},
     {"send_as_uniform", [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec2"));
+       auto* v = AsUserdata<FVec2>(state, 1);
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        bool result = shaders->SetUniform(name.data(), *v);
@@ -673,20 +725,20 @@ constexpr luaL_Reg kV2Methods[] = {
 constexpr luaL_Reg kV3Methods[] = {
     {"dot",
      [](lua_State* state) {
-       auto* a = reinterpret_cast<FVec3*>(luaL_checkudata(state, 1, "fvec3"));
-       auto* b = reinterpret_cast<FVec3*>(luaL_checkudata(state, 2, "fvec3"));
+       auto* a = AsUserdata<FVec3>(state, 1);
+       auto* b = AsUserdata<FVec3>(state, 2);
        lua_pushnumber(state, a->Dot(*b));
        return 1;
      }},
     {"len2",
      [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec3*>(luaL_checkudata(state, 1, "fvec3"));
+       auto* v = AsUserdata<FVec3>(state, 1);
        lua_pushnumber(state, v->Length2());
        return 1;
      }},
     {"__tostring",
      [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec3*>(luaL_checkudata(state, 1, "fvec3"));
+       auto* v = AsUserdata<FVec3>(state, 1);
        char buf[64];
        size_t size = std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f }",
                                    v->x, v->y, v->z);
@@ -695,12 +747,39 @@ constexpr luaL_Reg kV3Methods[] = {
      }},
     {"normalized",
      [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec3*>(luaL_checkudata(state, 1, "fvec3"));
-       NewUserData<FVec3>("fvec2", state, v->Normalized());
+       auto* v = AsUserdata<FVec3>(state, 1);
+       NewUserdata<FVec3>(state, v->Normalized());
+       return 1;
+     }},
+    {"__add",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec3>(state, 1);
+       auto* w = AsUserdata<FVec3>(state, 2);
+       NewUserdata<FVec3>(state, *v + *w);
+       return 1;
+     }},
+    {"__sub",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec3>(state, 1);
+       auto* w = AsUserdata<FVec3>(state, 2);
+       NewUserdata<FVec3>(state, *v - *w);
+       return 1;
+     }},
+    {"__mul",
+     [](lua_State* state) {
+       if (lua_type(state, 1) == LUA_TNUMBER) {
+         auto* v = AsUserdata<FVec3>(state, 2);
+         const float w = luaL_checknumber(state, 1);
+         NewUserdata<FVec3>(state, (*v) * w);
+       } else {
+         auto* v = AsUserdata<FVec3>(state, 1);
+         const float w = luaL_checknumber(state, 2);
+         NewUserdata<FVec3>(state, (*v) * w);
+       }
        return 1;
      }},
     {"send_as_uniform", [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec3"));
+       auto* v = AsUserdata<FVec3>(state, 1);
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        bool result = shaders->SetUniform(name.data(), *v);
@@ -711,20 +790,20 @@ constexpr luaL_Reg kV3Methods[] = {
 constexpr luaL_Reg kV4Methods[] = {
     {"dot",
      [](lua_State* state) {
-       auto* a = reinterpret_cast<FVec4*>(luaL_checkudata(state, 1, "fvec4"));
-       auto* b = reinterpret_cast<FVec4*>(luaL_checkudata(state, 2, "fvec4"));
+       auto* a = AsUserdata<FVec4>(state, 1);
+       auto* b = AsUserdata<FVec4>(state, 2);
        lua_pushnumber(state, a->Dot(*b));
        return 1;
      }},
     {"len2",
      [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec4*>(luaL_checkudata(state, 1, "fvec4"));
+       auto* v = AsUserdata<FVec4>(state, 1);
        lua_pushnumber(state, v->Length2());
        return 1;
      }},
     {"__tostring",
      [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec4*>(luaL_checkudata(state, 1, "fvec4"));
+       auto* v = AsUserdata<FVec4>(state, 1);
        char buf[64];
        size_t size =
            std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f, %.3f }", v->x,
@@ -734,12 +813,39 @@ constexpr luaL_Reg kV4Methods[] = {
      }},
     {"normalized",
      [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec4*>(luaL_checkudata(state, 1, "fvec4"));
-       NewUserData<FVec4>("fvec2", state, v->Normalized());
+       auto* v = AsUserdata<FVec4>(state, 1);
+       NewUserdata<FVec4>(state, v->Normalized());
+       return 1;
+     }},
+    {"__add",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec4>(state, 1);
+       auto* w = AsUserdata<FVec4>(state, 2);
+       NewUserdata<FVec4>(state, *v + *w);
+       return 1;
+     }},
+    {"__sub",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec4>(state, 1);
+       auto* w = AsUserdata<FVec4>(state, 2);
+       NewUserdata<FVec4>(state, *v - *w);
+       return 1;
+     }},
+    {"__mul",
+     [](lua_State* state) {
+       if (lua_type(state, 1) == LUA_TNUMBER) {
+         auto* v = AsUserdata<FVec4>(state, 2);
+         const float w = luaL_checknumber(state, 1);
+         NewUserdata<FVec4>(state, (*v) * w);
+       } else {
+         auto* v = AsUserdata<FVec4>(state, 1);
+         const float w = luaL_checknumber(state, 2);
+         NewUserdata<FVec4>(state, (*v) * w);
+       }
        return 1;
      }},
     {"send_as_uniform", [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fvec4"));
+       auto* v = AsUserdata<FVec4>(state, 1);
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        bool result = shaders->SetUniform(name.data(), *v);
@@ -749,7 +855,7 @@ constexpr luaL_Reg kV4Methods[] = {
 
 constexpr luaL_Reg kM2x2Methods[] = {
     {"send_as_uniform", [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fmat2x2"));
+       auto* v = AsUserdata<FMat2x2>(state, 1);
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        bool result = shaders->SetUniform(name.data(), *v);
@@ -759,7 +865,7 @@ constexpr luaL_Reg kM2x2Methods[] = {
 
 constexpr luaL_Reg kM3x3Methods[] = {
     {"send_as_uniform", [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fmat3x3"));
+       auto* v = AsUserdata<FMat3x3>(state, 1);
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        bool result = shaders->SetUniform(name.data(), *v);
@@ -769,7 +875,7 @@ constexpr luaL_Reg kM3x3Methods[] = {
 
 constexpr luaL_Reg kM4x4Methods[] = {
     {"send_as_uniform", [](lua_State* state) {
-       auto* v = reinterpret_cast<FVec2*>(luaL_checkudata(state, 1, "fmat4x4"));
+       auto* v = AsUserdata<FMat4x4>(state, 1);
        auto name = GetLuaString(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        bool result = shaders->SetUniform(name.data(), *v);
@@ -992,8 +1098,7 @@ const struct luaL_Reg kAssetsLib[] = {
          std::string_view name = GetLuaString(state, 1);
          ptr = assets->GetSprite(name);
        } else {
-         ptr = reinterpret_cast<const DbAssets::Sprite*>(
-             luaL_checkudata(state, 1, "asset_sprite_ptr"));
+         ptr = AsUserdata<DbAssets::Sprite>(state, 1);
        }
        if (ptr == nullptr) {
          LUA_ERROR(state, "Could not find sprite");
@@ -1083,8 +1188,7 @@ const struct luaL_Reg kDataLib[] = {
            contents = GetLuaString(state, 1);
            break;
          case LUA_TUSERDATA: {
-           auto* buf = reinterpret_cast<ByteBuffer*>(
-               luaL_checkudata(state, 1, "byte_buffer"));
+           auto* buf = AsUserdata<ByteBuffer>(state, 1);
            contents = std::string_view(
                reinterpret_cast<const char*>(buf->contents), buf->size);
          }; break;
@@ -1467,8 +1571,7 @@ void Lua::Crash() {
 constexpr luaL_Reg kByteBufferMethods[] = {
     {"__index",
      [](lua_State* state) {
-       auto* buffer = reinterpret_cast<ByteBuffer*>(
-           luaL_checkudata(state, 1, "byte_buffer"));
+       auto* buffer = AsUserdata<ByteBuffer>(state, 1);
        size_t index = luaL_checkinteger(state, 2);
        if (index <= 0 || index > buffer->size) {
          LUA_ERROR(state, "Index out of bounds ", index, " not in range [1, ",
@@ -1479,15 +1582,13 @@ constexpr luaL_Reg kByteBufferMethods[] = {
      }},
     {"__len",
      [](lua_State* state) {
-       auto* buffer = reinterpret_cast<ByteBuffer*>(
-           luaL_checkudata(state, 1, "byte_buffer"));
+       auto* buffer = AsUserdata<ByteBuffer>(state, 1);
        lua_pushinteger(state, buffer->size);
        return 1;
      }},
     {"__tostring",
      [](lua_State* state) {
-       auto* buffer = reinterpret_cast<ByteBuffer*>(
-           luaL_checkudata(state, 1, "byte_buffer"));
+       auto* buffer = AsUserdata<ByteBuffer>(state, 1);
        lua_pushlstring(state, reinterpret_cast<const char*>(buffer->contents),
                        buffer->size);
        return 1;
