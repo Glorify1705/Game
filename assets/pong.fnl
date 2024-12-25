@@ -6,6 +6,7 @@
              :state :serve
              :player-height 150
              :max-score 10
+             :simulation-steps 3
              :ball-radius 10})
 
 (lambda Game.init [g]
@@ -19,16 +20,6 @@
 
 (local *font-name* :terminus.ttf)
 (local *font-size* 24)
-
-(fn dist2 [ax ay bx by]
-  (let [dx (- bx ax)
-        dy (- by ay)]
-    (+ (* dx dx) (* dy dy))))
-
-(fn collides-with-pad? [sx sy ex ey bx by br]
-  (let [cx (G.math.clamp bx sx ex)
-        cy (G.math.clamp by sy ey)]
-    (<= (dist2 cx cy bx by) (* br br))))
 
 (fn Game.update [g t dt]
   (when (or (G.input.is_key_pressed :q) (G.input.is_key_pressed :esc))
@@ -52,25 +43,29 @@
            :player-width pw
            :player-height ph
            :ball-radius br
+           :simulation-steps steps
            :ball {: x : y :speed {:x dx :y dy}}} g]
-      (for [i 0 10 &until collided]
-        (let [step (* i (/ dt 10))
+      (for [i 0 steps &until collided]
+        (let [step (* i (/ dt steps))
               nx (+ x (* step dx))
               ny (+ y (* step dy))]
-          (let [{:x px :y py} g.left-player]
-            (when (collides-with-pad? px py (+ px pw) (+ py ph) nx ny br)
-              (G.sound.play_sfx :pong-blip1.wav)
-              (set g.ball.speed.x (- g.ball.speed.x))
-              (set g.ball.x (+ pw 15 (/ br 2)))
-              (set collided true)))
-          (let [{:x px :y py} g.right-player]
-            (when (collides-with-pad? px py (+ px pw) (+ py ph) nx ny br)
-              (G.sound.play_sfx :pong-blip1.wav)
-              (set g.ball.x (- w 15 pw (/ br 2)))
-              (set g.ball.speed.x (- g.ball.speed.x))
-              (set collided true)))
           (when (and (not collided) (= g.state :running))
-            (if (>= nx (/ br 2))
+            (let [{:x px :y py} g.left-player]
+              (when (and (> (+ ny br) py) (< ny (+ py ph))
+                         (< (- nx br) (+ px pw)))
+                (G.sound.play_sfx :pong-blip1.wav)
+                (set g.ball.speed.x (- 0 g.ball.speed.x))
+                (set g.ball.x (+ px pw br 1))
+                (set collided true))))
+          (when (and (not collided) (= g.state :running))
+            (let [{:x px :y py} g.right-player]
+              (when (and (> (+ ny br) py) (< ny (+ py ph)) (> (+ nx br) px))
+                (G.sound.play_sfx :pong-blip1.wav)
+                (set g.ball.x (- px (+ br 1)))
+                (set g.ball.speed.x (- g.ball.speed.x))
+                (set collided true))))
+          (when (and (not collided) (= g.state :running))
+            (if (>= nx 0)
                 (do
                   (set g.ball.x nx))
                 (do
@@ -81,7 +76,7 @@
                   (set g.ball {:x (/ w 2) :y (/ h 2) :speed {:x 0 :y 0}})
                   (set g.state :serve))))
           (when (and (not collided) (= g.state :running))
-            (if (<= nx (- w (/ br 2)))
+            (if (<= nx w)
                 (do
                   (set g.ball.x nx))
                 (do
@@ -120,9 +115,6 @@
       (when (G.input.is_key_down :k)
         (set g.right-player.y
              (G.math.clamp (+ g.right-player.y 5) -10 (- h 120)))))))
-
-(fn draw-text! [text x y]
-  (G.graphics.draw_text *font-name* *font-size* text x y))
 
 (fn Game.draw [g]
   (G.graphics.attach_shader :crt.frag)
