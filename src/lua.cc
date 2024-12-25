@@ -367,23 +367,19 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        std::string_view font = GetLuaString(state, 1);
        const uint32_t font_size = luaL_checkinteger(state, 2);
-       std::string_view text;
-       switch (lua_type(state, 3)) {
-         case LUA_TSTRING:
-           text = GetLuaString(state, 3);
-           break;
-         case LUA_TUSERDATA: {
-           auto* buf = reinterpret_cast<ByteBuffer*>(
-               luaL_checkudata(state, 3, "byte_buffer"));
-           text = std::string_view(reinterpret_cast<const char*>(buf->contents),
-                                   buf->size);
-         }; break;
-         default:
-           LUA_ERROR(state, "Argument 3 cannot be printed");
-       }
        const float x = luaL_checknumber(state, 4);
        const float y = luaL_checknumber(state, 5);
-       renderer->DrawText(font, font_size, text, FVec(x, y));
+       if (lua_type(state, 3) == LUA_TSTRING) {
+         std::string_view text = GetLuaString(state, 3);
+         renderer->DrawText(font, font_size, text, FVec(x, y));
+       } else if (lua_type(state, 3) == LUA_TUSERDATA) {
+         auto* buf = reinterpret_cast<ByteBuffer*>(
+             luaL_checkudata(state, 3, "byte_buffer"));
+         std::string_view text(reinterpret_cast<const char*>(buf->contents),
+                               buf->size);
+         renderer->DrawText(font, font_size, text, FVec(x, y));
+       } else {
+       }
        return 0;
      }},
     {"text_dimensions",
@@ -483,8 +479,6 @@ const struct luaL_Reg kGraphicsLib[] = {
          if (!lua_getmetatable(state, 2)) {
            LUA_ERROR(state, "Invalid parameter");
          }
-         lua_getfield(state, -1, "__name");
-         lua_pop(state, 1);
          lua_getfield(state, -1, "send_as_uniform");
          if (!lua_isfunction(state, -1)) {
            LUA_ERROR(state, "Passed parameter has no `send_as_uniform` method");
@@ -572,8 +566,8 @@ const struct luaL_Reg kSystemLib[] = {
 template <typename T, typename... Args>
 T* NewUserData(const char* metatable, lua_State* state, Args... args) {
   auto* userdata = static_cast<T*>(lua_newuserdata(state, sizeof(T)));
-  luaL_getmetatable(state, metatable);
   new (userdata) T(args...);
+  luaL_getmetatable(state, metatable);
   lua_setmetatable(state, -2);
   return userdata;
 }
@@ -1566,6 +1560,20 @@ void Lua::FlushCompilationCache() {
   sqlite3_exec(db_, "END TRANSACTION", nullptr, nullptr, nullptr);
 }
 
+int ForwardIndexToMetatable(lua_State* state) {
+  lua_getmetatable(state, 1);
+  lua_pushvalue(state, 2);
+  lua_gettable(state, -2);
+  if (!lua_iscfunction(state, -1)) {
+    lua_getmetatable(state, 1);
+    lua_getfield(state, -1, "__name");
+    LUA_ERROR(state, GetLuaString(state, 2), " is not a valid method for ",
+              GetLuaString(state, -1));
+    return 0;
+  }
+  return 1;
+}
+
 void Lua::LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
                         size_t register_count) {
   luaL_newmetatable(state_, metatable_name);
@@ -1578,6 +1586,9 @@ void Lua::LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
     lua_pushcfunction(state_, r.func);
     lua_settable(state_, -3);
   }
+  // Forward __index to the metatable.
+  lua_pushcfunction(state_, ForwardIndexToMetatable);
+  lua_setfield(state_, -2, "__index");
   lua_pop(state_, 1);  // Pop the metatable from the stack.
 }
 
