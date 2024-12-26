@@ -457,7 +457,8 @@ Renderer::Renderer(const DbAssets& assets, BatchRenderer* renderer,
       font_table_(allocator),
       fonts_(512, allocator) {}
 
-void Renderer::BeginFrame() {
+void Renderer::ClearForFrame() {
+  renderer_->Clear();
   transform_stack_.Clear();
   transform_stack_.Push(FMat4x4::Identity());
   ApplyTransform(FMat4x4::Identity());

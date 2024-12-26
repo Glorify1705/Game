@@ -6,6 +6,7 @@
   (when (G.input.is_key_pressed :q) (G.system.quit)))
 
 (fn Game.draw []
+  (G.graphics.clear)
   (let [(mx my) (G.input.mouse_position)]
     (G.graphics.draw_text :ponderosa.ttf 24
                           (.. "Hello there! Your mouse is at x = " mx " y = "

@@ -141,6 +141,7 @@ class Lua {
 
   lua_State* state_ = nullptr;
   bool stopped_ = false;
+  bool single_evaluation_ = false;
   int traceback_handler_;
 
   Allocator* allocator_;

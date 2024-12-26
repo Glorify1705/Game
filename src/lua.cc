@@ -101,15 +101,18 @@ int LoadLuaAsset(lua_State* state, const DbAssets::Script& asset,
     lua_error(state);
     return 0;
   }
+  const int start = lua_gettop(state);
   if (traceback_handler != INT_MAX) {
-    if (lua_pcall(state, 0, 1, traceback_handler)) {
+    if (lua_pcall(state, 0, LUA_MULTRET, traceback_handler)) {
       lua_error(state);
       return 0;
     }
   } else {
-    lua_call(state, 0, 1);
+    lua_call(state, 0, LUA_MULTRET);
   }
-  return 1;
+  const int end = lua_gettop(state);
+  // Return 1 more to distinguish the 0 case.
+  return end - start;
 }
 
 int LoadFennelAsset(lua_State* state, const DbAssets::Script& asset,
@@ -274,6 +277,12 @@ T* AsUserdata(lua_State* state, int index) {
 }
 
 const struct luaL_Reg kGraphicsLib[] = {
+    {"clear",
+     [](lua_State* state) {
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->ClearForFrame();
+       return 0;
+     }},
     {"draw_sprite",
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
@@ -1629,7 +1638,7 @@ void Lua::InsertIntoCache(std::string_view script_name, lua_State* state) {
 }
 
 void Lua::FlushCompilationCache() {
-  LOG("Flushing compilation cache");
+  TIMER("Flushing compilation cache");
   sqlite3_exec(db_, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
   FixedStringBuffer<256> sql(R"(
     INSERT OR REPLACE 
@@ -1826,8 +1835,12 @@ void Lua::LoadMain() {
   auto* main = assets_->GetScript("main.lua");
   CHECK(main != nullptr, "Unknown script main.lua");
   LoadLuaAsset(state_, *main, traceback_handler_);
-  CHECK(lua_istable(state_, -1), "Main script does not define a table");
   FlushCompilationCache();
+  if (!lua_istable(state_, -1)) {
+    LOG("Single evaluation mode. Finished");
+    single_evaluation_ = true;
+    return;
+  }
   // Check all important functions are defined.
   for (const char* fn : {"init", "update", "draw"}) {
     lua_getfield(state_, -1, fn);
@@ -1851,6 +1864,7 @@ void Lua::SetPackagePreload(std::string_view filename) {
 }
 
 void Lua::Init() {
+  if (single_evaluation_) return;
   LOG("Initializing game");
   if (!error_.empty()) return;
   READY();
@@ -1868,6 +1882,7 @@ void Lua::Init() {
 }
 
 void Lua::Update(float t, float dt) {
+  if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   t_ = t;
@@ -1884,6 +1899,7 @@ void Lua::Update(float t, float dt) {
 }
 
 void Lua::Draw() {
+  if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1896,6 +1912,12 @@ void Lua::Draw() {
 }
 
 void Lua::HandleKeypressed(int scancode) {
+  if (single_evaluation_) {
+    if (scancode == SDL_SCANCODE_Q || scancode == SDL_SCANCODE_ESCAPE) {
+      Stop();
+    }
+    return;
+  }
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1910,6 +1932,7 @@ void Lua::HandleKeypressed(int scancode) {
 }
 
 void Lua::HandleKeyreleased(int scancode) {
+  if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1924,6 +1947,7 @@ void Lua::HandleKeyreleased(int scancode) {
 }
 
 void Lua::HandleMousePressed(int button) {
+  if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1938,6 +1962,7 @@ void Lua::HandleMousePressed(int button) {
 }
 
 void Lua::HandleTextInput(std::string_view input) {
+  if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1952,6 +1977,7 @@ void Lua::HandleTextInput(std::string_view input) {
 }
 
 void Lua::HandleMouseReleased(int button) {
+  if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1966,6 +1992,7 @@ void Lua::HandleMouseReleased(int button) {
 }
 
 void Lua::HandleMouseMoved(FVec2 pos, FVec2 delta) {
+  if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1983,6 +2010,7 @@ void Lua::HandleMouseMoved(FVec2 pos, FVec2 delta) {
 }
 
 void Lua::HandleQuit() {
+  if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");

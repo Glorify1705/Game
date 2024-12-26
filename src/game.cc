@@ -154,7 +154,6 @@ struct EngineModules {
 
   void StartFrame() {
     frame_allocator.Reset();
-    batch_renderer.Clear();
     mouse.InitForFrame();
     keyboard.InitForFrame();
     controllers.InitForFrame();
@@ -219,7 +218,6 @@ struct EngineModules {
   }
 
   void Render() {
-    renderer.BeginFrame();
     lua.Draw();
     renderer.FlushFrame();
     batch_renderer.Render(&frame_allocator);

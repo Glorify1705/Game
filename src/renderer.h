@@ -251,7 +251,7 @@ class Renderer {
   Renderer(const DbAssets& assets, BatchRenderer* renderer,
            Allocator* allocator);
 
-  void BeginFrame();
+  void ClearForFrame();
   void FlushFrame() { renderer_->Finish(); }
 
   void DrawSprite(std::string_view sprite_name, FVec2 position, float angle);
