@@ -1,5 +1,6 @@
 #include "shaders.h"
 
+#include "clock.h"
 #include "units.h"
 
 namespace G {
@@ -115,6 +116,7 @@ Shaders::Shaders(const DbAssets& assets, Allocator* allocator)
       compiled_programs_(allocator),
       gl_shader_handles_(128, allocator),
       gl_program_handles_(128, allocator) {
+  TIMER("Compiling shaders");
   for (const auto& shader : assets.GetShaders()) {
     ArenaAllocator scratch(allocator, Megabytes(1));
     const size_t total_size = kFragmentShaderPreamble.size() + shader.size +

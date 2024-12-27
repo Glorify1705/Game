@@ -383,9 +383,18 @@ class Game {
     }
     PHYSFS_CHECK(PHYSFS_init(argv[0]),
                  "Could not initialize PhysFS: ", argv[0]);
-    LoadDb(argc_ - 1, argv_ + 1);
-    db_assets_ = GetAssets(argv + 1, argc - 1, db_, allocator_);
-    LoadConfig(*db_assets_, &config_, allocator_);
+    {
+      TIMER("Load database");
+      LoadDb(argc_ - 1, argv_ + 1);
+    }
+    {
+      TIMER("Getting assets");
+      db_assets_ = GetAssets(argv + 1, argc - 1, db_, allocator_);
+    }
+    {
+      TIMER("Loading config");
+      LoadConfig(*db_assets_, &config_, allocator_);
+    }
     LOG("Using engine version ", GAME_VERSION_STR);
     LOG("Game requested engine version ", config_.version.major, ".",
         config_.version.minor);
