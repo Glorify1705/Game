@@ -406,6 +406,24 @@ const struct luaL_Reg kGraphicsLib[] = {
        renderer->DrawLines(temp.data(), temp.size());
        return 0;
      }},
+    {"print",
+     [](lua_State* state) {
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       std::string_view font = "debug_font.ttf";
+       const uint32_t font_size = 16;
+       const float x = luaL_checknumber(state, 2);
+       const float y = luaL_checknumber(state, 3);
+       if (lua_type(state, 1) == LUA_TSTRING) {
+         std::string_view text = GetLuaString(state, 1);
+         renderer->DrawText(font, font_size, text, FVec(x, y));
+       } else if (lua_type(state, 1) == LUA_TUSERDATA) {
+         auto* buf = AsUserdata<ByteBuffer>(state, 1);
+         std::string_view text(reinterpret_cast<const char*>(buf->contents),
+                               buf->size);
+         renderer->DrawText(font, font_size, text, FVec(x, y));
+       }
+       return 0;
+     }},
     {"draw_text",
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -421,7 +439,6 @@ const struct luaL_Reg kGraphicsLib[] = {
          std::string_view text(reinterpret_cast<const char*>(buf->contents),
                                buf->size);
          renderer->DrawText(font, font_size, text, FVec(x, y));
-       } else {
        }
        return 0;
      }},
