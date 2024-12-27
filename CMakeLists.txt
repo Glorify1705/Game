@@ -23,7 +23,6 @@ add_subdirectory(libraries/box2d EXCLUDE_FROM_ALL)
 
 add_subdirectory(libraries/lua EXCLUDE_FROM_ALL)
 add_subdirectory(libraries/xxHash/cmake_unofficial EXCLUDE_FROM_ALL)
-
 add_subdirectory(libraries/physfs EXCLUDE_FROM_ALL)
 
 set(BUILD_REGRESS OFF)
@@ -35,30 +34,43 @@ find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(SDL2_mixer REQUIRED)
 
+add_library(double-conversion STATIC
+    libraries/double-conversion/bignum.cc
+    libraries/double-conversion/bignum-dtoa.cc
+    libraries/double-conversion/cached-powers.cc
+    libraries/double-conversion/double-to-string.cc
+    libraries/double-conversion/fast-dtoa.cc
+    libraries/double-conversion/fixed-dtoa.cc
+    libraries/double-conversion/string-to-double.cc
+    libraries/double-conversion/strtod.cc
+)
+target_include_directories(double-conversion PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 set(GAME_SRCS
-    "src/logging.cc"
+    "libraries/glad.cc"
+    "libraries/json.cpp"
+    "libraries/sqlite3.c"
+    "libraries/stb_rect_pack.cc"
+    "libraries/stb_truetype.cc"
     "src/assets.cc"
     "src/clock.cc"
-    "src/game.cc"
-    "src/console.cc"
-    "libraries/glad.cc"
-    "src/input.cc"
     "src/color.cc"
-    "libraries/sqlite3.c"
     "src/config.cc"
+    "src/console.cc"
     "src/filesystem.cc"
+    "src/game.cc"
+    "src/image.cc"
+    "src/input.cc"
+    "src/logging.cc"
     "src/lua.cc"
     "src/physics.cc"
-    "src/image.cc"
     "src/renderer.cc"
     "src/shaders.cc"
     "src/sound.cc"
     "src/stats.cc"
     "src/string_table.cc"
-    "src/thread_pool.cc"
-    "libraries/stb_truetype.cc"
-    "libraries/stb_rect_pack.cc"
     "src/strings.cc"
+    "src/thread_pool.cc"
     "src/transformations.cc"
     "src/packer.cc")
 
@@ -103,6 +115,7 @@ target_link_libraries(
           box2d
           lua
           xxHash::xxhash
+          double-conversion
           OpenGL::GL)
 
 if(WIN32)

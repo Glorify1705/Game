@@ -4,6 +4,7 @@
 #include "debug_font.h"
 #include "defer.h"
 #include "filesystem.h"
+#include "libraries/json.h"
 #include "libraries/sqlite3.h"
 #include "lua.h"
 #include "physfs.h"
@@ -142,7 +143,8 @@ class DbPacker {
 
   void InsertSpritesheetEntry(std::string_view spritesheet, int width,
                               int height, size_t sprite_count,
-                              size_t sprite_name_length, const char* image) {
+                              size_t sprite_name_length,
+                              std::string_view image) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(R"(
           INSERT OR REPLACE 
@@ -156,7 +158,7 @@ class DbPacker {
     DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, spritesheet.data(), spritesheet.size(),
                       SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, image, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, image.data(), -1, SQLITE_STATIC);
     sqlite3_bind_int(stmt, 3, width);
     sqlite3_bind_int(stmt, 4, height);
     sqlite3_bind_int(stmt, 5, sprite_count);
@@ -165,6 +167,25 @@ class DbPacker {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
   }
+
+  /*
+  AssetInfo InsertSpritesheetJson(std::string_view filename, const uint8_t* buf,
+                              size_t size) {
+    auto [status, json] =
+  jt::Json::parse(std::string_view(reinterpret_cast<const char*>(buf), size));
+    CHECK(status == jt::Json::success, "failed to parse ", filename, ": ",
+  jt::Json::StatusToString(status)); CHECK(json.isObject(), "invalid sprite
+  sheet format, must return a json object"); std::string atlas =
+  json["atlas"].getString(); const int64_t width = json["width"].getLong();
+    const int64_t height = json["height"].getLong();
+    size_t sprite_count = 0, sprite_name_length = 0;
+    for (const auto& sprite : json["sprites"].getArray()) {
+    }
+    InsertSpritesheetEntry(filename, width, height, sprite_count,
+                           sprite_name_length, atlas.c_str());
+    return {};
+  }
+  */
 
   AssetInfo InsertSpritesheet(std::string_view filename, const uint8_t* buf,
                               size_t size) {
