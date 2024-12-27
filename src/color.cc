@@ -969,7 +969,7 @@ struct ColorTable {
 
   Color Get(std::string_view color) {
     Color result;
-    CHECK(table.Lookup(color, &result));
+    CHECK(table.Lookup(color, &result), "No color ", color);
     return result;
   }
 };
