@@ -4,3 +4,6 @@
 [submodule "tools/qoiview"]
 	path = tools/qoiview
 	url = https://github.com/floooh/qoiview
+[submodule "libraries/json.cpp"]
+	path = libraries/json.cpp
+	url = https://github.com/Glorify1705/json.cpp

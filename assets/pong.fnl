@@ -5,7 +5,19 @@
              :player-width 20
              :player-height 150
              :max-score 10
+             :colors [:red
+                      :green
+                      :blue
+                      :cyan
+                      :yellow
+                      :candypink
+                      :desert
+                      :white]
              :simulation-steps 3
+             :random (G.random.non_deterministic)
+             :ball-speed 1
+             :ball-color :white
+             :ball-speed-update 0
              :ball-radius 10})
 
 (lambda Game.init [g]
@@ -22,7 +34,15 @@
 (local *font-name* :terminus.ttf)
 (local *font-size* 24)
 
+(fn change-ball-color! [g]
+  (set g.ball-color (G.random.pick g.random g.colors)))
+
 (fn Game.update [g t dt]
+  (let [bt g.ball-speed-update]
+    (set g.ball-speed-update (+ bt dt))
+    (when (> g.ball-speed-update 5)
+      (set g.ball-speed (+ g.ball-speed 0.1))
+      (set g.ball-speed-update 0)))
   (when (or (G.input.is_key_pressed :q) (G.input.is_key_pressed :esc))
     (G.system.quit))
   (let [(w h) (G.window.dimensions)]
@@ -59,17 +79,19 @@
            :player-width pw
            :player-height ph
            :ball-radius br
+           :ball-speed bs
            :simulation-steps steps
            :ball {: x : y :speed {:x dx :y dy}}} g]
       (for [i 0 steps &until collided]
         (let [step (* i (/ dt steps))
-              nx (+ x (* step dx))
-              ny (+ y (* step dy))]
+              nx (+ x (* step dx bs))
+              ny (+ y (* step dy bs))]
           (when (and (not collided) (= g.state :running))
             (let [{:x px :y py} g.left-player]
               (when (and (> (+ ny br) py) (< ny (+ py ph))
                          (< (- nx br) (+ px pw)))
                 (G.sound.play_sfx :pong-blip1.wav)
+                (change-ball-color! g)
                 (set g.ball.speed.x (- 0 g.ball.speed.x))
                 (set g.ball.x (+ px pw br 1))
                 (set collided true))))
@@ -77,6 +99,7 @@
             (let [{:x px :y py} g.right-player]
               (when (and (> (+ ny br) py) (< ny (+ py ph)) (> (+ nx br) px))
                 (G.sound.play_sfx :pong-blip1.wav)
+                (change-ball-color! g)
                 (set g.ball.x (- px (+ br 1)))
                 (set g.ball.speed.x (- g.ball.speed.x))
                 (set collided true))))
@@ -86,6 +109,7 @@
                   (set g.ball.x nx))
                 (do
                   (G.sound.play_sfx :pong-score.wav)
+                  (change-ball-color! g)
                   (set g.right-score (+ 1 g.right-score))
                   (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
                   (set g.right-player {:x (- w 30) :y (- (/ h 2) (/ ph 2))})
@@ -97,6 +121,7 @@
                   (set g.ball.x nx))
                 (do
                   (G.sound.play_sfx :pong-score.wav)
+                  (change-ball-color! g)
                   (set g.left-score (+ 1 g.left-score))
                   (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
                   (set g.right-player {:x (- w 30) :y (- (/ h 2) (/ ph 2))})
@@ -108,6 +133,7 @@
                   (set g.ball.y ny))
                 (do
                   (G.sound.play_sfx :pong-blip2.wav)
+                  (change-ball-color! g)
                   (set g.ball.y br)
                   (set g.ball.speed.y (- g.ball.speed.y))
                   (set collided true))))
@@ -117,6 +143,7 @@
                   (set g.ball.y ny))
                 (do
                   (G.sound.play_sfx :pong-blip2.wav)
+                  (change-ball-color! g)
                   (set g.ball.y (- h br))
                   (set g.ball.speed.y (- g.ball.speed.y))
                   (set collided true))))))))
@@ -134,6 +161,7 @@
              (G.math.clamp (+ g.right-player.y 5) -10 (- h 120)))))))
 
 (fn Game.draw [g]
+  (G.graphics.clear)
   (G.graphics.attach_shader :crt.frag)
   (let [{:width w :height h} g]
     (G.graphics.send_uniform :iResolution (G.math.v2 w h))
@@ -160,6 +188,8 @@
             (let [{: x : y} (. g :right-player)]
               (G.graphics.draw_rect x y (+ x pw) (+ y ph)))
             (let [{: x : y} (. g :ball)]
-              (G.graphics.draw_circle x y br)))))))
+              (G.graphics.set_color g.ball-color)
+              (G.graphics.draw_circle x y br)))))
+    (G.graphics.set_color :white)))
 
 Game
