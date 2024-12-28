@@ -288,8 +288,8 @@ class Renderer {
   void Scale(float x, float y) { ApplyTransform(ScaleXY(x, y)); }
 
  private:
-  inline static constexpr size_t kAtlasWidth = 512;
-  inline static constexpr size_t kAtlasHeight = 512;
+  inline static constexpr size_t kAtlasWidth = 1024;
+  inline static constexpr size_t kAtlasHeight = 1024;
   inline static constexpr size_t kAtlasSize = kAtlasWidth * kAtlasHeight;
 
   struct FontInfo {

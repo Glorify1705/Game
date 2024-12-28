@@ -502,7 +502,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        std::string_view fragment_shader;
        if (lua_gettop(state) == 0) {
-         fragment_shader = "post_pass.frag";
+         fragment_shader = "pre_pass.frag";
        } else {
          fragment_shader = GetLuaString(state, 1);
        }
@@ -761,10 +761,9 @@ constexpr luaL_Reg kV3Methods[] = {
     {"__tostring",
      [](lua_State* state) {
        auto* v = AsUserdata<FVec3>(state, 1);
-       char buf[64];
-       size_t size = std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f }",
-                                   v->x, v->y, v->z);
-       lua_pushlstring(state, buf, size);
+       FixedStringBuffer<64> buf;
+       v->DebugString(buf);
+       lua_pushlstring(state, buf.str(), buf.size());
        return 1;
      }},
     {"normalized",
@@ -826,11 +825,9 @@ constexpr luaL_Reg kV4Methods[] = {
     {"__tostring",
      [](lua_State* state) {
        auto* v = AsUserdata<FVec4>(state, 1);
-       char buf[64];
-       size_t size =
-           std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f, %.3f }", v->x,
-                         v->y, v->z, v->w);
-       lua_pushlstring(state, buf, size);
+       FixedStringBuffer<64> buf;
+       v->DebugString(buf);
+       lua_pushlstring(state, buf.str(), buf.size());
        return 1;
      }},
     {"normalized",

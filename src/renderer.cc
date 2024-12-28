@@ -631,7 +631,7 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
   stbtt_PackSetOversampling(&font.context, 2, 2);
   CHECK(stbtt_PackFontRange(&font.context, asset->contents, 0, pixel_height, 0,
                             256, font.chars) == 1,
-        "Could not load font");
+        "Could not load font, atlas is too small");
   stbtt_PackEnd(&font.context);
   uint32_t* buffer = NewArray<uint32_t>(kAtlasSize, &scratch);
   std::memset(buffer, 0, kAtlasSize * sizeof(uint32_t));
