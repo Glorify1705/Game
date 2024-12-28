@@ -1087,7 +1087,7 @@ Json::Status Json::parse(Json& json, const char*& p, const char* e, int context,
   return unexpected_eof;
 }
 
-std::pair<Json::Status, Json> Json::parse(const std::string& s) {
+std::pair<Json::Status, Json> Json::parse(std::string_view s) {
   Json::Status s2;
   std::pair<Json::Status, Json> res;
   const char* p = s.data();

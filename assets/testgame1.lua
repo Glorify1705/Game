@@ -85,8 +85,8 @@ function G1:update(t, dt)
 end
 
 function G1:draw()
+	G.graphics.clear()
 	local mx, my = G.input.mouse_position()
-	G.graphics.draw_text("ponderosa.ttf", 16, "Hi stranger!", 600, 0)
 	G.graphics.set_color("freshgreen")
 	G.graphics.draw_rect(10, 10, 300, 20)
 	G.graphics.set_color("neonred")

@@ -101,18 +101,15 @@ int LoadLuaAsset(lua_State* state, const DbAssets::Script& asset,
     lua_error(state);
     return 0;
   }
-  const int start = lua_gettop(state);
   if (traceback_handler != INT_MAX) {
-    if (lua_pcall(state, 0, LUA_MULTRET, traceback_handler)) {
+    if (lua_pcall(state, 0, 1, traceback_handler)) {
       lua_error(state);
       return 0;
     }
   } else {
-    lua_call(state, 0, LUA_MULTRET);
+    lua_call(state, 0, 1);
   }
-  const int end = lua_gettop(state);
-  // Return 1 more to distinguish the 0 case.
-  return end - start;
+  return 1;
 }
 
 int LoadFennelAsset(lua_State* state, const DbAssets::Script& asset,
@@ -1854,8 +1851,12 @@ void Lua::LoadMain() {
   LoadLuaAsset(state_, *main, traceback_handler_);
   FlushCompilationCache();
   if (!lua_istable(state_, -1)) {
-    LOG("Single evaluation mode. Finished");
-    single_evaluation_ = true;
+    if (lua_isboolean(state_, -1)) {
+      LOG("Single evaluation mode. Finished");
+      single_evaluation_ = true;
+    } else {
+      LUA_ERROR(state_, "Expected a table");
+    }
     return;
   }
   // Check all important functions are defined.

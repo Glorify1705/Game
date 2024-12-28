@@ -168,48 +168,17 @@ class DbPacker {
     }
   }
 
-  /*
   AssetInfo InsertSpritesheetJson(std::string_view filename, const uint8_t* buf,
-                              size_t size) {
-    auto [status, json] =
-  jt::Json::parse(std::string_view(reinterpret_cast<const char*>(buf), size));
-    CHECK(status == jt::Json::success, "failed to parse ", filename, ": ",
-  jt::Json::StatusToString(status)); CHECK(json.isObject(), "invalid sprite
-  sheet format, must return a json object"); std::string atlas =
-  json["atlas"].getString(); const int64_t width = json["width"].getLong();
-    const int64_t height = json["height"].getLong();
-    size_t sprite_count = 0, sprite_name_length = 0;
-    for (const auto& sprite : json["sprites"].getArray()) {
-    }
-    InsertSpritesheetEntry(filename, width, height, sprite_count,
-                           sprite_name_length, atlas.c_str());
-    return {};
-  }
-  */
+                                  size_t size) {
+    std::string_view buffer(reinterpret_cast<const char*>(buf), size);
 
-  AssetInfo InsertSpritesheet(std::string_view filename, const uint8_t* buf,
-                              size_t size) {
-    auto* state = lua_newstate(&DbPacker::LuaAlloc, this);
-    CHECK(luaL_loadbuffer(state, reinterpret_cast<const char*>(buf), size,
-                          filename.data()) == 0,
-          "Failed to load ", filename, ": ", luaL_checkstring(state, -1));
-    CHECK(lua_pcall(state, 0, LUA_MULTRET, 0) == 0,
-          "Failed to load script: ", filename, ": ",
-          luaL_checkstring(state, -1));
-    lua_pushstring(state, "atlas");
-    lua_gettable(state, -2);
-    const char* atlas = lua_tostring(state, -1);
-    lua_pop(state, 1);
-    lua_pushstring(state, "width");
-    lua_gettable(state, -2);
-    const int width = lua_tonumber(state, -1);
-    lua_pop(state, 1);
-    lua_pushstring(state, "height");
-    lua_gettable(state, -2);
-    const int height = lua_tonumber(state, -1);
-    lua_pop(state, 1);
-    lua_pushstring(state, "sprites");
-    lua_gettable(state, -2);
+    auto [status, json] = jt::Json::parse(
+        std::string_view(reinterpret_cast<const char*>(buf), size));
+    CHECK(status == jt::Json::success, "failed to parse ", filename, ": ",
+          jt::Json::StatusToString(status));
+    CHECK(json.isObject(),
+          "invalid spritesheet format, must return a json object");
+    // Insert sprites.
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(R"(
           INSERT OR REPLACE INTO sprites (name, spritesheet, x, y, width, height)
@@ -218,32 +187,20 @@ class DbPacker {
     CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
           "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
     DEFER([&] { sqlite3_finalize(stmt); });
+
     size_t sprite_count = 0, sprite_name_length = 0;
-    for (lua_pushnil(state); lua_next(state, -2); lua_pop(state, 1)) {
+    for (auto& sprite : json["sprites"].getArray()) {
       sprite_count++;
 
-      lua_pushstring(state, "name");
-      lua_gettable(state, -2);
-      size_t namelen = 0;
-      const char* namestr = luaL_checklstring(state, -1, &namelen);
-      lua_pop(state, 1);
+      std::string name = sprite["name"];
+      sprite_name_length += name.length();
 
-      sprite_name_length += namelen;
+      const uint32_t x = sprite["x"].getLong();
+      const uint32_t y = sprite["y"].getLong();
+      const uint32_t w = sprite["width"].getLong();
+      const uint32_t h = sprite["height"].getLong();
 
-      auto get_number = [&](const char* name) {
-        lua_pushstring(state, name);
-        lua_gettable(state, -2);
-        uint32_t result = luaL_checknumber(state, -1);
-        lua_pop(state, 1);
-        return result;
-      };
-
-      const uint32_t x = get_number("x");
-      const uint32_t y = get_number("y");
-      const uint32_t w = get_number("width");
-      const uint32_t h = get_number("height");
-
-      sqlite3_bind_text(stmt, 1, namestr, namelen, SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 1, name.data(), name.length(), SQLITE_TRANSIENT);
       sqlite3_bind_text(stmt, 2, filename.data(), filename.size(),
                         SQLITE_STATIC);
       sqlite3_bind_int(stmt, 3, x);
@@ -251,18 +208,18 @@ class DbPacker {
       sqlite3_bind_int(stmt, 5, w);
       sqlite3_bind_int(stmt, 6, h);
       if (sqlite3_step(stmt) != SQLITE_DONE) {
-        DIE("Could not insert data for ", namestr, " in ", filename, ": ",
+        DIE("Could not insert data for ", name, " in ", filename, ": ",
             sqlite3_errmsg(db_));
       }
       sqlite3_reset(stmt);
       sqlite3_clear_bindings(stmt);
     }
+    std::string atlas = json["atlas"].getString();
+    const int64_t width = json["width"].getLong();
+    const int64_t height = json["height"].getLong();
     InsertSpritesheetEntry(filename, width, height, sprite_count,
-                           sprite_name_length, atlas);
-    lua_pop(state, 1);
-    lua_close(state);
-
-    return AssetInfo{.size = size};
+                           sprite_name_length, atlas.c_str());
+    return {};
   }
 
   AssetInfo InsertShader(std::string_view filename, const uint8_t* buffer,
@@ -320,7 +277,7 @@ class DbPacker {
         {".fnl", &DbPacker::InsertScript, "script"},
         {".qoi", &DbPacker::InsertQoi, "image"},
         {".png", &DbPacker::InsertPng, "image"},
-        {".sprites", &DbPacker::InsertSpritesheet, "spritesheet"},
+        {".sprites.json", &DbPacker::InsertSpritesheetJson, "spritesheet"},
         {".ogg", &DbPacker::InsertAudio, "audio"},
         {".ttf", &DbPacker::InsertFont, "font"},
         {".wav", &DbPacker::InsertAudio, "audio"},

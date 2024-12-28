@@ -1,6 +1,6 @@
 local Object = require("classic")
 
-Vec2 = Object:extend()
+local Vec2 = Object:extend()
 
 function Vec2:new(x, y)
 	self.x = x
