@@ -11,7 +11,7 @@
     (G.graphics.draw_text :ponderosa.ttf 24
                           (.. "Hello there! Your mouse is at x = " mx " y = "
                               my) 50 200)
-    (G.graphics.set_color :neonred)
+    (G.graphics.set_color :blue)
     (G.graphics.draw_circle mx my 5))
   (G.graphics.set_color :green)
   (G.graphics.draw_text :ponderosa.ttf 24 "Hello there but in green" 400 400)

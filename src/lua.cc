@@ -730,10 +730,9 @@ constexpr luaL_Reg kV2Methods[] = {
     {"__tostring",
      [](lua_State* state) {
        auto* v = AsUserdata<FVec2>(state, 1);
-       char buf[32];
-       size_t size =
-           std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f }", v->x, v->y);
-       lua_pushlstring(state, buf, size);
+       FixedStringBuffer<32> buf;
+       v->DebugString(buf);
+       lua_pushlstring(state, buf.str(), buf.size());
        return 1;
      }},
     {"send_as_uniform", [](lua_State* state) {
@@ -1635,10 +1634,10 @@ constexpr luaL_Reg kByteBufferMethods[] = {
      }}};
 
 bool Lua::LoadFromCache(std::string_view script_name, lua_State* state) {
-  std::string_view cached;
-  if (compilation_cache_.Lookup(script_name, &cached)) {
+  CachedScript script;
+  if (compilation_cache_.Lookup(script_name, &script)) {
     LOG("Found cached compilation for ", script_name);
-    lua_pushlstring(state, cached.data(), cached.size());
+    lua_pushlstring(state, script.contents.data(), script.contents.size());
     return true;
   }
   return false;
@@ -1648,11 +1647,34 @@ void Lua::InsertIntoCache(std::string_view script_name, lua_State* state) {
   std::string_view compiled = GetLuaString(state, -1);
   auto* buffer = allocator_->Alloc(compiled.size(), 1);
   std::memcpy(buffer, compiled.data(), compiled.size());
-  compilation_cache_.Insert(script_name, compiled);
+  CachedScript script;
+  script.contents = compiled;
+  // Mark the script as dirty by not setting the checksum.
+  script.checksum_low = script.checksum_high = 0;
+  compilation_cache_.Insert(script_name, script);
 }
 
 void Lua::FlushCompilationCache() {
   TIMER("Flushing compilation cache");
+  // Check if we have anything to flush.
+  bool dirty = false;
+  for (const auto& script : assets_->GetScripts()) {
+    CachedScript cached_script;
+    if (!compilation_cache_.Lookup(script.name, &cached_script)) {
+      continue;
+    }
+    XXH128_hash_t checksum = assets_->GetChecksum(script.name);
+    if (checksum.low64 != cached_script.checksum_low ||
+        checksum.high64 != cached_script.checksum_high) {
+      LOG(script.name, " is dirty");
+      dirty = true;
+      break;
+    }
+  }
+  if (!dirty) {
+    LOG("Nothing to flush in the compilation cache");
+    return;
+  }
   sqlite3_exec(db_, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
   FixedStringBuffer<256> sql(R"(
     INSERT OR REPLACE 
@@ -1666,16 +1688,21 @@ void Lua::FlushCompilationCache() {
   }
   DEFER([&] { sqlite3_finalize(stmt); });
   for (const auto& script : assets_->GetScripts()) {
-    std::string_view contents;
-    if (!compilation_cache_.Lookup(script.name, &contents)) {
+    CachedScript cached_script;
+    if (!compilation_cache_.Lookup(script.name, &cached_script)) {
       continue;
     }
     XXH128_hash_t checksum = assets_->GetChecksum(script.name);
+    if (checksum.low64 == cached_script.checksum_low &&
+        checksum.high64 == cached_script.checksum_high) {
+      continue;
+    }
     sqlite3_bind_text(stmt, 1, script.name.data(), script.name.size(),
                       SQLITE_STATIC);
     sqlite3_bind_int64(stmt, 2, checksum.low64);
     sqlite3_bind_int64(stmt, 3, checksum.high64);
-    sqlite3_bind_text(stmt, 4, contents.data(), contents.size(), SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 4, cached_script.contents.data(),
+                      cached_script.contents.size(), SQLITE_STATIC);
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Failed to flush compilation cache: ", sqlite3_errmsg(db_));
     }
@@ -1822,7 +1849,8 @@ void Lua::SetError(std::string_view file, int line, std::string_view error) {
 
 void Lua::BuildCompilationCache() {
   FixedStringBuffer<512> sql(R"(
-      SELECT c.source_name, c.compiled FROM asset_metadata a 
+      SELECT c.source_name, c.compiled, c.source_hash_low, c.source_hash_high 
+      FROM asset_metadata a 
       INNER JOIN compilation_cache c 
       WHERE a.name = c.source_name AND c.source_hash_low = a.hash_low 
       AND c.source_hash_high = a.hash_high;
@@ -1839,7 +1867,11 @@ void Lua::BuildCompilationCache() {
     size_t content_size = sqlite3_column_bytes(stmt, 1);
     auto* buffer = static_cast<char*>(allocator_->Alloc(content_size, 1));
     std::memcpy(buffer, contents, content_size);
-    compilation_cache_.Insert(name, std::string_view(buffer, content_size));
+    CachedScript script;
+    script.contents = std::string_view(buffer, content_size);
+    script.checksum_low = sqlite3_column_int64(stmt, 2);
+    script.checksum_high = sqlite3_column_int64(stmt, 3);
+    compilation_cache_.Insert(name, script);
   }
 }
 

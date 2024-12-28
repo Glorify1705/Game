@@ -87,7 +87,6 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
     Log(l->file, l->line, "GL ERROR ", " type = ", type,
         " severity = ", severity, " message = ", message,
         ". Context = ", l->buffer);
-    _INTERNAL_GAME_TRAP();
   }
 }
 
@@ -111,7 +110,7 @@ struct EngineModules {
       : config(&config),
         filesystem(allocator),
         window(sdl_window),
-        shaders(*db_assets, allocator),
+        shaders(allocator),
         batch_renderer(GetWindowViewport(sdl_window), &shaders, allocator),
         keyboard(allocator),
         controllers(db_assets, allocator),
@@ -123,8 +122,6 @@ struct EngineModules {
         frame_allocator(allocator, Megabytes(128)),
         pool_(allocator, 4) {
     filesystem.Initialize(config);
-    pool_.Start();
-    pool_.Queue(DoWorkStatic, this);
   }
 
   void DoWork() { LOG("Hello from a thread!"); }
@@ -134,7 +131,10 @@ struct EngineModules {
     return 0;
   }
 
-  void InitializeLua() {
+  void Initialize() {
+    TIMER();
+    pool_.Start();
+    pool_.Queue(DoWorkStatic, this);
     lua.LoadLibraries();
     lua.Register(&shaders);
     lua.Register(&batch_renderer);
@@ -215,12 +215,6 @@ struct EngineModules {
     }
     controllers.PushEvent(event);
     ForwardEventToLua(event);
-  }
-
-  void Render() {
-    lua.Draw();
-    renderer.FlushFrame();
-    batch_renderer.Render(&frame_allocator);
   }
 
   const GameConfig* config = nullptr;
@@ -456,7 +450,8 @@ class Game {
     TIMER("Game Initialization");
     e_ = New<EngineModules>(allocator_, argc_, argv_, db_, db_assets_, config_,
                             window_, allocator_);
-    e_->InitializeLua();
+    e_->shaders.CompileAssetShaders(*db_assets_);
+    e_->Initialize();
     e_->lua.Init();
   }
 
@@ -487,11 +482,10 @@ class Game {
           return;
         }
         e_->HandleEvent(event);
-        if (event.type == SDL_KEYDOWN) {
-          if (e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
-            if (config_.enable_debug_rendering) {
-              debug_ = !debug_;
-            }
+        if (event.type == SDL_KEYDOWN &&
+            e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
+          if (config_.enable_debug_rendering) {
+            debug_ = !debug_;
           }
         }
       }
@@ -528,12 +522,20 @@ class Game {
   }
 
   void Render() {
+    e_->lua.Draw();
+    // Draw FPS counter in debug mode.
     if (debug_ && stats_.samples() > 0) {
-      FixedStringBuffer<kMaxLogLineLength> log("FPS: ", (1.0f / stats_.avg()));
+      FixedStringBuffer<kMaxLogLineLength> log(
+          "FPS: ", (1000.0f / stats_.avg()), " Stats = ", stats_);
       e_->renderer.SetColor(Color::White());
-      e_->renderer.DrawText("debug_font.ttf", 20, log.str(), FVec(50, 50));
+      const IVec2 dims =
+          e_->renderer.TextDimensions("debug_font.ttf", 12, log.str());
+      const IVec2 viewport = e_->batch_renderer.GetViewport();
+      e_->renderer.DrawText("debug_font.ttf", 12, log.str(),
+                            FVec(viewport.x - dims.x, viewport.y - dims.y));
     }
-    e_->Render();
+    e_->renderer.FlushFrame();
+    e_->batch_renderer.Render(&e_->frame_allocator);
     SDL_GL_SwapWindow(window_);
   }
 

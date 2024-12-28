@@ -11,6 +11,11 @@
 #include "allocators.h"
 
 namespace G {
+
+void PrintDouble(double val, char* buffer, size_t size);
+
+class StringBuffer;
+
 namespace internal_strings {
 
 template <typename T, typename = void>
@@ -25,7 +30,7 @@ struct HasAppendString<
 class Alphanumeric {
  public:
   Alphanumeric(float f) {
-    snprintf(buf_, sizeof(buf_), "%.2f", f);
+    PrintDouble(f, buf_, sizeof(buf_));
     piece_ = std::string_view(buf_);
   }
   Alphanumeric(int i) {
@@ -57,7 +62,7 @@ class Alphanumeric {
   }
 
   Alphanumeric(double d) {
-    snprintf(buf_, sizeof(buf_), "%.2lf", d);
+    PrintDouble(d, buf_, sizeof(buf_));
     piece_ = std::string_view(buf_);
   }
 

@@ -111,14 +111,33 @@ constexpr std::string_view kFragmentShaderPostamble = R"(
 
 }  // namespace
 
-Shaders::Shaders(const DbAssets& assets, Allocator* allocator)
-    : compiled_shaders_(allocator),
+Shaders::Shaders(Allocator* allocator)
+    : allocator_(allocator),
+      compiled_shaders_(allocator),
       compiled_programs_(allocator),
       gl_shader_handles_(128, allocator),
       gl_program_handles_(128, allocator) {
+  // Ensure we have the basic shaders available.
+  CHECK(Compile(DbAssets::ShaderType::kVertex, "pre_pass.vert",
+                kPrePassVertexShader),
+        LastError());
+  CHECK(Compile(DbAssets::ShaderType::kFragment, "pre_pass.frag",
+                kPrePassFragmentShader),
+        LastError());
+  CHECK(Link("pre_pass", "pre_pass.vert", "pre_pass.frag"), LastError());
+  CHECK(Compile(DbAssets::ShaderType::kVertex, "post_pass.vert",
+                kPostPassVertexShader),
+        LastError());
+  CHECK(Compile(DbAssets::ShaderType::kFragment, "post_pass.frag",
+                kPostPassFragmentShader),
+        LastError());
+  CHECK(Link("post_pass", "post_pass.vert", "post_pass.frag"), LastError());
+}
+
+void Shaders::CompileAssetShaders(const DbAssets& assets) {
   TIMER("Compiling shaders");
   for (const auto& shader : assets.GetShaders()) {
-    ArenaAllocator scratch(allocator, Megabytes(1));
+    ArenaAllocator scratch(allocator_, Megabytes(1));
     const size_t total_size = kFragmentShaderPreamble.size() + shader.size +
                               kFragmentShaderPostamble.size() + 1;
     auto* assembled = reinterpret_cast<char*>(scratch.Alloc(total_size, 1));
@@ -135,20 +154,6 @@ Shaders::Shaders(const DbAssets& assets, Allocator* allocator)
                   std::string_view(assembled, assembled_size)),
           LastError());
   }
-  CHECK(Compile(DbAssets::ShaderType::kVertex, "pre_pass.vert",
-                kPrePassVertexShader),
-        LastError());
-  CHECK(Compile(DbAssets::ShaderType::kFragment, "pre_pass.frag",
-                kPrePassFragmentShader),
-        LastError());
-  CHECK(Link("pre_pass", "pre_pass.vert", "pre_pass.frag"), LastError());
-  CHECK(Compile(DbAssets::ShaderType::kVertex, "post_pass.vert",
-                kPostPassVertexShader),
-        LastError());
-  CHECK(Compile(DbAssets::ShaderType::kFragment, "post_pass.frag",
-                kPostPassFragmentShader),
-        LastError());
-  CHECK(Link("post_pass", "post_pass.vert", "post_pass.frag"), LastError());
 }
 
 Shaders::~Shaders() {

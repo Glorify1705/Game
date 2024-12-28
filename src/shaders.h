@@ -65,8 +65,10 @@ inline void AsOpenglUniform(const DMat4x4 m, GLint location) {
 
 class Shaders {
  public:
-  Shaders(const DbAssets& assets, Allocator* allocator);
+  Shaders(Allocator* allocator);
   ~Shaders();
+
+  void CompileAssetShaders(const DbAssets& assets);
 
   bool Compile(DbAssets::ShaderType type, std::string_view name,
                std::string_view glsl);
@@ -115,6 +117,7 @@ class Shaders {
     return false;
   }
 
+  Allocator* allocator_;
   Dictionary<GLuint> compiled_shaders_;
   Dictionary<GLuint> compiled_programs_;
   FixedArray<GLuint> gl_shader_handles_;

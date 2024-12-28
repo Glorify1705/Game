@@ -7,6 +7,8 @@
 #include <ostream>
 #include <string>
 
+#include "strings.h"
+
 namespace G {
 
 struct FVec2 {
@@ -109,6 +111,10 @@ struct FVec2 {
     os << ", ";
     os << v.y;
     return os << " }";
+  }
+
+  void DebugString(StringBuffer& sink) const {
+    sink.Append("{ ", x, " ", y, " }");
   }
 
   friend void AppendToString(const FVec2& v, std::string& sink) {
@@ -254,6 +260,10 @@ struct FVec3 {
     os << ", ";
     os << v.z;
     return os << " }";
+  }
+
+  void DebugString(StringBuffer& sink) const {
+    sink.Append("{ ", x, " ", y, " ", z, " }");
   }
 
   friend void AppendToString(const FVec3& v, std::string& sink) {
@@ -411,6 +421,10 @@ struct FVec4 {
     return os << " }";
   }
 
+  void DebugString(StringBuffer& sink) const {
+    sink.Append("{ ", x, " ", y, " ", z, " ", w, " }");
+  }
+
   friend void AppendToString(const FVec4& v, std::string& sink) {
     char buf[32] = {0};
     std::size_t len = std::snprintf(
@@ -534,6 +548,10 @@ struct DVec2 {
     os << ", ";
     os << v.y;
     return os << " }";
+  }
+
+  void DebugString(StringBuffer& sink) const {
+    sink.Append("{ ", x, " ", y, "}");
   }
 
   friend void AppendToString(const DVec2& v, std::string& sink) {
@@ -679,6 +697,10 @@ struct DVec3 {
     os << ", ";
     os << v.z;
     return os << " }";
+  }
+
+  void DebugString(StringBuffer& sink) const {
+    sink.Append("{ ", x, " ", y, " ", z, "}");
   }
 
   friend void AppendToString(const DVec3& v, std::string& sink) {
@@ -836,6 +858,10 @@ struct DVec4 {
     return os << " }";
   }
 
+  void DebugString(StringBuffer& sink) const {
+    sink.Append("{ ", x, " ", y, " ", z, " ", w, "}");
+  }
+
   friend void AppendToString(const DVec4& v, std::string& sink) {
     char buf[32] = {0};
     std::size_t len = std::snprintf(
@@ -956,6 +982,10 @@ struct IVec2 {
     os << ", ";
     os << v.y;
     return os << " }";
+  }
+
+  void DebugString(StringBuffer& sink) const {
+    sink.Append("{ ", x, " ", y, "}");
   }
 
   friend void AppendToString(const IVec2& v, std::string& sink) {
@@ -1097,6 +1127,10 @@ struct IVec3 {
     os << ", ";
     os << v.z;
     return os << " }";
+  }
+
+  void DebugString(StringBuffer& sink) const {
+    sink.Append("{ ", x, " ", y, " ", z, "}");
   }
 
   friend void AppendToString(const IVec3& v, std::string& sink) {
@@ -1249,6 +1283,10 @@ struct IVec4 {
     os << ", ";
     os << v.w;
     return os << " }";
+  }
+
+  void DebugString(StringBuffer& sink) const {
+    sink.Append("{ ", x, " ", y, " ", z, " ", w, "}");
   }
 
   friend void AppendToString(const IVec4& v, std::string& sink) {

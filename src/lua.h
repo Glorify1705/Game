@@ -153,7 +153,13 @@ class Lua {
 
   Stats allocator_stats_;
 
-  Dictionary<std::string_view> compilation_cache_;
+  struct CachedScript {
+    uint64_t checksum_low;
+    uint64_t checksum_high;
+    std::string_view contents;
+  };
+
+  Dictionary<CachedScript> compilation_cache_;
 
   double t_ = 0;
   double dt_ = 0;
