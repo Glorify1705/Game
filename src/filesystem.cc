@@ -16,6 +16,8 @@ void Filesystem::Initialize(const GameConfig& config) {
     PHYSFS_CHECK(PHYSFS_init(config.app_name),
                  "Could not initialize PhysFS: ", config.app_name);
   }
+  CHECK(config.app_name[0], "No App name was provided.");
+  CHECK(config.org_name[0], "No Org name was provided.");
   LOG("Initializing filesystem with org ", config.org_name, " and app ",
       config.app_name);
   org_name_.Set(config.app_name);
