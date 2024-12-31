@@ -23,11 +23,11 @@ struct GameConfig {
   bool enable_opengl_debug = true;
   bool enable_joystick = false;
   bool enable_debug_rendering = true;
-  char org_name[512];
-  char app_name[512];
+  char org_name[512] = {0};
+  char app_name[512] = {0};
   struct Version {
-    int major;
-    int minor;
+    int major = 0;
+    int minor = 1;
   };
   Version version;
 };

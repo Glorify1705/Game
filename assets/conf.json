@@ -1,0 +1,13 @@
+{
+  "width": 1024,
+  "height": 800,
+  "msaa_samples": 16,
+  "title": "Shoot clicker",
+  "borderless": false,
+  "fullscreen": false,
+  "centered": true,
+  "enable_joystick": false,
+  "org_name": "JPIndustries",
+  "app_name": "ShootClicker",
+  "version": "0.1"
+}

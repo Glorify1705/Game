@@ -283,6 +283,7 @@ class DbPacker {
         {".wav", &DbPacker::InsertAudio, "audio"},
         {".vert", &DbPacker::InsertShader, "shader"},
         {".frag", &DbPacker::InsertShader, "shader"},
+        {".json", &DbPacker::InsertTextFile, "text"},
         {".txt", &DbPacker::InsertTextFile, "text"}};
 
     std::string_view fname = Basename(filename);
