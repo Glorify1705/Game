@@ -77,6 +77,13 @@ class BatchRenderer {
 
   void Render(Allocator* scratch);
 
+  struct Screenshot {
+    size_t width, height;
+    const uint8_t* buffer;
+  };
+
+  Screenshot TakeScreenshot(Allocator* allocator) const;
+
  private:
   enum CommandType : uint32_t {
     kRenderQuad = 1,

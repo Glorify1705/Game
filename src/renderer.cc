@@ -10,6 +10,7 @@
 #include "image.h"
 #include "strings.h"
 #include "transformations.h"
+#include "units.h"
 
 namespace G {
 
@@ -496,6 +497,31 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   render_calls++;
+}
+
+BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
+    Allocator* allocator) const {
+  Screenshot result;
+  const IVec2 viewport = GetViewport();
+  size_t bytes = viewport.x;
+  bytes *= viewport.y * sizeof(Color);
+  auto* buffer = allocator->Alloc(bytes, /*align=*/4);
+  glReadnPixels(0, 0, viewport.x, viewport.y, GL_RGBA, GL_UNSIGNED_BYTE, bytes,
+                buffer);
+  // Flip the rows.
+  ArenaAllocator scratch(allocator, Megabytes(1));
+  const size_t row_size = viewport.x * sizeof(Color);
+  auto* temp = reinterpret_cast<uint8_t*>(scratch.Alloc(row_size, /*align=*/4));
+  auto* image = reinterpret_cast<uint8_t*>(buffer);
+  for (int i = 0, j = viewport.y - 1; i < j; ++i, --j) {
+    std::memcpy(temp, &image[j * row_size], row_size);
+    std::memcpy(&image[j * row_size], &image[i * row_size], row_size);
+    std::memcpy(&image[i * row_size], temp, row_size);
+  }
+  result.buffer = image;
+  result.width = viewport.x;
+  result.height = viewport.y;
+  return result;
 }
 
 Renderer::Renderer(const DbAssets& assets, BatchRenderer* renderer,

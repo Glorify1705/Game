@@ -20,8 +20,13 @@ struct QoiDesc {
   uint8_t colorspace;
 };
 
+size_t MemoryNeededToEncode(const QoiDesc *desc);
+
 void *QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
                 Allocator *allocator);
+
+void QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
+               void *buffer, bool *error);
 
 void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
                 Allocator *allocator);

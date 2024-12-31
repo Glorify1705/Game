@@ -14,6 +14,7 @@
 #include "physics.h"
 #include "renderer.h"
 #include "sound.h"
+#include "units.h"
 
 namespace G {
 namespace {
@@ -200,43 +201,10 @@ int PackageLoader(lua_State* state) {
   return LoadFennelAsset(state, *asset);
 }
 
-PHYSFS_EnumerateCallbackResult LuaListDirectory(void* userdata, const char* dir,
-                                                const char* file) {
-  auto* state = static_cast<lua_State*>(userdata);
-  FixedStringBuffer<kMaxPathLength> buf(dir, dir[0] ? "/" : "", file);
-  lua_pushlstring(state, buf.str(), buf.size());
-  lua_rawseti(state, -2, lua_objlen(state, -2) + 1);
-  return PHYSFS_ENUM_OK;
-}
-
 struct ByteBuffer {
   size_t size;
   uint8_t contents[];
 };
-
-int LoadFileIntoBuffer(lua_State* state, std::string_view filename) {
-  auto* filesystem = Registry<Filesystem>::Retrieve(state);
-  FixedStringBuffer<kMaxLogLineLength> err;
-  size_t size = 0;
-  if (!filesystem->Size(filename, &size, &err)) {
-    lua_pushnil(state);
-    lua_pushlstring(state, err.str(), err.size());
-    return 2;
-  }
-  auto* buf = static_cast<ByteBuffer*>(
-      lua_newuserdata(state, sizeof(ByteBuffer) + size));
-  buf->size = size;
-  luaL_getmetatable(state, "byte_buffer");
-  lua_setmetatable(state, -2);
-  if (filesystem->ReadFile(filename, buf->contents, buf->size, &err)) {
-    lua_pushnil(state);
-  } else {
-    lua_pop(state, 1);  // Pop the userdata, it will be GCed.
-    lua_pushnil(state);
-    lua_pushlstring(state, err.str(), err.size());
-  }
-  return 2;
-}
 
 template <typename T>
 struct UserdataName;
@@ -273,12 +241,116 @@ T* AsUserdata(lua_State* state, int index) {
       luaL_checkudata(state, index, UserdataName<T>::kName));
 }
 
+uint8_t* PushBufferIntoLua(lua_State* state, size_t size) {
+  auto* buf = static_cast<ByteBuffer*>(
+      lua_newuserdata(state, sizeof(ByteBuffer) + size));
+  buf->size = size;
+  luaL_getmetatable(state, "byte_buffer");
+  lua_setmetatable(state, -2);
+  return buf->contents;
+}
+
+int LuaWriteToFile(lua_State* state, int index, std::string_view filename) {
+  FixedStringBuffer<kMaxLogLineLength> err;
+  auto* filesystem = Registry<Filesystem>::Retrieve(state);
+  auto write_to_fs = [&](std::string_view data) {
+    LOG("Writing to ", filename);
+    if (filesystem->WriteToFile(filename, data, &err)) {
+      lua_pushnil(state);
+    } else {
+      lua_pushlstring(state, err.str(), err.size());
+    }
+  };
+  if (lua_type(state, index) == LUA_TSTRING) {
+    std::string_view data = GetLuaString(state, index);
+    write_to_fs(data);
+  } else if (lua_type(state, index) == LUA_TUSERDATA) {
+    auto* buf = AsUserdata<ByteBuffer>(state, index);
+    std::string_view data(reinterpret_cast<const char*>(buf->contents),
+                          buf->size);
+    write_to_fs(data);
+  }
+  return 1;
+}
+
+int LuaLoadFileIntoBuffer(lua_State* state, std::string_view filename) {
+  auto* filesystem = Registry<Filesystem>::Retrieve(state);
+  FixedStringBuffer<kMaxLogLineLength> err;
+  size_t size = 0;
+  if (!filesystem->Size(filename, &size, &err)) {
+    lua_pushnil(state);
+    lua_pushlstring(state, err.str(), err.size());
+    return 2;
+  }
+  auto* buf = static_cast<ByteBuffer*>(
+      lua_newuserdata(state, sizeof(ByteBuffer) + size));
+  buf->size = size;
+  luaL_getmetatable(state, "byte_buffer");
+  lua_setmetatable(state, -2);
+  if (filesystem->ReadFile(filename, buf->contents, buf->size, &err)) {
+    lua_pushnil(state);
+  } else {
+    lua_pop(state, 1);  // Pop the userdata, it will be GCed.
+    lua_pushnil(state);
+    lua_pushlstring(state, err.str(), err.size());
+  }
+  return 2;
+}
+
+PHYSFS_EnumerateCallbackResult LuaListDirectory(void* userdata, const char* dir,
+                                                const char* file) {
+  auto* state = static_cast<lua_State*>(userdata);
+  FixedStringBuffer<kMaxPathLength> buf(dir, dir[0] ? "/" : "", file);
+  lua_pushlstring(state, buf.str(), buf.size());
+  lua_rawseti(state, -2, lua_objlen(state, -2) + 1);
+  return PHYSFS_ENUM_OK;
+}
+
 const struct luaL_Reg kGraphicsLib[] = {
     {"clear",
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->ClearForFrame();
        return 0;
+     }},
+    {"take_screenshot",
+     [](lua_State* state) {
+       TIMER("Screenshot");
+
+       const bool write_to_file = lua_gettop(state) == 1;
+
+       auto* renderer = Registry<BatchRenderer>::Retrieve(state);
+       auto* allocator = GetAllocator(state);
+
+       ArenaAllocator scratch(allocator, Megabytes(32));
+       auto screenshot = renderer->TakeScreenshot(&scratch);
+
+       QoiDesc desc;
+       desc.width = screenshot.width;
+       desc.height = screenshot.height;
+       desc.channels = 4;
+       desc.colorspace = 0;
+
+       void* bytebuf = PushBufferIntoLua(state, MemoryNeededToEncode(&desc));
+
+       int size;
+       bool error;
+       QoiEncode(screenshot.buffer, &desc, &size, bytebuf, &error);
+
+       if (error) {
+         LUA_ERROR(state, "Failed to encode screenshot");
+         return 0;
+       }
+
+       if (write_to_file) {
+         // Write the image to the screenshot file.
+         const int result = LuaWriteToFile(state, -1, GetLuaString(state, 1));
+         // Pop the byte buffer since we do not need it anymore.
+         lua_pop(state, 1);
+         return result;
+       }
+
+       return 1;
      }},
     {"draw_sprite",
      [](lua_State* state) {
@@ -1157,20 +1229,11 @@ const struct luaL_Reg kAssetsLib[] = {
 const struct luaL_Reg kFilesystem[] = {
     {"spit",
      [](lua_State* state) {
-       auto* filesystem = Registry<Filesystem>::Retrieve(state);
-       std::string_view name = GetLuaString(state, 1);
-       std::string_view data = GetLuaString(state, 2);
-       FixedStringBuffer<kMaxLogLineLength> err;
-       if (filesystem->WriteToFile(name, data, &err)) {
-         lua_pushnil(state);
-       } else {
-         lua_pushlstring(state, err.str(), err.size());
-       }
-       return 1;
+       return LuaWriteToFile(state, 2, /*name=*/GetLuaString(state, 1));
      }},
     {"slurp",
      [](lua_State* state) {
-       return LoadFileIntoBuffer(state, GetLuaString(state, 1));
+       return LuaLoadFileIntoBuffer(state, GetLuaString(state, 1));
      }},
     {"load_lua",
      [](lua_State* state) {

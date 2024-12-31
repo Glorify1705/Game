@@ -51,30 +51,52 @@ static unsigned int QoiRead32(const unsigned char *bytes, int *p) {
   return a << 24 | b << 16 | c << 8 | d;
 }
 
+size_t MemoryNeededToEncode(const QoiDesc *desc) {
+  return desc->width * desc->height * (desc->channels + 1) + QOI_HEADER_SIZE +
+         sizeof(kQoiPadding);
+}
+
 void *QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
                 Allocator *allocator) {
-  int max_size, p, run;
+  if (data == nullptr || out_len == nullptr || desc == nullptr ||
+      desc->width == 0 || desc->height == 0 || desc->channels < 3 ||
+      desc->channels > 4 || desc->colorspace > 1 ||
+      desc->height >= QOI_PIXELS_MAX / desc->width) {
+    LOG("Invalid QOI data: width = ", desc->width, " height = ", desc->height,
+        " channels = ", desc->channels);
+    return nullptr;
+  }
+
+  auto *buffer = allocator->Alloc(MemoryNeededToEncode(desc), /*align=*/4);
+  bool error = false;
+  QoiEncode(data, desc, out_len, buffer, &error);
+  if (error) return nullptr;
+  return buffer;
+}
+
+void QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
+               void *buffer, bool *error) {
+  int p, run;
   int px_len, px_end, px_pos, channels;
   unsigned char *bytes;
   const unsigned char *pixels;
   QoiRgba index[64];
   QoiRgba px, px_prev;
 
-  if (data == NULL || out_len == NULL || desc == NULL || desc->width == 0 ||
-      desc->height == 0 || desc->channels < 3 || desc->channels > 4 ||
-      desc->colorspace > 1 || desc->height >= QOI_PIXELS_MAX / desc->width) {
+  if (data == nullptr || out_len == nullptr || desc == nullptr ||
+      desc->width == 0 || desc->height == 0 || desc->channels < 3 ||
+      desc->channels > 4 || desc->colorspace > 1 ||
+      desc->height >= QOI_PIXELS_MAX / desc->width) {
     LOG("Invalid QOI data: width = ", desc->width, " height = ", desc->height,
         " channels = ", desc->channels);
-    return NULL;
   }
 
-  max_size = desc->width * desc->height * (desc->channels + 1) +
-             QOI_HEADER_SIZE + sizeof(kQoiPadding);
-
   p = 0;
-  bytes = static_cast<unsigned char *>(allocator->Alloc(max_size, /*align=*/1));
+  bytes = static_cast<unsigned char *>(buffer);
+
   if (!bytes) {
-    return NULL;
+    *error = true;
+    return;
   }
 
   QoiWrite32(bytes, &p, QOI_MAGIC);
@@ -165,7 +187,7 @@ void *QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
   }
 
   *out_len = p;
-  return bytes;
+  *error = false;
 }
 
 void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
@@ -178,10 +200,10 @@ void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
   int px_len, chunks_len, px_pos;
   int p = 0, run = 0;
 
-  if (data == NULL || desc == NULL ||
+  if (data == nullptr || desc == nullptr ||
       (channels != 0 && channels != 3 && channels != 4) ||
       size < QOI_HEADER_SIZE + (int)sizeof(kQoiPadding)) {
-    return NULL;
+    return nullptr;
   }
 
   bytes = (const unsigned char *)data;
@@ -195,7 +217,7 @@ void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
   if (desc->width == 0 || desc->height == 0 || desc->channels < 3 ||
       desc->channels > 4 || desc->colorspace > 1 || header_magic != QOI_MAGIC ||
       desc->height >= QOI_PIXELS_MAX / desc->width) {
-    return NULL;
+    return nullptr;
   }
 
   if (channels == 0) {
@@ -205,7 +227,7 @@ void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
   px_len = desc->width * desc->height * channels;
   pixels = static_cast<unsigned char *>(allocator->Alloc(px_len, /*align=*/1));
   if (!pixels) {
-    return NULL;
+    return nullptr;
   }
 
   std::memset(index, 0, sizeof(*index));
