@@ -15,6 +15,62 @@ namespace G {
 
 constexpr size_t kCommandMemory = 1 << 24;
 
+constexpr size_t BatchRenderer::SizeOfCommand(CommandType t) {
+  switch (t) {
+    case kRenderQuad:
+      return sizeof(RenderQuad);
+    case kRenderTrig:
+      return sizeof(RenderTriangle);
+    case kStartLine:
+      return sizeof(StartLine);
+    case kAddLinePoint:
+      return sizeof(AddLinePoint);
+    case kEndLine:
+      return sizeof(EndLine);
+    case kSetTexture:
+      return sizeof(SetTexture);
+    case kSetColor:
+      return sizeof(SetColor);
+    case kSetTransform:
+      return sizeof(SetTransform);
+    case kSetShader:
+      return sizeof(SetShader);
+    case kSetLineWidth:
+      return sizeof(SetLineWidth);
+    case kDone:
+      return 0;
+  }
+  return 0;
+}
+
+constexpr std::string_view BatchRenderer::CommandName(CommandType t) {
+  switch (t) {
+    case kRenderQuad:
+      return "RENDER_QUAD";
+    case kRenderTrig:
+      return "RENDER_TRIANGLE";
+    case kStartLine:
+      return "START_LINE";
+    case kAddLinePoint:
+      return "ADD_LINE_POINT";
+    case kEndLine:
+      return "END_LINE";
+    case kSetTexture:
+      return "SET_TEXTURE";
+    case kSetColor:
+      return "SET_COLOR";
+    case kSetTransform:
+      return "SET_TRANSFORM";
+    case kSetShader:
+      return "SET_SHADER";
+    case kSetLineWidth:
+      return "SET_LINE_WIDTH";
+    case kDone:
+      return "DONE";
+  }
+  return "";
+}
+
 class BatchRenderer::CommandIterator {
  public:
   CommandIterator(uint8_t* buffer, FixedArray<QueueEntry>* commands)
