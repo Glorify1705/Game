@@ -1614,6 +1614,20 @@ void AddLibrary(lua_State* state, const char* name,
   lua_pop(state, 1);
 }
 
+void AddBasicLibs(lua_State* state) {
+  static constexpr luaL_Reg lualibs[] = {{"", luaopen_base},
+                                         {LUA_LOADLIBNAME, luaopen_package},
+                                         {LUA_TABLIBNAME, luaopen_table},
+                                         {LUA_STRLIBNAME, luaopen_string},
+                                         {LUA_MATHLIBNAME, luaopen_math},
+                                         {LUA_DBLIBNAME, luaopen_debug}};
+  for (const auto& lib : lualibs) {
+    lua_pushcfunction(state, lib.func);
+    lua_pushstring(state, lib.name);
+    lua_call(state, 1, 0);
+  }
+}
+
 }  // namespace
 
 void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
@@ -1826,7 +1840,7 @@ void Lua::LoadLibraries() {
                 /*register_count=*/0);
   LoadMetatable("byte_buffer", kByteBufferMethods);
   // Create basic initial state.
-  luaL_openlibs(state_);
+  AddBasicLibs(state_);
   // Create the global namespace table (G) so functions live under it (e.g.
   // G.graphics.draw_rect).
   lua_newtable(state_);
