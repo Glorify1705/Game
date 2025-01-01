@@ -41,7 +41,7 @@
 
 namespace G {
 
-constexpr size_t kEngineMemory = Gigabytes(4);
+constexpr size_t kEngineMemory = Gigabytes(1);
 using EngineAllocator = StaticAllocator<kEngineMemory>;
 
 static EngineAllocator* GlobalEngineAllocator() {
@@ -106,8 +106,11 @@ IVec2 GetWindowViewport(SDL_Window* window) {
 struct EngineModules {
   EngineModules(size_t argc, const char* argv[], sqlite3* db,
                 DbAssets* db_assets, const GameConfig& config,
-                SDL_Window* sdl_window, Allocator* allocator)
-      : config(&config),
+                SDL_Window* sdl_window, Allocator* allocator,
+                const char* source_directory)
+      : assets(db_assets),
+        source_directory(source_directory),
+        config(&config),
         filesystem(allocator),
         window(sdl_window),
         shaders(allocator),
@@ -120,21 +123,35 @@ struct EngineModules {
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)),
-        pool_(allocator, 4) {
-    filesystem.Initialize(config);
+        pool(allocator, 4) {
+    mu = SDL_CreateMutex();
   }
 
-  void DoWork() { LOG("Hello from a thread!"); }
+  ~EngineModules() { SDL_DestroyMutex(mu); }
 
-  static int DoWorkStatic(void* ctx) {
-    reinterpret_cast<EngineModules*>(ctx)->DoWork();
+  static int CheckChangedFiles(void* ctx) {
+    auto* e = reinterpret_cast<EngineModules*>(ctx);
+    e->CheckChangedFiles(e->source_directory);
     return 0;
+  }
+
+  void CheckChangedFiles(const char* source_directory) {
+    LOG("Checking files in the background");
+    ArenaAllocator allocator(GlobalEngineAllocator(), Megabytes(32));
+    auto is_stopped = [this] {
+      LockMutex l(mu);
+      return stopped;
+    };
+    while (!is_stopped()) {
+      assets->CheckForChangedFiles(source_directory, &allocator);
+      SDL_Delay(10);
+    }
   }
 
   void Initialize() {
     TIMER();
-    pool_.Start();
-    pool_.Queue(DoWorkStatic, this);
+    filesystem.Initialize(*config);
+    shaders.CompileAssetShaders(*assets);
     lua.LoadLibraries();
     lua.Register(&shaders);
     lua.Register(&batch_renderer);
@@ -150,6 +167,17 @@ struct EngineModules {
     lua.Register(&DebugConsole::Instance());
     lua.LoadScripts();
     lua.LoadMain();
+    pool.Start();
+    pool.Queue(CheckChangedFiles, this);
+  }
+
+  void Deinitialize() {
+    {
+      LockMutex l(mu);
+      stopped = true;
+    }
+    pool.Stop();
+    pool.Wait();
   }
 
   void StartFrame() {
@@ -217,6 +245,10 @@ struct EngineModules {
     ForwardEventToLua(event);
   }
 
+  SDL_mutex* mu;
+  bool stopped = false;
+  DbAssets* assets;
+  const char* const source_directory;
   const GameConfig* config = nullptr;
   Filesystem filesystem;
   SDL_Window* window;
@@ -230,7 +262,7 @@ struct EngineModules {
   Lua lua;
   Physics physics;
   ArenaAllocator frame_allocator;
-  ThreadPool pool_;
+  ThreadPool pool;
 };
 
 void InitializeLogging() {
@@ -379,7 +411,7 @@ class Game {
                  "Could not initialize PhysFS: ", argv[0]);
     {
       TIMER("Load database");
-      LoadDb(argc_ - 1, argv_ + 1);
+      load_ = LoadDb(argc_ - 1, argv_ + 1);
     }
     {
       TIMER("Getting assets");
@@ -405,7 +437,15 @@ class Game {
     PrintSystemInformation();
   }
 
-  void LoadDb(size_t argc, const char** argv) {
+  struct LoadResult {
+    const char* source_directory;
+    bool should_hotreload;
+  };
+
+  LoadResult LoadDb(size_t argc, const char** argv) {
+    LoadResult result;
+    result.should_hotreload = false;
+    result.source_directory = nullptr;
     if (argc == 0) {
       LOG("Reading assets from default DB since no file was provided");
       if (sqlite3_open("assets.sqlite3", &db_) != SQLITE_OK) {
@@ -418,15 +458,17 @@ class Game {
       }
     } else {
       LOG("Packing all files in directory ", argv[0], " into the database");
+      result.should_hotreload = true;
+      result.source_directory = argv[0];
       if (sqlite3_open(argv[1], &db_) != SQLITE_OK) {
         DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db_));
       }
     }
+    return result;
   }
 
   ~Game() {
-    e_->pool_.Stop();
-    e_->pool_.Wait();
+    e_->Deinitialize();
     Destroy(allocator_, e_);
     if (SDL_WasInit(SDL_INIT_HAPTIC) != 0) {
       SDL_QuitSubSystem(SDL_INIT_HAPTIC);
@@ -449,8 +491,7 @@ class Game {
   void Init() {
     TIMER("Game Initialization");
     e_ = New<EngineModules>(allocator_, argc_, argv_, db_, db_assets_, config_,
-                            window_, allocator_);
-    e_->shaders.CompileAssetShaders(*db_assets_);
+                            window_, allocator_, load_.source_directory);
     e_->Initialize();
     e_->lua.Init();
   }
@@ -542,6 +583,7 @@ class Game {
  private:
   const size_t argc_;
   const char** const argv_;
+  LoadResult load_;
   Allocator* allocator_;
   sqlite3* db_;
   DbAssets* db_assets_ = nullptr;

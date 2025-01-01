@@ -12,7 +12,7 @@
 
 namespace G {
 
-inline static size_t Align(size_t n, size_t m) {
+inline static constexpr size_t Align(size_t n, size_t m) {
   return (n + m - 1) & ~(m - 1);
 };
 

@@ -4,6 +4,8 @@
 
 #include "clock.h"
 #include "defer.h"
+#include "filesystem.h"
+#include "units.h"
 
 namespace G {
 
@@ -325,7 +327,7 @@ void DbAssets::ReserveBufferForType(std::string_view type, size_t count) {
 }
 
 XXH128_hash_t DbAssets::GetChecksum(std::string_view asset) {
-  return checksums_.LookupOrDie(asset);
+  return checksums_map_.LookupOrDie(asset)->checksum;
 }
 
 void DbAssets::Load() {
@@ -382,7 +384,7 @@ void DbAssets::Load() {
       {.name = std::string_view(), .load = nullptr},
   };
   FixedStringBuffer<256> sql(
-      "SELECT name, LENGTH(name), type, size, hash_low, hash_high FROM "
+      "SELECT name, type, size, hash_low, hash_high FROM "
       "asset_metadata ORDER BY "
       "type");
   sqlite3_stmt* stmt;
@@ -392,17 +394,15 @@ void DbAssets::Load() {
   DEFER([&] { sqlite3_finalize(stmt); });
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-    auto name_length = sqlite3_column_int(stmt, 1);
-    auto type_ptr = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+    auto type_ptr = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
     std::string_view type(type_ptr);
-    const size_t size = sqlite3_column_int(stmt, 3);
+    const size_t size = sqlite3_column_int64(stmt, 2);
     auto* buffer = &content_buffer_[content_size_];
     content_size_ += size;
-    std::string_view namestr(name, name_length);
-    std::string_view saved_name = PushName(namestr);
+    std::string_view saved_name = PushName(name);
     XXH128_hash_t checksum;
-    checksum.low64 = sqlite3_column_int(stmt, 4);
-    checksum.high64 = sqlite3_column_int(stmt, 5);
+    checksum.low64 = sqlite3_column_int64(stmt, 3);
+    checksum.high64 = sqlite3_column_int64(stmt, 4);
     for (const Loader& loader : kLoaders) {
       if (loader.name.empty()) {
         LOG("No loader for asset ", name, " with type ", type);
@@ -416,9 +416,47 @@ void DbAssets::Load() {
           break;
         }
         (this->*method)(saved_name, buffer, size);
-        checksums_.Insert(namestr, checksum);
+        Checksum c;
+        c.asset = saved_name;
+        std::memcpy(&c.checksum, &checksum, sizeof(checksum));
+        checksums_.Push(c);
+        checksums_map_.Insert(saved_name, &checksums_.back());
         break;
       }
+    }
+  }
+}
+
+void DbAssets::CheckForChangedFiles(const char* source_directory,
+                                    Allocator* allocator) {
+  PHYSFS_CHECK(PHYSFS_mount(source_directory, "/assets", 1),
+               " while trying to mount directory ", source_directory);
+  constexpr size_t kBufferSize = Megabytes(16);
+  ArenaAllocator scratch(allocator, kBufferSize + 16);
+  auto* buffer = scratch.Alloc(kBufferSize, /*align=*/16);
+  CHECK(buffer != nullptr);
+  for (const auto& checksum : checksums_) {
+    if (checksum.asset == "debug_font.ttf") continue;
+    FixedStringBuffer<kMaxPathLength> path("/assets/", checksum.asset);
+    if (!PHYSFS_exists(path.str())) {
+      LOG("File ", path, " is gone");
+      continue;
+    }
+    auto* handle = PHYSFS_openRead(path.str());
+    CHECK(handle != nullptr, "Could not read ", path, ": ",
+          PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    DEFER([&handle] { PHYSFS_close(handle); });
+    auto* hash_state = XXH3_createState();
+    XXH3_128bits_reset(hash_state);
+    DEFER([&hash_state] { XXH3_freeState(hash_state); });
+    while (!PHYSFS_eof(handle)) {
+      const int64_t read_bytes = PHYSFS_readBytes(handle, buffer, kBufferSize);
+      PHYSFS_CHECK(read_bytes >= 0, "Failed to read ", path);
+      XXH3_128bits_update(hash_state, buffer, read_bytes);
+    }
+    const XXH128_hash_t hash = XXH3_128bits_digest(hash_state);
+    if (!std::memcmp(&hash, &checksum.checksum, sizeof(hash))) {
+      continue;
     }
   }
 }

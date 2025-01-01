@@ -107,9 +107,11 @@ class DbAssets {
         shaders_(allocator),
         text_files_map_(allocator),
         text_files_(allocator),
-        checksums_(allocator) {}
+        checksums_map_(allocator),
+        checksums_(1 << 20, allocator) {}
 
   void Load();
+  void CheckForChangedFiles(const char* source_directory, Allocator* allocator);
 
   Image* GetImage(std::string_view name) const {
     Image* image;
@@ -211,7 +213,13 @@ class DbAssets {
   Dictionary<TextFile*> text_files_map_;
   DynArray<TextFile> text_files_;
 
-  Dictionary<XXH128_hash_t> checksums_;
+  struct Checksum {
+    std::string_view asset;
+    XXH128_hash_t checksum;
+  };
+
+  Dictionary<Checksum*> checksums_map_;
+  FixedArray<Checksum> checksums_;
 };
 
 }  // namespace G

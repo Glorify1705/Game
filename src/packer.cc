@@ -256,8 +256,8 @@ class DbPacker {
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     sqlite3_bind_int(stmt, 2, size);
     sqlite3_bind_text(stmt, 3, type.data(), type.size(), SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 4, hash.low64);
-    sqlite3_bind_int(stmt, 5, hash.high64);
+    sqlite3_bind_int64(stmt, 4, hash.low64);
+    sqlite3_bind_int64(stmt, 5, hash.high64);
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
@@ -300,7 +300,7 @@ class DbPacker {
       CHECK(handle != nullptr, "Could not read ", path, ": ",
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       const size_t bytes = PHYSFS_fileLength(handle);
-      auto* buffer = static_cast<uint8_t*>(scratch.Alloc(bytes, /*align=*/1));
+      auto* buffer = static_cast<uint8_t*>(scratch.Alloc(bytes, /*align=*/16));
       const size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
       CHECK(read_bytes == bytes, " failed to read ", path,
             " error = ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
@@ -308,6 +308,7 @@ class DbPacker {
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       auto method = handler.handler;
       const XXH128_hash_t hash = XXH3_128bits(buffer, bytes);
+      LOG("File: ", path, ": (", hash.low64, ":", hash.high64, ")");
       XXH128_hash_t saved;
       if (checksums_.Lookup(filename, &saved) &&
           !std::memcmp(&saved, &hash, sizeof(hash))) {

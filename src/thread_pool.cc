@@ -12,7 +12,6 @@ ThreadPool::ThreadPool(Allocator* allocator, size_t num_threads)
       work_(kMaxFunctions, allocator) {}
 
 ThreadPool::~ThreadPool() {
-  Stop();
   SDL_DestroyMutex(mu_);
   SDL_DestroyCond(cv_);
 }
