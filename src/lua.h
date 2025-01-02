@@ -15,6 +15,7 @@ extern "C" {
 #include "assets.h"
 #include "clock.h"
 #include "libraries/sqlite3.h"
+#include "mat.h"
 #include "stats.h"
 #include "vec.h"
 #include "xxhash.h"
@@ -55,6 +56,60 @@ class Registry {
  private:
   inline static char kKey = 'k';
 };
+
+// Forward declare for the userdata name.
+struct ByteBuffer;
+
+template <typename T>
+struct UserdataName;
+
+#define USERDATA_ENTRY(type, name)                    \
+  template <>                                         \
+  struct UserdataName<type> {                         \
+    inline static constexpr const char* kName = name; \
+  }
+
+USERDATA_ENTRY(FVec2, "fvec2");
+USERDATA_ENTRY(FVec3, "fvec3");
+USERDATA_ENTRY(FVec4, "fvec4");
+USERDATA_ENTRY(FMat2x2, "fmat2x2");
+USERDATA_ENTRY(FMat3x3, "fmat3x3");
+USERDATA_ENTRY(FMat4x4, "fmat4x4");
+USERDATA_ENTRY(DbAssets::Sprite, "asset_sprite_ptr");
+USERDATA_ENTRY(ByteBuffer, "byte_buffer");
+
+#undef USERDATA_ENTRY
+
+template <typename T, typename... Args>
+T* NewUserdata(lua_State* state, Args... args) {
+  auto* userdata = static_cast<T*>(lua_newuserdata(state, sizeof(T)));
+  new (userdata) T(args...);
+  luaL_getmetatable(state, UserdataName<T>::kName);
+  lua_setmetatable(state, -2);
+  return userdata;
+}
+
+template <typename T>
+T* AsUserdata(lua_State* state, int index) {
+  return reinterpret_cast<T*>(
+      luaL_checkudata(state, index, UserdataName<T>::kName));
+}
+
+#define LUA_ERROR(state, ...)                                                \
+  do {                                                                       \
+    FixedStringBuffer<kMaxLogLineLength> _luaerror_buffer;                   \
+    _luaerror_buffer.Append(Basename(__FILE__), ":", __LINE__,               \
+                            "]: ", ##__VA_ARGS__);                           \
+    lua_pushlstring(state, _luaerror_buffer.str(), _luaerror_buffer.size()); \
+    lua_error(state);                                                        \
+    __builtin_unreachable();                                                 \
+  } while (0);
+
+inline std::string_view GetLuaString(lua_State* state, int index) {
+  size_t len;
+  const char* data = luaL_checklstring(state, index, &len);
+  return std::string_view(data, len);
+}
 
 class Lua {
  public:
@@ -111,6 +166,18 @@ class Lua {
   size_t argc() const { return argc_; }
   std::string_view argv(size_t i) const { return argv_[i]; }
 
+  friend void AddGraphicsLibrary(Lua* lua);
+  friend void AddMathLibrary(Lua* lua);
+  friend void AddRandomLibrary(Lua* lua);
+  friend void AddSystemLibrary(Lua* lua);
+  friend void AddInputLibrary(Lua* lua);
+  friend void AddPhysicsLibrary(Lua* lua);
+  friend void AddSoundLibrary(Lua* lua);
+  friend void AddBufferLibrary(Lua* lua);
+  friend void AddFilesystemLibrary(Lua* lua);
+  friend void AddByteBufferLibrary(Lua* lua);
+  friend void AddAssetsLibrary(Lua* lua);
+
  private:
   void BuildCompilationCache();
 
@@ -135,6 +202,13 @@ class Lua {
   }
 
   void SetError(std::string_view file, int line, std::string_view error);
+
+  void AddLibrary(const char* name, const luaL_Reg* funcs, size_t N);
+
+  template <size_t N>
+  void AddLibrary(const char* name, const luaL_Reg (&funcs)[N]) {
+    AddLibrary(name, funcs, N);
+  }
 
   const size_t argc_;
   const char** const argv_;

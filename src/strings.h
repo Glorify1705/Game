@@ -212,6 +212,30 @@ bool ConsumeSuffix(std::string_view* str, std::string_view suffix);
 bool HasPrefix(std::string_view str, std::string_view prefix);
 bool ConsumePrefix(std::string_view* str, std::string_view prefix);
 
+inline std::string_view Basename(std::string_view p) {
+  size_t pos = p.size() - 1;
+  for (; pos != 0 && p[pos] != '/';) {
+    pos--;
+  }
+  return p[pos] == '/' ? p.substr(pos + 1) : p;
+}
+
+inline std::string_view WithoutExt(std::string_view p) {
+  size_t pos = p.size() - 1;
+  for (; pos != 0 && p[pos] != '.';) {
+    pos--;
+  }
+  return p[pos] == '.' ? p.substr(0, pos) : p;
+}
+
+inline std::string_view Extension(std::string_view p) {
+  size_t pos = p.size() - 1;
+  for (; pos != 0 && p[pos] != '.';) {
+    pos--;
+  }
+  return (pos == 0 && p[pos] != '.') ? p : p.substr(pos + 1);
+}
+
 }  // namespace G
 
 #endif  // _GAME_STRINGS_H

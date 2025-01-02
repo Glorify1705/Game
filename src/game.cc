@@ -9,6 +9,7 @@
 #include <string_view>
 
 #define SDL_MAIN_HANDLED
+
 #include "SDL.h"
 #include "SDL_hints.h"
 #include "SDL_mixer.h"
@@ -24,6 +25,16 @@
 #include "libraries/glad.h"
 #include "logging.h"
 #include "lua.h"
+#include "lua_assets.h"
+#include "lua_bytebuffer.h"
+#include "lua_filesystem.h"
+#include "lua_graphics.h"
+#include "lua_input.h"
+#include "lua_math.h"
+#include "lua_physics.h"
+#include "lua_random.h"
+#include "lua_sound.h"
+#include "lua_system.h"
 #include "mat.h"
 #include "math.h"
 #include "packer.h"
@@ -38,7 +49,6 @@
 #include "units.h"
 #include "vec.h"
 #include "version.h"
-
 namespace G {
 
 constexpr size_t kEngineMemory = Gigabytes(1);
@@ -165,6 +175,17 @@ struct EngineModules {
     lua.Register(&filesystem);
     lua.Register(&physics);
     lua.Register(&DebugConsole::Instance());
+    lua.Register(assets);
+    AddByteBufferLibrary(&lua);
+    AddFilesystemLibrary(&lua);
+    AddGraphicsLibrary(&lua);
+    AddInputLibrary(&lua);
+    AddMathLibrary(&lua);
+    AddPhysicsLibrary(&lua);
+    AddRandomLibrary(&lua);
+    AddSoundLibrary(&lua);
+    AddSystemLibrary(&lua);
+    AddAssetsLibrary(&lua);
     lua.LoadScripts();
     lua.LoadMain();
     pool.Start();

@@ -6,6 +6,8 @@
   (when (G.input.is_key_pressed :q) (G.system.quit)))
 
 (fn Game.draw [self]
+  (G.graphics.clear)
+  (G.graphics.set_color :white)
   (G.graphics.draw_text :ponderosa.ttf 24 (tostring (G.math.v2 1 2)) 100 100)
   (let [v (G.math.v2 2 3)
         n (v:normalized)]

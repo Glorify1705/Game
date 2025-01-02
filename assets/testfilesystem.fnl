@@ -14,6 +14,8 @@
   (when (G.input.is_key_pressed :q) (G.system.quit)))
 
 (fn Game.draw [self]
+  (G.graphics.clear)
+  (G.graphics.set_color :white)
   (when Game.contents
     (G.graphics.draw_text :ponderosa.ttf 24
                           (.. "Contents: " Game.contents "\nExists: "
