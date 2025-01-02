@@ -8,6 +8,7 @@
 #include "libraries/sqlite3.h"
 #include "lua.h"
 #include "physfs.h"
+#include "schema.sql.h"
 #include "src/allocators.h"
 #include "src/strings.h"
 #include "src/units.h"
@@ -387,6 +388,13 @@ void WriteAssetsToDb(const char* source_directory, sqlite3* db,
   packer.LoadChecksums();
   packer.HandleFiles();
   sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
+}
+
+void InitializeAssetDb(sqlite3* db) {
+  LOG("Reloading schema");
+  char* err;
+  CHECK(sqlite3_exec(db, kSqlSchema, nullptr, nullptr, &err) == SQLITE_OK,
+        "Failed to initialize schema: ", err);
 }
 
 }  // namespace G

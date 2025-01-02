@@ -463,6 +463,7 @@ class Game {
       if (sqlite3_open(argv[1], &db_) != SQLITE_OK) {
         DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db_));
       }
+      InitializeAssetDb(db_);
     }
     return result;
   }

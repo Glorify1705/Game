@@ -26,6 +26,8 @@ DbAssets* ReadAssetsFromDb(sqlite3* db, Allocator* allocator);
 void WriteAssetsToDb(const char* source_directory, sqlite3* db,
                      Allocator* allocator);
 
+void InitializeAssetDb(sqlite3* db);
+
 }  // namespace G
 
 #endif  // _GAME_PACKER_H
