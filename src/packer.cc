@@ -192,7 +192,7 @@ class DbPacker {
     for (auto& sprite : json["sprites"].getArray()) {
       sprite_count++;
 
-      std::string name = sprite["name"];
+      std::string name = sprite["name"].getString();
       sprite_name_length += name.length();
 
       const uint32_t x = sprite["x"].getLong();
