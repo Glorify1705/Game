@@ -192,7 +192,7 @@ class DbPacker {
     DEFER([&] { sqlite3_finalize(stmt); });
 
     size_t sprite_count = 0, sprite_name_length = 0;
-    for (auto& sprite : atlas.children("sprites")) {
+    for (auto& sprite : atlas.children("SubTexture")) {
       sprite_count++;
 
       std::string name = sprite.attribute("name").as_string();
@@ -218,6 +218,8 @@ class DbPacker {
       sqlite3_clear_bindings(stmt);
     }
     std::string atlas_image = atlas.attribute("imagePath").as_string();
+    // Width and height are not included in texture atlas, you need to get them
+    // from the image.
     const int64_t width = atlas.attribute("width").as_int();
     const int64_t height = atlas.attribute("height").as_int();
     InsertSpritesheetEntry(filename, width, height, sprite_count,
@@ -417,6 +419,17 @@ class DbPacker {
     const XXH128_hash_t hash =
         XXH3_128bits(kProggyCleanFont, kProggyCleanFontLength);
     InsertIntoAssetMeta("debug_font.ttf", kProggyCleanFontLength, "font", hash);
+    // Handle missing dimensions from TextureAtlas.
+    {
+      sqlite3_exec(db_, R"(
+        UPDATE spritesheets
+        SET width = i.w, height = i.h
+        FROM (SELECT s.id, i.width as w, i.height as h 
+          FROM spritesheets s INNER JOIN images i ON s.image = i.name) AS i
+        WHERE spritesheets.id = i.id AND (spritesheets.width = 0 OR spritesheets.height = 0);
+      )",
+                   nullptr, nullptr, nullptr);
+    }
   }
 
  private:
