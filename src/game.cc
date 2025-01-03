@@ -583,6 +583,7 @@ class Game {
 
   void RenderCrashScreen(std::string_view error) {
     const IVec2 viewport = e_->batch_renderer.GetViewport();
+    e_->renderer.ClearForFrame();
     e_->renderer.SetColor(Color::Black());
     e_->renderer.DrawRect(/*top_left=*/FVec(0, 0), FVec(viewport.x, viewport.y),
                           /*angle=*/0);
