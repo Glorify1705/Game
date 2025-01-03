@@ -30,7 +30,10 @@ class DbPacker {
   };
 
   explicit DbPacker(sqlite3* db, Allocator* allocator)
-      : db_(db), allocator_(allocator), checksums_(allocator) {}
+      : db_(db),
+        allocator_(allocator),
+        scratch_(allocator, Megabytes(128)),
+        checksums_(allocator) {}
 
   AssetInfo InsertIntoTable(std::string_view table, std::string_view filename,
                             const uint8_t* buf, size_t size) {
@@ -289,19 +292,18 @@ class DbPacker {
 
     std::string_view fname = Basename(filename);
     bool handled = false;
-    ArenaAllocator scratch(allocator_, Megabytes(128));
 
     for (const DbHandler& handler : kHandlers) {
       if (!HasSuffix(filename, handler.extension)) {
         continue;
       }
-      scratch.Reset();
-      TIMER("Handling database file ", path);
+      scratch_.Reset();
       auto* handle = PHYSFS_openRead(path.str());
       CHECK(handle != nullptr, "Could not read ", path, ": ",
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       const size_t bytes = PHYSFS_fileLength(handle);
-      auto* buffer = static_cast<uint8_t*>(scratch.Alloc(bytes, /*align=*/16));
+      auto* buffer = static_cast<uint8_t*>(scratch_.Alloc(bytes, /*align=*/16));
+      CHECK(buffer != nullptr);
       const size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
       CHECK(read_bytes == bytes, " failed to read ", path,
             " error = ", PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
@@ -309,17 +311,15 @@ class DbPacker {
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       auto method = handler.handler;
       const XXH128_hash_t hash = XXH3_128bits(buffer, bytes);
-      LOG("File: ", path, ": (", hash.low64, ":", hash.high64, ")");
       XXH128_hash_t saved;
       if (checksums_.Lookup(filename, &saved) &&
           !std::memcmp(&saved, &hash, sizeof(hash))) {
-        LOG("Skipping loading ", filename, " because file is the same");
         handled = true;
         break;
       }
+      LOG("Processing ", fname);
       const AssetInfo info = (this->*method)(fname, buffer, bytes);
       InsertIntoAssetMeta(fname, info.size, handler.type, hash);
-      scratch.Dealloc(buffer, bytes);
       handled = true;
       break;
     }
@@ -348,7 +348,7 @@ class DbPacker {
     while (sqlite3_step(stmt) == SQLITE_ROW) {
       auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
       int64_t hash_low = sqlite3_column_int64(stmt, 1);
-      int64_t hash_high = sqlite3_column_int64(stmt, 1);
+      int64_t hash_high = sqlite3_column_int64(stmt, 2);
       XXH128_hash_t hash;
       hash.low64 = hash_low;
       hash.high64 = hash_high;
@@ -368,6 +368,7 @@ class DbPacker {
  private:
   sqlite3* db_ = nullptr;
   Allocator* allocator_ = nullptr;
+  ArenaAllocator scratch_;
   Dictionary<XXH128_hash_t> checksums_;
 };
 

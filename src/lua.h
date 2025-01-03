@@ -158,6 +158,8 @@ class Lua {
   size_t Error(char* buf, size_t max_size);
   bool HasError() { return !error_.empty(); }
 
+  void SetError(std::string_view file, int line, std::string_view error);
+
   void Crash();
 
   double time() const { return t_; }
@@ -200,8 +202,6 @@ class Lua {
   static void* LuaAlloc(void* ud, void* ptr, size_t osize, size_t nsize) {
     return static_cast<Lua*>(ud)->Alloc(ptr, osize, nsize);
   }
-
-  void SetError(std::string_view file, int line, std::string_view error);
 
   void AddLibrary(const char* name, const luaL_Reg* funcs, size_t N);
 

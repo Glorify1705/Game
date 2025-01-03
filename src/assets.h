@@ -111,7 +111,6 @@ class DbAssets {
         checksums_(1 << 20, allocator) {}
 
   void Load();
-  void CheckForChangedFiles(const char* source_directory, Allocator* allocator);
 
   Image* GetImage(std::string_view name) const {
     Image* image;
@@ -170,6 +169,8 @@ class DbAssets {
   ArrayView<Shader> GetShaders() const { return MakeArrayView(&shaders_); }
 
   void Trace(unsigned int sql_type, void* p, void* x);
+
+  void AddReloadFn(void (*fn)(void* ud, std::string_view fname), void* ud);
 
  private:
   template <typename T>

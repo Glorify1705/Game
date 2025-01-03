@@ -33,7 +33,7 @@ local G1 = {}
 
 function G1:init()
 	G.physics.create_ground()
-	G.window.set_title("My awesome Lua game!")
+	G.window.set_title("My awesome Lua game 1!")
 	self.entities = Entities()
 	self.timer = Timer()
 	self.player = Player(100, 100)

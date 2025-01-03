@@ -10,6 +10,8 @@
 #include <cstring>
 #include <limits>
 
+#include "logging.h"
+
 namespace G {
 
 inline static constexpr size_t Align(size_t n, size_t m) {
@@ -143,7 +145,7 @@ class ArenaAllocator final : public Allocator {
  public:
   ArenaAllocator(Allocator* allocator, size_t size)
       : allocator_(allocator),
-        buffer_(allocator->Alloc(size, /*align=*/alignof(std::max_align_t))),
+        buffer_(Allocate(size, allocator)),
         size_(size),
         a_(buffer_, size) {}
 
@@ -161,6 +163,12 @@ class ArenaAllocator final : public Allocator {
   void Reset() override { a_.Reset(); }
 
  private:
+  static void* Allocate(size_t size, Allocator* a) {
+    auto* b = a->Alloc(size, /*align=*/alignof(std::max_align_t));
+    CHECK(b != nullptr);
+    return b;
+  }
+
   Allocator* const allocator_;
   void* const buffer_;
   size_t size_;

@@ -427,38 +427,4 @@ void DbAssets::Load() {
   }
 }
 
-void DbAssets::CheckForChangedFiles(const char* source_directory,
-                                    Allocator* allocator) {
-  PHYSFS_CHECK(PHYSFS_mount(source_directory, "/assets", 1),
-               " while trying to mount directory ", source_directory);
-  constexpr size_t kBufferSize = Megabytes(16);
-  ArenaAllocator scratch(allocator, kBufferSize + 16);
-  auto* buffer = scratch.Alloc(kBufferSize, /*align=*/16);
-  CHECK(buffer != nullptr);
-  for (const auto& checksum : checksums_) {
-    if (checksum.asset == "debug_font.ttf") continue;
-    FixedStringBuffer<kMaxPathLength> path("/assets/", checksum.asset);
-    if (!PHYSFS_exists(path.str())) {
-      LOG("File ", path, " is gone");
-      continue;
-    }
-    auto* handle = PHYSFS_openRead(path.str());
-    CHECK(handle != nullptr, "Could not read ", path, ": ",
-          PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
-    DEFER([&handle] { PHYSFS_close(handle); });
-    auto* hash_state = XXH3_createState();
-    XXH3_128bits_reset(hash_state);
-    DEFER([&hash_state] { XXH3_freeState(hash_state); });
-    while (!PHYSFS_eof(handle)) {
-      const int64_t read_bytes = PHYSFS_readBytes(handle, buffer, kBufferSize);
-      PHYSFS_CHECK(read_bytes >= 0, "Failed to read ", path);
-      XXH3_128bits_update(hash_state, buffer, read_bytes);
-    }
-    const XXH128_hash_t hash = XXH3_128bits_digest(hash_state);
-    if (!std::memcmp(&hash, &checksum.checksum, sizeof(hash))) {
-      continue;
-    }
-  }
-}
-
 }  // namespace G

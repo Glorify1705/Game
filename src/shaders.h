@@ -65,7 +65,13 @@ inline void AsOpenglUniform(const DMat4x4 m, GLint location) {
 
 class Shaders {
  public:
-  Shaders(Allocator* allocator);
+  struct ErrorHandler {
+    void (*handler)(void* ud, std::string_view file, int line,
+                    std::string_view error);
+    void* ud;
+  };
+
+  Shaders(ErrorHandler handler, Allocator* allocator);
   ~Shaders();
 
   void CompileAssetShaders(const DbAssets& assets);
@@ -78,29 +84,37 @@ class Shaders {
 
   void UseProgram(std::string_view program);
 
-  std::string_view LastError() const { return last_error_.piece(); };
+  bool Reload(const DbAssets::Shader& shader);
+
+  std::string_view LastError() const { return last_error_.error.piece(); };
 
   template <typename T, typename = std::void_t<decltype(T::kCardinality)>>
   bool SetUniform(const char* name, const T& value) {
-    if (!current_program_) return FillError("No program set");
+    if (!current_program_)
+      return FillError(__FILE__, __LINE__, "No program set");
     const GLint uniform = glGetUniformLocation(current_program_, name);
-    if (uniform == -1) return FillError("No uniform named ", name);
+    if (uniform == -1)
+      return FillError(__FILE__, __LINE__, "No uniform named ", name);
     internal::AsOpenglUniform(value, uniform);
     return true;
   }
 
   bool SetUniform(const char* name, int value) {
-    if (!current_program_) return FillError("No program set");
+    if (!current_program_)
+      return FillError(__FILE__, __LINE__, "No program set");
     const GLint uniform = glGetUniformLocation(current_program_, name);
-    if (uniform == -1) return FillError("No uniform named ", name);
+    if (uniform == -1)
+      return FillError(__FILE__, __LINE__, "No uniform named ", name);
     OPENGL_CALL(glUniform1i(uniform, value));
     return true;
   }
 
   bool SetUniformF(const char* name, float value) {
-    if (!current_program_) return FillError("No program set");
+    if (!current_program_)
+      return FillError(__FILE__, __LINE__, "No program set");
     const GLint uniform = glGetUniformLocation(current_program_, name);
-    if (uniform == -1) return FillError("No uniform named ", name);
+    if (uniform == -1)
+      return FillError(__FILE__, __LINE__, "No uniform named ", name);
     OPENGL_CALL(glUniform1f(uniform, value));
     return true;
   }
@@ -111,18 +125,27 @@ class Shaders {
   }
 
  private:
+  struct Error {
+    FixedStringBuffer<kMaxPathLength> file;
+    int line;
+    FixedStringBuffer<kMaxLogLineLength> error;
+  };
+
   template <typename... Ts>
-  bool FillError(Ts... ts) {
-    last_error_.Append(std::forward<Ts>(ts)...);
+  bool FillError(std::string_view file, int line, Ts... ts) {
+    last_error_.file.Set(file);
+    last_error_.line = line;
+    last_error_.error.Append(std::forward<Ts>(ts)...);
     return false;
   }
 
+  ErrorHandler handler_;
   Allocator* allocator_;
   Dictionary<GLuint> compiled_shaders_;
   Dictionary<GLuint> compiled_programs_;
   FixedArray<GLuint> gl_shader_handles_;
   FixedArray<GLuint> gl_program_handles_;
-  FixedStringBuffer<512> last_error_;
+  Error last_error_;
   GLuint current_program_ = 0;
 };
 

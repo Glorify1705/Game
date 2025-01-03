@@ -8,8 +8,6 @@
 #include <string>
 #include <type_traits>
 
-#include "allocators.h"
-
 namespace G {
 
 void PrintDouble(double val, char* buffer, size_t size);
@@ -122,11 +120,6 @@ class StringBuffer {
  public:
   StringBuffer(char* buf, size_t size) : buf_(buf), size_(size) {
     buf_[pos_] = '\0';
-  }
-
-  StringBuffer(size_t size, ArenaAllocator* alloc) {
-    buf_ = static_cast<char*>(alloc->Alloc(size, /*align=*/1));
-    size_ = size;
   }
 
   template <typename... T>

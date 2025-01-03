@@ -59,6 +59,13 @@ static EngineAllocator* GlobalEngineAllocator() {
   return allocator;
 }
 
+using HotReloadingAllocator = StaticAllocator<Megabytes(512)>;
+
+static HotReloadingAllocator* GlobalHotReloadingAllocator() {
+  static auto* allocator = new StaticAllocator<Megabytes(512)>;
+  return allocator;
+}
+
 #ifndef _INTERNAL_GAME_TRAP
 #if __has_builtin(__builtin_debugtrap)
 #define _INTERNAL_GAME_TRAP __builtin_debugtrap
@@ -118,12 +125,15 @@ struct EngineModules {
                 DbAssets* db_assets, const GameConfig& config,
                 SDL_Window* sdl_window, Allocator* allocator,
                 const char* source_directory)
-      : assets(db_assets),
+      : db(db),
+        assets(db_assets),
         source_directory(source_directory),
         config(&config),
         filesystem(allocator),
         window(sdl_window),
-        shaders(allocator),
+        shaders(
+            Shaders::ErrorHandler{.handler = &HandleShaderError, .ud = this},
+            allocator),
         batch_renderer(GetWindowViewport(sdl_window), &shaders, allocator),
         keyboard(allocator),
         controllers(db_assets, allocator),
@@ -141,19 +151,27 @@ struct EngineModules {
 
   static int CheckChangedFiles(void* ctx) {
     auto* e = reinterpret_cast<EngineModules*>(ctx);
-    e->CheckChangedFiles(e->source_directory);
+    e->CheckChangedFiles();
     return 0;
   }
 
-  void CheckChangedFiles(const char* source_directory) {
+  static void HandleShaderError(void* ctx, std::string_view file, int line,
+                                std::string_view error) {
+    auto* e = reinterpret_cast<EngineModules*>(ctx);
+    Log(file, line, error);
+    e->lua.SetError(file, line, error);
+  }
+
+  void CheckChangedFiles() {
     LOG("Checking files in the background");
-    ArenaAllocator allocator(GlobalEngineAllocator(), Megabytes(32));
+    ArenaAllocator allocator(GlobalHotReloadingAllocator(), Megabytes(256));
     auto is_stopped = [this] {
       LockMutex l(mu);
       return stopped;
     };
     while (!is_stopped()) {
-      assets->CheckForChangedFiles(source_directory, &allocator);
+      allocator.Reset();
+      WriteAssetsToDb(source_directory, db, &allocator);
       SDL_Delay(10);
     }
   }
@@ -161,7 +179,6 @@ struct EngineModules {
   void Initialize() {
     TIMER();
     filesystem.Initialize(*config);
-    shaders.CompileAssetShaders(*assets);
     lua.LoadLibraries();
     lua.Register(&shaders);
     lua.Register(&batch_renderer);
@@ -186,6 +203,7 @@ struct EngineModules {
     AddSoundLibrary(&lua);
     AddSystemLibrary(&lua);
     AddAssetsLibrary(&lua);
+    shaders.CompileAssetShaders(*assets);
     lua.LoadScripts();
     lua.LoadMain();
     pool.Start();
@@ -267,6 +285,7 @@ struct EngineModules {
   }
 
   SDL_mutex* mu;
+  sqlite3* db;
   bool stopped = false;
   DbAssets* assets;
   const char* const source_directory;
