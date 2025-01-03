@@ -5,6 +5,7 @@
 #include "defer.h"
 #include "filesystem.h"
 #include "libraries/json.h"
+#include "libraries/pugixml.h"
 #include "libraries/sqlite3.h"
 #include "lua.h"
 #include "physfs.h"
@@ -172,6 +173,58 @@ class DbPacker {
     }
   }
 
+  AssetInfo InsertSpritesheetXml(std::string_view filename, const uint8_t* buf,
+                                 size_t size) {
+    pugi::xml_document doc;
+    // TODO: change signatures so we pass uint8_t*.
+    doc.load_buffer_inplace(const_cast<uint8_t*>(buf), size);
+
+    pugi::xml_node atlas = doc.child("TextureAtlas");
+
+    // Insert sprites.
+    sqlite3_stmt* stmt;
+    FixedStringBuffer<256> sql(R"(
+          INSERT OR REPLACE INTO sprites (name, spritesheet, x, y, width, height)
+          VALUES (?, ?, ?, ?, ?, ?);
+      )");
+    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
+          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
+    DEFER([&] { sqlite3_finalize(stmt); });
+
+    size_t sprite_count = 0, sprite_name_length = 0;
+    for (auto& sprite : atlas.children("sprites")) {
+      sprite_count++;
+
+      std::string name = sprite.attribute("name").as_string();
+      sprite_name_length += name.length();
+
+      const uint32_t x = sprite.attribute("x").as_int();
+      const uint32_t y = sprite.attribute("y").as_int();
+      const uint32_t w = sprite.attribute("width").as_int();
+      const uint32_t h = sprite.attribute("height").as_int();
+
+      sqlite3_bind_text(stmt, 1, name.data(), name.length(), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 2, filename.data(), filename.size(),
+                        SQLITE_STATIC);
+      sqlite3_bind_int(stmt, 3, x);
+      sqlite3_bind_int(stmt, 4, y);
+      sqlite3_bind_int(stmt, 5, w);
+      sqlite3_bind_int(stmt, 6, h);
+      if (sqlite3_step(stmt) != SQLITE_DONE) {
+        DIE("Could not insert data for ", name, " in ", filename, ": ",
+            sqlite3_errmsg(db_));
+      }
+      sqlite3_reset(stmt);
+      sqlite3_clear_bindings(stmt);
+    }
+    std::string atlas_image = atlas.attribute("imagePath").as_string();
+    const int64_t width = atlas.attribute("width").as_int();
+    const int64_t height = atlas.attribute("height").as_int();
+    InsertSpritesheetEntry(filename, width, height, sprite_count,
+                           sprite_name_length, atlas_image.c_str());
+    return {};
+  }
+
   AssetInfo InsertSpritesheetJson(std::string_view filename, const uint8_t* buf,
                                   size_t size) {
     std::string_view buffer(reinterpret_cast<const char*>(buf), size);
@@ -282,6 +335,7 @@ class DbPacker {
         {".qoi", &DbPacker::InsertQoi, "image"},
         {".png", &DbPacker::InsertPng, "image"},
         {".sprites.json", &DbPacker::InsertSpritesheetJson, "spritesheet"},
+        {".sprites.xml", &DbPacker::InsertSpritesheetXml, "spritesheet"},
         {".ogg", &DbPacker::InsertAudio, "audio"},
         {".ttf", &DbPacker::InsertFont, "font"},
         {".wav", &DbPacker::InsertAudio, "audio"},
