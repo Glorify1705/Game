@@ -48,7 +48,7 @@ target_include_directories(double-conversion PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(GAME_SRCS
     "libraries/glad.cc"
-    "libraries/json.cpp"
+    "libraries/json.cc"
     "libraries/pugixml.cc"
     "libraries/sqlite3.c"
     "libraries/stb_rect_pack.cc"
