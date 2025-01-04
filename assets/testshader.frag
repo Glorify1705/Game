@@ -10,8 +10,6 @@
 uniform float iTime;
 uniform vec2 iResolution;
 
-kljasdlkfj
-
 //https://iquilezles.org/articles/palettes/
 vec3 palette( float t ) {
     vec3 a = vec3(0.5, 0.5, 0.5);
