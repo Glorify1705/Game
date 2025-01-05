@@ -71,20 +71,22 @@ class Shaders {
     void* ud;
   };
 
+  enum UseCache { kUseCache, kForceCompile };
+
   Shaders(ErrorHandler handler, Allocator* allocator);
   ~Shaders();
 
   void CompileAssetShaders(const DbAssets& assets);
 
   bool Compile(DbAssets::ShaderType type, std::string_view name,
-               std::string_view glsl);
+               std::string_view glsl, UseCache use_cache);
 
   bool Link(std::string_view name, std::string_view vertex_shader,
-            std::string_view fragment_shader);
+            std::string_view fragment_shader, UseCache use_cache);
 
   void UseProgram(std::string_view program);
 
-  bool Reload(const DbAssets::Shader& shader);
+  void Reload(const DbAssets::Shader& shader);
 
   std::string_view LastError() const { return last_error_.error.piece(); };
 

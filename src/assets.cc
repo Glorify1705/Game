@@ -9,112 +9,6 @@
 
 namespace G {
 
-#if 0
-// Allocates memory in pages, multiple of 2. It can "resize" allocations
-// inside a page if it has the same size. If it cannot find a page of the  
-// appropriate size, it will create a new one with the next size.
-class PageAllocator {
-  public:
-    explicit PageAllocator(Allocator* allocator) : allocator_(allocator) {
-      Page* current = nullptr;
-      for (size_t i = 0; i < kPageSizes.size(); i++) {
-        auto* new_page = New<Page>(allocator_);
-        new_page->size = kPageSizes[i];
-        new_page->SetFree();
-        new_page->start = allocator->Alloc(kPageSizes[i], sizeof(std::max_align_t));
-        if (current == nullptr) {
-          current = new_page;
-        } else {
-          current->next = new_page;
-        }
-      }
-    }
-
-    void* Allocate(size_t s) {
-      const size_t actual_size = NextPow2(s);
-      // Find the page size to use.
-      size_t page_size = 0;
-      for (size_t i = 0; i <= kPageSizes.size(); i++) {
-        if (kPageSizes[i] >= actual_size) {
-          page_size = kPageSizes[i];
-          break;
-        }
-      }
-      auto* page = FindPage(page_size);
-      DCHECK(page != nullptr);
-      page->SetUsed();
-      return page->start;
-    }
-
-    void* Resize(void* buf, size_t new_size) {
-      auto pos = reinterpret_cast<ptrdiff_t>(buf);
-      auto page = reinterpret_cast<Page*>(pos - offsetof(Page, start));
-      if (new_size <= page->size) return buf;
-      // Mark the page as unused.
-      page->SetUsed();
-      auto new_page = FindPage(new_size);
-      return new_page->start;
-    }
-
-  private:
-
-    inline static constexpr std::array<size_t, 19> kPageSizes = {
-      1 << 5,
-      1 << 6,
-      1 << 7,
-      1 << 8,
-      1 << 9,
-      1 << 10,
-      1 << 11,
-      1 << 12,
-      1 << 14,
-      1 << 15,
-      1 << 18,
-      1 << 19,
-      1 << 20,
-      1 << 21,
-      1 << 22,
-      1 << 24,
-      1 << 25,
-      1 << 27,
-      1 << 28
-    };
-
-    struct Page {
-      // The top bit of size is whether the page is used or not.
-      size_t size;
-      Page* next = nullptr;
-
-      bool IsFree() const { return size & (1UL << 63); }
-      void SetUsed() { size |= (1UL << 63); }
-      void SetFree() { size &= ~(1UL << 63); }
-
-      void* start;
-    };
-
-    Page* FindPage(size_t size) {
-      for (Page* p = page_; p != nullptr; p = p->next) {
-        if (p->IsFree()) return p;
-      }
-      // We did not find a free page. Get a page of the next size and split it.
-      auto* page = FindPage(2 * size);
-      if (page == nullptr) {
-        page = reinterpret_cast<Page*>(allocator_->Alloc(sizeof(Page) + 2 * size, sizeof(std::max_align_t)));
-      }
-      // Split the page and add it to the linked list.
-      auto* new_page = New<Page>(allocator_);
-      new_page->size = size / 2;
-      page->size = size / 2;
-      page->next = new_page;
-      new_page->next = page_;
-      page_ = new_page;
-    }
-
-    Allocator* allocator_;
-    Page* page_;
-};
-#endif
-
 void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
                           size_t size) {
   FixedStringBuffer<256> sql("SELECT contents FROM scripts WHERE name = ?");
@@ -330,7 +224,41 @@ XXH128_hash_t DbAssets::GetChecksum(std::string_view asset) {
   return checksums_map_.LookupOrDie(asset)->checksum;
 }
 
+void DbAssets::RegisterLoadFn(std::string_view type,
+                              void (*load)(DbAssets* assets,
+                                           std::string_view name, char* err,
+                                           void* ud),
+                              void* ud) {
+  LoadFn l;
+  l.fn = load;
+  l.ud = ud;
+  l.err[0] = 0;
+  load_fns_.Push(l);
+  load_fns_map_.Insert(type, &load_fns_.back());
+}
+
+void DbAssets::Clear() {
+  images_map_.Clear();
+  images_.Clear();
+  sprites_map_.Clear();
+  sprites_.Clear();
+  spritesheets_map_.Clear();
+  spritesheets_.Clear();
+  scripts_map_.Clear();
+  scripts_.Clear();
+  sounds_map_.Clear();
+  sounds_.Clear();
+  fonts_map_.Clear();
+  fonts_.Clear();
+  shaders_map_.Clear();
+  shaders_.Clear();
+  text_files_map_.Clear();
+  text_files_.Clear();
+  allocator_->Reset();
+}
+
 void DbAssets::Load() {
+  Clear();
   size_t total_size = 0;
   {
     // Presize all the buffers.
@@ -423,6 +351,10 @@ void DbAssets::Load() {
         checksums_map_.Insert(saved_name, &checksums_.back());
         break;
       }
+    }
+    LoadFn* fn = nullptr;
+    if (load_fns_map_.Lookup(type, &fn)) {
+      fn->fn(this, name, fn->err, fn->ud);
     }
   }
 }

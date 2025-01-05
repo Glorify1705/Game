@@ -441,8 +441,9 @@ class DbPacker {
 
 }  // namespace
 
-DbAssets* ReadAssetsFromDb(sqlite3* db, Allocator* allocator) {
-  auto* result = New<DbAssets>(allocator, db, allocator);
+DbAssets* ReadAssetsFromDb(sqlite3* db, Allocator* allocator,
+                           Allocator* asset_allocator) {
+  auto* result = New<DbAssets>(allocator, db, asset_allocator);
   result->Load();
   return result;
 }

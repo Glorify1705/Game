@@ -168,6 +168,14 @@ class Lua {
   size_t argc() const { return argc_; }
   std::string_view argv(size_t i) const { return argv_[i]; }
 
+  void RequestHotload() { hotload_requested_ = true; }
+
+  bool HotloadRequested() {
+    const bool result = hotload_requested_;
+    hotload_requested_ = false;
+    return result;
+  }
+
   friend void AddGraphicsLibrary(Lua* lua);
   friend void AddMathLibrary(Lua* lua);
   friend void AddRandomLibrary(Lua* lua);
@@ -237,6 +245,8 @@ class Lua {
 
   double t_ = 0;
   double dt_ = 0;
+
+  bool hotload_requested_ = false;
 };
 
 }  // namespace G

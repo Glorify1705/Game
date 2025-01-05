@@ -270,7 +270,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const bool compiles = shaders->Compile(
            HasSuffix(name, ".vert") ? DbAssets::ShaderType::kVertex
                                     : DbAssets::ShaderType::kFragment,
-           name, code);
+           name, code, Shaders::kUseCache);
        if (!compiles) {
          LUA_ERROR(state, "Could not compile shader ", name, ": ",
                    shaders->LastError());
@@ -295,7 +295,8 @@ const struct luaL_Reg kGraphicsLib[] = {
                    program_name);
          return 0;
        }
-       if (!shaders->Link(program_name, "pre_pass.vert", fragment_shader)) {
+       if (!shaders->Link(program_name, "pre_pass.vert", fragment_shader,
+                          Shaders::kUseCache)) {
          LUA_ERROR(state, "Could not switch shader ", program_name, ": ",
                    shaders->LastError());
          return 0;

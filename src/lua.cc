@@ -181,14 +181,6 @@ int LuaLogPrint(lua_State* state) {
   return 0;
 }
 
-const struct luaL_Reg kConsoleLib[] = {{"log", LuaLogPrint},
-                                       {"crash", [](lua_State* state) {
-                                          LogLine l;
-                                          FillLogLine(state, &l);
-                                          Crash(l.file.str(), l.line, l.log);
-                                          return 0;
-                                        }}};
-
 struct LuaError {
   std::string_view filename;
   int line = 0;
@@ -220,6 +212,20 @@ LuaError ParseLuaError(std::string_view message) {
   }
   return result;
 }
+
+constexpr struct luaL_Reg kBasicLibs[] = {
+    {"log", LuaLogPrint},
+    {"crash",
+     [](lua_State* state) {
+       LogLine l;
+       FillLogLine(state, &l);
+       Crash(l.file.str(), l.line, l.log);
+       return 0;
+     }},
+    {"hotload", [](lua_State* state) {
+       Registry<Lua>::Retrieve(state)->RequestHotload();
+       return 0;
+     }}};
 
 void AddBasicLibs(lua_State* state) {
   static constexpr luaL_Reg lualibs[] = {{"", luaopen_base},
@@ -413,11 +419,15 @@ void Lua::LoadLibraries() {
   // Create the global namespace table (G) so functions live under it (e.g.
   // G.graphics.draw_rect).
   lua_newtable(state_);
+  // Set the basic libs directly into the global namespace.
+  for (const auto& fn : kBasicLibs) {
+    lua_pushstring(state_, fn.name);
+    lua_pushcfunction(state_, fn.func);
+    lua_settable(state_, -3);
+  }
   lua_setglobal(state_, "G");
   lua_pushcfunction(state_, Traceback);
   traceback_handler_ = lua_gettop(state_);
-  // Add all libraries.
-  AddLibrary("console", kConsoleLib);
   // Set print as G.console.log for consistency.
   lua_pushcfunction(state_, LuaLogPrint);
   lua_setglobal(state_, "print");

@@ -108,9 +108,16 @@ class DbAssets {
         text_files_map_(allocator),
         text_files_(allocator),
         checksums_map_(allocator),
-        checksums_(1 << 20, allocator) {}
+        checksums_(1 << 20, allocator),
+        load_fns_map_(allocator),
+        load_fns_(1 << 8, allocator) {}
 
   void Load();
+
+  void RegisterLoadFn(std::string_view type,
+                      void (*load)(DbAssets* assets, std::string_view name,
+                                   char* err, void* ud),
+                      void* ud);
 
   Image* GetImage(std::string_view name) const {
     Image* image;
@@ -170,9 +177,13 @@ class DbAssets {
 
   void Trace(unsigned int sql_type, void* p, void* x);
 
-  void AddReloadFn(void (*fn)(void* ud, std::string_view fname), void* ud);
-
  private:
+  struct LoadFn {
+    char err[kMaxLogLineLength];
+    void (*fn)(DbAssets*, std::string_view name, char*, void*);
+    void* ud;
+  };
+
   template <typename T>
   static ArrayView<T> MakeArrayView(const DynArray<T>* a) {
     return ArrayView<T>(a);
@@ -181,6 +192,8 @@ class DbAssets {
   std::string_view PushName(std::string_view s) {
     return StringByHandle(StringIntern(s));
   }
+
+  void Clear();
 
   void LoadScript(std::string_view name, uint8_t* buffer, size_t size);
   void LoadImage(std::string_view name, uint8_t* buffer, size_t size);
@@ -221,6 +234,9 @@ class DbAssets {
 
   Dictionary<Checksum*> checksums_map_;
   FixedArray<Checksum> checksums_;
+
+  Dictionary<LoadFn*> load_fns_map_;
+  FixedArray<LoadFn> load_fns_;
 };
 
 }  // namespace G

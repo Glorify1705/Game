@@ -23,10 +23,7 @@ class Dictionary {
  public:
   Dictionary(Allocator* allocator) : allocator_(allocator) {}
 
-  ~Dictionary() {
-    Dealloc(root_);
-    root_ = nullptr;
-  }
+  ~Dictionary() { Clear(); }
 
   bool Lookup(std::string_view key, T* value = nullptr) const {
     Node* const* n = &root_;
@@ -60,6 +57,11 @@ class Dictionary {
       (*n)->handle = handle;
     }
     (*n)->value = std::move(value);
+  }
+
+  void Clear() {
+    Dealloc(root_);
+    root_ = nullptr;
   }
 
  private:

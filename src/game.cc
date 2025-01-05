@@ -9,7 +9,6 @@
 #include <string_view>
 
 #define SDL_MAIN_HANDLED
-
 #include "SDL.h"
 #include "SDL_hints.h"
 #include "SDL_mixer.h"
@@ -59,10 +58,16 @@ static EngineAllocator* GlobalEngineAllocator() {
   return allocator;
 }
 
+using AssetAllocator = StaticAllocator<Gigabytes(1)>;
+static AssetAllocator* GlobalAssetAllocator() {
+  static auto* allocator = new AssetAllocator;
+  return allocator;
+}
+
 using HotReloadingAllocator = StaticAllocator<Megabytes(512)>;
 
 static HotReloadingAllocator* GlobalHotReloadingAllocator() {
-  static auto* allocator = new StaticAllocator<Megabytes(512)>;
+  static auto* allocator = new HotReloadingAllocator;
   return allocator;
 }
 
@@ -110,7 +115,8 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
 DbAssets* GetAssets(const char* argv[], size_t argc, sqlite3* db,
                     Allocator* allocator) {
   WriteAssetsToDb(argv[0], db, allocator);
-  DbAssets* result = ReadAssetsFromDb(db, allocator);
+  auto* result = New<DbAssets>(allocator, db, GlobalAssetAllocator());
+  result->Load();
   return result;
 }
 
@@ -132,7 +138,14 @@ struct EngineModules {
         filesystem(allocator),
         window(sdl_window),
         shaders(
-            Shaders::ErrorHandler{.handler = &HandleShaderError, .ud = this},
+            Shaders::ErrorHandler{.handler =
+                                      [](void* ctx, std::string_view file,
+                                         int line, std::string_view error) {
+                                        auto* e =
+                                            static_cast<EngineModules*>(ctx);
+                                        e->HandleShaderError(file, line, error);
+                                      },
+                                  .ud = this},
             allocator),
         batch_renderer(GetWindowViewport(sdl_window), &shaders, allocator),
         keyboard(allocator),
@@ -150,16 +163,15 @@ struct EngineModules {
   ~EngineModules() { SDL_DestroyMutex(mu); }
 
   static int CheckChangedFiles(void* ctx) {
-    auto* e = reinterpret_cast<EngineModules*>(ctx);
+    auto* e = static_cast<EngineModules*>(ctx);
     e->CheckChangedFiles();
     return 0;
   }
 
-  static void HandleShaderError(void* ctx, std::string_view file, int line,
-                                std::string_view error) {
-    auto* e = reinterpret_cast<EngineModules*>(ctx);
+  void HandleShaderError(std::string_view file, int line,
+                         std::string_view error) {
     Log(file, line, error);
-    e->lua.SetError(file, line, error);
+    lua.SetError(file, line, error);
   }
 
   void CheckChangedFiles() {
@@ -206,8 +218,19 @@ struct EngineModules {
     shaders.CompileAssetShaders(*assets);
     lua.LoadScripts();
     lua.LoadMain();
+    RegisterReloads();
     pool.Start();
     pool.Queue(CheckChangedFiles, this);
+  }
+
+  void RegisterReloads() {
+    assets->RegisterLoadFn(
+        "shader",
+        [](DbAssets* assets, std::string_view name, char* err, void* ud) {
+          auto* self = static_cast<EngineModules*>(ud);
+          self->shaders.Reload(*self->assets->GetShader(name));
+        },
+        this);
   }
 
   void Deinitialize() {
@@ -264,6 +287,8 @@ struct EngineModules {
       lua.HandleTextInput(event.text.text);
     }
   }
+
+  void Reload() { assets->Load(); }
 
   void HandleEvent(const SDL_Event& event) {
     if (event.type == SDL_WINDOWEVENT) {
@@ -546,6 +571,10 @@ class Game {
       if (e_->lua.HasError() && e_->keyboard.IsDown(SDL_SCANCODE_Q)) {
         e_->lua.Stop();
         return;
+      }
+      if (e_->lua.HotloadRequested()) {
+        LOG("Hotload requested");
+        e_->Reload();
       }
       const double now = NowInSeconds();
       const double frame_time = now - last_frame;

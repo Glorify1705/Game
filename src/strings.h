@@ -131,7 +131,17 @@ class StringBuffer {
     return *this;
   }
 
-  void Append(StringBuffer& buf) { Append(buf.str()); }
+  StringBuffer& AppendBuffer(StringBuffer& buf) {
+    Append(buf.str());
+    return *this;
+  }
+
+  StringBuffer& AppendBuffer(void* buf, size_t size) {
+    const size_t length = capacity(size);
+    std::memcpy(buf_ + pos_, buf, length);
+    pos_ += length;
+    return *this;
+  }
 
   StringBuffer& AppendF(const char* fmt, ...) {
     va_list l;

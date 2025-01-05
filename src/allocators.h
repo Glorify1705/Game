@@ -10,7 +10,9 @@
 #include <cstring>
 #include <limits>
 
+#include "bits.h"
 #include "logging.h"
+#include "units.h"
 
 namespace G {
 

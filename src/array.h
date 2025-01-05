@@ -22,17 +22,20 @@ class FixedArray {
   ~FixedArray() { DeallocArray<T>(buffer_, size_ * sizeof(T), allocator_); }
 
   void Push(T&& t) {
+    EnsureBufferIsAvailable();
     DCHECK(elems_ < size_, elems_, " vs ", size_);
     ::new (&buffer_[elems_]) T(std::move(t));
     elems_++;
   }
   void Push(const T& t) {
+    EnsureBufferIsAvailable();
     DCHECK(elems_ < size_, elems_, " vs ", size_);
     ::new (&buffer_[elems_]) T(t);
     elems_++;
   }
 
   T* Insert(const T* ptr, size_t n) {
+    EnsureBufferIsAvailable();
     DCHECK(elems_ + n < size_, "cannot fit ", n, " elements");
     auto* result = &buffer_[elems_];
     std::memcpy(result, ptr, n * sizeof(T));
@@ -46,7 +49,10 @@ class FixedArray {
     DCHECK(elems_ > 0);
     elems_--;
   }
-  void Clear() { elems_ = 0; }
+  void Clear() {
+    elems_ = 0;
+    DeallocArray(buffer_, size_, allocator_);
+  }
 
   bool empty() const { return elems_ == 0; }
 
@@ -54,10 +60,12 @@ class FixedArray {
     DCHECK(elems_ > 0);
     return buffer_[elems_ - 1];
   }
+
   T& operator[](size_t index) {
     DCHECK(index < elems_, index, " vs ", elems_);
     return buffer_[index];
   }
+
   const T& operator[](size_t index) const {
     DCHECK(index < elems_, index, " vs ", elems_);
     return buffer_[index];
@@ -76,6 +84,12 @@ class FixedArray {
   size_t bytes() const { return elems_ * sizeof(T); }
 
  private:
+  void EnsureBufferIsAvailable() {
+    if (buffer_ == nullptr) {
+      buffer_ = NewArray<T>(size_, allocator_);
+    }
+  }
+
   Allocator* allocator_;
   T* buffer_;
   size_t elems_ = 0;
@@ -134,7 +148,12 @@ class DynArray {
     elems_--;
   }
 
-  void Clear() { elems_ = 0; }
+  void Clear() {
+    DeallocArray(buffer_, capacity_, allocator_);
+    elems_ = 0;
+    buffer_ = nullptr;
+    capacity_ = 0;
+  }
 
   bool empty() const { return elems_ == 0; }
 

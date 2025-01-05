@@ -137,19 +137,21 @@ Shaders::Shaders(ErrorHandler handler, Allocator* allocator)
       gl_program_handles_(128, allocator) {
   // Ensure we have the basic shaders available.
   CHECK(Compile(DbAssets::ShaderType::kVertex, "pre_pass.vert",
-                kPrePassVertexShader),
+                kPrePassVertexShader, kUseCache),
         LastError());
   CHECK(Compile(DbAssets::ShaderType::kFragment, "pre_pass.frag",
-                kPrePassFragmentShader),
+                kPrePassFragmentShader, kUseCache),
         LastError());
-  CHECK(Link("pre_pass", "pre_pass.vert", "pre_pass.frag"), LastError());
+  CHECK(Link("pre_pass", "pre_pass.vert", "pre_pass.frag", kUseCache),
+        LastError());
   CHECK(Compile(DbAssets::ShaderType::kVertex, "post_pass.vert",
-                kPostPassVertexShader),
+                kPostPassVertexShader, kUseCache),
         LastError());
   CHECK(Compile(DbAssets::ShaderType::kFragment, "post_pass.frag",
-                kPostPassFragmentShader),
+                kPostPassFragmentShader, kUseCache),
         LastError());
-  CHECK(Link("post_pass", "post_pass.vert", "post_pass.frag"), LastError());
+  CHECK(Link("post_pass", "post_pass.vert", "post_pass.frag", kUseCache),
+        LastError());
 }
 
 void Shaders::CompileAssetShaders(const DbAssets& assets) {
@@ -159,18 +161,12 @@ void Shaders::CompileAssetShaders(const DbAssets& assets) {
     scratch.Reset();
     const size_t total_size = kFragmentShaderPreamble.size() + shader.size +
                               kFragmentShaderPostamble.size() + 1;
-    auto* assembled = reinterpret_cast<char*>(scratch.Alloc(total_size, 1));
-    size_t assembled_size = 0;
-    auto assemble = [&](const void* b, size_t s) {
-      std::memcpy(&assembled[assembled_size], b, s);
-      assembled_size += s;
-    };
-    assemble(kFragmentShaderPreamble.data(), kFragmentShaderPreamble.size());
-    assemble(shader.contents, shader.size);
-    assemble(kFragmentShaderPostamble.data(), kFragmentShaderPostamble.size());
-    assembled[assembled_size] = 0;
-    if (!Compile(shader.type, shader.name,
-                 std::string_view(assembled, assembled_size))) {
+    auto* buf = reinterpret_cast<char*>(scratch.Alloc(total_size, /*align=*/1));
+    StringBuffer code(buf, total_size);
+    code.Append(kFragmentShaderPreamble);
+    code.AppendBuffer(shader.contents, shader.size);
+    code.Append(kFragmentShaderPostamble);
+    if (!Compile(shader.type, shader.name, code.piece(), kUseCache)) {
       handler_.handler(handler_.ud, last_error_.file.piece(), last_error_.line,
                        last_error_.error.piece());
     }
@@ -187,10 +183,15 @@ Shaders::~Shaders() {
 }
 
 bool Shaders::Compile(DbAssets::ShaderType type, std::string_view name,
-                      std::string_view glsl) {
-  if (compiled_shaders_.Contains(name)) {
-    LOG("Ignoring already processed shader ", name);
-    return true;
+                      std::string_view glsl, UseCache use_cache) {
+  GLuint shader_idx;
+  if (compiled_shaders_.Lookup(name, &shader_idx)) {
+    if (use_cache == UseCache::kUseCache) {
+      LOG("Ignoring already processed shader ", name);
+      return true;
+    } else {
+      glDeleteShader(shader_idx);
+    }
   }
   const GLuint shader_type = type == DbAssets::ShaderType::kVertex
                                  ? GL_VERTEX_SHADER
@@ -217,29 +218,33 @@ bool Shaders::Compile(DbAssets::ShaderType type, std::string_view name,
   return true;
 }
 
-bool Shaders::Reload(const DbAssets::Shader& shader) {
+void Shaders::Reload(const DbAssets::Shader& shader) {
+  DIE("Unimplemented");
   ArenaAllocator scratch(allocator_, Megabytes(1));
   const size_t total_size = kFragmentShaderPreamble.size() + shader.size +
                             kFragmentShaderPostamble.size() + 1;
-  auto* assembled = reinterpret_cast<char*>(scratch.Alloc(total_size, 1));
-  size_t assembled_size = 0;
-  auto assemble = [&](const void* b, size_t s) {
-    std::memcpy(&assembled[assembled_size], b, s);
-    assembled_size += s;
-  };
-  assemble(kFragmentShaderPreamble.data(), kFragmentShaderPreamble.size());
-  assemble(shader.contents, shader.size);
-  assemble(kFragmentShaderPostamble.data(), kFragmentShaderPostamble.size());
-  assembled[assembled_size] = 0;
-  CHECK(Compile(shader.type, shader.name,
-                std::string_view(assembled, assembled_size)),
-        LastError());
-  return true;
+  auto* buf = reinterpret_cast<char*>(scratch.Alloc(total_size, /*align=*/1));
+  StringBuffer code(buf, total_size);
+  code.Append(kFragmentShaderPreamble);
+  code.AppendBuffer(shader.contents, shader.size);
+  code.Append(kFragmentShaderPostamble);
+  if (!Compile(shader.type, shader.name, code.piece(), kUseCache)) {
+    handler_.handler(handler_.ud, last_error_.file.piece(), last_error_.line,
+                     last_error_.error.piece());
+  }
 }
 
 bool Shaders::Link(std::string_view name, std::string_view vertex_shader,
-                   std::string_view fragment_shader) {
-  if (compiled_programs_.Contains(name)) return true;
+                   std::string_view fragment_shader, UseCache use_cache) {
+  GLuint program_id;
+  if (compiled_programs_.Lookup(name, &program_id)) {
+    if (use_cache == UseCache::kUseCache) {
+      LOG("Skipping linking ", name);
+      return true;
+    } else {
+      glDeleteProgram(program_id);
+    }
+  }
   GLuint shader_program = glCreateProgram();
   GLuint vertex, fragment;
   if (!compiled_shaders_.Lookup(vertex_shader, &vertex)) {
