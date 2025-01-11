@@ -23,16 +23,16 @@ void DebugConsole::LogWithConsole(void* userdata, int category,
 void DebugConsole::CopyToBuffer(std::string_view text, Linebuffer* buffer) {
   const size_t length = std::min(kMaxLogLineLength, text.size());
   std::memcpy(buffer->chars, text.data(), length);
+  buffer->chars[length] = 0;
   buffer->len = length;
 }
 
 void DebugConsole::LogLine(std::string_view text) {
   Linebuffer* buffer = nullptr;
   if (lines_.full()) {
-    buffer = lines_.Pop();
-  } else {
-    buffer = New<Linebuffer>(&buffers_);
+    buffers_.DeallocBlock(lines_.Pop());
   }
+  buffer = buffers_.AllocBlock();
   CopyToBuffer(text, buffer);
   lines_.Push(buffer);
 }

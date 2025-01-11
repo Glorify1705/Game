@@ -131,7 +131,8 @@ struct EngineModules {
                 DbAssets* db_assets, const GameConfig& config,
                 SDL_Window* sdl_window, Allocator* allocator,
                 const char* source_directory)
-      : db(db),
+      : console(allocator),
+        db(db),
         assets(db_assets),
         source_directory(source_directory),
         config(&config),
@@ -203,7 +204,7 @@ struct EngineModules {
     lua.Register(&sound);
     lua.Register(&filesystem);
     lua.Register(&physics);
-    lua.Register(&DebugConsole::Instance());
+    lua.Register(&console);
     lua.Register(assets);
     AddByteBufferLibrary(&lua);
     AddFilesystemLibrary(&lua);
@@ -310,6 +311,7 @@ struct EngineModules {
   }
 
   SDL_mutex* mu;
+  DebugConsole console;
   sqlite3* db;
   bool stopped = false;
   DbAssets* assets;
@@ -466,8 +468,6 @@ class Game {
       : argc_(argc), argv_(argv), allocator_(allocator) {
     TIMER("Setup");
     InitializeLogging();
-    // Initialize the debug console.
-    DebugConsole::Instance();
     LOG("Program name = ", argv[0], " args = ", argc);
     for (int i = 1; i < argc; ++i) {
       LOG("argv[", i, "] = ", argv[i]);

@@ -49,10 +49,7 @@ class FixedArray {
     DCHECK(elems_ > 0);
     elems_--;
   }
-  void Clear() {
-    elems_ = 0;
-    DeallocArray(buffer_, size_, allocator_);
-  }
+  void Clear() { elems_ = 0; }
 
   bool empty() const { return elems_ == 0; }
 

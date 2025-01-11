@@ -17,7 +17,8 @@ namespace G {
 
 class DebugConsole {
  public:
-  DebugConsole(Allocator* allocator) : lines_(kMaxLines, allocator) {
+  DebugConsole(Allocator* allocator)
+      : buffers_(allocator, kMaxLines), lines_(kMaxLines, allocator) {
     mu_ = SDL_CreateMutex();
     SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
     SDL_LogSetOutputFunction(LogWithConsole, this);
@@ -35,10 +36,7 @@ class DebugConsole {
     LogLine(buf.piece());
   }
 
-  static DebugConsole& Instance() {
-    static DebugConsole console(SystemAllocator::Instance());
-    return console;
-  }
+  friend DebugConsole& StartDebugConsole();
 
  private:
   inline static constexpr size_t kMaxLines = 1024;
@@ -56,7 +54,7 @@ class DebugConsole {
   void CopyToBuffer(std::string_view text, Linebuffer* buffer);
   void LogLine(std::string_view text);
 
-  StaticAllocator<2 * kMaxLines * sizeof(Linebuffer)> buffers_;
+  BlockAllocator<Linebuffer> buffers_;
   CircularBuffer<Linebuffer*> lines_;
   SDL_LogOutputFunction log_fn_;
   void* log_fn_userdata_;
@@ -65,11 +63,5 @@ class DebugConsole {
 };
 
 }  // namespace G
-
-#define WATCH_EXPR(str, ...)                                    \
-  do {                                                          \
-    G::DebugConsole::Instance().AddWatcher(str, ##__VA_ARGS__); \
-  } while (0);
-#define WATCH_VAR(var) WATCH_EXPR(#var, var)
 
 #endif  // _GAME_CONSOLE_H
