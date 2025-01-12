@@ -798,6 +798,7 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
       }
     }
   }
+  x = std::max(x, p.x);
   return IVec2(static_cast<int>(x), static_cast<int>(p.y));
 }
 
