@@ -163,8 +163,6 @@ class StaticAllocator final : public ArenaAllocator {
 template <typename T>
 class BlockAllocator {
  public:
-  inline static constexpr size_t kBlockSize = sizeof(T);
-
   explicit BlockAllocator(Allocator* allocator, size_t blocks)
       : allocator_(allocator), num_blocks_(blocks) {
     blocks_ =
@@ -197,9 +195,12 @@ class BlockAllocator {
   }
 
  private:
-  struct Block {
+  union Block {
     Block* next;
+    T t;
   };
+
+  inline static constexpr size_t kBlockSize = sizeof(Block);
 
   Allocator* allocator_;
   size_t num_blocks_;
@@ -217,9 +218,7 @@ class ShardedFreeListAllocator : public Allocator {
     medium_pages_ = nullptr;
     full_pages_ = nullptr;
     page_idx_ = segment_idx_ = 0;
-    // Keep a dummy page for all free lists to remove an if.
-    std::memset(&dummy_, 0, sizeof(Page));
-    std::fill(free_.begin(), free_.end(), &dummy_);
+    std::fill(free_.begin(), free_.end(), nullptr);
   }
 
   void* Alloc(size_t size, size_t align) override {
@@ -229,9 +228,10 @@ class ShardedFreeListAllocator : public Allocator {
     size = AllocSize(size);
     size_t bucket = GetPageBucket(size);
     auto* page = free_[bucket];
-    auto* block = page->next;
-    if (block == nullptr) return SlowAlloc(page, size);
-    return block;
+    if (page == nullptr || page->next == nullptr) {
+      return SlowAlloc(page, size);
+    }
+    return page->Alloc();
   }
 
   void Dealloc(void* ptr, size_t size) override {
@@ -324,7 +324,7 @@ class ShardedFreeListAllocator : public Allocator {
 
   size_t GetPageBucket(size_t alloc) {
     if (alloc <= kSmallAlloc) {
-      return Align(alloc, kSmallBucketSize) / kSmallBucketSize;
+      return (Align(alloc, kSmallBucketSize) / kSmallBucketSize - 1);
     }
     alloc -= kSmallPageSize;
     if (alloc <= kMediumAlloc) {
