@@ -48,6 +48,12 @@
     exec = "rm -rf build/*";
   };
 
+  scripts."game-test" = {
+    exec = ''
+      cmake -DCMAKE_BUILD_TYPE=Debug -G Ninja -S . -B build && cmake --build build --target Tests
+    '';
+  };
+
   scripts."game-open-db" = {
     exec = "${pkgs.sqlitebrowser}/bin/sqlitebrowser build/assets.sqlite3";
   };
@@ -61,7 +67,7 @@
 
   scripts."game-format" = {
     exec = ''
-      ${pkgs.clang-tools}/bin/clang-format -i src/*
+      ${pkgs.clang-tools}/bin/clang-format -i src/* tests/*
       for f in assets/*.fnl; do ${pkgs.fnlfmt}/bin/fnlfmt --fix "$f"; done
       ${pkgs.stylua}/bin/stylua assets/*.lua
     '';

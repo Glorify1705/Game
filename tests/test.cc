@@ -1,10 +1,11 @@
+#include "allocators.h"
 #include "array.h"
 #include "bits.h"
+#include "defer.h"
 #include "dictionary.h"
 #include "gmock/gmock-matchers.h"
-#include "gport-shim.h"
 #include "gtest/gtest-matchers.h"
-#include "lookup_table.h"
+#include "stringlib.h"
 #include "vec.h"
 
 using ::testing::Pointee;
@@ -95,20 +96,6 @@ TEST(Tests, Vectors) {
   EXPECT_FLOAT_EQ(v.Length(), std::sqrt(14));
 }
 
-TEST(Tests, LookupTable) {
-  LookupTable<int> table(SystemAllocator::Instance());
-  table.Insert("foo", 1);
-  table.Insert("bar", 2);
-  EXPECT_EQ(table.size(), 2);
-  int val;
-  ASSERT_TRUE(table.Lookup("foo", &val));
-  EXPECT_EQ(val, 1);
-  ASSERT_FALSE(table.Lookup("baz", &val));
-  table.Insert("foo", 3);
-  ASSERT_TRUE(table.Lookup("foo", &val));
-  EXPECT_EQ(val, 3);
-}
-
 TEST(Tests, Bits) {
   EXPECT_EQ(NextPow2(1), 1);
   EXPECT_EQ(NextPow2(13), 16);
@@ -161,6 +148,24 @@ TEST(Tests, StringTable) {
   EXPECT_NE(handle2, s->Handle("foo"));
   EXPECT_EQ(handle2, s->Handle("bar"));
   EXPECT_EQ(handle1, handle3);
+}
+
+TEST(Tests, BlockAllocator) {
+  BlockAllocator<uint32_t> pool(SystemAllocator::Instance(), 2);
+  uint32_t* p = pool.AllocBlock();
+  uint32_t* q = pool.AllocBlock();
+  EXPECT_NE(p, q);
+  pool.DeallocBlock(q);
+  uint32_t* r = pool.AllocBlock();
+  EXPECT_EQ(q, r);
+}
+
+TEST(Tests, ShardedFreeListAllocator) {
+  void* buffer;
+  ASSERT_TRUE(posix_memalign(&buffer, kMaxAlign, Megabytes(128)) == 0);
+  DEFER([&] { std::free(buffer); });
+  ShardedFreeListAllocator a(SystemAllocator::Instance(), Megabytes(128));
+  a.Alloc(1, 16);
 }
 
 }  // namespace G

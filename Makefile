@@ -14,3 +14,6 @@ format:
 
 debug:
 	game-debug
+
+test:
+	game-test
