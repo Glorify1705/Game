@@ -76,6 +76,7 @@ class Dictionary {
     for (Node* child : n->child) {
       if (child != nullptr) Dealloc(child);
     }
+    allocator_->Destroy(root_);
   }
 
   Allocator* allocator_;
