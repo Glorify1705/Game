@@ -7,7 +7,7 @@
 #include <string_view>
 
 #include "constants.h"
-#include "strings.h"
+#include "stringlib.h"
 
 namespace G {
 

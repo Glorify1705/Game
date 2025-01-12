@@ -7,7 +7,7 @@
 #include <ostream>
 #include <string>
 
-#include "strings.h"
+#include "stringlib.h"
 
 namespace G {
 

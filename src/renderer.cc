@@ -8,7 +8,7 @@
 #include "console.h"
 #include "filesystem.h"
 #include "image.h"
-#include "strings.h"
+#include "stringlib.h"
 #include "transformations.h"
 #include "units.h"
 

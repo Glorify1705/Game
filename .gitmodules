@@ -7,3 +7,6 @@
 [submodule "libraries/json.cpp"]
 	path = libraries/json.cpp
 	url = https://github.com/Glorify1705/json.cpp
+[submodule "libraries/googletest"]
+	path = libraries/googletest
+	url = https://github.com/Glorify1705/googletest

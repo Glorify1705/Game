@@ -10,7 +10,7 @@
 #include "array.h"
 #include "circular_buffer.h"
 #include "dictionary.h"
-#include "strings.h"
+#include "stringlib.h"
 #include "thread.h"
 
 namespace G {

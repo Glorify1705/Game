@@ -80,7 +80,7 @@ set(GAME_SRCS
     "src/sound.cc"
     "src/stats.cc"
     "src/string_table.cc"
-    "src/strings.cc"
+    "src/stringlib.cc"
     "src/thread_pool.cc"
     "src/transformations.cc"
     "src/packer.cc")
@@ -149,12 +149,9 @@ endif()
 
 enable_testing()
 
-set(gtest_force_shared_crt
-    ON
-    CACHE BOOL "" FORCE)
 add_subdirectory(libraries/googletest)
 
-set(TEST_SRCS "src/strings.cc" "src/stats.cc" "src/string_table.cc"
+set(TEST_SRCS "src/stringlib.cc" "src/stats.cc" "src/string_table.cc"
               "src/logging.cc" "tests/test.cc")
 
 add_executable(Tests "${TEST_SRCS}")
@@ -164,7 +161,7 @@ target_compile_options(Tests PRIVATE ${COMPILER_FLAGS})
 target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
                                          "${PROJECT_SOURCE_DIR}/src")
 
-target_link_libraries(Tests GTest::gtest_main GTest::gmock xxHash::xxhash)
+target_link_libraries(Tests GTest::gtest_main GTest::gmock xxHash::xxhash double-conversion)
 
 include(GoogleTest)
 gtest_discover_tests(Tests)

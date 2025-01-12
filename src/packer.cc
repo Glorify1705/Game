@@ -11,7 +11,7 @@
 #include "physfs.h"
 #include "schema.sql.h"
 #include "src/allocators.h"
-#include "src/strings.h"
+#include "src/stringlib.h"
 #include "src/units.h"
 #include "xxhash.h"
 

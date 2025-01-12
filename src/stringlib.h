@@ -1,11 +1,12 @@
 #pragma once
-#ifndef _GAME_STRINGS_H
-#define _GAME_STRINGS_H
+#ifndef _GAME_STRINGLIB_H
+#define _GAME_STRINGLIB_H
 
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <type_traits>
 
 namespace G {
@@ -241,4 +242,4 @@ inline std::string_view Extension(std::string_view p) {
 
 }  // namespace G
 
-#endif  // _GAME_STRINGS_H
+#endif  // _GAME_STRINGLIB_H

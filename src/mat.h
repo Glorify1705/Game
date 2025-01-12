@@ -7,7 +7,7 @@
 #include <iostream>
 #include <ostream>
 
-#include "strings.h"
+#include "stringlib.h"
 #include "vec.h"
 
 namespace G {

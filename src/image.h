@@ -6,7 +6,7 @@
 
 #include "allocators.h"
 #include "filesystem.h"
-#include "strings.h"
+#include "stringlib.h"
 
 namespace G {
 

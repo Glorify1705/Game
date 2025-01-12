@@ -43,7 +43,7 @@
 #include "sound.h"
 #include "sqlite3.h"
 #include "stats.h"
-#include "strings.h"
+#include "stringlib.h"
 #include "thread_pool.h"
 #include "units.h"
 #include "vec.h"

@@ -7,7 +7,7 @@
 #include <string>
 
 #include "logging.h"
-#include "strings.h"
+#include "stringlib.h"
 
 namespace G {
 
