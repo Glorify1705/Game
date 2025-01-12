@@ -624,7 +624,7 @@ class Game {
     if (debug_ && stats_.samples() > 0) {
       FixedStringBuffer<kMaxLogLineLength> log(
           "FPS: ", (1000.0f / stats_.avg()), " Stats = ", stats_,
-          "\nLua memory usage: ", e_->lua.MemoryUsage());
+          "\nLua memory usage: ", (e_->lua.MemoryUsage() / 1024.0));
       e_->renderer.SetColor(Color::White());
       const IVec2 dims =
           e_->renderer.TextDimensions("debug_font.ttf", 12, log.str());
