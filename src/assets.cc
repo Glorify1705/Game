@@ -254,7 +254,6 @@ void DbAssets::Clear() {
   shaders_.Clear();
   text_files_map_.Clear();
   text_files_.Clear();
-  allocator_->Reset();
 }
 
 void DbAssets::Load() {

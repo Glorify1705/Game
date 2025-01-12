@@ -53,7 +53,7 @@ class Dictionary {
       n = &(*n)->child[h >> 62];
     }
     if (*n == nullptr) {
-      *n = New<Node>(allocator_);
+      *n = allocator_->New<Node>();
       (*n)->handle = handle;
     }
     (*n)->value = std::move(value);

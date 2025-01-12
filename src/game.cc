@@ -50,26 +50,8 @@
 #include "version.h"
 namespace G {
 
-constexpr size_t kEngineMemory = Gigabytes(1);
-using EngineAllocator = StaticAllocator<kEngineMemory>;
-
-static EngineAllocator* GlobalEngineAllocator() {
-  static auto* allocator = new EngineAllocator;
-  return allocator;
-}
-
-using AssetAllocator = StaticAllocator<Gigabytes(1)>;
-static AssetAllocator* GlobalAssetAllocator() {
-  static auto* allocator = new AssetAllocator;
-  return allocator;
-}
-
-using HotReloadingAllocator = StaticAllocator<Megabytes(512)>;
-
-static HotReloadingAllocator* GlobalHotReloadingAllocator() {
-  static auto* allocator = new HotReloadingAllocator;
-  return allocator;
-}
+constexpr size_t kEngineMemory = Gigabytes(4);
+constexpr size_t kHotReloadMemory = Megabytes(128);
 
 #ifndef _INTERNAL_GAME_TRAP
 #if __has_builtin(__builtin_debugtrap)
@@ -112,14 +94,6 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
   }
 }
 
-DbAssets* GetAssets(const char* argv[], size_t argc, sqlite3* db,
-                    Allocator* allocator) {
-  WriteAssetsToDb(argv[0], db, allocator);
-  auto* result = New<DbAssets>(allocator, db, GlobalAssetAllocator());
-  result->Load();
-  return result;
-}
-
 IVec2 GetWindowViewport(SDL_Window* window) {
   IVec2 result;
   SDL_GL_GetDrawableSize(window, &result.x, &result.y);
@@ -157,7 +131,9 @@ struct EngineModules {
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)),
-        pool(allocator, 4) {
+        pool(allocator, 4),
+        allocator_(allocator),
+        hotload_allocator_(allocator, kHotReloadMemory) {
     mu = SDL_CreateMutex();
   }
 
@@ -177,14 +153,13 @@ struct EngineModules {
 
   void CheckChangedFiles() {
     LOG("Checking files in the background");
-    ArenaAllocator allocator(GlobalHotReloadingAllocator(), Megabytes(256));
     auto is_stopped = [this] {
       LockMutex l(mu);
       return stopped;
     };
     while (!is_stopped()) {
-      allocator.Reset();
-      WriteAssetsToDb(source_directory, db, &allocator);
+      hotload_allocator_.Reset();
+      WriteAssetsToDb(source_directory, db, &hotload_allocator_);
       SDL_Delay(10);
     }
   }
@@ -330,6 +305,8 @@ struct EngineModules {
   Physics physics;
   ArenaAllocator frame_allocator;
   ThreadPool pool;
+  Allocator* allocator_;
+  ArenaAllocator hotload_allocator_;
 };
 
 void InitializeLogging() {
@@ -480,7 +457,7 @@ class Game {
     }
     {
       TIMER("Getting assets");
-      db_assets_ = GetAssets(argv + 1, argc - 1, db_, allocator_);
+      db_assets_ = GetAssets(argv + 1, argc - 1, db_);
     }
     {
       TIMER("Loading config");
@@ -500,6 +477,34 @@ class Game {
       context_ = CreateOpenglContext(config_, window_);
     }
     PrintSystemInformation();
+  }
+
+  ~Game() {
+    e_->Deinitialize();
+    allocator_->Destroy(e_);
+    if (SDL_WasInit(SDL_INIT_HAPTIC) != 0) {
+      SDL_QuitSubSystem(SDL_INIT_HAPTIC);
+    }
+    Mix_Quit();
+    if (SDL_WasInit(SDL_INIT_JOYSTICK)) {
+      SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
+    }
+    if (SDL_WasInit(SDL_INIT_GAMECONTROLLER)) {
+      SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
+    }
+    PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
+    SDL_GL_DeleteContext(context_);
+    SDL_DestroyWindow(window_);
+    LOG("Statistics (in ms): ", stats_);
+    SDL_Quit();
+    sqlite3_close(db_);
+  }
+
+  DbAssets* GetAssets(const char* argv[], size_t argc, sqlite3* db) {
+    WriteAssetsToDb(argv[0], db, allocator_);
+    auto* result = allocator_->New<DbAssets>(db, allocator_);
+    result->Load();
+    return result;
   }
 
   struct LoadResult {
@@ -533,31 +538,11 @@ class Game {
     return result;
   }
 
-  ~Game() {
-    e_->Deinitialize();
-    Destroy(allocator_, e_);
-    if (SDL_WasInit(SDL_INIT_HAPTIC) != 0) {
-      SDL_QuitSubSystem(SDL_INIT_HAPTIC);
-    }
-    Mix_Quit();
-    if (SDL_WasInit(SDL_INIT_JOYSTICK)) {
-      SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
-    }
-    if (SDL_WasInit(SDL_INIT_GAMECONTROLLER)) {
-      SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
-    }
-    PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
-    SDL_GL_DeleteContext(context_);
-    SDL_DestroyWindow(window_);
-    LOG("Statistics (in ms): ", stats_);
-    SDL_Quit();
-    sqlite3_close(db_);
-  }
-
   void Init() {
     TIMER("Game Initialization");
-    e_ = New<EngineModules>(allocator_, argc_, argv_, db_, db_assets_, config_,
-                            window_, allocator_, load_.source_directory);
+    e_ = allocator_->New<EngineModules>(argc_, argv_, db_, db_assets_, config_,
+                                        window_, allocator_,
+                                        load_.source_directory);
     e_->Initialize();
     e_->lua.Init();
   }
@@ -638,7 +623,8 @@ class Game {
     // Draw FPS counter in debug mode.
     if (debug_ && stats_.samples() > 0) {
       FixedStringBuffer<kMaxLogLineLength> log(
-          "FPS: ", (1000.0f / stats_.avg()), " Stats = ", stats_);
+          "FPS: ", (1000.0f / stats_.avg()), " Stats = ", stats_,
+          "\nLua memory usage: ", e_->lua.MemoryUsage());
       e_->renderer.SetColor(Color::White());
       const IVec2 dims =
           e_->renderer.TextDimensions("debug_font.ttf", 12, log.str());
@@ -667,13 +653,14 @@ class Game {
 };
 
 void GameMain(int argc, const char* argv[]) {
-  auto* allocator = GlobalEngineAllocator();
+  auto* allocator = new StaticAllocator<kEngineMemory>();
   // Ensure we don't overflow the stack in any module by allocating Game on
   // the heap.
-  auto* g = New<Game>(allocator, argc, argv, allocator);
+  auto* g = allocator->New<Game>(argc, argv, allocator);
   g->Init();
   g->Run();
-  Destroy(allocator, g);
+  allocator->Destroy(g);
+  delete allocator;
 }
 
 }  // namespace G

@@ -170,10 +170,21 @@ class Lua {
 
   void RequestHotload() { hotload_requested_ = true; }
 
+  void RunGc() {
+    TIMER("GC");
+    lua_gc(state_, LUA_GCCOLLECT, /*data=*/0);
+  }
+
   bool HotloadRequested() {
     const bool result = hotload_requested_;
     hotload_requested_ = false;
     return result;
+  }
+
+  size_t MemoryUsage() {
+    size_t mem_kb = lua_gc(state_, LUA_GCCOUNT, 0);
+    size_t mem_b = lua_gc(state_, LUA_GCCOUNTB, 0);
+    return Kilobytes(mem_kb) + mem_b;
   }
 
   friend void AddGraphicsLibrary(Lua* lua);

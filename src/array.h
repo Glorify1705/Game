@@ -17,9 +17,9 @@ template <typename T>
 class FixedArray {
  public:
   FixedArray(size_t n, Allocator* allocator) : allocator_(allocator), size_(n) {
-    buffer_ = NewArray<T>(size_, allocator);
+    buffer_ = allocator->NewArray<T>(size_);
   }
-  ~FixedArray() { DeallocArray<T>(buffer_, size_ * sizeof(T), allocator_); }
+  ~FixedArray() { allocator_->DeallocArray<T>(buffer_, size_); }
 
   void Push(T&& t) {
     EnsureBufferIsAvailable();
@@ -83,7 +83,7 @@ class FixedArray {
  private:
   void EnsureBufferIsAvailable() {
     if (buffer_ == nullptr) {
-      buffer_ = NewArray<T>(size_, allocator_);
+      buffer_ = allocator_->NewArray<T>(size_);
     }
   }
 
@@ -146,7 +146,7 @@ class DynArray {
   }
 
   void Clear() {
-    DeallocArray(buffer_, capacity_, allocator_);
+    allocator_->DeallocArray(buffer_, capacity_);
     elems_ = 0;
     buffer_ = nullptr;
     capacity_ = 0;
@@ -185,7 +185,7 @@ class DynArray {
     size_t new_capacity = NextPow2(size);
     if (buffer_ == nullptr) {
       capacity_ = new_capacity;
-      buffer_ = NewArray<T>(capacity_, allocator_);
+      buffer_ = allocator_->NewArray<T>(capacity_);
     } else if (capacity_ < new_capacity) {
       buffer_ = static_cast<T*>(
           allocator_->Realloc(buffer_, capacity_ * sizeof(T),
@@ -213,14 +213,14 @@ class DynArray {
   }
 
   void CopyBuffer(const DynArray<T>& other) {
-    buffer_ = NewArray<T>(other.capacity_, allocator_);
+    buffer_ = allocator_->NewArray<T>(other.capacity_);
     std::memcpy(buffer_, other.buffer_, other.elems_ * sizeof(T));
   }
 
   void ResizeIfNeeded() {
     if (buffer_ == nullptr) {
       capacity_ = 16;
-      buffer_ = NewArray<T>(capacity_, allocator_);
+      buffer_ = allocator_->NewArray<T>(capacity_);
     } else if (elems_ == capacity_) {
       const size_t new_capacity = capacity_ * 2;
       buffer_ = static_cast<T*>(

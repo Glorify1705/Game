@@ -33,7 +33,7 @@ class DbPacker {
   explicit DbPacker(sqlite3* db, Allocator* allocator)
       : db_(db),
         allocator_(allocator),
-        scratch_(allocator, Megabytes(128)),
+        scratch_(allocator, Megabytes(64)),
         checksums_(allocator) {}
 
   AssetInfo InsertIntoTable(std::string_view table, std::string_view filename,
@@ -358,7 +358,7 @@ class DbPacker {
       CHECK(handle != nullptr, "Could not read ", path, ": ",
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       const size_t bytes = PHYSFS_fileLength(handle);
-      auto* buffer = static_cast<uint8_t*>(scratch_.Alloc(bytes, /*align=*/16));
+      auto* buffer = static_cast<uint8_t*>(scratch_.Alloc(bytes, kMaxAlign));
       CHECK(buffer != nullptr);
       const size_t read_bytes = PHYSFS_readBytes(handle, buffer, bytes);
       CHECK(read_bytes == bytes, " failed to read ", path,
@@ -443,7 +443,7 @@ class DbPacker {
 
 DbAssets* ReadAssetsFromDb(sqlite3* db, Allocator* allocator,
                            Allocator* asset_allocator) {
-  auto* result = New<DbAssets>(allocator, db, asset_allocator);
+  auto* result = allocator->New<DbAssets>(db, asset_allocator);
   result->Load();
   return result;
 }

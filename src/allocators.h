@@ -14,14 +14,13 @@
 #include <limits>
 
 #include "bits.h"
+#include "defer.h"
 #include "logging.h"
 #include "units.h"
 
 namespace G {
 
-inline static constexpr size_t Align(size_t n, size_t m) {
-  return (n + m - 1) & ~(m - 1);
-};
+inline static constexpr size_t kMaxAlign = alignof(std::max_align_t);
 
 class Allocator {
  public:
@@ -34,46 +33,44 @@ class Allocator {
   virtual void* Realloc(void* p, size_t old_size, size_t new_size,
                         size_t align) = 0;
 
-  virtual void Reset() = 0;
-};
-
-template <typename T>
-void Destroy(Allocator* allocator, T* ptr) {
-  if constexpr (!std::is_trivially_destructible_v<T>) {
-    ptr->~T();
+  template <typename T, typename... Args>
+  T* New(Args... args) {
+    T* ptr = reinterpret_cast<T*>(Alloc(sizeof(T), alignof(T)));
+    ::new (ptr) T(std::forward<Args>(args)...);
+    return ptr;
   }
-  allocator->Dealloc(ptr, sizeof(T));
-}
 
-template <typename T, typename... Args>
-T* New(Allocator* allocator, Args... args) {
-  T* ptr = reinterpret_cast<T*>(allocator->Alloc(sizeof(T), alignof(T)));
-  ::new (ptr) T(std::forward<Args>(args)...);
-  return ptr;
-}
+  std::string_view StrDup(std::string_view s) {
+    char* result = reinterpret_cast<char*>(Alloc(s.size(), 1));
+    std::memcpy(result, s.data(), s.size());
+    return std::string_view(result, s.size());
+  }
 
-inline std::string_view StrDup(Allocator* allocator, std::string_view s) {
-  char* result = reinterpret_cast<char*>(allocator->Alloc(s.size(), 1));
-  std::memcpy(result, s.data(), s.size());
-  return std::string_view(result, s.size());
-}
+  template <typename T, typename... Args>
+  T* BraceInit(Args... args) {
+    T* ptr = reinterpret_cast<T*>(Alloc(sizeof(T), alignof(T)));
+    ::new (ptr) T{std::forward<Args>(args)...};
+    return ptr;
+  }
 
-template <typename T, typename... Args>
-T* BraceInit(Allocator* allocator, Args... args) {
-  T* ptr = reinterpret_cast<T*>(allocator->Alloc(sizeof(T), alignof(T)));
-  ::new (ptr) T{std::forward<Args>(args)...};
-  return ptr;
-}
+  template <typename T>
+  T* NewArray(size_t n) {
+    return reinterpret_cast<T*>(Alloc(n * sizeof(T), alignof(T)));
+  }
 
-template <typename T>
-T* NewArray(size_t n, Allocator* allocator) {
-  return reinterpret_cast<T*>(allocator->Alloc(n * sizeof(T), alignof(T)));
-}
+  template <typename T>
+  void DeallocArray(T* ptr, size_t n) {
+    Dealloc(ptr, n * sizeof(T));
+  }
 
-template <typename T>
-void DeallocArray(T* ptr, size_t n, Allocator* allocator) {
-  allocator->Dealloc(ptr, n * sizeof(T));
-}
+  template <typename T>
+  void Destroy(T* ptr) {
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      ptr->~T();
+    }
+    Dealloc(ptr, sizeof(T));
+  }
+};
 
 class SystemAllocator final : public Allocator {
  public:
@@ -90,9 +87,6 @@ class SystemAllocator final : public Allocator {
     return std::realloc(p, new_size);
   }
 
-  void Reset() override { /*pass*/
-  }
-
   static SystemAllocator* Instance() {
     static SystemAllocator allocator;
     return &allocator;
@@ -101,8 +95,6 @@ class SystemAllocator final : public Allocator {
 
 class ArenaAllocator : public Allocator {
  public:
-  inline static constexpr size_t kMaxAlign = alignof(std::max_align_t);
-
   ArenaAllocator(uint8_t* buffer, size_t size) {
     auto start = reinterpret_cast<uintptr_t>(buffer);
     pos_ = Align(start, kMaxAlign);
@@ -125,6 +117,7 @@ class ArenaAllocator : public Allocator {
     // Always align to std::max_align_t.
     size = Align(size, kMaxAlign);
     if (pos_ + size > end_) {
+      LOG("OOM size = ", size, " align = ", align);
       return nullptr;
     }
     auto* result = reinterpret_cast<void*>(pos_);
@@ -146,7 +139,7 @@ class ArenaAllocator : public Allocator {
     return res;
   }
 
-  void Reset() override { pos_ = beginning_; }
+  void Reset() { pos_ = beginning_; }
 
   size_t used_memory() const { return pos_ - beginning_; }
   size_t total_memory() const { return end_ - beginning_; }
@@ -214,52 +207,59 @@ class BlockAllocator {
   Block* blocks_;
 };
 
-#if 0
-// The design is based on https://www.microsoft.com/en-us/research/uploads/prod/2019/06/mimalloc-tr-v1.pdf
+// The design is based on
+// https://www.microsoft.com/en-us/research/uploads/prod/2019/06/mimalloc-tr-v1.pdf
 class ShardedFreeListAllocator : public Allocator {
  public:
-  ShardedFreeListAllocator(void* buffer, size_t size) : buffer_(reinterpret_cast<uintptr_t>(buffer)), size_(size) {
-    std::fill(pages_.begin(), pages_.end(), nullptr);
+  ShardedFreeListAllocator(void* buffer, size_t size)
+      : buffer_(reinterpret_cast<uintptr_t>(buffer)), end_(buffer_ + size) {
+    small_pages_ = nullptr;
+    medium_pages_ = nullptr;
     full_pages_ = nullptr;
-    segments_ = nullptr;
+    page_idx_ = segment_idx_ = 0;
+    // Keep a dummy page for all free lists to remove an if.
+    std::memset(&dummy_, 0, sizeof(Page));
+    std::fill(free_.begin(), free_.end(), &dummy_);
   }
 
-  // TODO: Write. Would break the block into segments.
-  // void Donate(void* p, size_t size, void* ud, void(*free)(void*, size_t, void*));
-
   void* Alloc(size_t size, size_t align) override {
-    // All pages from this allocator are aligned at at least 128 byte boundary (or more).
-    // So we should not need alignment.
-    DCHECK(align < 128);
+    // All pages from this allocator are aligned at at least 128 byte boundary
+    // (or more). So we should not need alignment.
+    DCHECK(align <= 128);
+    size = AllocSize(size);
     size_t bucket = GetPageBucket(size);
-    auto* page = pages_[bucket];
-    if (page == nullptr) return SlowAlloc(page, size);
-    Block* block = page->free;
+    auto* page = free_[bucket];
+    auto* block = page->next;
     if (block == nullptr) return SlowAlloc(page, size);
-    page->free = block->next;
     return block;
   }
 
-  void Dealloc(void* ptr, size_t sz) override {
-    const size_t bucket = GetPageBucket(sz);
-    uintptr_t address = Address(ptr);
-    auto* segment = Ptr<Segment>(address & kSegmentSize);
-    if (segment == nullptr) return;
-    uintptr_t segment_address = Address(segment);
-    Page* page = &segment->pages[(address - segment_address) >> segment->page_shift];
-    auto* block = Ptr<Block>(address);
+  void Dealloc(void* ptr, size_t size) override {
+    if (ptr == nullptr) return;
+    size = AllocSize(size);
+    const auto ptr_address = reinterpret_cast<uintptr_t>(ptr);
+    auto* segment = &segments_[(ptr_address - buffer_) >> kSegmentShift];
+    const auto segment_address = reinterpret_cast<uintptr_t>(segment);
+    Page* page =
+        &segment->pages[(ptr_address - segment_address) >> segment->page_shift];
+    auto* block = reinterpret_cast<Block*>(ptr_address);
     block->next = page->free;
     page->free = block;
     page->used_blocks--;
-    if (page->used_blocks == 0) PageFree(page, bucket);
+    if (page->used_blocks == 0) {
+      // The page is fully freed, add it to the free list pages for that page
+      // kind.
+      UnlinkAndAddToList(page, GetPageList(page->block_size));
+    } else {
+      // Add it to the page list of the bucket to the front, since it has space.
+      UnlinkAndAddToList(page, &free_[GetPageBucket(size)]);
+    }
   }
 
   void* Realloc(void* p, size_t old_size, size_t new_size,
                 size_t align) override {
     size_t alloc = AllocSize(old_size);
-    if (new_size <= alloc) {
-      return p;
-    }
+    if (new_size <= alloc) return p;
     auto* result = Alloc(new_size, align);
     std::memcpy(result, p, old_size);
     Dealloc(p, old_size);
@@ -267,7 +267,6 @@ class ShardedFreeListAllocator : public Allocator {
   }
 
  private:
-
   inline static constexpr size_t kSmallAlloc = Kilobytes(4);
   inline static constexpr size_t kMediumAlloc = Megabytes(2);
 
@@ -276,206 +275,200 @@ class ShardedFreeListAllocator : public Allocator {
 
   inline static constexpr size_t kSmallPageSize = Kilobytes(64);
   inline static constexpr size_t kMediumPageSize = Kilobytes(512);
-  inline static constexpr size_t kHugePage = Megabytes(4);
+  inline static constexpr size_t kHugePageSize = Megabytes(4);
 
+  inline static constexpr size_t kSegmentShift = 22;
   inline static constexpr size_t kSegmentSize = Megabytes(4);
+  static_assert((1 << kSegmentShift) == kSegmentSize);
 
-  template<typename T>
-  constexpr static uintptr_t Address(T* p) { return reinterpret_cast<uintptr_t>(p); }
+  inline static constexpr size_t kSmallPageShift = 16;
+  static_assert((1 << kSmallPageShift) == kSmallPageSize);
 
-  template<typename T>
-  constexpr static T* Ptr(uintptr_t p) { return reinterpret_cast<T*>(p); }
-
-  static constexpr size_t AllocSize(size_t a) { return NextPow2(a); }
-
-  // TODO: Consider that the segment's first page needs to have less space for the metadata.
-
-  enum class PageClass { kSmall, kMedium, kHuge };
+  static constexpr size_t AllocSize(size_t a) {
+    if (a < kSmallAlloc) return Align(a, kSmallBucketSize);
+    if (a < kMediumAlloc) return Align(a, kMediumBucketSize);
+    return Align(a, kSegmentSize);
+  }
 
   struct Block {
     Block* next;
   };
 
   struct Page {
-    size_t num_blocks;
-    size_t block_size;
-    size_t used_blocks = 0;
-    Page* next;
-    Page* prev;
+    uint16_t segment_idx;
+    uint8_t page_offset;
+    uint16_t num_blocks;
+    uint32_t block_size;
+    uint16_t used_blocks = 0;
+    Page* next = nullptr;
+    Page* prev = nullptr;
     Block* free = nullptr;
-    uint8_t* page_area;
+
+    void* Alloc() {
+      auto* b = next;
+      if (b == nullptr) return nullptr;
+      used_blocks++;
+      next = b->next;
+      return b;
+    }
   };
 
   // Segments are 4 Mb aligned.
   struct Segment {
-    size_t page_size;
-    size_t num_pages;
-    size_t used_pages;
+    uintptr_t base_address;
     size_t page_shift;
-    PageClass page_class;
-    // Segment queue.
-    Segment* prev;
-    Segment* next;
+    size_t page_size;
     // Page metadata.
-    Page pages[1];
-    // Page area is after the metadata.
-
-    // Return the start of the page area.
-    uint8_t* PageArea() const {
-      uintptr_t p = Address(this) + offsetof(Segment, pages) + num_pages * sizeof(Page);
-      // Ensure alignment so we never need to align a page.
-      return Ptr<uint8_t>(Align(p, sizeof(std::max_align_t)));
-    }
-
-    size_t HeaderSize() const {
-      return sizeof(Page) * (num_pages - 1) + sizeof(Segment);
-    }
-
-    Page* AllocPage(size_t block_size) {
-      if (used_pages == num_pages) return nullptr;
-      auto* page = &pages[used_pages];
-      page->block_size = block_size;
-      page->num_blocks = page_size / num_pages;
-      size_t i = 0;
-      Block* block = nullptr;
-      for (uintptr_t p = Address(page->page_area); i < page->num_blocks; p += block_size, i++) {
-        auto* curr = Ptr<Block>(p);
-        curr->next = nullptr;
-        if (block != nullptr) block->next = curr;
-        block = curr;
-      }
-      used_pages++;
-      return page;
-    }
+    Page* pages;
   };
 
-  // Allocate a segment with one page of the required size.
-  // The result is aligned to 4 megabytes.
-  Segment* AllocSegment(size_t page_size) {
-    if (page_size >= kMediumPageSize) {
-      // Allocate a huge segment.
-      page_size = Align(page_size + sizeof(Segment), Megabytes(4));
-      CHECK((buffer_ + page_size) < size_, "OOM");
-      auto* segment = reinterpret_cast<Segment*>(buffer_);
-      segment->page_size = page_size;
-      segment->page_shift = 22;
-      segment->num_pages = 1;
-      segment->next = nullptr;
-      segment->prev = nullptr;
-      buffer_ += page_size; 
-      return segment;
-    }
-    if (page_size >= kSmallPageSize) {
-      CHECK((buffer_ + kSegmentSize) < size_, "OOM");
-      // Allocate a segment with medium pages.
-      const size_t segment_size = kSegmentSize;
-      const size_t page_size = kMediumPageSize;
-      auto* segment = reinterpret_cast<Segment*>(buffer_);
-      segment->page_size = Megabytes(4);
-      segment->num_pages = (segment_size / page_size);
-      segment->page_shift = 22;
-      segment->next = nullptr;
-      segment->prev = nullptr;
-      buffer_ += segment_size;
-      return segment;
-    }
-    // Allocate a segment with small pages.
-    const size_t segment_size = kSegmentSize;
-    CHECK((buffer_ + kSegmentSize) < size_, "OOM");
-    auto* segment = reinterpret_cast<Segment*>(buffer_);
-    segment->page_size = Kilobytes(64);
-    segment->num_pages = (segment_size / page_size);
-    segment->page_shift = 16;  // 64 k.
-    segment->next = nullptr;
-    segment->prev = nullptr;
-    buffer_ += segment_size;
-    return segment;
-  }
-
   size_t GetPageBucket(size_t alloc) {
-    if (alloc < kSmallAlloc) return Align(alloc, kSmallBucketSize);
-    alloc -= kSmallAlloc;
-    if (alloc < kMediumAlloc) return 32 + Align(alloc, kMediumBucketSize);
+    if (alloc <= kSmallAlloc) {
+      return Align(alloc, kSmallBucketSize) / kSmallBucketSize;
+    }
+    alloc -= kSmallPageSize;
+    if (alloc <= kMediumAlloc) {
+      return 32 + Align(alloc, kMediumBucketSize) / kMediumBucketSize;
+    }
     // Huge allocation.
-    return pages_.size() - 1;
+    return free_.size() - 1;
   }
 
   size_t GetPageSize(size_t alloc) {
-    if (alloc < kSmallAlloc) return kSmallPageSize;
-    if (alloc < kMediumAlloc) return kMediumPageSize;
+    if (alloc <= kSmallAlloc) return kSmallPageSize;
+    if (alloc <= kMediumAlloc) return kMediumPageSize;
     return kHugePageSize;
   }
 
-  void PageFree(Page* page, size_t bucket) {
-    size_t page_bucket = GetPageBucket(page->block_size);
-    if (pages_[page_bucket] == nullptr) {
-      pages_[page_bucket] = page;
-    } else {
-      // Remove from the list (whether the full pages list or the regular list).
-      // And add it to the front.
-      if (page->prev != nullptr) page->prev->next = page->next;
-      if (page->next != nullptr) page->next->prev = page->prev;
-      // Move free page to the front.
-      auto* tmp = pages_[page_bucket];
-      page->next = tmp;
-      pages_[page_bucket] = page;
-    }
+  Page** GetPageList(size_t block_size) {
+    if (block_size <= kSmallAlloc) return &small_pages_;
+    if (block_size <= kMediumAlloc) return &medium_pages_;
+    return &free_[free_.size() - 1];
   }
 
-  void* SlowAlloc(Page* page, size_t alloc) {
-    const size_t page_bucket = GetPageBucket(alloc);
-    // Try to find a free page in the list.
-    for (auto* curr = page; curr != nullptr; curr = curr->next) {
-      if (curr->free != nullptr) {
-        page = curr;
-        break;
-      } 
-      // Take the entry out of the list and move it to full list
-      // so we ignore it for following allocations.
-      if (curr->prev) curr->prev->next = curr->next; 
-      if (curr->next) curr->next->prev = curr->prev;
-      curr->prev = nullptr;
-      curr->next = nullptr;
-      if (full_pages_ != nullptr) {
-        full_pages_->prev = curr;
-        curr->next = full_pages_;
-      }
-      full_pages_ = curr;
-    }
-    if (page == nullptr || page->free == nullptr) {
-      Segment* segment = nullptr;
-      for (auto* segment = segments_; segment != nullptr; segment = segment->next) {
-
-      }
-      if (segment == nullptr) segment = AllocSegment();
-      segment->next = segments_;
-      segments_ = segment;
-      page = segment->AllocPage();
-    }
-    auto* tmp = pages_[page_bucket];
-    if (page->prev != nullptr) page->prev->next = page->next;
+  void UnlinkAndAddToList(Page* page, Page** list) {
     if (page->next != nullptr) page->next->prev = page->prev;
-    if (tmp != nullptr) tmp->prev = page;
-    page->prev = nullptr;
-    page->next = tmp;
-    pages_[page_bucket] = page;
-    page->used_blocks++;
-    auto* b = page->free;
-    page->free = b->next;
-    return b;
+    if (page->prev != nullptr) page->prev->next = page->next;
+    page->prev = page->next = nullptr;
+    if (*list != nullptr) {
+      (*list)->prev = page;
+      page->next = (*list);
+    }
+    *list = page;
   }
 
-  // Small allocations: 0 to 4k in 128 byte jumps, so 32. Page is 64k. 
-  // Medium allocations: 4k to 2M in 4k jumps, 1024. Page is 512k.
-  // Last one is for huge (> 4M) pages.
-  std::array<Page*, 32 + 512 + 1> pages_;
+  // Allocate a segment, and return the first page.
+  Page* AllocSegment(size_t page_size) {
+    auto* segment = &segments_[segment_idx_];
+    segment->base_address = buffer_;
+    size_t num_pages = 0;
+    Page** list;
+    if (page_size > kMediumPageSize) {
+      DCHECK((buffer_ + page_size) <= end_);
+      // Allocate a huge segment.
+      page_size = Align(page_size, kSegmentSize);
+      num_pages = 1;
+      list = &free_.back();
+      buffer_ += page_size;
+    } else if (page_size > kSmallPageSize) {
+      DCHECK((buffer_ + kSegmentSize) <= end_);
+      // Allocate a medium segment.
+      segment->page_size = kMediumPageSize;
+      segment->page_shift = kSegmentSize;  // 512k
+      num_pages = kSegmentSize / kMediumPageSize;
+      list = &medium_pages_;
+      buffer_ += kSegmentSize;
+    } else {
+      // Allocate a small segment.
+      DCHECK((buffer_ + kSegmentSize) <= end_);
+      segment->page_size = kSmallPageSize;
+      segment->page_shift = kSmallPageShift;  // 64 k.
+      num_pages = kSegmentSize / kSmallPageSize;
+      list = &small_pages_;
+      buffer_ += kSegmentSize;
+    }
+    // Allocate all the pages in the segment.
+    auto* p = &pages_[page_idx_++];
+    std::memset(p, 0, sizeof(Page));
+    p->segment_idx = segment_idx_;
+    segment->pages = p;
+    for (size_t i = 1; i < num_pages; ++i) {
+      auto* page = &pages_[page_idx_++];
+      *page = *p;
+      page->page_offset = i;
+      p->next = page;
+      page->prev = p;
+      p = page;
+    }
+    p->next = nullptr;
+    *list = segment->pages;
+    segment_idx_++;
+    return segment->pages;
+  }
+
+  void* SlowAlloc(Page* page, size_t block_size) {
+    // Try to find a free page in the list.
+    const size_t page_bucket = GetPageBucket(block_size);
+    for (auto* curr = free_[page_bucket]; curr != nullptr; curr = curr->next) {
+      if (curr->free == nullptr) {
+        // Take the entry out of the list and move it to full list
+        // so we ignore it for following allocations.
+        UnlinkAndAddToList(curr, &full_pages_);
+        continue;
+      }
+      page = curr;
+      // Add it to the front of the list for next time.
+      auto* block = page->Alloc();
+      if (page->used_blocks < page->num_blocks) {
+        UnlinkAndAddToList(page, &free_[page_bucket]);
+      }
+      return block;
+    }
+    // There are no free pages.
+    // See if we have a page in the appropiate page list.
+    auto** page_list = GetPageList(block_size);
+    if (*page_list != nullptr) page = *page_list;
+    const size_t page_size = GetPageSize(block_size);
+    // Didnt find any free pages in the list either.
+    // Add a new segment with free pages.
+    if (page == nullptr) page = AllocSegment(page_size);
+    auto* segment = &segments_[page->segment_idx];
+    // We have a page. Put it in front of the free list we needed.
+    page->block_size = block_size;
+    auto base = reinterpret_cast<uintptr_t>(
+        segment->base_address + segments_->page_size * page->page_offset);
+    // Add all the entries in the list of blocks to the free list.
+    page->num_blocks = segment->page_size / page->block_size;
+    auto block_at = [&](size_t i) {
+      return reinterpret_cast<Block*>(base + i * block_size);
+    };
+    for (size_t i = 0; i + 1 < page->num_blocks; ++i) {
+      block_at(i)->next = block_at(i + 1);
+    }
+    block_at(page->num_blocks - 1)->next = nullptr;
+    UnlinkAndAddToList(page, &free_[page_bucket]);
+    return page->Alloc();
+  }
+
+  // TODO: change the sizes. A page should be much larger.
+  // Small allocations: 0 to 4k in 128 byte jumps, so 32. Page is 64k.
+  // Medium allocations: 4k to 4M in 4k jumps, 1024. Page is 512k.
+  // Last one is for huge (> 4M) pages. Segments are always 4M aligned.
+  std::array<Page*, 32 + 1024 + 1> free_;
   // Linked list of full pages.
+  Page* small_pages_;
+  Page* medium_pages_;
   Page* full_pages_;
-  Segment* segments_;
+  // 4M segments --> max 4G memory.
+  Segment segments_[1024];
+  // 64 pages per segment, 1024 segments means 64k pages max.
+  Page pages_[65536];
+  // Dummy page so we can check allocs.
+  Page dummy_;
+  size_t page_idx_, segment_idx_;
   uintptr_t buffer_;
-  size_t size_;
+  uintptr_t end_;
 };
-#endif
 
 }  // namespace G
 

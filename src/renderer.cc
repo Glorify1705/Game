@@ -700,7 +700,7 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
   }
   ArenaAllocator scratch(allocator_, kAtlasSize * 5);
   const float pixel_height = font_size;
-  uint8_t* atlas = NewArray<uint8_t>(kAtlasSize, &scratch);
+  uint8_t* atlas = scratch.NewArray<uint8_t>(kAtlasSize);
   FontInfo font;
   CHECK(stbtt_InitFont(&font.font_info, asset->contents,
                        stbtt_GetFontOffsetForIndex(asset->contents, 0)),
@@ -715,7 +715,7 @@ const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
                             256, font.chars) == 1,
         "Could not load font, atlas is too small");
   stbtt_PackEnd(&font.context);
-  uint32_t* buffer = NewArray<uint32_t>(kAtlasSize, &scratch);
+  uint32_t* buffer = scratch.NewArray<uint32_t>(kAtlasSize);
   std::memset(buffer, 0, kAtlasSize * sizeof(uint32_t));
   for (size_t j = 0; j < kAtlasSize; j++) {
     if (atlas[j]) buffer[j] = ~0U;
@@ -781,9 +781,12 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
   const FontInfo* info = LoadFont(font_name, size);
   auto p = FVec2::Zero();
   p.y = info->scale * (info->ascent - info->descent + info->line_gap);
+  float x = 0;
   for (size_t i = 0; i < str.size(); ++i) {
     const char c = str[i];
     if (c == '\n') {
+      x = std::max(x, p.x);
+      p.x = 0;
       p.y += info->scale * (info->ascent - info->descent + info->line_gap);
     } else {
       int width, bearing;
@@ -795,7 +798,7 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
       }
     }
   }
-  return IVec2(static_cast<int>(p.x), static_cast<int>(p.y));
+  return IVec2(static_cast<int>(x), static_cast<int>(p.y));
 }
 
 }  // namespace G
