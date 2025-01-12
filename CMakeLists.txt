@@ -149,19 +149,21 @@ endif()
 
 enable_testing()
 
-add_subdirectory(libraries/googletest)
 
 set(TEST_SRCS "src/stringlib.cc" "src/stats.cc" "src/string_table.cc"
               "src/logging.cc" "tests/test.cc")
 
 add_executable(Tests "${TEST_SRCS}")
 
-target_compile_options(Tests PRIVATE ${COMPILER_FLAGS})
+target_compile_options(Tests PRIVATE ${COMPILER_FLAGS} -O1 -fsanitize=address)
 
 target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
                                          "${PROJECT_SOURCE_DIR}/src")
 
+add_subdirectory(libraries/googletest)
+
 target_link_libraries(Tests GTest::gtest_main GTest::gmock xxHash::xxhash double-conversion)
+target_link_options(Tests PRIVATE -fsanitize=address)
 
 include(GoogleTest)
 gtest_discover_tests(Tests)

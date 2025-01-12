@@ -18,6 +18,26 @@
 #include "logging.h"
 #include "units.h"
 
+#if defined(__clang__)
+#if defined(__has_feature) && __has_feature(address_sanitizer)
+#define __SANITIZE_ADDRESS__
+#endif
+#endif
+#if defined(__SANITIZE_ADDRESS__)
+extern "C" {
+void __asan_poison_memory_region(void const volatile* addr, size_t size);
+void __asan_unpoison_memory_region(void const volatile* addr, size_t size);
+}
+#define INSTRUMENT_FOR_ASAN
+#define ASAN_POISON_MEMORY_REGION(addr, size) \
+  __asan_poison_memory_region((addr), (size))
+#define ASAN_UNPOISON_MEMORY_REGION(addr, size) \
+  __asan_unpoison_memory_region((addr), (size))
+#else
+#define ASAN_POISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
+#define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
+#endif
+
 namespace G {
 
 inline static constexpr size_t kMaxAlign = alignof(std::max_align_t);
@@ -96,6 +116,7 @@ class SystemAllocator final : public Allocator {
 class ArenaAllocator : public Allocator {
  public:
   ArenaAllocator(uint8_t* buffer, size_t size) {
+    ASAN_POISON_MEMORY_REGION(buffer, size);
     auto start = reinterpret_cast<uintptr_t>(buffer);
     pos_ = Align(start, kMaxAlign);
     beginning_ = pos_;
@@ -117,11 +138,11 @@ class ArenaAllocator : public Allocator {
     // Always align to std::max_align_t.
     size = Align(size, kMaxAlign);
     if (pos_ + size > end_) {
-      LOG("OOM size = ", size, " align = ", align);
       return nullptr;
     }
     auto* result = reinterpret_cast<void*>(pos_);
     pos_ += size;
+    ASAN_UNPOISON_MEMORY_REGION(result, size);
     return result;
   }
 
@@ -130,6 +151,7 @@ class ArenaAllocator : public Allocator {
     size = Align(size, kMaxAlign);
     auto p = reinterpret_cast<uintptr_t>(ptr);
     if (p + size == pos_) pos_ = p;
+    ASAN_POISON_MEMORY_REGION(ptr, size);
   }
 
   void* Realloc(void* p, size_t old_size, size_t new_size,
@@ -214,6 +236,8 @@ class ShardedFreeListAllocator : public Allocator {
  public:
   ShardedFreeListAllocator(void* buffer, size_t size)
       : buffer_(reinterpret_cast<uintptr_t>(buffer)), end_(buffer_ + size) {
+    buffer_ = Align(buffer_, kSegmentSize);
+    beg_ = buffer_;
     small_pages_ = nullptr;
     medium_pages_ = nullptr;
     full_pages_ = nullptr;
@@ -222,9 +246,9 @@ class ShardedFreeListAllocator : public Allocator {
   }
 
   void* Alloc(size_t size, size_t align) override {
-    // All pages from this allocator are aligned at at least 128 byte boundary
+    // All pages from this allocator are aligned at at least 32 byte boundary
     // (or more). So we should not need alignment.
-    DCHECK(align <= 128);
+    DCHECK(align <= 32);
     size = AllocSize(size);
     size_t bucket = GetPageBucket(size);
     auto* page = free_[bucket];
@@ -238,10 +262,9 @@ class ShardedFreeListAllocator : public Allocator {
     if (ptr == nullptr) return;
     size = AllocSize(size);
     const auto ptr_address = reinterpret_cast<uintptr_t>(ptr);
-    auto* segment = &segments_[(ptr_address - buffer_) >> kSegmentShift];
-    const auto segment_address = reinterpret_cast<uintptr_t>(segment);
-    Page* page =
-        &segment->pages[(ptr_address - segment_address) >> segment->page_shift];
+    auto* segment = &segments_[(ptr_address - beg_) >> kSegmentShift];
+    Page* page = &segment->pages[(ptr_address - segment->base_address) >>
+                                 segment->page_shift];
     auto* block = reinterpret_cast<Block*>(ptr_address);
     block->next = page->free;
     page->free = block;
@@ -270,7 +293,7 @@ class ShardedFreeListAllocator : public Allocator {
   inline static constexpr size_t kSmallAlloc = Kilobytes(4);
   inline static constexpr size_t kMediumAlloc = Megabytes(2);
 
-  inline static constexpr size_t kSmallBucketSize = 128;
+  inline static constexpr size_t kSmallBucketSize = 32;
   inline static constexpr size_t kMediumBucketSize = Kilobytes(4);
 
   inline static constexpr size_t kSmallPageSize = Kilobytes(64);
@@ -305,10 +328,10 @@ class ShardedFreeListAllocator : public Allocator {
     Block* free = nullptr;
 
     void* Alloc() {
-      auto* b = next;
+      auto* b = free;
       if (b == nullptr) return nullptr;
       used_blocks++;
-      next = b->next;
+      free = b->next;
       return b;
     }
   };
@@ -374,7 +397,7 @@ class ShardedFreeListAllocator : public Allocator {
       DCHECK((buffer_ + kSegmentSize) <= end_);
       // Allocate a medium segment.
       segment->page_size = kMediumPageSize;
-      segment->page_shift = kSegmentSize;  // 512k
+      segment->page_shift = kSegmentShift;  // 512k
       num_pages = kSegmentSize / kMediumPageSize;
       list = &medium_pages_;
       buffer_ += kSegmentSize;
@@ -436,7 +459,7 @@ class ShardedFreeListAllocator : public Allocator {
     // We have a page. Put it in front of the free list we needed.
     page->block_size = block_size;
     auto base = reinterpret_cast<uintptr_t>(
-        segment->base_address + segments_->page_size * page->page_offset);
+        segment->base_address + segment->page_size * page->page_offset);
     // Add all the entries in the list of blocks to the free list.
     page->num_blocks = segment->page_size / page->block_size;
     auto block_at = [&](size_t i) {
@@ -446,15 +469,16 @@ class ShardedFreeListAllocator : public Allocator {
       block_at(i)->next = block_at(i + 1);
     }
     block_at(page->num_blocks - 1)->next = nullptr;
+    page->free = block_at(0);
     UnlinkAndAddToList(page, &free_[page_bucket]);
     return page->Alloc();
   }
 
   // TODO: change the sizes. A page should be much larger.
-  // Small allocations: 0 to 4k in 128 byte jumps, so 32. Page is 64k.
+  // Small allocations: 0 to 4k in 32 byte jumps, so 128. Page is 64k.
   // Medium allocations: 4k to 4M in 4k jumps, 1024. Page is 512k.
   // Last one is for huge (> 4M) pages. Segments are always 4M aligned.
-  std::array<Page*, 32 + 1024 + 1> free_;
+  std::array<Page*, 128 + 1024 + 1> free_;
   // Linked list of full pages.
   Page* small_pages_;
   Page* medium_pages_;
@@ -466,6 +490,7 @@ class ShardedFreeListAllocator : public Allocator {
   // Dummy page so we can check allocs.
   Page dummy_;
   size_t page_idx_, segment_idx_;
+  uintptr_t beg_;
   uintptr_t buffer_;
   uintptr_t end_;
 };

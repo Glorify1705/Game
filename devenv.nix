@@ -14,6 +14,7 @@
     gperftools
     libGL
     libGLU
+    libllvm
     mesa
     ninja
     pprof
