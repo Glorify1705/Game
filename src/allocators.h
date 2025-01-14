@@ -131,7 +131,7 @@ class ArenaAllocator : public Allocator {
 
   ~ArenaAllocator() override {
     if (allocator_ != nullptr)
-      allocator_->Dealloc(allocator_, end_ - beginning_);
+      allocator_->Dealloc(beginning_, end_ - beginning_);
   }
 
   void* Alloc(size_t size, size_t align) override {
