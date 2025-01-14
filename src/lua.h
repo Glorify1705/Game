@@ -136,6 +136,7 @@ struct LuaApiFunction {
   const char* name = {0};
   const char* docstring = {0};
   LuaApiFunctionArgList args;
+  LuaApiFunctionArgList returns;
   lua_CFunction func = nullptr;
 };
 

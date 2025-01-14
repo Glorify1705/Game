@@ -352,6 +352,16 @@ const struct luaL_Reg kWindowLib[] = {
        lua_pushnumber(state, viewport.y);
        return 2;
      }},
+    {"set_dimensions",
+     [](lua_State* state) {
+       auto* renderer = Registry<BatchRenderer>::Retrieve(state);
+       size_t x = luaL_checkinteger(state, 1);
+       size_t y = luaL_checkinteger(state, 2);
+       renderer->SetViewport(IVec(x, y));
+       auto* window = Registry<SDL_Window>::Retrieve(state);
+       SDL_SetWindowSize(window, x, y);
+       return 0;
+     }},
     {"set_fullscreen",
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);

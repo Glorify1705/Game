@@ -125,8 +125,7 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
       commands_(1 << 20, allocator),
       tex_(256, allocator),
       shaders_(shaders),
-      viewport_(viewport),
-      original_viewport_(viewport) {
+      viewport_(viewport) {
   TIMER();
   glGetIntegerv(GL_MAX_SAMPLES, &antialiasing_samples_);
   LOG("Using ", antialiasing_samples_, " MSAA samples");
@@ -157,6 +156,16 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   OPENGL_CALL(glVertexAttribPointer(tex_attribute, 2, GL_FLOAT, GL_FALSE,
                                     4 * sizeof(float),
                                     (void*)(2 * sizeof(float))));
+  InitializeFramebuffers();
+  // Load an empty texture, just white pixels, to be able to draw colors without
+  // if statements in the shader.
+  uint8_t white_pixels[32 * 32 * 4];
+  std::memset(white_pixels, 255, sizeof(white_pixels));
+  noop_texture_ = LoadTexture(&white_pixels, /*width=*/32, /*height=*/32);
+  SetActiveTexture(noop_texture_);
+}
+
+void BatchRenderer::InitializeFramebuffers() {
   // Create a render target for the viewport.
   OPENGL_CALL(glGenFramebuffers(1, &render_target_));
   OPENGL_CALL(glGenFramebuffers(1, &downsampled_target_));
@@ -167,7 +176,7 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, render_texture_));
   OPENGL_CALL(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE,
                                       antialiasing_samples_, GL_RGBA,
-                                      viewport.x, viewport.y, GL_TRUE));
+                                      viewport_.x, viewport_.y, GL_TRUE));
   OPENGL_CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                      GL_TEXTURE_2D_MULTISAMPLE, render_texture_,
                                      /*level=*/0));
@@ -177,7 +186,7 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   OPENGL_CALL(glActiveTexture(GL_TEXTURE1));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
   OPENGL_CALL(glTexImage2D(
-      GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport.x, viewport.y,
+      GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport_.x, viewport_.y,
       /*border=*/0, GL_RGBA, GL_UNSIGNED_BYTE, /*pixels=*/nullptr));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
@@ -188,23 +197,27 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   OPENGL_CALL(glGenRenderbuffers(1, &depth_buffer_));
   OPENGL_CALL(glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_));
   OPENGL_CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8,
-                                    viewport.x, viewport.y));
+                                    viewport_.x, viewport_.y));
   OPENGL_CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                         GL_DEPTH_STENCIL_ATTACHMENT,
                                         GL_RENDERBUFFER, depth_buffer_));
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-  tex_.Push(render_texture_);
-  tex_.Push(downsampled_texture_);
   glActiveTexture(GL_TEXTURE0);
-  // Load an empty texture, just white pixels, to be able to draw colors without
-  // if statements in the shader.
-  uint8_t white_pixels[32 * 32 * 4];
-  std::memset(white_pixels, 255, sizeof(white_pixels));
-  noop_texture_ = LoadTexture(&white_pixels, /*width=*/32, /*height=*/32);
-  SetActiveTexture(noop_texture_);
 }
 
-void BatchRenderer::SetViewport(IVec2 viewport) { viewport_ = viewport; }
+void BatchRenderer::SetViewport(IVec2 viewport) {
+  if (viewport_ == viewport) return;
+  LOG("Resizing viewport from ", viewport_, " to ", viewport);
+  viewport_ = viewport;
+  // Delete the framebuffers and recreate them.
+  std::array<GLuint, 2> frame_buffers = {render_target_, downsampled_target_};
+  OPENGL_CALL(glDeleteFramebuffers(frame_buffers.size(), frame_buffers.data()));
+  std::array<GLuint, 2> render_target_textures = {render_texture_,
+                                                  downsampled_texture_};
+  OPENGL_CALL(glDeleteTextures(render_target_textures.size(),
+                               render_target_textures.data()));
+  InitializeFramebuffers();
+}
 
 size_t BatchRenderer::LoadTexture(const DbAssets::Image& image) {
   TIMER("Decoding ", image.name);
@@ -224,6 +237,10 @@ BatchRenderer::~BatchRenderer() {
   OPENGL_CALL(glDeleteFramebuffers(frame_buffers.size(), frame_buffers.data()));
   OPENGL_CALL(glDeleteVertexArrays(1, &vao_));
   OPENGL_CALL(glDeleteVertexArrays(1, &screen_quad_vao_));
+  std::array<GLuint, 2> render_target_textures = {render_texture_,
+                                                  downsampled_texture_};
+  OPENGL_CALL(glDeleteTextures(render_target_textures.size(),
+                               render_target_textures.data()));
   OPENGL_CALL(glDeleteTextures(tex_.size(), tex_.data()));
   allocator_->Dealloc(command_buffer_, kCommandMemory);
 }
@@ -251,7 +268,7 @@ size_t BatchRenderer::LoadTexture(const void* data, size_t width,
 void BatchRenderer::Render(Allocator* scratch) {
   // Setup OpenGL state.
   OPENGL_CALL(glEnable(GL_MULTISAMPLE));
-  OPENGL_CALL(glViewport(0, 0, original_viewport_.x, original_viewport_.y));
+  OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
   OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
   OPENGL_CALL(glEnable(GL_BLEND));
@@ -488,13 +505,13 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
   OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
-  OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   shaders_->UseProgram("post_pass");
   glActiveTexture(GL_TEXTURE1);
   shaders_->SetUniform("screen_texture", 1);
   shaders_->SetUniform("color", color.ToFloat());
   OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
+  OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   render_calls++;
 }
@@ -744,22 +761,7 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
   renderer_->SetActiveTexture(info->texture);
   FVec2 p = position;
   const Color color = color_;
-  for (size_t i = 0; i < str.size();) {
-    const char c = str[i];
-    if (c == '\033') {
-      // Skip ANSI escape sequence.
-      size_t st = i + 1, en = i;
-      while (str[en] != 'm') en++;
-      renderer_->SetActiveColor(ParseColor(str.substr(st, en - st)));
-      i = en + 1;
-      continue;
-    }
-    if (c == '\n') {
-      p.x = position.x;
-      p.y += info->scale * (info->ascent - info->descent + info->line_gap);
-      i++;
-      continue;
-    }
+  auto handle_char = [&](size_t i, char c) {
     stbtt_aligned_quad q;
     stbtt_GetPackedQuad(info->chars, kAtlasWidth, kAtlasHeight, c, &p.x, &p.y,
                         &q,
@@ -771,6 +773,30 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
       p.x += info->scale * stbtt_GetCodepointKernAdvance(&info->font_info,
                                                          str[i], str[i + 1]);
     }
+  };
+  for (size_t i = 0; i < str.size();) {
+    const char c = str[i];
+    if (c == '\033') {
+      // Skip ANSI escape sequence.
+      size_t st = i + 1, en = i;
+      while (str[en] != 'm') en++;
+      renderer_->SetActiveColor(ParseColor(str.substr(st, en - st)));
+      i = en + 1;
+      continue;
+    }
+    if (c == '\t') {
+      // Add 4 spaces.
+      for (int j = 0; j < 4; ++j) handle_char(str.size(), ' ');
+      i++;
+      continue;
+    }
+    if (c == '\n') {
+      p.x = position.x;
+      p.y += info->scale * (info->ascent - info->descent + info->line_gap);
+      i++;
+      continue;
+    }
+    handle_char(i, c);
     i++;
   }
   renderer_->SetActiveColor(color);

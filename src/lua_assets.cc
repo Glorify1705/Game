@@ -5,14 +5,18 @@
 namespace G {
 namespace {
 
-const struct luaL_Reg kAssetsLib[] = {
+const struct LuaApiFunction kAssetsLib[] = {
     {"sprite",
+     "Returns a sprite object ptr by name. Returns nil if it cannot find.",
+     {{"name", "name of the sprite to fetch"}},
+     {{"result", "A userdata ptr to a sprite object"}},
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
        auto* assets = Registry<DbAssets>::Retrieve(state);
        auto* sprite = assets->GetSprite(name);
        if (sprite == nullptr) {
-         LUA_ERROR(state, "Could not find a sprite called ", name);
+         lua_pushnil(state);
+         return 1;
        }
        lua_pushlightuserdata(state, const_cast<DbAssets::Sprite*>(sprite));
        lua_getfield(state, LUA_REGISTRYINDEX, "asset_sprite_ptr");
@@ -20,6 +24,9 @@ const struct luaL_Reg kAssetsLib[] = {
        return 1;
      }},
     {"sprite_info",
+     "Returns a table with width and height in pixels of a sprite.",
+     {{"name", "sprite object ptr or sprite name as string"}},
+     {{"result", "A table with two keys, width and height"}},
      [](lua_State* state) {
        const DbAssets::Sprite* ptr = nullptr;
        if (lua_isstring(state, 1)) {
@@ -39,7 +46,12 @@ const struct luaL_Reg kAssetsLib[] = {
        lua_setfield(state, -2, "height");
        return 1;
      }},
-    {"list_sprites", [](lua_State* state) {
+    {"list_sprites",
+     "Returns a list with all sprites",
+     {},
+     {{"result",
+       "A list with width, height, x and y position of all sprites."}},
+     [](lua_State* state) {
        auto* assets = Registry<DbAssets>::Retrieve(state);
        lua_newtable(state);
        for (const auto& sprite : assets->GetSprites()) {

@@ -325,6 +325,7 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
     lua_pushstring(state_, funcs[i].docstring);
     lua_setfield(state_, -2, "docstring");
     const auto& args = funcs[i].args;
+    // Add arguments.
     lua_newtable(state_);
     for (size_t j = 0; j < args.argc; ++j) {
       lua_newtable(state_);
@@ -335,6 +336,14 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
       lua_rawseti(state_, -2, j + 1);
     }
     lua_setfield(state_, -2, "args");
+    // Add return values.
+    lua_newtable(state_);
+    const auto& returns = funcs[i].returns;
+    for (size_t j = 0; j < returns.argc; ++j) {
+      lua_pushstring(state_, returns[j].docs);
+      lua_rawseti(state_, -2, j + 1);
+    }
+    lua_setfield(state_, -2, "returns");
     lua_setfield(state_, -2, funcs[i].name);
   }
   lua_setfield(state_, -2, name);

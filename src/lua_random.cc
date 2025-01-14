@@ -13,6 +13,7 @@ const struct LuaApiFunction kRandomLib[] = {
     {"from_seed",
      "Deterministically creates a random number generator from a seed",
      {{"seed", "integer with seed number for the rng"}},
+     {{"rng", "random number generator"}},
      [](lua_State* state) {
        auto* handle =
            static_cast<pcg32*>(lua_newuserdata(state, sizeof(pcg64)));
@@ -22,8 +23,9 @@ const struct LuaApiFunction kRandomLib[] = {
        return 1;
      }},
     {"non_deterministic",
-     "Creates a non deterministic random number generator",
+     "Creates a random number generator from a non deterministic seed",
      {},
+     {{"rng", "random number generator"}},
      [](lua_State* state) {
        pcg_extras::seed_seq_from<std::random_device> seed_source;
        auto* handle =
@@ -34,8 +36,13 @@ const struct LuaApiFunction kRandomLib[] = {
        return 1;
      }},
     {"sample",
-     "Samples a random number generator",
-     {{"rng", "rng from `from_seed` or `non_deterministic`"}},
+     "Samples a random number generator in a range. "
+     "If no range is provided it uses 32 bit integers.",
+     {{"rng", "rng from `from_seed` or `non_deterministic`"},
+      {"start?", "start of the range to sample."},
+      {"end?",
+       "end of the range to sample. Must be provided if start is provided."}},
+     {{"result", "an integer in the range provided"}},
      [](lua_State* state) {
        auto* handle = static_cast<pcg32*>(
            luaL_checkudata(state, 1, "random_number_generator"));
@@ -57,6 +64,8 @@ const struct LuaApiFunction kRandomLib[] = {
     {"pick",
      "Picks an element from a list using a random number generator",
      {{"rng", "rng from `from_seed` or `non_deterministic`"},
+      {"list", "list to pick elements from. Must be non empty."}},
+     {{"result", "an element from the list"},
       {"list", "list to pick elements from"}},
      [](lua_State* state) {
        if (lua_gettop(state) != 2) {
@@ -66,6 +75,9 @@ const struct LuaApiFunction kRandomLib[] = {
            luaL_checkudata(state, 1, "random_number_generator"));
        if (!lua_istable(state, 2)) {
          LUA_ERROR(state, "Did not pass a sequential table");
+       }
+       if (lua_objlen(state, 2) == 0) {
+         LUA_ERROR(state, "Table cannot be empty");
        }
        const double val = (*handle)();
        const double size = lua_objlen(state, 2);

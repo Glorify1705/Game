@@ -73,6 +73,8 @@ class BatchRenderer {
 
   void SetViewport(IVec2 viewport);
 
+  void InitializeFramebuffers();
+
   IVec2 GetViewport() const { return viewport_; }
 
   void Render(Allocator* scratch);
@@ -198,7 +200,7 @@ class BatchRenderer {
   GLuint render_target_, downsampled_target_, render_texture_,
       downsampled_texture_, depth_buffer_;
   GLint antialiasing_samples_;
-  IVec2 viewport_, original_viewport_;
+  IVec2 viewport_;
 };
 
 class Renderer {

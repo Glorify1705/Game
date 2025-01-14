@@ -6,6 +6,7 @@
   "borderless": false,
   "fullscreen": false,
   "centered": true,
+  "resizable": true,
   "enable_joystick": false,
   "org_name": "JPIndustries",
   "app_name": "ShootClicker",
