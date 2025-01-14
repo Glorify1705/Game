@@ -111,6 +111,34 @@ inline std::string_view GetLuaString(lua_State* state, int index) {
   return std::string_view(data, len);
 }
 
+struct LuaApiFunctionArg {
+  const char* name = {0};
+  const char* docs = {0};
+};
+
+struct LuaApiFunctionArgList {
+  size_t argc;
+  LuaApiFunctionArg args[64];
+
+  LuaApiFunctionArgList(std::initializer_list<LuaApiFunctionArg> a)
+      : argc(a.size()) {
+    size_t i = 0;
+    for (const auto& arg : a) {
+      if (i >= 64) break;
+      args[i++] = arg;
+    }
+  }
+
+  const LuaApiFunctionArg& operator[](size_t i) const { return args[i]; }
+};
+
+struct LuaApiFunction {
+  const char* name = {0};
+  const char* docstring = {0};
+  LuaApiFunctionArgList args;
+  lua_CFunction func = nullptr;
+};
+
 class Lua {
  public:
   Lua(size_t argc, const char** argv, sqlite3* db, DbAssets* assets,
@@ -223,10 +251,17 @@ class Lua {
   }
 
   void AddLibrary(const char* name, const luaL_Reg* funcs, size_t N);
+  void AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
+                              size_t N);
 
   template <size_t N>
   void AddLibrary(const char* name, const luaL_Reg (&funcs)[N]) {
     AddLibrary(name, funcs, N);
+  }
+
+  template <size_t N>
+  void AddLibrary(const char* name, const LuaApiFunction (&funcs)[N]) {
+    AddLibraryWithMetadata(name, funcs, N);
   }
 
   const size_t argc_;

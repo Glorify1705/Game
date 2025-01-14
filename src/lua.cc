@@ -295,9 +295,47 @@ void Lua::AddLibrary(const char* name, const luaL_Reg* funcs, size_t N) {
     CHECK(funcs[i].name != nullptr, "Invalid entry for library ", name, ": ",
           i);
     const auto* func = &funcs[i];
-    lua_pushstring(state_, func->name);
     lua_pushcfunction(state_, func->func);
-    lua_settable(state_, -3);
+    lua_setfield(state_, -2, func->name);
+  }
+  lua_setfield(state_, -2, name);
+  lua_pop(state_, 1);
+}
+
+void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
+                                 size_t N) {
+  LOG("Adding library ", name);
+  lua_getglobal(state_, "G");
+  lua_newtable(state_);
+  for (size_t i = 0; i < N; ++i) {
+    CHECK(funcs[i].name != nullptr, "Invalid entry for library ", name, ": ",
+          i);
+    const auto* func = &funcs[i];
+    lua_pushcfunction(state_, func->func);
+    lua_setfield(state_, -2, func->name);
+  }
+  lua_setfield(state_, -2, name);
+  lua_pop(state_, 1);
+  // Add the docs.
+  lua_getglobal(state_, "_Docs");
+  lua_newtable(state_);
+  for (size_t i = 0; i < N; ++i) {
+    // Create a table with docstring, and args fields.
+    lua_newtable(state_);
+    lua_pushstring(state_, funcs[i].docstring);
+    lua_setfield(state_, -2, "docstring");
+    const auto& args = funcs[i].args;
+    lua_newtable(state_);
+    for (size_t j = 0; j < args.argc; ++j) {
+      lua_newtable(state_);
+      lua_pushstring(state_, args[j].name);
+      lua_setfield(state_, -2, "name");
+      lua_pushstring(state_, args[j].docs);
+      lua_setfield(state_, -2, "docstring");
+      lua_rawseti(state_, -2, j + 1);
+    }
+    lua_setfield(state_, -2, "args");
+    lua_setfield(state_, -2, funcs[i].name);
   }
   lua_setfield(state_, -2, name);
   lua_pop(state_, 1);
@@ -426,6 +464,9 @@ void Lua::LoadLibraries() {
     lua_settable(state_, -3);
   }
   lua_setglobal(state_, "G");
+  // Create the docs table.
+  lua_newtable(state_);
+  lua_setglobal(state_, "_Docs");
   lua_pushcfunction(state_, Traceback);
   traceback_handler_ = lua_gettop(state_);
   // Set print as G.console.log for consistency.

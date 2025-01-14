@@ -9,8 +9,10 @@ namespace {
 
 constexpr double kRandomRange = 1LL << 32;
 
-const struct luaL_Reg kRandomLib[] = {
+const struct LuaApiFunction kRandomLib[] = {
     {"from_seed",
+     "Deterministically creates a random number generator from a seed",
+     {{"seed", "integer with seed number for the rng"}},
      [](lua_State* state) {
        auto* handle =
            static_cast<pcg32*>(lua_newuserdata(state, sizeof(pcg64)));
@@ -20,6 +22,8 @@ const struct luaL_Reg kRandomLib[] = {
        return 1;
      }},
     {"non_deterministic",
+     "Creates a non deterministic random number generator",
+     {},
      [](lua_State* state) {
        pcg_extras::seed_seq_from<std::random_device> seed_source;
        auto* handle =
@@ -30,6 +34,8 @@ const struct luaL_Reg kRandomLib[] = {
        return 1;
      }},
     {"sample",
+     "Samples a random number generator",
+     {{"rng", "rng from `from_seed` or `non_deterministic`"}},
      [](lua_State* state) {
        auto* handle = static_cast<pcg32*>(
            luaL_checkudata(state, 1, "random_number_generator"));
@@ -48,7 +54,11 @@ const struct luaL_Reg kRandomLib[] = {
        }
        return 1;
      }},
-    {"pick", [](lua_State* state) {
+    {"pick",
+     "Picks an element from a list using a random number generator",
+     {{"rng", "rng from `from_seed` or `non_deterministic`"},
+      {"list", "list to pick elements from"}},
+     [](lua_State* state) {
        if (lua_gettop(state) != 2) {
          LUA_ERROR(state, "Insufficient arguments");
        }
