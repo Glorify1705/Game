@@ -15,6 +15,8 @@
     libGL
     libGLU
     libllvm
+    lua51Packages.lua
+    lua51Packages.fennel
     mesa
     ninja
     pprof
