@@ -155,7 +155,7 @@ const struct luaL_Reg kGraphicsLib[] = {
        const auto p1 =
            FVec(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
        const auto p2 =
-           FVec(luaL_checknumber(state, 4), luaL_checknumber(state, 4));
+           FVec(luaL_checknumber(state, 3), luaL_checknumber(state, 4));
        auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->DrawLine(p1, p2);
        return 0;

@@ -429,7 +429,7 @@ void BatchRenderer::Render(Allocator* scratch) {
   GLuint texture_unit = 0;
   FMat4x4 transform = FMat4x4::Identity();
   GLint primitives = GL_TRIANGLES;
-  float line_width = 1.0;
+  float line_width = 2.5;
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
     auto flush = [&] {
       if (indices_start == indices_end) return;
@@ -562,7 +562,6 @@ void Renderer::ClearForFrame() {
   transform_stack_.Push(FMat4x4::Identity());
   ApplyTransform(FMat4x4::Identity());
   SetColor(Color::White());
-  SetLineWidth(1.0f);
 }
 
 void Renderer::Push() { transform_stack_.Push(transform_stack_.back()); }
@@ -749,6 +748,7 @@ Color ParseColor(std::string_view color) {
     if (c == '[') continue;
     if (c == ';') continue;
     if (c == '7') return ColorFromTable("lightred");
+    if (c == '3') return ColorFromTable("blueblue");
     if (c == '0') return Color::White();
   }
   return Color::White();

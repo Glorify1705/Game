@@ -15,10 +15,9 @@
   (each [fn-name fn-docs (pairs lib-docs)]
     (printstr :G. lib-name "." fn-name "\n\n\t" fn-docs.docstring "\n")
     (each [_ {:name arg-name :docstring arg-doc} (ipairs fn-docs.args)]
-      (printstr "\t\t@arg " arg-name ": " arg-doc))
-    (printstr "\tReturns: ")
+      (printstr "\t\27[34m@arg\27[0m: \27[0m" arg-name ": " arg-doc))
     (each [_ ret-doc (ipairs fn-docs.returns)]
-      (printstr "\t\t@return " ret-doc))
+      (printstr "\t@return " ret-doc))
     (printstr "\n")))
-
 (G.graphics.draw_text :terminus.ttf 24 *buffer* 0 24)
+(G.graphics.draw_line 0 100 1024 100)
