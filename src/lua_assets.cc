@@ -46,6 +46,25 @@ const struct LuaApiFunction kAssetsLib[] = {
        lua_setfield(state, -2, "height");
        return 1;
      }},
+    {"list_images",
+     "Returns a list with all images",
+     {},
+     {{"result",
+       "A list with name, width, height, x and y position of all images."}},
+     [](lua_State* state) {
+       auto* assets = Registry<DbAssets>::Retrieve(state);
+       lua_newtable(state);
+       for (const auto& image : assets->GetImages()) {
+         lua_pushlstring(state, image.name.data(), image.name.size());
+         lua_newtable(state);
+         lua_pushnumber(state, image.width);
+         lua_setfield(state, -2, "width");
+         lua_pushnumber(state, image.height);
+         lua_setfield(state, -2, "height");
+         lua_settable(state, -2);
+       }
+       return 1;
+     }},
     {"list_sprites",
      "Returns a list with all sprites",
      {},

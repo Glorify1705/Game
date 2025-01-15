@@ -125,6 +125,8 @@ class DbAssets {
     return image;
   }
 
+  ArrayView<Image> GetImages() const { return MakeArrayView(&images_); }
+
   Script* GetScript(std::string_view name) const {
     Script* script;
     if (!scripts_map_.Lookup(name, &script)) return nullptr;
