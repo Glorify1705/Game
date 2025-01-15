@@ -5,8 +5,14 @@
 namespace G {
 namespace {
 
-const struct luaL_Reg kSoundLib[] = {
+const struct LuaApiFunction kSoundLib[] = {
     {"play_music",
+     "Plays an audio asset using the SDL mixer music channel.",
+     {{"name", "name of the sound asset to play."},
+      {"repeat?",
+       "a number indicating how many times to repeat the music. -1 means loop "
+       "forever."}},
+     {{}},
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
        auto* sound = Registry<Sound>::Retrieve(state);
@@ -17,6 +23,9 @@ const struct luaL_Reg kSoundLib[] = {
        return 0;
      }},
     {"play_sfx",
+     "Plays an audio asset using the SDL mixer music SFX.",
+     {{"name", "name of the sound asset to play."}},
+     {{}},
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
        auto* sound = Registry<Sound>::Retrieve(state);
@@ -24,12 +33,18 @@ const struct luaL_Reg kSoundLib[] = {
        return 0;
      }},
     {"stop",
+     "Stops sound",
+     {{}},
+     {{}},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        sound->Stop();
        return 0;
      }},
     {"set_music_volume",
+     "Sets the volume of the music channel",
+     {{"volume", "Volume as a float between 0 and 1"}},
+     {{}},
      [](lua_State* state) {
        const float volume = luaL_checknumber(state, 1);
        if (volume < 0 || volume > 1) {
@@ -41,7 +56,11 @@ const struct luaL_Reg kSoundLib[] = {
        sound->SetMusicVolume(volume);
        return 0;
      }},
-    {"set_sfx_volume", [](lua_State* state) {
+    {"set_sfx_volume",
+     "Sets the volume of the sound effects channel",
+     {{"volume", "Volume as a float between 0 and 1"}},
+     {{}},
+     [](lua_State* state) {
        const float volume = luaL_checknumber(state, 1);
        if (volume < 0 || volume > 1) {
          LUA_ERROR(state, "Invalid volume ", volume, " must be in [0, 1)");
