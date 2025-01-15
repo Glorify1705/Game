@@ -38,6 +38,8 @@ void __asan_unpoison_memory_region(void const volatile* addr, size_t size);
 #define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
 #endif
 
+#define ALLOCATOR_NO_ALIAS __attribute__((malloc))
+
 namespace G {
 
 inline static constexpr size_t kMaxAlign = alignof(std::max_align_t);
@@ -94,7 +96,7 @@ class Allocator {
 
 class SystemAllocator final : public Allocator {
  public:
-  void* Alloc(size_t size, size_t /*align*/) override {
+  void* Alloc(size_t size, size_t /*align*/) override ALLOCATOR_NO_ALIAS {
     return std::malloc(size);
   }
 
@@ -136,7 +138,7 @@ class ArenaAllocator : public Allocator {
     }
   }
 
-  void* Alloc(size_t size, size_t align) override {
+  void* Alloc(size_t size, size_t align) override ALLOCATOR_NO_ALIAS {
     // Always align to std::max_align_t.
     size = Align(size, kMaxAlign);
     if (pos_ + size > end_) {
@@ -163,7 +165,10 @@ class ArenaAllocator : public Allocator {
     return res;
   }
 
-  void Reset() { pos_ = beginning_; }
+  void Reset() {
+    ASAN_POISON_MEMORY_REGION(reinterpret_cast<void*>(pos_), end_ - pos_);
+    pos_ = beginning_;
+  }
 
   size_t used_memory() const { return pos_ - beginning_; }
   size_t total_memory() const { return end_ - beginning_; }
@@ -201,11 +206,13 @@ class BlockAllocator {
       block_at(i)->next = block_at(i + 1);
     }
     block_at(blocks - 1)->next = nullptr;
+    ASAN_POISON_MEMORY_REGION(blocks_, blocks * kBlockSize);
   }
 
   ~BlockAllocator() { allocator_->Dealloc(blocks_, num_blocks_ * kBlockSize); }
 
-  T* AllocBlock() {
+  T* AllocBlock() ALLOCATOR_NO_ALIAS {
+    ASAN_UNPOISON_MEMORY_REGION(free_list_, kBlockSize);
     if (free_list_ == nullptr) return nullptr;
     Block* result = free_list_;
     free_list_ = free_list_->next;
@@ -216,6 +223,7 @@ class BlockAllocator {
     auto* p = reinterpret_cast<Block*>(ptr);
     p->next = free_list_;
     free_list_ = p;
+    ASAN_POISON_MEMORY_REGION(ptr, kBlockSize);
   }
 
  private:
@@ -247,7 +255,7 @@ class ShardedFreeListAllocator : public Allocator {
     std::fill(free_.begin(), free_.end(), nullptr);
   }
 
-  void* Alloc(size_t size, size_t align) override {
+  void* Alloc(size_t size, size_t align) override ALLOCATOR_NO_ALIAS {
     // All pages from this allocator are aligned at at least 32 byte boundary
     // (or more). So we should not need alignment.
     DCHECK(align <= 32);
@@ -476,7 +484,6 @@ class ShardedFreeListAllocator : public Allocator {
     return page->Alloc();
   }
 
-  // TODO: change the sizes. A page should be much larger.
   // Small allocations: 0 to 4k in 32 byte jumps, so 128. Page is 64k.
   // Medium allocations: 4k to 4M in 4k jumps, 1024. Page is 512k.
   // Last one is for huge (> 4M) pages. Segments are always 4M aligned.

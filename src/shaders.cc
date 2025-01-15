@@ -239,7 +239,6 @@ bool Shaders::Link(std::string_view name, std::string_view vertex_shader,
   GLuint program_id;
   if (compiled_programs_.Lookup(name, &program_id)) {
     if (use_cache == UseCache::kUseCache) {
-      LOG("Skipping linking ", name);
       return true;
     } else {
       glDeleteProgram(program_id);

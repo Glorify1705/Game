@@ -49,8 +49,7 @@ const struct LuaApiFunction kAssetsLib[] = {
     {"list_images",
      "Returns a list with all images",
      {},
-     {{"result",
-       "A list with name, width, height, x and y position of all images."}},
+     {{"result", "A list with name, width, height of all images."}},
      [](lua_State* state) {
        auto* assets = Registry<DbAssets>::Retrieve(state);
        lua_newtable(state);
@@ -69,7 +68,8 @@ const struct LuaApiFunction kAssetsLib[] = {
      "Returns a list with all sprites",
      {},
      {{"result",
-       "A list with width, height, x and y position of all sprites."}},
+       "A list with width, height, x, y position and spritesheet name of all "
+       "sprites."}},
      [](lua_State* state) {
        auto* assets = Registry<DbAssets>::Retrieve(state);
        lua_newtable(state);
