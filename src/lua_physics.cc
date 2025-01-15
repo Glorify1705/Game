@@ -136,21 +136,12 @@ const struct luaL_Reg kPhysicsLib[] = {
        physics->ApplyForce(*handle, FVec(x, y));
        return 0;
      }},
-    {"apply_torque",
-     [](lua_State* state) {
+    {"apply_torque", [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
        const float x = luaL_checknumber(state, 2);
        physics->ApplyTorque(*handle, x);
-       return 0;
-     }},
-    {"rotate", [](lua_State* state) {
-       auto* physics = Registry<Physics>::Retrieve(state);
-       auto* handle = static_cast<Physics::Handle*>(
-           luaL_checkudata(state, 1, "physics_handle"));
-       const float angle = luaL_checknumber(state, 2);
-       physics->Rotate(*handle, angle);
        return 0;
      }}};
 
