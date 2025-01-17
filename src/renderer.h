@@ -26,6 +26,8 @@ class BatchRenderer {
 
   size_t LoadTexture(const void* data, size_t width, size_t height);
 
+  size_t LoadFontTexture(const void* data, size_t width, size_t height);
+
   void SetActiveTexture(size_t texture_unit) {
     AddCommand(kSetTexture, SetTexture{texture_unit});
   }
@@ -245,20 +247,21 @@ class Renderer {
   void Scale(float x, float y) { ApplyTransform(ScaleXY(x, y)); }
 
  private:
-  inline static constexpr size_t kAtlasWidth = 1024;
-  inline static constexpr size_t kAtlasHeight = 1024;
+  inline static constexpr size_t kAtlasWidth = 2048;
+  inline static constexpr size_t kAtlasHeight = 2048;
   inline static constexpr size_t kAtlasSize = kAtlasWidth * kAtlasHeight;
 
   struct FontInfo {
     GLuint texture;
     float scale = 0;
+    float pixel_height = 0;
     int ascent, descent, line_gap;
     stbtt_fontinfo font_info;
     stbtt_pack_context context;
     stbtt_packedchar chars[256];
   };
 
-  const FontInfo* LoadFont(std::string_view font_name, uint32_t font_size);
+  const FontInfo* LoadFont(std::string_view font_name);
 
   void ApplyTransform(const FMat4x4& mat) {
     transform_stack_.back() = mat * transform_stack_.back();

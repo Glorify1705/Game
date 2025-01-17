@@ -265,6 +265,29 @@ size_t BatchRenderer::LoadTexture(const void* data, size_t width,
   return index;
 }
 
+size_t BatchRenderer::LoadFontTexture(const void* data, size_t width,
+                                      size_t height) {
+  GLuint tex;
+  const size_t index = tex_.size();
+  OPENGL_CALL(glGenTextures(1, &tex));
+  OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + index));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                              GL_LINEAR_MIPMAP_LINEAR));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED));
+  OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RED,
+                           GL_UNSIGNED_BYTE, data));
+  OPENGL_CALL(glGenerateMipmap(GL_TEXTURE_2D));
+  CHECK(!glGetError(), "Could generate texture: ", glGetError());
+  tex_.Push(tex);
+  return index;
+}
+
 void BatchRenderer::Render(Allocator* scratch) {
   // Setup OpenGL state.
   OPENGL_CALL(glEnable(GL_MULTISAMPLE));
@@ -702,42 +725,38 @@ void Renderer::DrawCircle(FVec2 center, float radius) {
   }
 }
 
-const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name,
-                                             uint32_t font_size) {
-  FixedStringBuffer<kMaxPathLength + 2> font_key(font_name, "_", font_size);
-  if (uint32_t handle = 0; font_table_.Lookup(font_key.str(), &handle)) {
+const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name) {
+  if (uint32_t handle = 0; font_table_.Lookup(font_name, &handle)) {
     return &fonts_[handle];
   }
-  TIMER("Loading font ", font_name, " size ", font_size);
   const DbAssets::Font* asset = assets_->GetFont(font_name);
   if (asset == nullptr) {
     LOG("Could not find font ", font_name);
     return nullptr;
   }
   ArenaAllocator scratch(allocator_, kAtlasSize * 5);
-  const float pixel_height = font_size;
+  const float pixel_height = 128;
   uint8_t* atlas = scratch.NewArray<uint8_t>(kAtlasSize);
   FontInfo font;
   CHECK(stbtt_InitFont(&font.font_info, asset->contents,
                        stbtt_GetFontOffsetForIndex(asset->contents, 0)),
         "Could not initialize ", asset->name);
   font.scale = stbtt_ScaleForPixelHeight(&font.font_info, pixel_height);
-  stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
-                        &font.line_gap);
-  stbtt_PackBegin(&font.context, atlas, kAtlasWidth, kAtlasHeight, kAtlasWidth,
-                  1, /*alloc_context=*/&scratch);
-  stbtt_PackSetOversampling(&font.context, 2, 2);
-  CHECK(stbtt_PackFontRange(&font.context, asset->contents, 0, pixel_height, 0,
-                            256, font.chars) == 1,
-        "Could not load font, atlas is too small");
-  stbtt_PackEnd(&font.context);
-  uint32_t* buffer = scratch.NewArray<uint32_t>(kAtlasSize);
-  std::memset(buffer, 0, kAtlasSize * sizeof(uint32_t));
-  for (size_t j = 0; j < kAtlasSize; j++) {
-    if (atlas[j]) buffer[j] = ~0U;
+  font.pixel_height = pixel_height;
+  {
+    TIMER("Building font atlas for ", font_name);
+    stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
+                          &font.line_gap);
+    stbtt_PackBegin(&font.context, atlas, kAtlasWidth, kAtlasHeight,
+                    kAtlasWidth, 1, /*alloc_context=*/&scratch);
+    stbtt_PackSetOversampling(&font.context, 2, 2);
+    CHECK(stbtt_PackFontRange(&font.context, asset->contents, 0, pixel_height,
+                              32, 126 - 32 + 1, font.chars) == 1,
+          "Could not load font ", font_name, ", atlas is too small");
+    stbtt_PackEnd(&font.context);
   }
-  font.texture = renderer_->LoadTexture(buffer, kAtlasWidth, kAtlasHeight);
-  font_table_.Insert(font_key.str(), fonts_.size());
+  font.texture = renderer_->LoadFontTexture(atlas, kAtlasWidth, kAtlasHeight);
+  font_table_.Insert(font_name, fonts_.size());
   fonts_.Push(font);
   return &fonts_.back();
 }
@@ -756,19 +775,26 @@ Color ParseColor(std::string_view color) {
 
 void Renderer::DrawText(std::string_view font_name, uint32_t size,
                         std::string_view str, FVec2 position) {
-  const FontInfo* info = LoadFont(font_name, size);
+  const FontInfo* info = LoadFont(font_name);
   CHECK(info != nullptr, "No texture found for ", font_name, " size ", size);
   renderer_->SetActiveTexture(info->texture);
-  FVec2 p = position;
   const Color color = color_;
+  FVec2 p = position;
+  float pixel_scale = size / info->pixel_height;
   auto handle_char = [&](size_t i, char c) {
     stbtt_aligned_quad q;
-    stbtt_GetPackedQuad(info->chars, kAtlasWidth, kAtlasHeight, c, &p.x, &p.y,
+    float x = 0, y = 0;
+    stbtt_GetPackedQuad(info->chars, kAtlasWidth, kAtlasHeight, c - 32, &x, &y,
                         &q,
                         /*align_to_integer=*/false);
-    renderer_->PushQuad(FVec(q.x0, q.y0), FVec(q.x1, q.y1), FVec(q.s0, q.t0),
+    const float x0 = p.x + q.x0 * pixel_scale;
+    const float x1 = p.x + q.x1 * pixel_scale;
+    const float y0 = p.y + q.y0 * pixel_scale;
+    const float y1 = p.y + q.y1 * pixel_scale;
+    renderer_->PushQuad(FVec(x0, y0), FVec(x1, y1), FVec(q.s0, q.t0),
                         FVec(q.s1, q.t1), FVec(0, 0),
                         /*angle=*/0);
+    p.x += x * pixel_scale;
     if ((i + 1) < str.size()) {
       p.x += info->scale * stbtt_GetCodepointKernAdvance(&info->font_info,
                                                          str[i], str[i + 1]);
@@ -792,7 +818,8 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
     }
     if (c == '\n') {
       p.x = position.x;
-      p.y += info->scale * (info->ascent - info->descent + info->line_gap);
+      p.y += pixel_scale * info->scale *
+             (info->ascent - info->descent + info->line_gap);
       i++;
       continue;
     }
@@ -804,23 +831,24 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
 
 IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
                                std::string_view str) {
-  const FontInfo* info = LoadFont(font_name, size);
+  const FontInfo* info = LoadFont(font_name);
   auto p = FVec2::Zero();
-  p.y = info->scale * (info->ascent - info->descent + info->line_gap);
+  const float scale = stbtt_ScaleForPixelHeight(&info->font_info, size);
+  p.y = scale * (info->ascent - info->descent + info->line_gap);
   float x = 0;
   for (size_t i = 0; i < str.size(); ++i) {
     const char c = str[i];
     if (c == '\n') {
       x = std::max(x, p.x);
       p.x = 0;
-      p.y += info->scale * (info->ascent - info->descent + info->line_gap);
+      p.y += scale * (info->ascent - info->descent + info->line_gap);
     } else {
       int width, bearing;
       stbtt_GetCodepointHMetrics(&info->font_info, c, &width, &bearing);
-      p.x += info->scale * width;
+      p.x += scale * width;
       if ((i + 1) < str.size()) {
-        p.x += info->scale * stbtt_GetCodepointKernAdvance(&info->font_info,
-                                                           str[i], str[i + 1]);
+        p.x += scale * stbtt_GetCodepointKernAdvance(&info->font_info, str[i],
+                                                     str[i + 1]);
       }
     }
   }
