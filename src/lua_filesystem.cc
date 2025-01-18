@@ -15,26 +15,46 @@ PHYSFS_EnumerateCallbackResult LuaListDirectory(void* userdata, const char* dir,
   return PHYSFS_ENUM_OK;
 }
 
-const struct luaL_Reg kFilesystemLib[] = {
+const struct LuaApiFunction kFilesystemLib[] = {
     {"spit",
+     "Writes a string to a given file, overwriting all contents",
+     {{"name", "Filename to write to"}, {"str", "string to write"}},
+     {{"result", "nil on success, a string if there were any errors"}},
      [](lua_State* state) {
        return LuaWriteToFile(state, 2, /*name=*/GetLuaString(state, 1));
      }},
     {"slurp",
+     "Reads a whole file into a string",
+     {{"name", "Filename to read from"}},
+     {{"error", "nil on success, a string if there were any errors"},
+      {"contents", "File contents on success, nil in case of errors"}},
      [](lua_State* state) {
        return LuaLoadFileIntoBuffer(state, GetLuaString(state, 1));
      }},
-    {"load_lua",
+    {"load_json",
+     "Loads a Json file from a string.",
+     {{"name", "Filename to read from"}},
+     {{"error", "nil on success, a string if there were any errors"},
+      {"result",
+       "Table result of evaluating the Json file, nil if there were any "
+       "errors"}},
      [](lua_State* state) {
        LUA_ERROR(state, "Unimplemented");
        return 0;
      }},
-    {"save_lua",
+    {"save_json",
+     "Saves a Lua table into a file.",
+     {{"name", "Filename to write to from"},
+      {"contents", "Table to serialize"}},
+     {{"error", "nil on success, a string if there were any errors"}},
      [](lua_State* state) {
        LUA_ERROR(state, "Unimplemented");
        return 0;
      }},
     {"list_directory",
+     "List all files in a givne directory",
+     {{"name", "Directory to list"}},
+     {{"files", "A list with all the files in the given directory"}},
      [](lua_State* state) {
        auto* filesystem = Registry<Filesystem>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
@@ -43,6 +63,9 @@ const struct luaL_Reg kFilesystemLib[] = {
        return 1;
      }},
     {"exists",
+     "Returns whether a file exists",
+     {{"name", "Path to the potential file to check"}},
+     {{"exists", "Whether the file exists or not"}},
      [](lua_State* state) {
        auto* filesystem = Registry<Filesystem>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
