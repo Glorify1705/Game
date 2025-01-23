@@ -17,9 +17,9 @@ class Sound {
 
   inline static constexpr int kLoop = -1;
 
-  void PlayMusic(std::string_view file, int times);
+  bool PlayMusic(std::string_view file, int times);
 
-  void PlaySoundEffect(std::string_view file);
+  bool PlaySoundEffect(std::string_view file);
 
   // `volume` is between 0 and 1.
   void SetMusicVolume(float volume);

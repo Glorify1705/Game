@@ -7,33 +7,35 @@
 
 namespace G {
 
-void Sound::PlayMusic(std::string_view file, int times) {
+Sound::~Sound() {
+  Stop();
+  for (auto* chunk : chunks_) Mix_FreeChunk(chunk);
+}
+
+bool Sound::PlayMusic(std::string_view file, int times) {
   uint32_t handle;
   if (!chunk_by_name_.Lookup(file, &handle)) {
     LOG("No sound called ", file);
-    return;
+    return false;
   }
   auto* mixed = chunks_[handle];
   if (!Mix_PlayingMusic()) {
     DCHECK(Mix_PlayChannel(handle, mixed, times) == 0, "Could not play sound ",
            file, ": ", SDL_GetError());
   }
+  return true;
 }
 
-Sound::~Sound() {
-  Stop();
-  for (auto* chunk : chunks_) Mix_FreeChunk(chunk);
-}
-
-void Sound::PlaySoundEffect(std::string_view file) {
+bool Sound::PlaySoundEffect(std::string_view file) {
   uint32_t handle;
   if (!chunk_by_name_.Lookup(file, &handle)) {
     LOG("No sound called ", file);
-    return;
+    return false;
   }
   auto* chunk = chunks_[handle];
   DCHECK(chunk != nullptr);
   Mix_PlayChannel(-1, chunk, 0);
+  return true;
 }
 
 void Sound::SetMusicVolume(float volume) {
@@ -52,8 +54,6 @@ void Sound::Stop() {
 }
 
 void Sound::LoadSound(DbAssets::Sound* sound) {
-  (void)sound;
-  return;
   uint32_t handle = chunks_.size();
   SDL_RWops* rwops = SDL_RWFromMem(
       const_cast<void*>(reinterpret_cast<const void*>(sound->contents)),

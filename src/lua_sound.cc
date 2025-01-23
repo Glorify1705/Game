@@ -19,7 +19,9 @@ const struct LuaApiFunction kSoundLib[] = {
        int repeat = Sound::kLoop;
        const int num_args = lua_gettop(state);
        if (num_args == 2) repeat = luaL_checknumber(state, 2);
-       sound->PlayMusic(name, repeat);
+       if (!sound->PlayMusic(name, repeat)) {
+         LUA_ERROR(state, "Could not find music asset ", name);
+       }
        return 0;
      }},
     {"play_sfx",
@@ -30,6 +32,9 @@ const struct LuaApiFunction kSoundLib[] = {
        std::string_view name = GetLuaString(state, 1);
        auto* sound = Registry<Sound>::Retrieve(state);
        sound->PlaySoundEffect(name);
+       if (!sound->PlaySoundEffect(name)) {
+         LUA_ERROR(state, "Could not find music asset ", name);
+       }
        return 0;
      }},
     {"stop",
