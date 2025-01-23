@@ -65,15 +65,15 @@ inline void AsOpenglUniform(const DMat4x4 m, GLint location) {
 
 class Shaders {
  public:
-  struct ErrorHandler {
-    void (*handler)(void* ud, std::string_view file, int line,
-                    std::string_view error);
-    void* ud;
+  struct Error {
+    FixedStringBuffer<kMaxPathLength> file;
+    int line;
+    FixedStringBuffer<kMaxLogLineLength> error;
   };
 
   enum UseCache { kUseCache, kForceCompile };
 
-  Shaders(ErrorHandler handler, Allocator* allocator);
+  Shaders(Allocator* allocator);
   ~Shaders();
 
   bool Compile(DbAssets::ShaderType type, std::string_view name,
@@ -84,7 +84,7 @@ class Shaders {
 
   void UseProgram(std::string_view program);
 
-  void Reload(const DbAssets::Shader& shader);
+  bool Load(const DbAssets::Shader& shader, Error* error);
 
   std::string_view LastError() const { return last_error_.error.piece(); };
 
@@ -125,12 +125,6 @@ class Shaders {
   }
 
  private:
-  struct Error {
-    FixedStringBuffer<kMaxPathLength> file;
-    int line;
-    FixedStringBuffer<kMaxLogLineLength> error;
-  };
-
   template <typename... Ts>
   bool FillError(std::string_view file, int line, Ts... ts) {
     last_error_.file.Set(file);
@@ -139,7 +133,6 @@ class Shaders {
     return false;
   }
 
-  ErrorHandler handler_;
   Allocator* allocator_;
   Dictionary<GLuint> compiled_shaders_;
   Dictionary<GLuint> compiled_programs_;

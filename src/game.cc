@@ -181,16 +181,7 @@ struct EngineModules {
         config(&config),
         filesystem(allocator),
         window(sdl_window),
-        shaders(
-            Shaders::ErrorHandler{.handler =
-                                      [](void* ctx, std::string_view file,
-                                         int line, std::string_view error) {
-                                        auto* e =
-                                            static_cast<EngineModules*>(ctx);
-                                        e->HandleShaderError(file, line, error);
-                                      },
-                                  .ud = this},
-            allocator),
+        shaders(allocator),
         batch_renderer(GetWindowViewport(sdl_window), &shaders, allocator),
         keyboard(allocator),
         controllers(db_assets, allocator),
@@ -213,12 +204,6 @@ struct EngineModules {
     auto* e = static_cast<EngineModules*>(ctx);
     e->CheckChangedFiles();
     return 0;
-  }
-
-  void HandleShaderError(std::string_view file, int line,
-                         std::string_view error) {
-    Log(file, line, error);
-    lua.SetError(file, line, error);
   }
 
   void CheckChangedFiles() {
@@ -274,7 +259,11 @@ struct EngineModules {
     assets->RegisterShaderLoad(
         [](DbAssets::Shader* shader, char* err, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
-          self->shaders.Reload(*shader);
+          Shaders::Error error;
+          if (!self->shaders.Load(*shader, &error)) {
+            self->lua.SetError(error.file.str(), error.line, error.error.str());
+            return;
+          }
         },
         this);
     assets->RegisterScriptLoad(

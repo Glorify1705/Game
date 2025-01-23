@@ -128,9 +128,8 @@ int GetLineNumber(std::string_view err) {
 
 }  // namespace
 
-Shaders::Shaders(ErrorHandler handler, Allocator* allocator)
-    : handler_(handler),
-      allocator_(allocator),
+Shaders::Shaders(Allocator* allocator)
+    : allocator_(allocator),
       compiled_shaders_(allocator),
       compiled_programs_(allocator),
       gl_shader_handles_(128, allocator),
@@ -199,7 +198,7 @@ bool Shaders::Compile(DbAssets::ShaderType type, std::string_view name,
   return true;
 }
 
-void Shaders::Reload(const DbAssets::Shader& shader) {
+bool Shaders::Load(const DbAssets::Shader& shader, Error* error) {
   ArenaAllocator scratch(allocator_, Kilobytes(64));
   const size_t total_size = kFragmentShaderPreamble.size() + shader.size +
                             kFragmentShaderPostamble.size() + 1;
@@ -209,9 +208,10 @@ void Shaders::Reload(const DbAssets::Shader& shader) {
   code.AppendBuffer(shader.contents, shader.size);
   code.Append(kFragmentShaderPostamble);
   if (!Compile(shader.type, shader.name, code.piece(), kForceCompile)) {
-    handler_.handler(handler_.ud, last_error_.file.piece(), last_error_.line,
-                     last_error_.error.piece());
+    *error = last_error_;
+    return false;
   }
+  return true;
 }
 
 bool Shaders::Link(std::string_view name, std::string_view vertex_shader,
