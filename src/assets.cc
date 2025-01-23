@@ -227,15 +227,22 @@ void DbAssets::Load() {
   ArenaAllocator scratch(allocator_, Megabytes(128));
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+    XXH128_hash_t db_checksum;
+    db_checksum.low64 = sqlite3_column_int64(stmt, 3);
+    db_checksum.high64 = sqlite3_column_int64(stmt, 4);
+    Checksum* saved_checksum;
+    if (checksums_map_.Lookup(name, &saved_checksum) &&
+        !std::memcmp(&saved_checksum->checksum, &db_checksum,
+                     sizeof(db_checksum))) {
+      continue;
+    }
+    TIMER("Loading asset ", name);
     auto type_ptr = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
     std::string_view type(type_ptr);
     const size_t size = sqlite3_column_int64(stmt, 2);
     std::string_view saved_name = InternedString(name);
-    XXH128_hash_t checksum;
     auto* buffer =
         reinterpret_cast<uint8_t*>(scratch.Alloc(size, /*align=*/16));
-    checksum.low64 = sqlite3_column_int64(stmt, 3);
-    checksum.high64 = sqlite3_column_int64(stmt, 4);
     for (const Loader& loader : kLoaders) {
       if (loader.name.empty()) {
         LOG("No loader for asset ", name, " with type ", type);
@@ -244,16 +251,15 @@ void DbAssets::Load() {
       if (type != loader.name) {
         continue;
       }
-      TIMER("Load DB asset ", name);
       auto method = loader.load;
       if (method == nullptr) {
         LOG("While loading ", name, ": unimplemented asset type ", type);
         break;
       }
-      (this->*method)(saved_name, buffer, size, checksum);
+      (this->*method)(saved_name, buffer, size, db_checksum);
       Checksum c;
       c.asset = saved_name;
-      std::memcpy(&c.checksum, &checksum, sizeof(checksum));
+      std::memcpy(&c.checksum, &db_checksum, sizeof(db_checksum));
       checksums_.Push(c);
       checksums_map_.Insert(saved_name, &checksums_.back());
       break;

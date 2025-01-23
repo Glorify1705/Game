@@ -5,6 +5,7 @@
 
 (fn Game.update [self t dt]
   (when (G.input.is_key_pressed :q) (G.system.quit))
+  (when (G.input.is_key_pressed :r) (G.hotload))
   (tset self :t t))
 
 (fn Game.draw [self]

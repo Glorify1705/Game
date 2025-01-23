@@ -176,8 +176,12 @@ bool Lua::LoadFromCache(std::string_view script_name, lua_State* state) {
   CachedScript script;
   if (compilation_cache_.Lookup(script_name, &script)) {
     LOG("Found cached compilation for ", script_name);
-    lua_pushlstring(state, script.contents.data(), script.contents.size());
-    return true;
+    auto checksum = assets_->GetChecksum(script_name);
+    if (script.checksum_low == checksum.low64 &&
+        script.checksum_high == checksum.high64) {
+      lua_pushlstring(state, script.contents.data(), script.contents.size());
+      return true;
+    }
   }
   return false;
 }

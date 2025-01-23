@@ -657,10 +657,10 @@ class Game {
         return;
       }
       if (e_->lua.HotloadRequested()) {
-        LOG("Hotload requested");
+        TIMER("Hotload requested");
         e_->Reload();
+        e_->lua.LoadMain();
       }
-      e_->watcher_.CheckForEvents();
       const double now = NowInSeconds();
       const double frame_time = now - last_frame;
       last_frame = now;
