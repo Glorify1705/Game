@@ -19,6 +19,7 @@ class LogTimer {
 
   LogTimer(const char* file, int line, const char* func, Buf&& buf = {})
       : file_(file), line_(line), func_(func), start_(NowInSeconds()) {
+    Log(file, line, buf);
     auto s = buf.piece();
     std::memcpy(buf_, s.data(), s.size());
     buf_[s.size()] = '\0';

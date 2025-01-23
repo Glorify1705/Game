@@ -61,6 +61,11 @@ inline std::string_view StringByHandle(uint32_t handle) {
   return StringTable::Instance().Lookup(handle);
 }
 
+inline std::string_view InternedString(std::string_view s) {
+  auto& st = StringTable::Instance();
+  return st.Lookup(st.Intern(s));
+}
+
 }  // namespace G
 
 #endif  // _GAME_STRING_TABLE_H

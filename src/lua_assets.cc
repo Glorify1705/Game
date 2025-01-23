@@ -1,6 +1,6 @@
 #include "lua_assets.h"
 
-#include "assets.h"
+#include "renderer.h"
 
 namespace G {
 namespace {
@@ -12,8 +12,8 @@ const struct LuaApiFunction kAssetsLib[] = {
      {{"result", "A userdata ptr to a sprite object"}},
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
-       auto* assets = Registry<DbAssets>::Retrieve(state);
-       auto* sprite = assets->GetSprite(name);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       auto* sprite = renderer->GetSprite(name);
        if (sprite == nullptr) {
          lua_pushnil(state);
          return 1;
@@ -30,7 +30,7 @@ const struct LuaApiFunction kAssetsLib[] = {
      [](lua_State* state) {
        const DbAssets::Sprite* ptr = nullptr;
        if (lua_isstring(state, 1)) {
-         auto* assets = Registry<DbAssets>::Retrieve(state);
+         auto* assets = Registry<Renderer>::Retrieve(state);
          std::string_view name = GetLuaString(state, 1);
          ptr = assets->GetSprite(name);
        } else {
@@ -51,9 +51,9 @@ const struct LuaApiFunction kAssetsLib[] = {
      {},
      {{"result", "A list with name, width, height of all images."}},
      [](lua_State* state) {
-       auto* assets = Registry<DbAssets>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        lua_newtable(state);
-       for (const auto& image : assets->GetImages()) {
+       for (const auto& image : renderer->GetImages()) {
          lua_pushlstring(state, image.name.data(), image.name.size());
          lua_newtable(state);
          lua_pushnumber(state, image.width);
@@ -71,9 +71,9 @@ const struct LuaApiFunction kAssetsLib[] = {
        "A list with width, height, x, y position and spritesheet name of all "
        "sprites."}},
      [](lua_State* state) {
-       auto* assets = Registry<DbAssets>::Retrieve(state);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
        lua_newtable(state);
-       for (const auto& sprite : assets->GetSprites()) {
+       for (const auto& sprite : renderer->GetSprites()) {
          lua_pushlstring(state, sprite.name.data(), sprite.name.size());
          lua_newtable(state);
          lua_pushnumber(state, sprite.width);
@@ -84,7 +84,7 @@ const struct LuaApiFunction kAssetsLib[] = {
          lua_setfield(state, -2, "x");
          lua_pushnumber(state, sprite.y);
          lua_setfield(state, -2, "y");
-         const auto* spritesheet = assets->GetSpritesheet(sprite.spritesheet);
+         const auto* spritesheet = renderer->GetSpritesheet(sprite.spritesheet);
          CHECK(spritesheet != nullptr, "No spritesheet named ",
                sprite.spritesheet);
          lua_pushlstring(state, spritesheet->name.data(),

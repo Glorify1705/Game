@@ -301,12 +301,25 @@ class DbPacker {
     return AssetInfo{.size = size};
   }
 
+  int GetOrderForType(std::string_view type) {
+    // We need to process all images, then all spritesheets, then all scripts,
+    // then the rest.
+    if (type == "image") {
+      return 0;
+    }
+    if (type == "spritesheets") {
+      return 1;
+    }
+    // We sort by type as well in the asset loader, so here we can return 2.
+    return 2;
+  }
+
   void InsertIntoAssetMeta(std::string_view filename, size_t size,
                            std::string_view type, XXH128_hash_t hash) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(
         "INSERT OR REPLACE INTO asset_metadata (name, size, type, hash_low, "
-        "hash_high) VALUES (?, ?, ?, ?, ?);");
+        "hash_high, processing_order) VALUES (?, ?, ?, ?, ?, ?);");
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
       return;
@@ -317,6 +330,7 @@ class DbPacker {
     sqlite3_bind_text(stmt, 3, type.data(), type.size(), SQLITE_STATIC);
     sqlite3_bind_int64(stmt, 4, hash.low64);
     sqlite3_bind_int64(stmt, 5, hash.high64);
+    sqlite3_bind_int64(stmt, 6, GetOrderForType(type));
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
@@ -329,7 +343,6 @@ class DbPacker {
                                      const uint8_t* buf, size_t size);
       std::string_view type;
     };
-    FixedStringBuffer<kMaxPathLength> path(directory, "/", filename);
 
     static constexpr DbHandler kHandlers[] = {
         {".lua", &DbPacker::InsertScript, "script"},
@@ -345,6 +358,8 @@ class DbPacker {
         {".frag", &DbPacker::InsertShader, "shader"},
         {".json", &DbPacker::InsertTextFile, "text"},
         {".txt", &DbPacker::InsertTextFile, "text"}};
+
+    FixedStringBuffer<kMaxPathLength> path(directory, "/", filename);
 
     std::string_view fname = Basename(filename);
     bool handled = false;

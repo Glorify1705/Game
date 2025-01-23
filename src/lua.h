@@ -153,7 +153,7 @@ class Lua {
 
   void LoadLibraries();
 
-  void LoadScripts();
+  void LoadScript(const DbAssets::Script& script);
 
   void LoadMain();
 
@@ -162,6 +162,10 @@ class Lua {
   void Update(float t, float dt);
 
   void Draw();
+
+  void BuildCompilationCache();
+
+  void FlushCompilationCache();
 
   bool LoadFromCache(std::string_view script_name, lua_State* state);
 
@@ -216,6 +220,8 @@ class Lua {
     return Kilobytes(mem_kb) + mem_b;
   }
 
+  int PackageLoader();
+
   friend void AddGraphicsLibrary(Lua* lua);
   friend void AddMathLibrary(Lua* lua);
   friend void AddRandomLibrary(Lua* lua);
@@ -229,9 +235,18 @@ class Lua {
   friend void AddAssetsLibrary(Lua* lua);
 
  private:
-  void BuildCompilationCache();
+  int LoadLuaAsset(std::string_view filename, std::string_view script_contents,
+                   int traceback_handler = INT_MAX);
 
-  void FlushCompilationCache();
+  int LoadFennelAsset(std::string_view filename,
+                      std::string_view script_contents,
+                      int traceback_handler = INT_MAX);
+
+  // Compiles the fennel asset and leaves the result in the top of the Lua
+  // stack.
+  bool CompileFennelAsset(std::string_view filename,
+                          std::string_view script_contents,
+                          int traceback_handler = INT_MAX);
 
   void LoadAssets();
   void LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
@@ -288,6 +303,16 @@ class Lua {
     std::string_view contents;
   };
 
+  struct Script {
+    enum Language { kLuaScript, kFennelScript };
+
+    Language language;
+    std::string_view name;
+    std::string_view contents;
+  };
+
+  Dictionary<Script*> scripts_by_name_;
+  FixedArray<Script> scripts_;
   Dictionary<CachedScript> compilation_cache_;
 
   double t_ = 0;

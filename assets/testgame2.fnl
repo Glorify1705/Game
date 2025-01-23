@@ -137,7 +137,7 @@
             :moving (tset g :reticule :size (linear-interpolate dt 10 5))))))))
 
 (local *font-name* :terminus.ttf)
-(local *font-size* 20)
+(local *font-size* 24)
 
 (fn text-dimensions [msg]
   (G.graphics.text_dimensions *font-name* *font-size* msg))
@@ -147,6 +147,7 @@
 
 (fn Game.draw [g]
   (G.graphics.clear)
+  (G.graphics.set_color :white)
   (if (<= g.timer 0)
       (let [msg (.. "Game Over. Score: " g.score)
             [sx sy] g.dimensions
@@ -162,6 +163,7 @@
             (G.graphics.set_color rect.color)
             (draw-rectangle g rect))
           (G.graphics.set_color :neonred)
-          (G.graphics.draw_circle mx my (-> g (. :reticule) (. :size)))))))
+          (G.graphics.draw_circle mx my (-> g (. :reticule) (. :size))))))
+  (G.graphics.set_color :white))
 
 Game

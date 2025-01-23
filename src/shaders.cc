@@ -154,25 +154,6 @@ Shaders::Shaders(ErrorHandler handler, Allocator* allocator)
         LastError());
 }
 
-void Shaders::CompileAssetShaders(const DbAssets& assets) {
-  TIMER("Compiling shaders");
-  ArenaAllocator scratch(allocator_, Megabytes(1));
-  for (const auto& shader : assets.GetShaders()) {
-    scratch.Reset();
-    const size_t total_size = kFragmentShaderPreamble.size() + shader.size +
-                              kFragmentShaderPostamble.size() + 1;
-    auto* buf = reinterpret_cast<char*>(scratch.Alloc(total_size, /*align=*/1));
-    StringBuffer code(buf, total_size);
-    code.Append(kFragmentShaderPreamble);
-    code.AppendBuffer(shader.contents, shader.size);
-    code.Append(kFragmentShaderPostamble);
-    if (!Compile(shader.type, shader.name, code.piece(), kUseCache)) {
-      handler_.handler(handler_.ud, last_error_.file.piece(), last_error_.line,
-                       last_error_.error.piece());
-    }
-  }
-}
-
 Shaders::~Shaders() {
   for (GLuint handle : gl_shader_handles_) {
     glDeleteShader(handle);
@@ -219,8 +200,7 @@ bool Shaders::Compile(DbAssets::ShaderType type, std::string_view name,
 }
 
 void Shaders::Reload(const DbAssets::Shader& shader) {
-  DIE("Unimplemented");
-  ArenaAllocator scratch(allocator_, Megabytes(1));
+  ArenaAllocator scratch(allocator_, Kilobytes(64));
   const size_t total_size = kFragmentShaderPreamble.size() + shader.size +
                             kFragmentShaderPostamble.size() + 1;
   auto* buf = reinterpret_cast<char*>(scratch.Alloc(total_size, /*align=*/1));
@@ -228,7 +208,7 @@ void Shaders::Reload(const DbAssets::Shader& shader) {
   code.Append(kFragmentShaderPreamble);
   code.AppendBuffer(shader.contents, shader.size);
   code.Append(kFragmentShaderPostamble);
-  if (!Compile(shader.type, shader.name, code.piece(), kUseCache)) {
+  if (!Compile(shader.type, shader.name, code.piece(), kForceCompile)) {
     handler_.handler(handler_.ud, last_error_.file.piece(), last_error_.line,
                      last_error_.error.piece());
   }

@@ -2,9 +2,10 @@
 #ifndef _GAME_CONFIG_H
 #define _GAME_CONFIG_H
 
-#include <cstdint>
+#include <stdint.h>
 
-#include "assets.h"
+#include "allocators.h"
+#include "libraries/sqlite3.h"
 
 namespace G {
 
@@ -32,8 +33,11 @@ struct GameConfig {
   Version version;
 };
 
-void LoadConfig(const DbAssets& assets, GameConfig* config,
+void LoadConfig(std::string_view json_configuration, GameConfig* config,
                 Allocator* allocator);
+
+void LoadConfigFromDatabase(sqlite3* db, GameConfig* config,
+                            Allocator* allocator);
 
 }  // namespace G
 

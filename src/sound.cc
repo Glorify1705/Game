@@ -9,40 +9,27 @@ namespace G {
 
 void Sound::PlayMusic(std::string_view file, int times) {
   uint32_t handle;
-  if (!music_by_name_.Lookup(file, &handle)) {
-    handle = musics_.size();
-    auto* music = assets_->GetSound(file);
-    SDL_RWops* rwops = SDL_RWFromMem(
-        const_cast<void*>(reinterpret_cast<const void*>(music->contents)),
-        music->size);
-    auto* mixed = Mix_LoadMUS_RW(rwops, /*freesrc=*/true);
-    music_by_name_.Insert(file, handle);
-    musics_.Push(mixed);
+  if (!chunk_by_name_.Lookup(file, &handle)) {
+    LOG("No sound called ", file);
+    return;
   }
-  auto* mixed = musics_[handle];
+  auto* mixed = chunks_[handle];
   if (!Mix_PlayingMusic()) {
-    DCHECK(Mix_PlayMusic(mixed, times) == 0, "Could not play sound ", file,
-           ": ", SDL_GetError());
+    DCHECK(Mix_PlayChannel(handle, mixed, times) == 0, "Could not play sound ",
+           file, ": ", SDL_GetError());
   }
 }
 
 Sound::~Sound() {
   Stop();
-  for (auto* music : musics_) Mix_FreeMusic(music);
   for (auto* chunk : chunks_) Mix_FreeChunk(chunk);
 }
 
 void Sound::PlaySoundEffect(std::string_view file) {
   uint32_t handle;
   if (!chunk_by_name_.Lookup(file, &handle)) {
-    handle = chunks_.size();
-    auto* sound = assets_->GetSound(file);
-    SDL_RWops* rwops = SDL_RWFromMem(
-        const_cast<void*>(reinterpret_cast<const void*>(sound->contents)),
-        sound->size);
-    auto* chunk = Mix_LoadWAV_RW(rwops, /*freesrc=*/true);
-    music_by_name_.Insert(file, handle);
-    chunks_.Push(chunk);
+    LOG("No sound called ", file);
+    return;
   }
   auto* chunk = chunks_[handle];
   DCHECK(chunk != nullptr);
@@ -62,6 +49,18 @@ void Sound::SetSoundEffectVolume(float volume) {
 void Sound::Stop() {
   if (Mix_PlayingMusic()) Mix_HaltMusic();
   Mix_HaltGroup(-1);
+}
+
+void Sound::LoadSound(DbAssets::Sound* sound) {
+  (void)sound;
+  return;
+  uint32_t handle = chunks_.size();
+  SDL_RWops* rwops = SDL_RWFromMem(
+      const_cast<void*>(reinterpret_cast<const void*>(sound->contents)),
+      sound->size);
+  auto* chunk = Mix_LoadWAV_RW(rwops, /*freesrc=*/true);
+  chunk_by_name_.Insert(sound->name, handle);
+  chunks_.Push(chunk);
 }
 
 }  // namespace G

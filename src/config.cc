@@ -1,5 +1,6 @@
 #include "config.h"
 
+#include "defer.h"
 #include "libraries/json.h"
 #include "logging.h"
 #include "lua.h"
@@ -20,18 +21,10 @@ void ParseVersionFromString(const char* str, GameConfig* config) {
 
 }  // namespace
 
-void LoadConfig(const DbAssets& assets, GameConfig* config,
+void LoadConfig(std::string_view json_configuration, GameConfig* config,
                 Allocator* /*allocator*/) {
   TIMER("Loading configuration");
-  auto* conf = assets.GetText("conf.json");
-  if (conf == nullptr) {
-    LOG("No config file detected, skipping");
-    return;
-  }
-  std::string_view buffer(reinterpret_cast<const char*>(conf->contents),
-                          conf->size);
-
-  auto [status, json] = jt::Json::parse(buffer);
+  auto [status, json] = jt::Json::parse(json_configuration);
   CHECK(status == jt::Json::success,
         "failed to parse conf.json: ", jt::Json::StatusToString(status));
   CHECK(json.isObject(), "config must be a json object");
@@ -63,6 +56,25 @@ void LoadConfig(const DbAssets& assets, GameConfig* config,
       ParseVersionFromString(value.getString().c_str(), config);
     }
   }
+}
+
+void LoadConfigFromDatabase(sqlite3* db, GameConfig* config,
+                            Allocator* allocator) {
+  LOG("Reading configuration from database");
+  constexpr std::string_view query =
+      "SELECT contents FROM text_files WHERE name = 'conf.json'";
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db, query.data(), query.size(), &stmt, nullptr) !=
+      SQLITE_OK) {
+    DIE("Failed to prepare statement ", query, ": ", sqlite3_errmsg(db));
+  }
+  DEFER([stmt] { sqlite3_finalize(stmt); });
+  if (sqlite3_step(stmt) != SQLITE_ROW) {
+    LOG("No conf.json file for configuration in database, skipping");
+    return;
+  }
+  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  LoadConfig(contents, config, allocator);
 }
 
 }  // namespace G

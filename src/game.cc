@@ -49,6 +49,13 @@
 #include "vec.h"
 #include "version.h"
 
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/inotify.h>
+#include <sys/types.h>
+#include <unistd.h>
+#endif
+
 namespace G {
 
 #if defined(__GNUC__)
@@ -115,6 +122,53 @@ IVec2 GetWindowViewport(SDL_Window* window) {
   return result;
 }
 
+// TODO: port this to windows.
+#ifdef _WIN32
+struct Filewatcher {};
+#else
+class Filewatcher {
+ public:
+  explicit Filewatcher(sqlite3* /*db*/) {
+    file_descriptor_ = inotify_init1(IN_NONBLOCK);
+    CHECK(file_descriptor_ >= 0, "Failed to start inotify: ", strerror(errno));
+  }
+
+  ~Filewatcher() {
+    for (size_t i = 0; i < watches_count_; ++i) {
+      inotify_rm_watch(file_descriptor_, watches_[i]);
+    }
+    if (file_descriptor_ >= 0) close(file_descriptor_);
+    file_descriptor_ = -1;
+  }
+
+  void Watch(const char* directory) {
+    int watch = inotify_add_watch(file_descriptor_, directory,
+                                  IN_MODIFY | IN_CREATE | IN_DELETE);
+    CHECK(watch >= 0, "Could not add watch for ", directory, ": ",
+          strerror(errno));
+    watches_[watches_count_++] = watch;
+  }
+
+  void CheckForEvents() {
+    ssize_t length = read(file_descriptor_, events_, sizeof(events_));
+    if (length <= 0) {
+      if (errno == EAGAIN) return;
+      DIE("Failed to read file watching events: ", strerror(errno));
+    }
+    for (char* ptr = events_; ptr < events_ + length;) {
+      const auto* event = reinterpret_cast<const inotify_event*>(ptr);
+      ptr += sizeof(inotify_event) + event->len;
+    }
+  }
+
+ private:
+  int file_descriptor_ = -1;
+  size_t watches_count_ = 0;
+  int watches_[1024];
+  alignas(sizeof(inotify_event)) char events_[1024 * sizeof(inotify_event)];
+};
+#endif
+
 struct EngineModules {
   EngineModules(size_t argc, const char* argv[], sqlite3* db,
                 DbAssets* db_assets, const GameConfig& config,
@@ -140,7 +194,7 @@ struct EngineModules {
         batch_renderer(GetWindowViewport(sdl_window), &shaders, allocator),
         keyboard(allocator),
         controllers(db_assets, allocator),
-        sound(*db_assets, allocator),
+        sound(allocator),
         renderer(*db_assets, &batch_renderer, allocator),
         lua(argc, argv, db, db_assets, SystemAllocator::Instance()),
         physics(FVec(config.window_width, config.window_height),
@@ -148,7 +202,8 @@ struct EngineModules {
         frame_allocator(allocator, Megabytes(128)),
         pool(allocator, 4),
         allocator_(allocator),
-        hotload_allocator_(allocator, kHotReloadMemory) {
+        hotload_allocator_(allocator, kHotReloadMemory),
+        watcher_(db) {
     mu = SDL_CreateMutex();
   }
 
@@ -206,20 +261,56 @@ struct EngineModules {
     AddSoundLibrary(&lua);
     AddSystemLibrary(&lua);
     AddAssetsLibrary(&lua);
-    shaders.CompileAssetShaders(*assets);
-    lua.LoadScripts();
+    lua.BuildCompilationCache();
+    RegisterLoaders();
+    assets->Load();
     lua.LoadMain();
-    RegisterReloads();
+    lua.FlushCompilationCache();
     pool.Start();
     pool.Queue(CheckChangedFiles, this);
   }
 
-  void RegisterReloads() {
-    assets->RegisterLoadFn(
-        "shader",
-        [](DbAssets* assets, std::string_view name, char* err, void* ud) {
+  void RegisterLoaders() {
+    assets->RegisterShaderLoad(
+        [](DbAssets::Shader* shader, char* err, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
-          self->shaders.Reload(*self->assets->GetShader(name));
+          self->shaders.Reload(*shader);
+        },
+        this);
+    assets->RegisterScriptLoad(
+        [](DbAssets::Script* script, char* err, void* ud) {
+          auto* self = static_cast<EngineModules*>(ud);
+          self->lua.LoadScript(*script);
+        },
+        this);
+    assets->RegisterImageLoad(
+        [](DbAssets::Image* image, char* err, void* ud) {
+          auto* self = static_cast<EngineModules*>(ud);
+          self->renderer.LoadImage(*image);
+        },
+        this);
+    assets->RegisterSpritesheetLoad(
+        [](DbAssets::Spritesheet* spritesheet, char* err, void* ud) {
+          auto* self = static_cast<EngineModules*>(ud);
+          self->renderer.LoadSpritesheet(*spritesheet);
+        },
+        this);
+    assets->RegisterSpriteLoad(
+        [](DbAssets::Sprite* sprite, char* err, void* ud) {
+          auto* self = static_cast<EngineModules*>(ud);
+          self->renderer.LoadSprite(*sprite);
+        },
+        this);
+    assets->RegisterSoundLoad(
+        [](DbAssets::Sound* sound, char* err, void* ud) {
+          auto* self = static_cast<EngineModules*>(ud);
+          self->sound.LoadSound(sound);
+        },
+        this);
+    assets->RegisterFontLoad(
+        [](DbAssets::Font* font, char* err, void* ud) {
+          auto* self = static_cast<EngineModules*>(ud);
+          self->renderer.LoadFont(*font);
         },
         this);
   }
@@ -322,6 +413,7 @@ struct EngineModules {
   ThreadPool pool;
   Allocator* allocator_;
   ArenaAllocator hotload_allocator_;
+  Filewatcher watcher_;
 };
 
 void InitializeLogging() {
@@ -472,12 +564,12 @@ class Game {
       load_ = LoadDb(argc_ - 1, argv_ + 1);
     }
     {
-      TIMER("Getting assets");
-      db_assets_ = GetAssets(argv + 1, argc - 1, db_);
+      TIMER("Loading config");
+      LoadConfigFromDatabase(db_, &config_, allocator_);
     }
     {
-      TIMER("Loading config");
-      LoadConfig(*db_assets_, &config_, allocator_);
+      TIMER("Getting assets");
+      db_assets_ = GetAssets(argv + 1, argc - 1, db_);
     }
     LOG("Using engine version ", GAME_VERSION_STR);
     LOG("Game requested engine version ", config_.version.major, ".",
@@ -519,7 +611,6 @@ class Game {
   DbAssets* GetAssets(const char* argv[], size_t argc, sqlite3* db) {
     WriteAssetsToDb(argv[0], db, allocator_);
     auto* result = allocator_->New<DbAssets>(db, allocator_);
-    result->Load();
     return result;
   }
 
@@ -561,6 +652,9 @@ class Game {
                                         load_.source_directory);
     e_->Initialize();
     e_->lua.Init();
+    if (load_.should_hotreload) {
+      e_->watcher_.Watch(load_.source_directory);
+    }
   }
 
   void Run() {
@@ -577,6 +671,7 @@ class Game {
         LOG("Hotload requested");
         e_->Reload();
       }
+      e_->watcher_.CheckForEvents();
       const double now = NowInSeconds();
       const double frame_time = now - last_frame;
       last_frame = now;

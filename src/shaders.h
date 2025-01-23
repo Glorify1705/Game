@@ -76,8 +76,6 @@ class Shaders {
   Shaders(ErrorHandler handler, Allocator* allocator);
   ~Shaders();
 
-  void CompileAssetShaders(const DbAssets& assets);
-
   bool Compile(DbAssets::ShaderType type, std::string_view name,
                std::string_view glsl, UseCache use_cache);
 

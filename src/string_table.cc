@@ -23,11 +23,7 @@ bool StringTable::IsThere(uint32_t pos, std::string_view s) {
          !std::memcmp(&buffer_[pos], s.data(), s.size());
 }
 
-StringTable::StringTable() {
-  for (size_t i = 0; i < (1 << kTotalStringsLog); ++i) {
-    sizes_[i] = 0;
-  }
-}
+StringTable::StringTable() { std::memset(sizes_, 0, sizeof(sizes_)); }
 
 uint32_t StringTable::Intern(std::string_view input) {
   const uint64_t hash = Hash(input);

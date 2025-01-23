@@ -11,12 +11,8 @@ namespace G {
 
 class Sound {
  public:
-  explicit Sound(const DbAssets& assets, Allocator* allocator)
-      : assets_(&assets),
-        chunks_(256, allocator),
-        musics_(256, allocator),
-        chunk_by_name_(allocator),
-        music_by_name_(allocator) {}
+  explicit Sound(Allocator* allocator)
+      : chunks_(256, allocator), chunk_by_name_(allocator) {}
   ~Sound();
 
   inline static constexpr int kLoop = -1;
@@ -31,14 +27,13 @@ class Sound {
   // `volume` is between 0 and 1.
   void SetSoundEffectVolume(float volume);
 
+  void LoadSound(DbAssets::Sound* sound);
+
   void Stop();
 
  private:
-  const DbAssets* assets_;
   FixedArray<Mix_Chunk*> chunks_;
-  FixedArray<Mix_Music*> musics_;
   Dictionary<uint32_t> chunk_by_name_;
-  Dictionary<uint32_t> music_by_name_;
 };
 
 }  // namespace G

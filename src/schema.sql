@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS asset_metadata(id INTEGER PRIMARY KEY AUTOINCREMENT,
                                           type VARCHAR(255) NOT NULL,
                                           size INTEGER NOT NULL,
                                           hash_low INTEGER NOT NULL,
-                                          hash_high INTEGER NOT NULL);
+                                          hash_high INTEGER NOT NULL,
+                                          processing_order INTEGER NOT NULL);
 
 CREATE TABLE IF NOT EXISTS compilation_cache(
     id INTEGER PRIMARY KEY AUTOINCREMENT,

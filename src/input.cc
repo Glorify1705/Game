@@ -96,18 +96,16 @@ void Mouse::PushEvent(const SDL_Event& event) {
 Controllers::Controllers(DbAssets* assets, Allocator* allocator)
     : button_table_(allocator), axis_table_(allocator) {
   SDL_RWops* rwops = nullptr;
-  const DbAssets::TextFile* controller_db =
-      assets->GetText("gamecontrollerdb.txt");
-  if (controller_db == nullptr) {
-    LOG("Could not find game controller database, using the default one");
-    rwops = SDL_RWFromMem(
-        const_cast<void*>(static_cast<const void*>(kControllerDatabase)),
-        sizeof(kControllerDatabase));
-  } else {
-    rwops = SDL_RWFromMem(
-        const_cast<void*>(static_cast<const void*>(controller_db->contents)),
-        controller_db->size);
-  }
+  LOG("Could not find game controller database, using the default one");
+  rwops = SDL_RWFromMem(
+      const_cast<void*>(static_cast<const void*>(kControllerDatabase)),
+      sizeof(kControllerDatabase));
+#if 0
+  // TODO: restore this with a text file loader.
+  rwops = SDL_RWFromMem(
+      const_cast<void*>(static_cast<const void*>(controller_db->contents)),
+      controller_db->size);
+#endif
   LOG("Using the default controllers database");
   rwops = SDL_RWFromMem(
       const_cast<void*>(static_cast<const void*>(kControllerDatabase)),

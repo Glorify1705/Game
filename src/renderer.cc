@@ -567,11 +567,12 @@ BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
 Renderer::Renderer(const DbAssets& assets, BatchRenderer* renderer,
                    Allocator* allocator)
     : allocator_(allocator),
-      assets_(&assets),
       renderer_(renderer),
       transform_stack_(128, allocator),
       textures_table_(allocator),
       textures_(256, allocator),
+      loaded_spritesheets_table_(allocator),
+      loaded_spritesheets_(1 << 16, allocator),
       loaded_sprites_table_(allocator),
       loaded_sprites_(1 << 20, allocator),
       loaded_images_table_(allocator),
@@ -608,34 +609,54 @@ float Renderer::SetLineWidth(float width) {
   return result;
 }
 
-void Renderer::DrawSprite(std::string_view sprite_name, FVec2 position,
-                          float angle) {
-  const DbAssets::Sprite* sprite = nullptr;
-  if (uint32_t handle; loaded_sprites_table_.Lookup(sprite_name, &handle)) {
-    sprite = loaded_sprites_[handle];
-  } else {
-    sprite = assets_->GetSprite(sprite_name);
-    const DbAssets::Spritesheet* spritesheet =
-        assets_->GetSpritesheet(sprite->spritesheet);
-    if (!textures_table_.Contains(spritesheet->name)) {
-      LOG("Loading texture ", spritesheet->name);
-      auto* image = assets_->GetImage(spritesheet->image);
-      CHECK(image != nullptr, "Unknown image ", spritesheet->image,
-            " for spritesheet ", spritesheet->name);
-      textures_table_.Insert(spritesheet->name, textures_.size());
-      textures_.Push(renderer_->LoadTexture(*image));
-    }
-    loaded_sprites_table_.Insert(sprite_name, loaded_sprites_.size());
-    loaded_sprites_.Push(sprite);
-  }
-  DrawSprite(*sprite, position, angle);
+void Renderer::LoadSprite(const DbAssets::Sprite& sprite) {
+  // TODO: error handling.
+  CHECK(textures_table_.Contains(sprite.spritesheet), "Unknown sprite sheet ",
+        sprite.spritesheet);
+  loaded_sprites_.Push(sprite);
+  loaded_sprites_table_.Insert(sprite.name, &loaded_sprites_.back());
 }
 
-void Renderer::DrawSprite(const DbAssets::Sprite& sprite, FVec2 position,
+void Renderer::LoadImage(const DbAssets::Image& image) {
+  if (!textures_table_.Contains(image.name)) {
+    LOG("Loading texture for image ", image.name);
+    textures_table_.Insert(image.name, textures_.size());
+    textures_.Push(renderer_->LoadTexture(image));
+  }
+  loaded_images_.Push(image);
+  loaded_images_table_.Insert(image.name, &loaded_images_.back());
+}
+
+void Renderer::LoadSpritesheet(const DbAssets::Spritesheet& spritesheet) {
+  DbAssets::Image* image;
+  // TODO: error handling.
+  CHECK(loaded_images_table_.Lookup(spritesheet.image, &image), "No image ",
+        spritesheet.image, " for spritesheet ", spritesheet.name);
+  LOG("Loading texture ", spritesheet.name);
+  CHECK(image != nullptr, "Unknown image ", spritesheet.image,
+        " for spritesheet ", spritesheet.name);
+  textures_table_.Insert(spritesheet.name, textures_.size());
+  textures_.Push(renderer_->LoadTexture(*image));
+  loaded_spritesheets_.Push(spritesheet);
+  loaded_spritesheets_table_.Insert(spritesheet.name,
+                                    &loaded_spritesheets_.back());
+}
+
+bool Renderer::DrawSprite(std::string_view sprite_name, FVec2 position,
                           float angle) {
-  const DbAssets::Spritesheet* spritesheet =
-      assets_->GetSpritesheet(sprite.spritesheet);
-  CHECK(spritesheet != nullptr, "No spritesheet for ", sprite.name);
+  DbAssets::Sprite* sprite = nullptr;
+  if (!loaded_sprites_table_.Lookup(sprite_name, &sprite)) {
+    return false;
+  }
+  return DrawSprite(*sprite, position, angle);
+}
+
+bool Renderer::DrawSprite(const DbAssets::Sprite& sprite, FVec2 position,
+                          float angle) {
+  DbAssets::Spritesheet* spritesheet;
+  if (!loaded_spritesheets_table_.Lookup(sprite.spritesheet, &spritesheet)) {
+    return false;
+  }
   uint32_t texture_index;
   CHECK(textures_table_.Lookup(spritesheet->name, &texture_index),
         "No spritesheet texture for ", sprite.name, "(spritesheet ",
@@ -649,27 +670,19 @@ void Renderer::DrawSprite(const DbAssets::Sprite& sprite, FVec2 position,
   const FVec2 q1(1.0f * (x + w) / spritesheet->width,
                  1.0f * (y + h) / spritesheet->height);
   renderer_->PushQuad(p0, p1, q0, q1, position, angle);
+  return true;
 }
 
-void Renderer::DrawImage(std::string_view image_name, FVec2 position,
+bool Renderer::DrawImage(std::string_view image_name, FVec2 position,
                          float angle) {
-  const DbAssets::Image* image = nullptr;
-  if (uint32_t handle; loaded_images_table_.Lookup(image_name, &handle)) {
-    image = loaded_images_[handle];
-  } else {
-    image = assets_->GetImage(image_name);
-    if (!textures_table_.Contains(image->name)) {
-      LOG("Loading texture for image ", image->name);
-      textures_table_.Insert(image->name, textures_.size());
-      textures_.Push(renderer_->LoadTexture(*image));
-    }
-    loaded_images_table_.Insert(image_name, loaded_images_.size());
-    loaded_images_.Push(image);
+  DbAssets::Image* image = nullptr;
+  if (!loaded_images_table_.Lookup(image_name, &image)) {
+    return false;
   }
-  DrawImage(*image, position, angle);
+  return DrawImage(*image, position, angle);
 }
 
-void Renderer::DrawImage(const DbAssets::Image& image, FVec2 position,
+bool Renderer::DrawImage(const DbAssets::Image& image, FVec2 position,
                          float angle) {
   uint32_t texture_index;
   CHECK(textures_table_.Lookup(image.name, &texture_index),
@@ -681,6 +694,7 @@ void Renderer::DrawImage(const DbAssets::Image& image, FVec2 position,
   const FVec2 q0(0, 0);
   const FVec2 q1(1.0, 1.0);
   renderer_->PushQuad(p0, p1, q0, q1, position, angle);
+  return true;
 }
 
 void Renderer::DrawRect(FVec2 top_left, FVec2 bottom_right, float angle) {
@@ -725,40 +739,31 @@ void Renderer::DrawCircle(FVec2 center, float radius) {
   }
 }
 
-const Renderer::FontInfo* Renderer::LoadFont(std::string_view font_name) {
-  if (uint32_t handle = 0; font_table_.Lookup(font_name, &handle)) {
-    return &fonts_[handle];
-  }
-  const DbAssets::Font* asset = assets_->GetFont(font_name);
-  if (asset == nullptr) {
-    LOG("Could not find font ", font_name);
-    return nullptr;
-  }
+void Renderer::LoadFont(const DbAssets::Font& asset) {
   ArenaAllocator scratch(allocator_, kAtlasSize * 5);
-  const float pixel_height = 128;
+  const float pixel_height = 100;
   uint8_t* atlas = scratch.NewArray<uint8_t>(kAtlasSize);
   FontInfo font;
-  CHECK(stbtt_InitFont(&font.font_info, asset->contents,
-                       stbtt_GetFontOffsetForIndex(asset->contents, 0)),
-        "Could not initialize ", asset->name);
+  CHECK(stbtt_InitFont(&font.font_info, asset.contents,
+                       stbtt_GetFontOffsetForIndex(asset.contents, 0)),
+        "Could not initialize ", asset.name);
   font.scale = stbtt_ScaleForPixelHeight(&font.font_info, pixel_height);
   font.pixel_height = pixel_height;
   {
-    TIMER("Building font atlas for ", font_name);
+    TIMER("Building font atlas for ", asset.name);
     stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
                           &font.line_gap);
     stbtt_PackBegin(&font.context, atlas, kAtlasWidth, kAtlasHeight,
                     kAtlasWidth, 1, /*alloc_context=*/&scratch);
     stbtt_PackSetOversampling(&font.context, 2, 2);
-    CHECK(stbtt_PackFontRange(&font.context, asset->contents, 0, pixel_height,
+    CHECK(stbtt_PackFontRange(&font.context, asset.contents, 0, pixel_height,
                               32, 126 - 32 + 1, font.chars) == 1,
-          "Could not load font ", font_name, ", atlas is too small");
+          "Could not load font ", asset.name, ", atlas is too small");
     stbtt_PackEnd(&font.context);
   }
   font.texture = renderer_->LoadFontTexture(atlas, kAtlasWidth, kAtlasHeight);
-  font_table_.Insert(font_name, fonts_.size());
   fonts_.Push(font);
-  return &fonts_.back();
+  font_table_.Insert(asset.name, &fonts_.back());
 }
 
 Color ParseColor(std::string_view color) {
@@ -775,7 +780,11 @@ Color ParseColor(std::string_view color) {
 
 void Renderer::DrawText(std::string_view font_name, uint32_t size,
                         std::string_view str, FVec2 position) {
-  const FontInfo* info = LoadFont(font_name);
+  FontInfo* info = nullptr;
+  if (!font_table_.Lookup(font_name, &info)) {
+    LOG("Could not find ", font_name, " in fonts");
+    return;
+  }
   CHECK(info != nullptr, "No texture found for ", font_name, " size ", size);
   renderer_->SetActiveTexture(info->texture);
   const Color color = color_;
@@ -831,7 +840,11 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
 
 IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
                                std::string_view str) {
-  const FontInfo* info = LoadFont(font_name);
+  FontInfo* info = nullptr;
+  if (!font_table_.Lookup(font_name, &info)) {
+    LOG("Could not find ", font_name, " in fonts");
+    return IVec2();
+  }
   auto p = FVec2::Zero();
   const float scale = stbtt_ScaleForPixelHeight(&info->font_info, size);
   p.y = scale * (info->ascent - info->descent + info->line_gap);

@@ -17,11 +17,14 @@ namespace G {
 
 class DbAssets {
  public:
+  using ChecksumType = XXH128_hash_t;
+
   struct Image {
     std::string_view name;
     size_t width;
     size_t height;
     size_t size;
+    ChecksumType checksum;
     uint8_t* contents;
   };
 
@@ -30,6 +33,7 @@ class DbAssets {
     std::string_view image;
     size_t width;
     size_t height;
+    ChecksumType checksum;
   };
 
   struct Sprite {
@@ -45,24 +49,28 @@ class DbAssets {
     std::string_view name;
     size_t size;
     uint8_t* contents;
+    ChecksumType checksum;
   };
 
   struct Sound {
     std::string_view name;
     size_t size;
     uint8_t* contents;
+    ChecksumType checksum;
   };
 
   struct TextFile {
     std::string_view name;
     size_t size;
     uint8_t* contents;
+    ChecksumType checksum;
   };
 
   struct Font {
     std::string_view name;
     size_t size;
     uint8_t* contents;
+    ChecksumType checksum;
   };
 
   enum class ShaderType { kVertex, kFragment };
@@ -72,6 +80,7 @@ class DbAssets {
     ShaderType type;
     size_t size;
     uint8_t* contents;
+    ChecksumType checksum;
   };
 
   template <typename T>
@@ -91,143 +100,97 @@ class DbAssets {
   DbAssets(sqlite3* db, Allocator* allocator)
       : db_(db),
         allocator_(allocator),
-        images_map_(allocator),
-        images_(allocator),
-        sprites_map_(allocator),
-        sprites_(allocator),
-        spritesheets_map_(allocator),
-        spritesheets_(allocator),
-        scripts_map_(allocator),
-        scripts_(allocator),
-        sounds_map_(allocator),
-        sounds_(allocator),
-        fonts_map_(allocator),
-        fonts_(allocator),
-        shaders_map_(allocator),
-        shaders_(allocator),
-        text_files_map_(allocator),
-        text_files_(allocator),
         checksums_map_(allocator),
-        checksums_(1 << 20, allocator),
-        load_fns_map_(allocator),
-        load_fns_(1 << 8, allocator) {}
+        checksums_(1 << 20, allocator) {}
 
   void Load();
 
-  void RegisterLoadFn(std::string_view type,
-                      void (*load)(DbAssets* assets, std::string_view name,
-                                   char* err, void* ud),
-                      void* ud);
-
-  Image* GetImage(std::string_view name) const {
-    Image* image;
-    if (!images_map_.Lookup(name, &image)) return nullptr;
-    return image;
+  void RegisterShaderLoad(void (*load)(DbAssets::Shader* shader, char* err,
+                                       void* ud),
+                          void* ud) {
+    shader_loader_.fn = load;
+    shader_loader_.ud = ud;
   }
 
-  ArrayView<Image> GetImages() const { return MakeArrayView(&images_); }
-
-  Script* GetScript(std::string_view name) const {
-    Script* script;
-    if (!scripts_map_.Lookup(name, &script)) return nullptr;
-    return script;
+  void RegisterScriptLoad(void (*load)(DbAssets::Script* script, char* err,
+                                       void* ud),
+                          void* ud) {
+    script_loader_.fn = load;
+    script_loader_.ud = ud;
   }
 
-  ArrayView<Script> GetScripts() const { return MakeArrayView(&scripts_); }
-
-  Spritesheet* GetSpritesheet(std::string_view name) const {
-    Spritesheet* spritesheet;
-    if (!spritesheets_map_.Lookup(name, &spritesheet)) return nullptr;
-    return spritesheet;
+  void RegisterImageLoad(void (*load)(DbAssets::Image* image, char* err,
+                                      void* ud),
+                         void* ud) {
+    image_loader_.fn = load;
+    image_loader_.ud = ud;
   }
 
-  Sprite* GetSprite(std::string_view name) const {
-    Sprite* sprite;
-    if (!sprites_map_.Lookup(name, &sprite)) return nullptr;
-    return sprite;
+  void RegisterSpritesheetLoad(void (*load)(DbAssets::Spritesheet* script,
+                                            char* err, void* ud),
+                               void* ud) {
+    spritesheet_loader_.fn = load;
+    spritesheet_loader_.ud = ud;
   }
 
-  ArrayView<Sprite> GetSprites() const { return MakeArrayView(&sprites_); }
-
-  Font* GetFont(std::string_view name) const {
-    Font* font;
-    if (!fonts_map_.Lookup(name, &font)) return nullptr;
-    return font;
+  void RegisterSpriteLoad(void (*load)(DbAssets::Sprite* sprite, char* err,
+                                       void* ud),
+                          void* ud) {
+    sprite_loader_.fn = load;
+    sprite_loader_.ud = ud;
   }
 
-  TextFile* GetText(std::string_view name) const {
-    TextFile* text_file;
-    if (!text_files_map_.Lookup(name, &text_file)) return nullptr;
-    return text_file;
+  void RegisterSoundLoad(void (*load)(DbAssets::Sound* sound, char* err,
+                                      void* ud),
+                         void* ud) {
+    sound_loader_.fn = load;
+    sound_loader_.ud = ud;
   }
 
-  Sound* GetSound(std::string_view name) const {
-    Sound* sound;
-    if (!sounds_map_.Lookup(name, &sound)) return nullptr;
-    return sound;
-  }
-
-  Shader* GetShader(std::string_view name) const {
-    Shader* shader;
-    if (!shaders_map_.Lookup(name, &shader)) return nullptr;
-    return shader;
+  void RegisterFontLoad(void (*load)(DbAssets::Font* sound, char* err,
+                                     void* ud),
+                        void* ud) {
+    font_loader_.fn = load;
+    font_loader_.ud = ud;
   }
 
   XXH128_hash_t GetChecksum(std::string_view asset);
 
-  ArrayView<Shader> GetShaders() const { return MakeArrayView(&shaders_); }
-
   void Trace(unsigned int sql_type, void* p, void* x);
 
  private:
+  template <typename T>
   struct LoadFn {
     char err[kMaxLogLineLength];
-    void (*fn)(DbAssets*, std::string_view name, char*, void*);
+    void (*fn)(T*, char*, void*) = nullptr;
     void* ud;
+
+    void Load(T* ptr) {
+      if (!fn) {
+        LOG("Skipping loading asset ", ptr->name);
+        return;
+      }
+      fn(ptr, err, ud);
+    }
   };
 
-  template <typename T>
-  static ArrayView<T> MakeArrayView(const DynArray<T>* a) {
-    return ArrayView<T>(a);
-  }
-
-  std::string_view PushName(std::string_view s) {
-    return StringByHandle(StringIntern(s));
-  }
-
-  void Clear();
-
-  void LoadScript(std::string_view name, uint8_t* buffer, size_t size);
-  void LoadImage(std::string_view name, uint8_t* buffer, size_t size);
-  void LoadAudio(std::string_view name, uint8_t* buffer, size_t size);
-  void LoadText(std::string_view name, uint8_t* buffer, size_t size);
-  void LoadShader(std::string_view name, uint8_t* buffer, size_t size);
-  void LoadFont(std::string_view name, uint8_t* buffer, size_t size);
-  void LoadSpritesheet(std::string_view name, uint8_t* buffer, size_t size);
-  void ReserveBufferForType(std::string_view type, size_t count);
+  void LoadScript(std::string_view name, uint8_t* buffer, size_t size,
+                  ChecksumType checksum);
+  void LoadImage(std::string_view name, uint8_t* buffer, size_t size,
+                 ChecksumType checksum);
+  void LoadAudio(std::string_view name, uint8_t* buffer, size_t size,
+                 ChecksumType checksum);
+  void LoadText(std::string_view name, uint8_t* buffer, size_t size,
+                ChecksumType checksum);
+  void LoadShader(std::string_view name, uint8_t* buffer, size_t size,
+                  ChecksumType checksum);
+  void LoadFont(std::string_view name, uint8_t* buffer, size_t size,
+                ChecksumType checksum);
+  void LoadSpritesheet(std::string_view name, uint8_t* buffer, size_t size,
+                       ChecksumType checksum);
 
   sqlite3* db_;
   Allocator* allocator_;
-
-  size_t content_size_;
-  uint8_t* content_buffer_;
-
-  Dictionary<Image*> images_map_;
-  DynArray<Image> images_;
-  Dictionary<Sprite*> sprites_map_;
-  DynArray<Sprite> sprites_;
-  Dictionary<Spritesheet*> spritesheets_map_;
-  DynArray<Spritesheet> spritesheets_;
-  Dictionary<Script*> scripts_map_;
-  DynArray<Script> scripts_;
-  Dictionary<Sound*> sounds_map_;
-  DynArray<Sound> sounds_;
-  Dictionary<Font*> fonts_map_;
-  DynArray<Font> fonts_;
-  Dictionary<Shader*> shaders_map_;
-  DynArray<Shader> shaders_;
-  Dictionary<TextFile*> text_files_map_;
-  DynArray<TextFile> text_files_;
 
   struct Checksum {
     std::string_view asset;
@@ -237,8 +200,14 @@ class DbAssets {
   Dictionary<Checksum*> checksums_map_;
   FixedArray<Checksum> checksums_;
 
-  Dictionary<LoadFn*> load_fns_map_;
-  FixedArray<LoadFn> load_fns_;
+  LoadFn<DbAssets::Shader> shader_loader_;
+  LoadFn<DbAssets::Script> script_loader_;
+  LoadFn<DbAssets::Image> image_loader_;
+  LoadFn<DbAssets::Spritesheet> spritesheet_loader_;
+  LoadFn<DbAssets::Sprite> sprite_loader_;
+  LoadFn<DbAssets::Font> font_loader_;
+  LoadFn<DbAssets::Sound> sound_loader_;
+  LoadFn<DbAssets::TextFile> text_file_loader_;
 };
 
 }  // namespace G

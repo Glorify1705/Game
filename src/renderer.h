@@ -213,11 +213,40 @@ class Renderer {
   void ClearForFrame();
   void FlushFrame() { renderer_->Finish(); }
 
-  void DrawSprite(std::string_view sprite_name, FVec2 position, float angle);
-  void DrawSprite(const DbAssets::Sprite& asset, FVec2 position, float angle);
+  void LoadSprite(const DbAssets::Sprite& sprite);
+  void LoadImage(const DbAssets::Image& image);
+  void LoadSpritesheet(const DbAssets::Spritesheet& sprite);
+  void LoadFont(const DbAssets::Font& font);
 
-  void DrawImage(std::string_view imagename, FVec2 position, float angle);
-  void DrawImage(const DbAssets::Image& asset, FVec2 position, float angle);
+  bool DrawSprite(std::string_view sprite_name, FVec2 position, float angle);
+  bool DrawSprite(const DbAssets::Sprite& asset, FVec2 position, float angle);
+
+  bool DrawImage(std::string_view imagename, FVec2 position, float angle);
+  bool DrawImage(const DbAssets::Image& asset, FVec2 position, float angle);
+
+  DbAssets::Sprite* GetSprite(std::string_view name) const {
+    DbAssets::Sprite* result = nullptr;
+    if (!loaded_sprites_table_.Lookup(name, &result)) {
+      return nullptr;
+    }
+    return result;
+  }
+
+  DbAssets::Spritesheet* GetSpritesheet(std::string_view name) const {
+    DbAssets::Spritesheet* result = nullptr;
+    if (!loaded_spritesheets_table_.Lookup(name, &result)) {
+      return nullptr;
+    }
+    return result;
+  }
+
+  ArrayView<DbAssets::Sprite> GetSprites() const {
+    return MakeArrayView(loaded_sprites_);
+  }
+
+  ArrayView<DbAssets::Image> GetImages() const {
+    return MakeArrayView(loaded_images_);
+  }
 
   // Returns the previous color.
   Color SetColor(Color color);
@@ -247,8 +276,8 @@ class Renderer {
   void Scale(float x, float y) { ApplyTransform(ScaleXY(x, y)); }
 
  private:
-  inline static constexpr size_t kAtlasWidth = 2048;
-  inline static constexpr size_t kAtlasHeight = 2048;
+  inline static constexpr size_t kAtlasWidth = 3000;
+  inline static constexpr size_t kAtlasHeight = 3000;
   inline static constexpr size_t kAtlasSize = kAtlasWidth * kAtlasHeight;
 
   struct FontInfo {
@@ -261,8 +290,6 @@ class Renderer {
     stbtt_packedchar chars[256];
   };
 
-  const FontInfo* LoadFont(std::string_view font_name);
-
   void ApplyTransform(const FMat4x4& mat) {
     transform_stack_.back() = mat * transform_stack_.back();
     renderer_->SetActiveTransform(transform_stack_.back());
@@ -272,7 +299,6 @@ class Renderer {
   float line_width_;
 
   Allocator* allocator_;
-  const DbAssets* assets_;
   BatchRenderer* renderer_;
 
   FixedArray<FMat4x4> transform_stack_;
@@ -280,13 +306,16 @@ class Renderer {
   Dictionary<uint32_t> textures_table_;
   FixedArray<GLuint> textures_;
 
-  Dictionary<uint32_t> loaded_sprites_table_;
-  FixedArray<const DbAssets::Sprite*> loaded_sprites_;
+  Dictionary<DbAssets::Spritesheet*> loaded_spritesheets_table_;
+  FixedArray<DbAssets::Spritesheet> loaded_spritesheets_;
 
-  Dictionary<uint32_t> loaded_images_table_;
-  FixedArray<const DbAssets::Image*> loaded_images_;
+  Dictionary<DbAssets::Sprite*> loaded_sprites_table_;
+  FixedArray<DbAssets::Sprite> loaded_sprites_;
 
-  Dictionary<uint32_t> font_table_;
+  Dictionary<DbAssets::Image*> loaded_images_table_;
+  FixedArray<DbAssets::Image> loaded_images_;
+
+  Dictionary<FontInfo*> font_table_;
   FixedArray<FontInfo> fonts_;
 };
 
