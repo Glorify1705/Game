@@ -211,6 +211,13 @@ bool Shaders::Load(const DbAssets::Shader& shader, Error* error) {
     *error = last_error_;
     return false;
   }
+  std::string_view program_name = shader.name;
+  CHECK(ConsumeSuffix(&program_name, ".frag"),
+        " cannot hot reload vertex shaders yet.");
+  if (!Link(program_name, "pre_pass.vert", shader.name, kForceCompile)) {
+    *error = last_error_;
+    return false;
+  }
   return true;
 }
 

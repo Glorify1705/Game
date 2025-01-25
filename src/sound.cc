@@ -20,7 +20,7 @@ bool Sound::PlayMusic(std::string_view file, int times) {
   }
   auto* mixed = chunks_[handle];
   if (!Mix_PlayingMusic()) {
-    DCHECK(Mix_PlayChannel(handle, mixed, times) == 0, "Could not play sound ",
+    DCHECK(Mix_PlayChannel(handle, mixed, times) >= 0, "Could not play sound ",
            file, ": ", SDL_GetError());
   }
   return true;
