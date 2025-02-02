@@ -17,7 +17,7 @@ namespace G {
 
 class DbAssets {
  public:
-  using ChecksumType = XXH128_hash_t;
+  using ChecksumType = XXH64_hash_t;
 
   struct Image {
     std::string_view name;
@@ -154,7 +154,7 @@ class DbAssets {
     font_loader_.ud = ud;
   }
 
-  XXH128_hash_t GetChecksum(std::string_view asset);
+  ChecksumType GetChecksum(std::string_view asset);
 
   void Trace(unsigned int sql_type, void* p, void* x);
 
@@ -194,7 +194,7 @@ class DbAssets {
 
   struct Checksum {
     std::string_view asset;
-    XXH128_hash_t checksum;
+    ChecksumType checksum;
   };
 
   Dictionary<Checksum*> checksums_map_;

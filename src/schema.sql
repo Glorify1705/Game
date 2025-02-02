@@ -47,14 +47,13 @@ CREATE TABLE IF NOT EXISTS asset_metadata(id INTEGER PRIMARY KEY AUTOINCREMENT,
                                           name VARCHAR(255) UNIQUE NOT NULL,
                                           type VARCHAR(255) NOT NULL,
                                           size INTEGER NOT NULL,
-                                          hash_low INTEGER NOT NULL,
-                                          hash_high INTEGER NOT NULL,
+                                          hash LONG NOT NULL,
                                           processing_order INTEGER NOT NULL);
 
-CREATE TABLE IF NOT EXISTS compilation_cache(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source_name VARCHAR(255) UNIQUE NOT NULL, source_hash_low INTEGER NOT NULL,
-    source_hash_high INTEGER NOT NULL, compiled BLOB NOT NULL);
+CREATE TABLE IF NOT EXISTS
+compilation_cache(id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  source_name VARCHAR(255) UNIQUE NOT NULL,
+                  source_hash INTEGER NOT NULL, compiled BLOB NOT NULL);
 
 CREATE INDEX IF NOT EXISTS idx_compilation_cache ON
     compilation_cache(source_name);

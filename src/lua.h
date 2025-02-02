@@ -302,8 +302,7 @@ class Lua {
   Stats allocator_stats_;
 
   struct CachedScript {
-    uint64_t checksum_low;
-    uint64_t checksum_high;
+    DbAssets::ChecksumType checksum;
     std::string_view contents;
   };
 

@@ -203,7 +203,7 @@ void DbAssets::Trace(unsigned int type, void* p, void* x) {
   }
 }
 
-XXH128_hash_t DbAssets::GetChecksum(std::string_view asset) {
+DbAssets::ChecksumType DbAssets::GetChecksum(std::string_view asset) {
   return checksums_map_.LookupOrDie(asset)->checksum;
 }
 
@@ -223,7 +223,7 @@ void DbAssets::Load() {
       {.name = std::string_view(), .load = nullptr},
   };
   FixedStringBuffer<256> sql(
-      "SELECT name, type, size, hash_low, hash_high FROM "
+      "SELECT name, type, size, hash FROM "
       "asset_metadata ORDER BY processing_order, type");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -233,9 +233,7 @@ void DbAssets::Load() {
   ArenaAllocator scratch(allocator_, Megabytes(128));
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-    XXH128_hash_t db_checksum;
-    db_checksum.low64 = sqlite3_column_int64(stmt, 3);
-    db_checksum.high64 = sqlite3_column_int64(stmt, 4);
+    const ChecksumType db_checksum = sqlite3_column_int64(stmt, 3);
     Checksum* saved_checksum;
     if (checksums_map_.Lookup(name, &saved_checksum) &&
         !std::memcmp(&saved_checksum->checksum, &db_checksum,

@@ -315,11 +315,12 @@ class DbPacker {
   }
 
   void InsertIntoAssetMeta(std::string_view filename, size_t size,
-                           std::string_view type, XXH128_hash_t hash) {
+                           std::string_view type, DbAssets::ChecksumType hash) {
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(
-        "INSERT OR REPLACE INTO asset_metadata (name, size, type, hash_low, "
-        "hash_high, processing_order) VALUES (?, ?, ?, ?, ?, ?);");
+        "INSERT OR REPLACE INTO asset_metadata (name, size, type, hash, "
+        "processing_order) "
+        "VALUES (?, ?, ?, ?, ?);");
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
       return;
@@ -328,9 +329,8 @@ class DbPacker {
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
     sqlite3_bind_int(stmt, 2, size);
     sqlite3_bind_text(stmt, 3, type.data(), type.size(), SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 4, hash.low64);
-    sqlite3_bind_int64(stmt, 5, hash.high64);
-    sqlite3_bind_int64(stmt, 6, GetOrderForType(type));
+    sqlite3_bind_int64(stmt, 4, hash);
+    sqlite3_bind_int64(stmt, 5, GetOrderForType(type));
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
@@ -381,8 +381,8 @@ class DbPacker {
       CHECK(PHYSFS_close(handle), "failed to finish reading ", filename, ": ",
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       auto method = handler.handler;
-      const XXH128_hash_t hash = XXH3_128bits(buffer, bytes);
-      XXH128_hash_t saved;
+      const auto hash = XXH3_64bits(buffer, bytes);
+      DbAssets::ChecksumType saved;
       if (checksums_.Lookup(filename, &saved) &&
           !std::memcmp(&saved, &hash, sizeof(hash))) {
         handled = true;
@@ -397,7 +397,7 @@ class DbPacker {
       break;
     }
     if (!handled) {
-      LOG("No handler for file ", filename);
+      LOG("No handler for file ", filename, ". ignoring");
     }
   }
 
@@ -411,8 +411,7 @@ class DbPacker {
 
   void LoadChecksums() {
     // Load all checksums to avoid reprocessing files that have not changed.
-    FixedStringBuffer<256> sql(
-        "SELECT name, hash_low, hash_high FROM asset_metadata");
+    FixedStringBuffer<256> sql("SELECT name, hash FROM asset_metadata");
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
@@ -420,22 +419,19 @@ class DbPacker {
     DEFER([&] { sqlite3_finalize(stmt); });
     while (sqlite3_step(stmt) == SQLITE_ROW) {
       auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-      int64_t hash_low = sqlite3_column_int64(stmt, 1);
-      int64_t hash_high = sqlite3_column_int64(stmt, 2);
-      XXH128_hash_t hash;
-      hash.low64 = hash_low;
-      hash.high64 = hash_high;
+      const auto hash = sqlite3_column_int64(stmt, 1);
       checksums_.Insert(name, hash);
     }
   }
 
   AssetWriteResult HandleFiles() {
+    LOG("Enumerating files");
     PHYSFS_enumerate("/assets", WriteFileToDb, this);
+    LOG("Finished enumerating files");
     // Ensure we always have the debug font available.
     if (!checksums_.Contains("debug_font.ttf")) {
       InsertFont("debug_font.ttf", kProggyCleanFont, kProggyCleanFontLength);
-      const XXH128_hash_t hash =
-          XXH3_128bits(kProggyCleanFont, kProggyCleanFontLength);
+      const auto hash = XXH3_64bits(kProggyCleanFont, kProggyCleanFontLength);
       InsertIntoAssetMeta("debug_font.ttf", kProggyCleanFontLength, "font",
                           hash);
     }
@@ -457,7 +453,7 @@ class DbPacker {
   sqlite3* db_ = nullptr;
   Allocator* allocator_ = nullptr;
   ArenaAllocator scratch_;
-  Dictionary<XXH128_hash_t> checksums_;
+  Dictionary<DbAssets::ChecksumType> checksums_;
   AssetWriteResult result_;
 };
 

@@ -190,9 +190,8 @@ bool Lua::LoadFromCache(std::string_view script_name, lua_State* state) {
   CachedScript script;
   if (compilation_cache_.Lookup(script_name, &script)) {
     LOG("Found cached compilation for ", script_name);
-    auto checksum = assets_->GetChecksum(script_name);
-    if (script.checksum_low == checksum.low64 &&
-        script.checksum_high == checksum.high64) {
+    const auto checksum = assets_->GetChecksum(script_name);
+    if (script.checksum == checksum) {
       lua_pushlstring(state, script.contents.data(), script.contents.size());
       return true;
     }
@@ -372,7 +371,6 @@ int Lua::LoadFennelAsset(std::string_view name,
       return 0;
     }
   }
-  LOG("Successful load!");
   return 1;
 }
 
@@ -420,7 +418,7 @@ void Lua::InsertIntoCache(std::string_view script_name, lua_State* state) {
   CachedScript script;
   script.contents = compiled;
   // Mark the script as dirty by not setting the checksum.
-  script.checksum_low = script.checksum_high = 0;
+  script.checksum = 0;
   compilation_cache_.Insert(script_name, script);
 }
 
@@ -436,9 +434,8 @@ void Lua::FlushCompilationCache() {
       dirty = true;
       break;
     }
-    XXH128_hash_t checksum = assets_->GetChecksum(script.name);
-    if (checksum.low64 != cached_script.checksum_low ||
-        checksum.high64 != cached_script.checksum_high) {
+    const auto checksum = assets_->GetChecksum(script.name);
+    if (checksum != cached_script.checksum) {
       LOG(script.name, " is dirty");
       dirty = true;
       break;
@@ -453,8 +450,8 @@ void Lua::FlushCompilationCache() {
       [&] { sqlite3_exec(db_, "END TRANSACTION", nullptr, nullptr, nullptr); });
   FixedStringBuffer<256> sql(R"(
     INSERT OR REPLACE 
-    INTO compilation_cache (source_name, source_hash_low, source_hash_high, compiled) 
-    VALUES (?, ?, ?, ?);"
+    INTO compilation_cache (source_name, source_hash, compiled) 
+    VALUES (?, ?, ?);"
   )");
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -465,10 +462,9 @@ void Lua::FlushCompilationCache() {
   for (const auto& script : scripts_) {
     CachedScript cached_script;
     if (script.language == Script::kLuaScript) continue;
-    XXH128_hash_t checksum = assets_->GetChecksum(script.name);
+    const auto checksum = assets_->GetChecksum(script.name);
     if (compilation_cache_.Lookup(script.name, &cached_script)) {
-      if (checksum.low64 == cached_script.checksum_low &&
-          checksum.high64 == cached_script.checksum_high) {
+      if (checksum == cached_script.checksum) {
         LOG("Skipping ", script.name, " since it has not changed");
         continue;
       }
@@ -484,9 +480,8 @@ void Lua::FlushCompilationCache() {
     }
     sqlite3_bind_text(stmt, 1, script.name.data(), script.name.size(),
                       SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 2, checksum.low64);
-    sqlite3_bind_int64(stmt, 3, checksum.high64);
-    sqlite3_bind_text(stmt, 4, cached_script.contents.data(),
+    sqlite3_bind_int64(stmt, 2, checksum);
+    sqlite3_bind_text(stmt, 3, cached_script.contents.data(),
                       cached_script.contents.size(), SQLITE_STATIC);
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       DIE("Failed to flush compilation cache when processing  ", script.name,
@@ -633,11 +628,10 @@ void Lua::SetError(std::string_view file, int line, std::string_view error) {
 
 void Lua::BuildCompilationCache() {
   FixedStringBuffer<512> sql(R"(
-      SELECT c.source_name, c.compiled, c.source_hash_low, c.source_hash_high 
+      SELECT c.source_name, c.compiled, c.source_hash
       FROM asset_metadata a 
       INNER JOIN compilation_cache c 
-      WHERE a.name = c.source_name AND c.source_hash_low = a.hash_low 
-      AND c.source_hash_high = a.hash_high;
+      WHERE a.name = c.source_name AND c.source_hash = a.hash
     )");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -653,8 +647,7 @@ void Lua::BuildCompilationCache() {
     std::memcpy(buffer, contents, content_size);
     CachedScript script;
     script.contents = std::string_view(buffer, content_size);
-    script.checksum_low = sqlite3_column_int64(stmt, 2);
-    script.checksum_high = sqlite3_column_int64(stmt, 3);
+    script.checksum = sqlite3_column_int64(stmt, 2);
     LOG("Loading ", name, " into compilation cache");
     compilation_cache_.Insert(name, script);
   }
@@ -711,11 +704,21 @@ int Lua::PackageLoader() {
     return result;
   }
   LOG("Loaded ", modname, " successfully. Setting package.loaded");
+  if (lua_isnil(state_, -1)) {
+    LOG("No result from script");
+    lua_pop(state_, 1);
+    lua_pushboolean(state_, true);
+  }
   // Set the value of package.loaded to the module.
   lua_getglobal(state_, "package");
   lua_getfield(state_, -1, "loaded");
   lua_pushlstring(state_, modname.data(), modname.size());
   lua_pushvalue(state_, -3);
+  if (lua_isnil(state_, -1)) {
+    LOG("No result from script");
+    lua_pop(state_, 1);
+    lua_pushboolean(state_, true);
+  }
   lua_settable(state_, -3);
   // Pop until the top is the compilation result.
   lua_pop(state_, 2);
