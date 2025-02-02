@@ -21,6 +21,7 @@ void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   std::memcpy(buffer, contents, size);
+  buffer[size] = '\0';
   Script script;
   script.name = filename;
   script.contents = buffer;
@@ -41,6 +42,7 @@ void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer, size_t size,
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   std::memcpy(buffer, contents, size);
+  buffer[size] = '\0';
   Font font;
   font.name = filename;
   font.contents = buffer;
@@ -61,6 +63,7 @@ void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   std::memcpy(buffer, contents, size);
+  buffer[size] = '\0';
   Sound sound;
   sound.name = filename;
   sound.contents = buffer;
@@ -84,6 +87,7 @@ void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
   auto type_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
   std::string_view type(type_str);
   std::memcpy(buffer, contents, size);
+  buffer[size] = '\0';
   Shader shader;
   shader.name = filename;
   shader.contents = buffer;
@@ -105,6 +109,7 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   std::memcpy(buffer, contents, size);
+  buffer[size] = '\0';
   TextFile file;
   file.name = filename;
   file.contents = buffer;
@@ -176,6 +181,7 @@ void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No image ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   std::memcpy(buffer, contents, size);
+  buffer[size] = '\0';
   const size_t width = sqlite3_column_int(stmt, 1);
   const size_t height = sqlite3_column_int(stmt, 2);
   Image image;
@@ -242,7 +248,7 @@ void DbAssets::Load() {
     const size_t size = sqlite3_column_int64(stmt, 2);
     std::string_view saved_name = InternedString(name);
     auto* buffer =
-        reinterpret_cast<uint8_t*>(scratch.Alloc(size, /*align=*/16));
+        reinterpret_cast<uint8_t*>(scratch.Alloc(size + 1, /*align=*/16));
     for (const Loader& loader : kLoaders) {
       if (loader.name.empty()) {
         LOG("No loader for asset ", name, " with type ", type);

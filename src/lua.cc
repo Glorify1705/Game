@@ -12,6 +12,19 @@
 namespace G {
 namespace {
 
+int GetLuaAbsoluteIndex(lua_State* L, int idx) {
+  if (idx > 0 || idx <= LUA_REGISTRYINDEX) return idx;
+  return lua_gettop(L) + idx + 1;
+}
+
+#define LUA_LOG_VALUE(pos, ...)              \
+  do {                                       \
+    FixedStringBuffer<kMaxLogLineLength> _l; \
+    _l.Append("", ##__VA_ARGS__);            \
+    LogValue(pos, /*depth=*/0, &_l);         \
+    Log(__FILE__, __LINE__, _l.str());       \
+  } while (0);
+
 int Traceback(lua_State* L) {
   if (!lua_isstring(L, 1)) return 1;
   lua_getfield(L, LUA_GLOBALSINDEX, "debug");
@@ -167,9 +180,10 @@ void Lua::Crash() {
   std::longjmp(on_error_buf_, 1);
 }
 
-#define READY()                \
-  if (setjmp(on_error_buf_)) { \
-    return;                    \
+#define READY()                 \
+  if (setjmp(on_error_buf_)) {  \
+    hotload_requested_ = false; \
+    return;                     \
   }
 
 bool Lua::LoadFromCache(std::string_view script_name, lua_State* state) {
@@ -183,6 +197,7 @@ bool Lua::LoadFromCache(std::string_view script_name, lua_State* state) {
       return true;
     }
   }
+  LOG("Checksums for ", script_name, " differ or not found");
   return false;
 }
 
@@ -252,12 +267,14 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
 int Lua::LoadLuaAsset(std::string_view filename,
                       std::string_view script_contents, int traceback_handler) {
   FixedStringBuffer<kMaxPathLength + 1> buf("@", filename);
+  LOG("Loading ", filename);
   if (luaL_loadbuffer(state_, script_contents.data(), script_contents.size(),
                       buf.str()) != 0) {
     LOG("Failed to load ", filename, ": ", luaL_checkstring(state_, -1));
     lua_error(state_);
     return 0;
   }
+  LOG("Loaded lua asset ", filename, ". Executing.");
   if (traceback_handler != INT_MAX) {
     if (lua_pcall(state_, 0, 1, traceback_handler)) {
       LOG("Failed to load ", filename, ": ", luaL_checkstring(state_, -1));
@@ -265,15 +282,19 @@ int Lua::LoadLuaAsset(std::string_view filename,
       return 0;
     }
   } else {
-    lua_call(state_, 0, 1);
+    if (lua_pcall(state_, 0, 1, 0) != 0) {
+      LOG("Failed to load ", filename, ": ", luaL_checkstring(state_, -1));
+      lua_error(state_);
+      return 0;
+    }
   }
+  LOG("Finished loading ", filename);
   return 1;
 }
 
 bool Lua::CompileFennelAsset(std::string_view name,
                              std::string_view script_contents,
                              int traceback_handler) {
-  TIMER("Compiling Fennel asset ", name);
   // Load fennel module if not present.
   lua_getfield(state_, LUA_GLOBALSINDEX, "package");
   lua_getfield(state_, -1, "loaded");
@@ -294,7 +315,7 @@ bool Lua::CompileFennelAsset(std::string_view name,
     lua_setfield(state_, -3, "fennel");
   }
   {
-    TIMER("Compile and cache ", name);
+    TIMER("Running compiler on ", name);
     // Run string on the script contents.
     lua_getfield(state_, -1, "compileString");
     CHECK(lua_isfunction(state_, -1),
@@ -308,10 +329,13 @@ bool Lua::CompileFennelAsset(std::string_view name,
     if (traceback_handler != INT_MAX) {
       if (lua_pcall(state_, 2, 1, traceback_handler)) {
         lua_error(state_);
-        return 0;
+        return false;
       }
     } else {
-      lua_call(state_, 2, 1);
+      if (lua_pcall(state_, 2, 1, 0) != 0) {
+        LOG("Failed to compile ", name, ": ", GetLuaString(state_, -1));
+        return false;
+      }
     }
     InsertIntoCache(name, state_);
   }
@@ -321,28 +345,73 @@ bool Lua::CompileFennelAsset(std::string_view name,
 int Lua::LoadFennelAsset(std::string_view name,
                          std::string_view script_contents,
                          int traceback_handler) {
+  LOG("Loading script ", name);
   auto* lua = Registry<Lua>::Retrieve(state_);
   if (!lua->LoadFromCache(name, state_)) {
+    LOG("Could not load script ", name, " from the cache. Compiling again");
     if (!lua->CompileFennelAsset(name, script_contents, traceback_handler)) {
+      LOG("Failed to compile asset ", name);
       return 0;
     }
   }
-  LOG("Executing script ", name);
   std::string_view script = GetLuaString(state_, -1);
+  LOG("Executing script ", name);
   FixedStringBuffer<kMaxPathLength + 1> buf("@", name);
   if (luaL_loadbuffer(state_, script.data(), script.size(), buf) != 0) {
     lua_error(state_);
     return 0;
   }
   if (traceback_handler != INT_MAX) {
-    if (lua_pcall(state_, 0, 1, traceback_handler)) {
+    if (lua_pcall(state_, 0, 1, traceback_handler) != 0) {
       lua_error(state_);
       return 0;
     }
   } else {
-    lua_call(state_, 0, 1);
+    if (lua_pcall(state_, 0, 1, 0) != 0) {
+      lua_error(state_);
+      return 0;
+    }
   }
+  LOG("Successful load!");
   return 1;
+}
+
+void Lua::LogValue(int pos, int depth,
+                   FixedStringBuffer<kMaxLogLineLength>* buf) {
+  if (depth > 10) {
+    buf->Append("...");
+    return;
+  }
+  int abs_pos = GetLuaAbsoluteIndex(state_, pos);
+  switch (lua_type(state_, abs_pos)) {
+    case LUA_TNUMBER:
+      buf->Append(luaL_checknumber(state_, abs_pos));
+      break;
+    case LUA_TSTRING:
+      buf->Append(luaL_checkstring(state_, abs_pos));
+      break;
+    case LUA_TBOOLEAN:
+      buf->Append(luaL_checkinteger(state_, abs_pos) ? "true" : "false");
+      break;
+    case LUA_TNIL:
+      buf->Append("nil");
+      break;
+    case LUA_TTABLE:
+      buf->Append("{");
+      lua_pushnil(state_);
+      while (lua_next(state_, abs_pos) != 0) {
+        LogValue(-2, depth + 1, buf);
+        buf->Append(": ");
+        LogValue(-1, depth + 1, buf);
+        /* removes 'value'; keeps 'key' for next iteration */
+        lua_pop(state_, 1);
+      }
+      buf->Append("}");
+      break;
+    default:
+      buf->Append("?? (", lua_typename(state_, lua_type(state_, pos)), ")");
+      break;
+  }
 }
 
 void Lua::InsertIntoCache(std::string_view script_name, lua_State* state) {
@@ -356,6 +425,7 @@ void Lua::InsertIntoCache(std::string_view script_name, lua_State* state) {
 }
 
 void Lua::FlushCompilationCache() {
+  READY();
   TIMER("Flushing compilation cache");
   // Check if we have anything to flush.
   bool dirty = false;
@@ -379,12 +449,14 @@ void Lua::FlushCompilationCache() {
     return;
   }
   sqlite3_exec(db_, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
+  DEFER(
+      [&] { sqlite3_exec(db_, "END TRANSACTION", nullptr, nullptr, nullptr); });
   FixedStringBuffer<256> sql(R"(
     INSERT OR REPLACE 
     INTO compilation_cache (source_name, source_hash_low, source_hash_high, compiled) 
     VALUES (?, ?, ?, ?);"
   )");
-  sqlite3_stmt* stmt;
+  sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
     return;
@@ -401,8 +473,14 @@ void Lua::FlushCompilationCache() {
         continue;
       }
     } else {
-      CompileFennelAsset(script.name, script.contents);
-      CHECK(compilation_cache_.Lookup(script.name, &cached_script));
+      if (!CompileFennelAsset(script.name, script.contents)) {
+        LUA_ERROR(state_, "Failed to compile ", script.name, ": ",
+                  GetLuaString(state_, -1));
+        return;
+      }
+      CHECK(compilation_cache_.Lookup(script.name, &cached_script),
+            "Did not find ", script.name,
+            " in compilation cache. File is corrupted?");
     }
     sqlite3_bind_text(stmt, 1, script.name.data(), script.name.size(),
                       SQLITE_STATIC);
@@ -499,6 +577,8 @@ void Lua::LoadScript(const DbAssets::Script& script) {
   saved_script.name = script.name;
   scripts_.Push(saved_script);
   scripts_by_name_.Insert(asset_name, &scripts_.back());
+  // Set the package.
+  SetPackagePreload(asset_name);
   // Clear package.loaded so we do not load it from cache.
   lua_getglobal(state_, "package");
   lua_getfield(state_, -1, "loaded");
@@ -506,8 +586,7 @@ void Lua::LoadScript(const DbAssets::Script& script) {
   lua_pushnil(state_);
   lua_settable(state_, -3);
   lua_pop(state_, 2);
-  // Set the package.
-  SetPackagePreload(asset_name);
+  LOG("Finished loading ", script.name);
 }
 
 size_t Lua::Error(char* buf, size_t max_size) {
@@ -583,8 +662,10 @@ void Lua::BuildCompilationCache() {
 
 void Lua::LoadMain() {
   READY();
-  LOG("Loading main file main.lua");
   Script* main = nullptr;
+  // Reset the _Game var.
+  lua_pushnil(state_);
+  lua_setglobal(state_, "_Game");
   CHECK(scripts_by_name_.Lookup("main", &main), "Unknown script main.lua");
   if (main->language == Script::kLuaScript) {
     LoadLuaAsset(main->name, main->contents, traceback_handler_);
@@ -613,19 +694,32 @@ void Lua::LoadMain() {
 }
 
 int Lua::PackageLoader() {
-  const char* modname = luaL_checkstring(state_, 1);
+  const std::string_view modname = GetLuaString(state_, 1);
   Script* script = nullptr;
   if (!scripts_by_name_.Lookup(modname, &script)) {
     LUA_ERROR(state_, "Could not find asset %s.lua", modname);
     return 0;
   }
-  FixedStringBuffer<kMaxPathLength> buf(modname, ".lua");
-  LOG("Attempting to load package ", modname, " from file ", buf);
+  int result = 0;
   if (script->language == Script::kLuaScript) {
-    return LoadLuaAsset(script->name, script->contents);
+    result = LoadLuaAsset(script->name, script->contents);
   } else {
-    return LoadFennelAsset(script->name, script->contents);
+    result = LoadFennelAsset(script->name, script->contents);
   }
+  if (result == 0) {
+    LOG("Failed to load ", modname);
+    return result;
+  }
+  LOG("Loaded ", modname, " successfully. Setting package.loaded");
+  // Set the value of package.loaded to the module.
+  lua_getglobal(state_, "package");
+  lua_getfield(state_, -1, "loaded");
+  lua_pushlstring(state_, modname.data(), modname.size());
+  lua_pushvalue(state_, -3);
+  lua_settable(state_, -3);
+  // Pop until the top is the compilation result.
+  lua_pop(state_, 2);
+  return result;
 }
 
 int PackageLoaderShim(lua_State* state) {
@@ -801,5 +895,7 @@ void Lua::HandleQuit() {
     return;
   }
 }
+
+#undef LUA_LOG_VALUE
 
 }  // namespace G

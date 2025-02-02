@@ -171,6 +171,8 @@ class Lua {
 
   void InsertIntoCache(std::string_view script_name, lua_State* state);
 
+  void LogValue(int pos, int depth, FixedStringBuffer<kMaxLogLineLength>* buf);
+
   // Handles events if callbacks are present
   void HandleKeypressed(int scancode);
   void HandleKeyreleased(int scancode);
@@ -190,6 +192,8 @@ class Lua {
   // Checks whether there is a permanent error and returns the message length.
   size_t Error(char* buf, size_t max_size);
   bool HasError() { return !error_.empty(); }
+
+  void ClearError() { error_.Clear(); }
 
   void SetError(std::string_view file, int line, std::string_view error);
 

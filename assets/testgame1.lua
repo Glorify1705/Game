@@ -78,7 +78,7 @@ function G1:update(t, dt)
 	if G.input.is_key_pressed("m") then
 		G.sound.play_music("music.ogg")
 	end
-	if G.input.is_key_pressed("f1") then
+	if G.input.is_key_pressed("r") then
 		G.hotload()
 	end
 	if G.input.is_key_pressed("c") then
@@ -97,7 +97,7 @@ function G1:draw()
 	G.graphics.set_color("white")
 	G.graphics.draw_sprite("numeralX", mx, my)
 	self.entities:draw()
-	G.graphics.set_color("neonred")
+	G.graphics.set_color("blue")
 	G.graphics.draw_circle(300, 300, 20)
 	G.graphics.set_color("white")
 end

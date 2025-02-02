@@ -23,8 +23,12 @@ namespace G {
 
 DbAssets* ReadAssetsFromDb(sqlite3* db, Allocator* allocator);
 
-void WriteAssetsToDb(const char* source_directory, sqlite3* db,
-                     Allocator* allocator);
+struct AssetWriteResult {
+  size_t written_files = 0;
+};
+
+AssetWriteResult WriteAssetsToDb(const char* source_directory, sqlite3* db,
+                                 Allocator* allocator);
 
 void InitializeAssetDb(sqlite3* db);
 

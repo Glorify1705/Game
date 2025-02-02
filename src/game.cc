@@ -196,6 +196,7 @@ struct EngineModules {
         hotload_allocator_(allocator, kHotReloadMemory),
         watcher_(db) {
     mu = SDL_CreateMutex();
+    SDL_AtomicSet(&pending_changes_, 0);
   }
 
   ~EngineModules() { SDL_DestroyMutex(mu); }
@@ -214,10 +215,16 @@ struct EngineModules {
     };
     while (!is_stopped()) {
       hotload_allocator_.Reset();
-      WriteAssetsToDb(source_directory, db, &hotload_allocator_);
+      const auto result =
+          WriteAssetsToDb(source_directory, db, &hotload_allocator_);
+      SDL_AtomicSet(&pending_changes_, result.written_files);
       SDL_Delay(10);
     }
   }
+
+  int PendingChanges() { return SDL_AtomicGet(&pending_changes_); }
+
+  void MarkChangesAsProcessed() { SDL_AtomicSet(&pending_changes_, 0); }
 
   void Initialize() {
     TIMER();
@@ -403,6 +410,7 @@ struct EngineModules {
   Allocator* allocator_;
   ArenaAllocator hotload_allocator_;
   Filewatcher watcher_;
+  SDL_atomic_t pending_changes_;
 };
 
 void InitializeLogging() {
@@ -644,6 +652,7 @@ class Game {
     if (load_.should_hotreload) {
       e_->watcher_.Watch(load_.source_directory);
     }
+    LOG("Finished game initialization");
   }
 
   void Run() {
@@ -656,10 +665,15 @@ class Game {
         e_->lua.Stop();
         return;
       }
-      if (e_->lua.HotloadRequested()) {
+      if (e_->PendingChanges()) {
+        e_->lua.ClearError();
         TIMER("Hotload requested");
         e_->Reload();
+        LOG("Reloading main lua");
         e_->lua.LoadMain();
+        e_->lua.Init();
+        LOG("Finished hotloading");
+        e_->MarkChangesAsProcessed();
       }
       const double now = NowInSeconds();
       const double frame_time = now - last_frame;

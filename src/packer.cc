@@ -388,10 +388,12 @@ class DbPacker {
         handled = true;
         break;
       }
-      LOG("Processing ", fname);
+      LOG("Processing file ", fname);
       const AssetInfo info = (this->*method)(fname, buffer, bytes);
       InsertIntoAssetMeta(fname, info.size, handler.type, hash);
+      result_.written_files++;
       handled = true;
+      LOG("Finished processing file ", fname);
       break;
     }
     if (!handled) {
@@ -427,13 +429,16 @@ class DbPacker {
     }
   }
 
-  void HandleFiles() {
+  AssetWriteResult HandleFiles() {
     PHYSFS_enumerate("/assets", WriteFileToDb, this);
     // Ensure we always have the debug font available.
-    InsertFont("debug_font.ttf", kProggyCleanFont, kProggyCleanFontLength);
-    const XXH128_hash_t hash =
-        XXH3_128bits(kProggyCleanFont, kProggyCleanFontLength);
-    InsertIntoAssetMeta("debug_font.ttf", kProggyCleanFontLength, "font", hash);
+    if (!checksums_.Contains("debug_font.ttf")) {
+      InsertFont("debug_font.ttf", kProggyCleanFont, kProggyCleanFontLength);
+      const XXH128_hash_t hash =
+          XXH3_128bits(kProggyCleanFont, kProggyCleanFontLength);
+      InsertIntoAssetMeta("debug_font.ttf", kProggyCleanFontLength, "font",
+                          hash);
+    }
     // Handle missing dimensions from TextureAtlas.
     {
       sqlite3_exec(db_, R"(
@@ -445,6 +450,7 @@ class DbPacker {
       )",
                    nullptr, nullptr, nullptr);
     }
+    return result_;
   }
 
  private:
@@ -452,6 +458,7 @@ class DbPacker {
   Allocator* allocator_ = nullptr;
   ArenaAllocator scratch_;
   Dictionary<XXH128_hash_t> checksums_;
+  AssetWriteResult result_;
 };
 
 }  // namespace
@@ -463,15 +470,17 @@ DbAssets* ReadAssetsFromDb(sqlite3* db, Allocator* allocator,
   return result;
 }
 
-void WriteAssetsToDb(const char* source_directory, sqlite3* db,
-                     Allocator* allocator) {
+AssetWriteResult WriteAssetsToDb(const char* source_directory, sqlite3* db,
+                                 Allocator* allocator) {
+  AssetWriteResult result;
   PHYSFS_CHECK(PHYSFS_mount(source_directory, "/assets", 1),
                " while trying to mount directory ", source_directory);
   sqlite3_exec(db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
   DbPacker packer(db, allocator);
   packer.LoadChecksums();
-  packer.HandleFiles();
+  result = packer.HandleFiles();
   sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
+  return result;
 }
 
 void InitializeAssetDb(sqlite3* db) {
