@@ -967,16 +967,14 @@ struct ColorTable {
     table.Insert("purple", Color{126, 30, 156, 255});
   }
 
-  Color Get(std::string_view color) {
-    Color result;
-    CHECK(table.Lookup(color, &result), "No color ", color);
-    return result;
+  bool Get(std::string_view color, Color* result) {
+    return table.Lookup(color, result);
   }
 };
 
-Color ColorFromTable(std::string_view color) {
+bool ColorFromTable(std::string_view color, Color* result) {
   static ColorTable* table = new ColorTable;
-  return table->Get(color);
+  return table->Get(color, result);
 }
 
 }  // namespace G

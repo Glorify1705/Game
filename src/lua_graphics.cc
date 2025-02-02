@@ -102,11 +102,10 @@ const struct luaL_Reg kGraphicsLib[] = {
        Color color = Color::Zero();
        if (lua_gettop(state) == 1) {
          std::string_view s = GetLuaString(state, 1);
-         if (s.empty()) {
-           LUA_ERROR(state, "Invalid empty color");
+         if (!ColorFromTable(s, &color)) {
+           LUA_ERROR(state, "Unknown color ", s);
            return 0;
          }
-         color = ColorFromTable(s);
        } else {
          auto clamp = [](float f) -> uint8_t {
            return std::clamp(f, 0.0f, 255.0f);

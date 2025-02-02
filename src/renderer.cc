@@ -769,10 +769,17 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
 Color ParseColor(std::string_view color) {
   // TODO: Support ANSI escape codes properly.
   for (char c : color) {
+    Color color;
     if (c == '[') continue;
     if (c == ';') continue;
-    if (c == '7') return ColorFromTable("lightred");
-    if (c == '3') return ColorFromTable("blueblue");
+    if (c == '7') {
+      ColorFromTable("lightred", &color);
+      return color;
+    }
+    if (c == '3') {
+      ColorFromTable("blueblue", &color);
+      return color;
+    }
     if (c == '0') return Color::White();
   }
   return Color::White();

@@ -22,7 +22,7 @@ struct Color {
   static Color Zero() { return Color{0, 0, 0, 0}; }
 };
 
-Color ColorFromTable(std::string_view color);
+bool ColorFromTable(std::string_view color, Color* result);
 
 }  // namespace G
 
