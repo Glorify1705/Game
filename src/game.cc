@@ -264,7 +264,7 @@ struct EngineModules {
 
   void RegisterLoaders() {
     assets->RegisterShaderLoad(
-        [](DbAssets::Shader* shader, char* err, void* ud) {
+        [](DbAssets::Shader* shader, StringBuffer* err, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           Shaders::Error error;
           if (!self->shaders.Load(*shader, &error)) {
@@ -274,37 +274,37 @@ struct EngineModules {
         },
         this);
     assets->RegisterScriptLoad(
-        [](DbAssets::Script* script, char* err, void* ud) {
+        [](DbAssets::Script* script, StringBuffer* err, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->lua.LoadScript(*script);
         },
         this);
     assets->RegisterImageLoad(
-        [](DbAssets::Image* image, char* err, void* ud) {
+        [](DbAssets::Image* image, StringBuffer* err, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadImage(*image);
         },
         this);
     assets->RegisterSpritesheetLoad(
-        [](DbAssets::Spritesheet* spritesheet, char* err, void* ud) {
+        [](DbAssets::Spritesheet* spritesheet, StringBuffer* err, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadSpritesheet(*spritesheet);
         },
         this);
     assets->RegisterSpriteLoad(
-        [](DbAssets::Sprite* sprite, char* err, void* ud) {
+        [](DbAssets::Sprite* sprite, StringBuffer* err, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadSprite(*sprite);
         },
         this);
     assets->RegisterSoundLoad(
-        [](DbAssets::Sound* sound, char* err, void* ud) {
+        [](DbAssets::Sound* sound, StringBuffer* err, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->sound.LoadSound(sound);
         },
         this);
     assets->RegisterFontLoad(
-        [](DbAssets::Font* font, char* err, void* ud) {
+        [](DbAssets::Font* font, StringBuffer* err, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadFont(*font);
         },
@@ -716,7 +716,7 @@ class Game {
     e_->renderer.DrawRect(/*top_left=*/FVec(0, 0), FVec(viewport.x, viewport.y),
                           /*angle=*/0);
     e_->renderer.SetColor(Color::White());
-    e_->renderer.DrawText("debug_font.ttf", 20, error, FVec(50, 50));
+    e_->renderer.DrawText("debug_font.ttf", 24, error, FVec(50, 50));
   }
 
   // Update state given current time t and frame delta dt, both in ms.

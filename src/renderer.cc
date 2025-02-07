@@ -513,6 +513,7 @@ void BatchRenderer::Render(Allocator* scratch) {
         color = c.set_color.color;
         break;
       case kDone:
+        color = Color::White();
         flush();
         break;
     }

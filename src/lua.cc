@@ -25,21 +25,21 @@ int GetLuaAbsoluteIndex(lua_State* L, int idx) {
     Log(__FILE__, __LINE__, _l.str());       \
   } while (0);
 
-int Traceback(lua_State* L) {
-  if (!lua_isstring(L, 1)) return 1;
-  lua_getfield(L, LUA_GLOBALSINDEX, "debug");
-  if (!lua_istable(L, -1)) {
-    lua_pop(L, 1);
+int Traceback(lua_State* state) {
+  if (!lua_isstring(state, 1)) return 1;
+  lua_getglobal(state, "debug");
+  if (!lua_istable(state, -1)) {
+    lua_pop(state, 1);
     return 1;
   }
-  lua_getfield(L, -1, "traceback");
-  if (!lua_isfunction(L, -1)) {
-    lua_pop(L, 2);
+  lua_getfield(state, -1, "traceback");
+  if (!lua_isfunction(state, -1)) {
+    lua_pop(state, 2);
     return 1;
   }
-  lua_pushvalue(L, 1);
-  lua_pushinteger(L, 2);
-  lua_call(L, 2, 1);
+  lua_pushvalue(state, 1);
+  lua_pushinteger(state, 2);
+  lua_call(state, 2, 1);
   return 1;
 }
 
@@ -52,19 +52,9 @@ struct LogLine {
 void FillLogLine(lua_State* state, LogLine* l) {
   const int num_args = lua_gettop(state);
   lua_getglobal(state, "tostring");
+  auto* lua = Registry<Lua>::Retrieve(state);
   for (int i = 0; i < num_args; ++i) {
-    // Call tostring to print the value of the argument.
-    lua_pushvalue(state, -1);
-    lua_pushvalue(state, i + 1);
-    lua_call(state, 1, 1);
-    size_t length;
-    const char* s = lua_tolstring(state, -1, &length);
-    if (s == nullptr) {
-      LUA_ERROR(state, "'tostring' did not return string");
-      return;
-    }
-    l->log.Append(std::string_view(s, length));
-    if (i + 1 < num_args) l->log.Append(" ");
+    lua->LogValue(/*pos=*/i + 1, /*depth=*/0, &l->log);
     lua_pop(state, 1);
   }
   lua_pop(state, 1);
@@ -311,7 +301,21 @@ bool Lua::CompileFennelAsset(std::string_view name,
     LoadLuaAsset(fennel_script->name, fennel_script->contents);
     CHECK(lua_istable(state_, -1), "Invalid fennel compilation result");
     lua_pushvalue(state_, -1);
+    lua_pushvalue(state_, -1);
+    lua_setglobal(state_, "_fennel");
     lua_setfield(state_, -3, "fennel");
+    // Set debug.traceback to fennel.traceback
+    lua_getfield(state_, -1, "traceback");
+    lua_getglobal(state_, "debug");
+    if (lua_istable(state_, -1)) {
+      LOG("Setting debug traceback to fennel's");
+      lua_pushvalue(state_, -2);
+      lua_setfield(state_, -2, "traceback");
+      lua_pop(state_, 2);
+    } else {
+      LOG("No Lua debug traceback support");
+      lua_pop(state_, 2);
+    }
   }
   {
     TIMER("Running compiler on ", name);
@@ -332,7 +336,7 @@ bool Lua::CompileFennelAsset(std::string_view name,
       }
     } else {
       if (lua_pcall(state_, 2, 1, 0) != 0) {
-        LOG("Failed to compile ", name, ": ", GetLuaString(state_, -1));
+        LOG("Failed to compile ", name, ":\n\n", GetLuaString(state_, -1));
         return false;
       }
     }
@@ -374,8 +378,7 @@ int Lua::LoadFennelAsset(std::string_view name,
   return 1;
 }
 
-void Lua::LogValue(int pos, int depth,
-                   FixedStringBuffer<kMaxLogLineLength>* buf) {
+void Lua::LogValue(int pos, int depth, StringBuffer* buf) {
   if (depth > 10) {
     buf->Append("...");
     return;
@@ -389,7 +392,7 @@ void Lua::LogValue(int pos, int depth,
       buf->Append(luaL_checkstring(state_, abs_pos));
       break;
     case LUA_TBOOLEAN:
-      buf->Append(luaL_checkinteger(state_, abs_pos) ? "true" : "false");
+      buf->Append(lua_toboolean(state_, abs_pos) ? "true" : "false");
       break;
     case LUA_TNIL:
       buf->Append("nil");
@@ -470,7 +473,7 @@ void Lua::FlushCompilationCache() {
       }
     } else {
       if (!CompileFennelAsset(script.name, script.contents)) {
-        LUA_ERROR(state_, "Failed to compile ", script.name, ": ",
+        LUA_ERROR(state_, "Failed to compile ", script.name, ": \n",
                   GetLuaString(state_, -1));
         return;
       }
@@ -550,6 +553,7 @@ void Lua::LoadLibraries() {
   // Create the docs table.
   lua_newtable(state_);
   lua_setglobal(state_, "_Docs");
+  // Set the debug traceback to fennel for proper lines.
   lua_pushcfunction(state_, Traceback);
   traceback_handler_ = lua_gettop(state_);
   // Set print as G.console.log for consistency.

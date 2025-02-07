@@ -425,9 +425,7 @@ class DbPacker {
   }
 
   AssetWriteResult HandleFiles() {
-    LOG("Enumerating files");
     PHYSFS_enumerate("/assets", WriteFileToDb, this);
-    LOG("Finished enumerating files");
     // Ensure we always have the debug font available.
     if (!checksums_.Contains("debug_font.ttf")) {
       InsertFont("debug_font.ttf", kProggyCleanFont, kProggyCleanFontLength);

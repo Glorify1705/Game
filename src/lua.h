@@ -171,7 +171,7 @@ class Lua {
 
   void InsertIntoCache(std::string_view script_name, lua_State* state);
 
-  void LogValue(int pos, int depth, FixedStringBuffer<kMaxLogLineLength>* buf);
+  void LogValue(int pos, int depth, StringBuffer* buf);
 
   // Handles events if callbacks are present
   void HandleKeypressed(int scancode);
