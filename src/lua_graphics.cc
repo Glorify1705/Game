@@ -246,6 +246,17 @@ const struct LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"draw_lines",
+     "Draws a list of lines with the global context color to the screen",
+     {{"ps", "A list of points, two consecutive points i and i+1 for a line."},
+      {"p1y",
+       "The y coordinate in screen coordinates of the first point of the line"},
+      {"p2x",
+       "The x coordinate in screen coordinates of the second point of the "
+       "line"},
+      {"p2y",
+       "The y coordinate in screen coordinates of the second point of the "
+       "line"}},
+     {},
      [](lua_State* state) {
        if (!lua_istable(state, 1)) {
          LUA_ERROR(state, "not a table");
@@ -270,10 +281,21 @@ const struct LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"print",
+     "Writes text to the screen with debug font and fixed size. For quick "
+     "debug printing.",
+     {{"text",
+       "A string or byte buffer with the contents to render to the screen"},
+      {"x",
+       "Horizontal position in screen space pixels left-to-right where to "
+       "render the text"},
+      {"y",
+       "Vertical position in screen space pixels top-to-bottom where to render "
+       "the text"}},
+     {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        std::string_view font = "debug_font.ttf";
-       const uint32_t font_size = 16;
+       const uint32_t font_size = 24;
        const float x = luaL_checknumber(state, 2);
        const float y = luaL_checknumber(state, 3);
        if (lua_type(state, 1) == LUA_TSTRING) {
@@ -288,6 +310,18 @@ const struct LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"draw_text",
+     "Writes text to the screen.",
+     {{"font", "Font name to use for writing text"},
+      {"text",
+       "A string or byte buffer with the contents to render to the screen"},
+      {"size", "Size in pixels to use for rendering the text"},
+      {"x",
+       "Horizontal position in screen space pixels left-to-right where to "
+       "render the text"},
+      {"y",
+       "Vertical position in screen space pixels top-to-bottom where to render "
+       "the text"}},
+     {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        std::string_view font = GetLuaString(state, 1);
@@ -306,6 +340,14 @@ const struct LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"text_dimensions",
+     "Returns the dimensions for a text rendered with a given font and size",
+     {{"font", "Font name to use for writing text"},
+      {"size", "Size in pixels that the text would be rendered to the screen"},
+      {"text",
+       "A string or byte buffer with the contents that would be rendered to "
+       "the screen"}},
+     {{"width", "Width in pixels the text would occupy in the screen"},
+      {"height", "Height in pixels the text would occupy in the screen"}},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        std::string_view font = GetLuaString(state, 1);
@@ -317,30 +359,49 @@ const struct LuaApiFunction kGraphicsLib[] = {
        return 2;
      }},
     {"push",
+     "Push a transform to the screen into the transform stack.",
+     {{"transform", "A 4x4 matrix with the transform to push"}},
+     {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->Push();
        return 0;
      }},
     {"pop",
+     "Pop the transform at the top of the stack. It will not apply anymore.",
+     {},
+     {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->Pop();
        return 0;
      }},
     {"rotate",
+     "Push a transform to the screen that rotates all objects by a given angle",
+     {{"angle",
+       "All objects will be rotated by this angle in radians clockwise"}},
+     {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->Rotate(luaL_checknumber(state, 1));
        return 0;
      }},
     {"scale",
+     "Push a transform to the screen that scales all objects by a given angle",
+     {{"xf", "Scalar factor to scale up the x coordinate"},
+      {"yf", "Scalar factor to scale up the y coordinate"}},
+     {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->Scale(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
        return 0;
      }},
     {"translate",
+     "Translate all objects in the screen by moving the coordinate system "
+     "center",
+     {{"x", "New x position of the coordinate system center"},
+      {"y", "New y position of the coordinate system center"}},
+     {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->Translate(luaL_checknumber(state, 1),
@@ -348,6 +409,12 @@ const struct LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"new_shader",
+     "Creates a new shader with a given name and source code, compiling it in "
+     "the GPU",
+     {{"shader?",
+       "Shader to attach, if nothing is passed then pre_pass.frag will be "
+       "passed"}},
+     {},
      [](lua_State* state) {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
@@ -363,6 +430,12 @@ const struct LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"attach_shader",
+     "Attach a shader by name, if no shader is passed resets to the default "
+     "shader",
+     {{"shader?",
+       "Shader to attach, if nothing is passed then pre_pass.frag will be "
+       "passed"}},
+     {},
      [](lua_State* state) {
        auto* renderer = Registry<BatchRenderer>::Retrieve(state);
        auto* shaders = Registry<Shaders>::Retrieve(state);
@@ -391,6 +464,12 @@ const struct LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"send_uniform",
+     "Sends a uniform with the given name to the current shader",
+     {{"name", "Name of the uniform to send"},
+      {"value",
+       "Value to send. Supported values are G.math.v2,v3,v4, G.math.m2x2, "
+       "G.math.m3x3, G.math.m4x4, and floats"}},
+     {},
      [](lua_State* state) {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
@@ -414,16 +493,22 @@ const struct LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"new_canvas",
+     "Unimplemented.",
+     {},
+     {},
      [](lua_State* state) {
        LUA_ERROR(state, "Unimplemented");
        return 0;
      }},
     {"set_canvas",
+     "Unimplemented.",
+     {},
+     {},
      [](lua_State* state) {
        LUA_ERROR(state, "Unimplemented");
        return 0;
      }},
-    {"draw_canvas", [](lua_State* state) {
+    {"draw_canvas", "Unimplemented.", {}, {}, [](lua_State* state) {
        LUA_ERROR(state, "Unimplemented");
        return 0;
      }}};
