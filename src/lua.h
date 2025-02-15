@@ -189,8 +189,8 @@ class Lua {
 
   Allocator* allocator() const { return allocator_; }
 
-  // Checks whether there is a permanent error and returns the message length.
-  size_t Error(char* buf, size_t max_size);
+  // Checks whether there is a permanent error.
+  bool Error(StringBuffer* buffer);
   bool HasError() { return !error_.empty(); }
 
   void ClearError() { error_.Clear(); }

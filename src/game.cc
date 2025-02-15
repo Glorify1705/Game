@@ -721,11 +721,10 @@ class Game {
 
   // Update state given current time t and frame delta dt, both in ms.
   void Update(double t, double dt) {
-    char error[1024];
-    if (size_t error_len = e_->lua.Error(error, sizeof(error) - 1);
-        error_len > 0) {
+    FixedStringBuffer<1024> buf;
+    if (e_->lua.Error(&buf)) {
       e_->sound.Stop();
-      RenderCrashScreen(std::string_view(error, error_len));
+      RenderCrashScreen(buf.str());
     } else {
       e_->physics.Update(dt);
       e_->lua.Update(t, dt);

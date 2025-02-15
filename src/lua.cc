@@ -588,12 +588,10 @@ void Lua::LoadScript(const DbAssets::Script& script) {
   LOG("Finished loading ", script.name);
 }
 
-size_t Lua::Error(char* buf, size_t max_size) {
-  if (error_.empty()) return 0;
-  const size_t size = std::min(error_.size(), max_size);
-  std::memcpy(buf, error_.str(), size);
-  buf[size] = '\0';
-  return size;
+bool Lua::Error(StringBuffer* buffer) {
+  if (error_.empty()) return false;
+  buffer->Set(error_);
+  return true;
 }
 
 std::string_view Trim(std::string_view s) {
