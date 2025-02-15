@@ -14,14 +14,24 @@
 namespace G {
 namespace {
 
-const struct luaL_Reg kGraphicsLib[] = {
+const struct LuaApiFunction kGraphicsLib[] = {
     {"clear",
+     "Clear the screen to black",
+     {},
+     {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->ClearForFrame();
        return 0;
      }},
     {"take_screenshot",
+     "Saves a screenshot from the contents of the current framebuffer",
+     {{"file?",
+       "If provided, a filename where we should write the screenshot."}},
+     {{"result",
+       "If a file was provided, nil if the write suceeded or an error message "
+       "otherwise. If no file was provided, a byte buffer with the image "
+       "contents"}},
      [](lua_State* state) {
        TIMER("Screenshot");
 
@@ -61,6 +71,16 @@ const struct luaL_Reg kGraphicsLib[] = {
        return 1;
      }},
     {"draw_sprite",
+     "Draws a sprite by name to the screen",
+     {{"sprite", "the name of the sprite in any sprite sheet"},
+      {"x",
+       "the x position (left-right) in screen coordinates where to draw the "
+       "sprite"},
+      {"y",
+       "the y position (top-bottom) in screen coordinates where to draw the "
+       "sprite"},
+      {"angle?", "if provided, the angle to rotate the sprite"}},
+     {},
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
        std::string_view sprite_name = GetLuaString(state, 1);
@@ -73,6 +93,16 @@ const struct luaL_Reg kGraphicsLib[] = {
        return 0;
      }},
     {"draw_image",
+     "Draws an image by name to the screen",
+     {{"sprite", "the name of the sprite in any sprite sheet"},
+      {"x",
+       "the x position (left-right) in screen coordinates where to draw the "
+       "sprite"},
+      {"y",
+       "the y position (top-bottom) in screen coordinates where to draw the "
+       "sprite"},
+      {"angle?", "if provided, the angle to rotate the sprite"}},
+     {},
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
        std::string_view image_name = GetLuaString(state, 1);
@@ -85,6 +115,14 @@ const struct luaL_Reg kGraphicsLib[] = {
        return 0;
      }},
     {"draw_rect",
+     "Draws a solid rectangle to the screen, with the color provided by the "
+     "global context",
+     {{"x1", "the x coordinate for the top left of the rectangle"},
+      {"y1", "the y position for the top left of the rectangle"},
+      {"x2", "the x position for the bottom right of the rectangle"},
+      {"y2", "the y position for the bottom right of the rectangle"},
+      {"angle?", "if provided, the angle to rotate the rectangle"}},
+     {},
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
        const float x1 = luaL_checknumber(state, 1);
@@ -98,6 +136,13 @@ const struct luaL_Reg kGraphicsLib[] = {
        return 0;
      }},
     {"set_color",
+     "Set the global context color for all subsequent operations",
+     {{"1:color", "a string representing a color name"},
+      {"2:r", "r component of the RGBA for the color"},
+      {"2:g", "g component of the RGBA for the color"},
+      {"2:b", "b component of the RGBA for the color"},
+      {"2:a", "a component of the RGBA for the color"}},
+     {},
      [](lua_State* state) {
        Color color = Color::Zero();
        if (lua_gettop(state) == 1) {
@@ -129,6 +174,15 @@ const struct luaL_Reg kGraphicsLib[] = {
        return 0;
      }},
     {"draw_circle",
+     "Draws a circle with the global context color to the screen",
+     {{"x",
+       "the x position (left-right) in screen coordinates of the center of the "
+       "circle"},
+      {"y",
+       "the y position (top-bottom) in screen coordinates of the center of the "
+       "circle"},
+      {"r", "the radius in pixels of the center of the circle"}},
+     {},
      [](lua_State* state) {
        const float x = luaL_checknumber(state, 1);
        const float y = luaL_checknumber(state, 2);
@@ -138,6 +192,26 @@ const struct luaL_Reg kGraphicsLib[] = {
        return 0;
      }},
     {"draw_triangle",
+     "Draws a triangle with the global context color to the screen",
+     {{"p1x",
+       "The x coordinate in screen coordinates of the first point of the "
+       "triangle"},
+      {"p1y",
+       "The y coordinate in screen coordinates of the first point of the "
+       "triangle"},
+      {"p2x",
+       "The x coordinate in screen coordinates of the second point of the "
+       "triangle"},
+      {"p2y",
+       "The y coordinate in screen coordinates of the second point of the "
+       "triangle"},
+      {"p3x",
+       "The x coordinate in screen coordinates of the third point of the "
+       "triangle"},
+      {"p3y",
+       "The y coordinate in screen coordinates of the third point of the "
+       "triangle"}},
+     {},
      [](lua_State* state) {
        const auto p1 =
            FVec(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
@@ -150,6 +224,18 @@ const struct luaL_Reg kGraphicsLib[] = {
        return 0;
      }},
     {"draw_line",
+     "Draws a line with the global context color to the screen",
+     {{"p1x",
+       "The x coordinate in screen coordinates of the first point of the line"},
+      {"p1y",
+       "The y coordinate in screen coordinates of the first point of the line"},
+      {"p2x",
+       "The x coordinate in screen coordinates of the second point of the "
+       "line"},
+      {"p2y",
+       "The y coordinate in screen coordinates of the second point of the "
+       "line"}},
+     {},
      [](lua_State* state) {
        const auto p1 =
            FVec(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
