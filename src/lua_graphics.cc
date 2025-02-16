@@ -14,7 +14,7 @@
 namespace G {
 namespace {
 
-const struct LuaApiFunction kGraphicsLib[] = {
+static const LuaApiFunction kGraphicsLib[] = {
     {"clear",
      "Clear the screen to black",
      {},
@@ -513,7 +513,7 @@ const struct LuaApiFunction kGraphicsLib[] = {
        return 0;
      }}};
 
-const struct luaL_Reg kWindowLib[] = {
+static const luaL_Reg kWindowLib[] = {
     {"dimensions",
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);

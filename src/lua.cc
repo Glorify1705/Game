@@ -17,12 +17,12 @@ int GetLuaAbsoluteIndex(lua_State* L, int idx) {
   return lua_gettop(L) + idx + 1;
 }
 
-#define LUA_LOG_VALUE(pos, ...)              \
-  do {                                       \
-    FixedStringBuffer<kMaxLogLineLength> _l; \
-    _l.Append("", ##__VA_ARGS__);            \
-    LogValue(pos, /*depth=*/0, &_l);         \
-    Log(__FILE__, __LINE__, _l.str());       \
+#define LUA_LOG_VALUE(state, pos, ...)           \
+  do {                                           \
+    FixedStringBuffer<kMaxLogLineLength> _l;     \
+    _l.Append("", ##__VA_ARGS__);                \
+    Lua::LogValue(state, pos, /*depth=*/0, &_l); \
+    Log(__FILE__, __LINE__, _l.str());           \
   } while (0);
 
 int Traceback(lua_State* state) {
@@ -52,9 +52,8 @@ struct LogLine {
 void FillLogLine(lua_State* state, LogLine* l) {
   const int num_args = lua_gettop(state);
   lua_getglobal(state, "tostring");
-  auto* lua = Registry<Lua>::Retrieve(state);
   for (int i = 0; i < num_args; ++i) {
-    lua->LogValue(/*pos=*/i + 1, /*depth=*/0, &l->log);
+    Lua::LogValue(state, /*pos=*/i + 1, /*depth=*/0, &l->log);
     lua_pop(state, 1);
   }
   lua_pop(state, 1);
@@ -110,6 +109,16 @@ LuaError ParseLuaError(std::string_view message) {
 }
 
 constexpr struct luaL_Reg kBasicLibs[] = {
+    {"docs",
+     [](lua_State* state) {
+       lua_getglobal(state, "_Docs");
+       lua_CFunction func = lua_tocfunction(state, 1);
+       lua_pushlightuserdata(state, (void*)func);
+       LUA_LOG_VALUE(state, -1, "Ptr = ");
+       lua_gettable(state, -2);
+       LUA_LOG_VALUE(state, -1, "Value = ");
+       return 1;
+     }},
     {"log", LuaLogPrint},
     {"crash",
      [](lua_State* state) {
@@ -211,6 +220,7 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
   lua_getglobal(state_, "G");
   lua_newtable(state_);
   for (size_t i = 0; i < N; ++i) {
+    LuaStackCheck c(state_);
     CHECK(funcs[i].name != nullptr, "Invalid entry for library ", name, ": ",
           i);
     const auto* func = &funcs[i];
@@ -223,6 +233,7 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
   lua_getglobal(state_, "_Docs");
   lua_newtable(state_);
   for (size_t i = 0; i < N; ++i) {
+    LuaStackCheck c(state_);
     // Create a table with docstring, and args fields.
     lua_newtable(state_);
     lua_pushstring(state_, funcs[i].docstring);
@@ -250,6 +261,23 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
     lua_setfield(state_, -2, funcs[i].name);
   }
   lua_setfield(state_, -2, name);
+  // Add the functions in the library with a link to the
+  // corresponding entry as a light user data.
+  for (size_t i = 0; i < N; ++i) {
+    LuaStackCheck c(state_);
+    lua_getfield(state_, -1, name);
+    lua_pushstring(state_, funcs[i].name);
+    lua_gettable(state_, -2);
+    lua_getglobal(state_, "G");
+    lua_getfield(state_, -1, name);
+    lua_pushstring(state_, funcs[i].name);
+    lua_gettable(state_, -2);
+    auto* ptr = lua_tocfunction(state_, -1);
+    lua_pushlightuserdata(state_, (void*)(ptr));
+    lua_pushvalue(state_, -5);
+    lua_settable(state_, -8);
+    lua_pop(state_, 5);
+  }
   lua_pop(state_, 1);
 }
 
@@ -284,6 +312,7 @@ int Lua::LoadLuaAsset(std::string_view filename,
 bool Lua::CompileFennelAsset(std::string_view name,
                              std::string_view script_contents,
                              int traceback_handler) {
+  LuaStackCheck c(state_);
   // Load fennel module if not present.
   lua_getfield(state_, LUA_GLOBALSINDEX, "package");
   lua_getfield(state_, -1, "loaded");
@@ -378,39 +407,52 @@ int Lua::LoadFennelAsset(std::string_view name,
   return 1;
 }
 
-void Lua::LogValue(int pos, int depth, StringBuffer* buf) {
+void Lua::LogValue(lua_State* state, int pos, int depth, StringBuffer* buf) {
   if (depth > 10) {
     buf->Append("...");
     return;
   }
-  int abs_pos = GetLuaAbsoluteIndex(state_, pos);
-  switch (lua_type(state_, abs_pos)) {
+  int abs_pos = GetLuaAbsoluteIndex(state, pos);
+  switch (lua_type(state, abs_pos)) {
     case LUA_TNUMBER:
-      buf->Append(luaL_checknumber(state_, abs_pos));
+      buf->Append(luaL_checknumber(state, abs_pos));
       break;
     case LUA_TSTRING:
-      buf->Append(luaL_checkstring(state_, abs_pos));
+      buf->Append("\"", luaL_checkstring(state, abs_pos), "\"");
       break;
     case LUA_TBOOLEAN:
-      buf->Append(lua_toboolean(state_, abs_pos) ? "true" : "false");
+      buf->Append(lua_toboolean(state, abs_pos) ? "true" : "false");
       break;
     case LUA_TNIL:
       buf->Append("nil");
       break;
-    case LUA_TTABLE:
-      buf->Append("{");
-      lua_pushnil(state_);
-      while (lua_next(state_, abs_pos) != 0) {
-        LogValue(-2, depth + 1, buf);
+    case LUA_TTABLE: {
+      buf->Append("{ ");
+      lua_pushnil(state);
+      bool first = true;
+      while (lua_next(state, abs_pos) != 0) {
+        if (!first) buf->Append(", ");
+        first = false;
+        LogValue(state, -2, depth + 1, buf);
         buf->Append(": ");
-        LogValue(-1, depth + 1, buf);
+        LogValue(state, -1, depth + 1, buf);
         /* removes 'value'; keeps 'key' for next iteration */
-        lua_pop(state_, 1);
+        lua_pop(state, 1);
       }
-      buf->Append("}");
-      break;
+      buf->Append("} ");
+    }; break;
+    case LUA_TLIGHTUSERDATA: {
+      void* v = lua_touserdata(state, pos);
+      if (v == nullptr) {
+        buf->Append("nil");
+      } else {
+        char ptr[32];
+        snprintf(ptr, 32, "0x%016lx", reinterpret_cast<uintptr_t>(v));
+        buf->Append(ptr);
+      }
+    }; break;
     default:
-      buf->Append("?? (", lua_typename(state_, lua_type(state_, pos)), ")");
+      buf->Append("?? (", lua_typename(state, lua_type(state, pos)), ")");
       break;
   }
 }
@@ -427,6 +469,7 @@ void Lua::InsertIntoCache(std::string_view script_name, lua_State* state) {
 
 void Lua::FlushCompilationCache() {
   READY();
+  LuaStackCheck c(state_);
   TIMER("Flushing compilation cache");
   // Check if we have anything to flush.
   bool dirty = false;

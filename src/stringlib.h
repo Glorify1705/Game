@@ -3,6 +3,7 @@
 #define _GAME_STRINGLIB_H
 
 #include <cstdarg>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -62,6 +63,11 @@ class Alphanumeric {
 
   Alphanumeric(double d) {
     PrintDouble(d, buf_, sizeof(buf_));
+    piece_ = std::string_view(buf_);
+  }
+
+  Alphanumeric(void* b) {
+    snprintf(buf_, sizeof(buf_), "0x%16lx", (uintptr_t)b);
     piece_ = std::string_view(buf_);
   }
 

@@ -22,6 +22,28 @@ extern "C" {
 
 namespace G {
 
+class LuaStackCheck {
+ public:
+  explicit LuaStackCheck(lua_State* s, int returns) : state_(s) {
+    start_ = lua_gettop(state_);
+    end_ = start_ + returns;
+  }
+
+  explicit LuaStackCheck(lua_State* s) : state_(s) {
+    start_ = lua_gettop(state_);
+    end_ = start_;
+  }
+
+  ~LuaStackCheck() { CHECK(end_ == lua_gettop(state_)); }
+
+  int returns() const { return end_ - start_; }
+
+ private:
+  lua_State* const state_;
+  int start_;
+  int end_;
+};
+
 template <typename T>
 constexpr const char* Typename() {
   return typeid(T).name();
@@ -171,7 +193,7 @@ class Lua {
 
   void InsertIntoCache(std::string_view script_name, lua_State* state);
 
-  void LogValue(int pos, int depth, StringBuffer* buf);
+  static void LogValue(lua_State* state, int pos, int depth, StringBuffer* buf);
 
   // Handles events if callbacks are present
   void HandleKeypressed(int scancode);
