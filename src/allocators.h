@@ -216,6 +216,7 @@ class BlockAllocator {
     if (free_list_ == nullptr) return nullptr;
     Block* result = free_list_;
     free_list_ = free_list_->next;
+    ::new (result) T();
     return reinterpret_cast<T*>(result);
   }
 

@@ -53,6 +53,7 @@ set(GAME_SRCS
     "libraries/sqlite3.c"
     "libraries/stb_rect_pack.cc"
     "libraries/stb_truetype.cc"
+    "libraries/stb_vorbis.cc"
     "src/assets.cc"
     "src/clock.cc"
     "src/color.cc"

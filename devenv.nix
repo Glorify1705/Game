@@ -9,14 +9,15 @@
     clang
     clang-tools
     cmake
+    ffmpeg
     fnlfmt
     gdb
     gperftools
     libGL
     libGLU
     libllvm
-    lua51Packages.lua
     lua51Packages.fennel
+    lua51Packages.lua
     mesa
     ninja
     pprof

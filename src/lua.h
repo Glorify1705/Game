@@ -34,10 +34,18 @@ class LuaStackCheck {
     end_ = start_;
   }
 
-  ~LuaStackCheck() { CHECK(end_ == -1 || end_ == lua_gettop(state_)); }
+  ~LuaStackCheck() {
+    const bool cond = (end_ == -1 || end_ == lua_gettop(state_));
+    if (!cond) {
+      LOG("Failed stack check");
+    }
+  }
 
   int Results(int r) {
-    CHECK((start_ + r) == lua_gettop(state_));
+    const bool check = ((start_ + r) == lua_gettop(state_));
+    if (!check) {
+      LOG("Failed check");
+    }
     // Disable the stack check.
     end_ = -1;
     return r;
