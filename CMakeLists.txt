@@ -13,7 +13,6 @@ project(
   LANGUAGES C CXX)
 
 set(SDL2_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2/cmake")
-set(SDL2_mixer_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2_mixer/cmake")
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -32,7 +31,6 @@ set(BUILD_TOOLS OFF)
 
 find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
-find_package(SDL2_mixer REQUIRED)
 
 add_library(double-conversion STATIC
     libraries/double-conversion/bignum.cc
@@ -122,7 +120,6 @@ add_custom_target(
 target_link_libraries(
   Game
   PRIVATE SDL2::Main
-          SDL2::Mixer
           physfs-static
           box2d
           lua
@@ -143,7 +140,6 @@ if(WIN32)
     POST_BUILD
     COMMAND
       "${CMAKE_COMMAND}" -E copy_if_different
-      "$<TARGET_FILE_DIR:SDL2::Mixer>/../bin/SDL2_mixer.dll"
       "$<TARGET_FILE_DIR:Game>"
     VERBATIM)
 endif()
