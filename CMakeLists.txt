@@ -45,6 +45,7 @@ add_library(double-conversion STATIC
 target_include_directories(double-conversion PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(GAME_SRCS
+    "libraries/dr_wav.cc"
     "libraries/glad.cc"
     "libraries/json.cc"
     "libraries/pugixml.cc"

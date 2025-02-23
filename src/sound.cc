@@ -2,10 +2,34 @@
 
 #include <algorithm>
 
-#include "SDL_mixer.h"
 #include "assets.h"
 
 namespace G {
+
+void Sound::WavStream::Init(const DbAssets::Sound* sound) {
+  drwav_init_memory(&wav_, sound->contents, sound->size, nullptr);
+}
+
+size_t Sound::WavStream::Load(float* output, size_t samples) {
+  if (!playing_) return 0;
+  size_t read;
+  for (read = 0; read < samples;) {
+    if (pos_ >= kBufferSize) {
+      size_t samples_read = drwav_read_pcm_frames_f32(
+          &wav_, kBufferSize / (2 * sizeof(float)), buffer_);
+      if (samples_read == 0) {  // EOF.
+        Stop();
+        return read;
+      }
+      pos_ = 0;
+    }
+    size_t to_copy = std::min(samples - read, kBufferSize - pos_);
+    for (size_t p = 0; p < to_copy; p++) {
+      output[read++] = gain_ * buffer_[pos_++];
+    }
+  }
+  return read;
+}
 
 void Sound::VorbisStream::Init(const DbAssets::Sound* sound) {
   if (vorbis_ != nullptr) Deinit();
@@ -50,28 +74,92 @@ size_t Sound::VorbisStream::Load(float* output, size_t samples) {
   return read;
 }
 
-int Sound::AddSource(std::string_view name) {
+bool Sound::AddSource(std::string_view name, Source* source) {
   DbAssets::Sound sound;
   if (!sounds_.Lookup(name, &sound)) {
     LOG("Unknown sound ", name);
-    return -1;
+    return false;
   }
-  auto* source = allocator_->New<VorbisStream>();
-  CHECK(source != nullptr);
-  source->Init(&sound);
-  {
-    LockMutex l(mu_);
-    sources_.Push(source);
+  Source result;
+  if (HasSuffix(sound.name, ".ogg")) {
+    result.type = Source::kOgg;
+    auto* source = allocator_->New<VorbisStream>();
+    CHECK(source != nullptr);
+    source->Init(&sound);
+    {
+      LockMutex l(mu_);
+      vorbis_.Push(source);
+      result.index = vorbis_.size() - 1;
+    }
+  } else {
+    result.type = Source::kWav;
+    auto* source = allocator_->New<WavStream>();
+    CHECK(source != nullptr);
+    source->Init(&sound);
+    {
+      LockMutex l(mu_);
+      wavs_.Push(source);
+      result.index = wavs_.size() - 1;
+    }
   }
-  return sources_.size() - 1;
+  *source = result;
+  return true;
+}
+
+bool Sound::SetGain(Source source, float gain) {
+  LockMutex l(mu_);
+  switch (source.type) {
+    case Source::kOgg:
+      if (source.index >= vorbis_.size()) return false;
+      vorbis_[source.index]->SetGain(gain);
+      return true;
+    case Source::kWav:
+      if (source.index >= wavs_.size()) return false;
+      wavs_[source.index]->SetGain(gain);
+      return true;
+  }
+  return false;
+}
+
+bool Sound::StartChannel(Source source) {
+  LockMutex l(mu_);
+  switch (source.type) {
+    case Source::kOgg:
+      if (source.index >= vorbis_.size()) return false;
+      vorbis_[source.index]->Start();
+      return true;
+    case Source::kWav:
+      if (source.index >= vorbis_.size()) return false;
+      wavs_[source.index]->Start();
+      return true;
+  }
+}
+
+bool Sound::Stop(Source source) {
+  LockMutex l(mu_);
+  switch (source.type) {
+    case Source::kOgg:
+      if (source.index >= vorbis_.size()) return false;
+      vorbis_[source.index]->Stop();
+      return true;
+    case Source::kWav:
+      if (source.index >= wavs_.size()) return false;
+      wavs_[source.index]->Stop();
+      return true;
+  }
 }
 
 void Sound::LoadSound(const DbAssets::Sound& sound) {
   LockMutex l(mu_);
   // Find if any of the tracks are using this version.
   // In that case they need to be reinit and restarted.
-  for (size_t i = 0; i < sources_.size(); ++i) {
-    auto* source = sources_[i];
+  for (auto& source : vorbis_) {
+    if (source->source_name() == sound.name) {
+      source->Init(&sound);
+      source->Stop();
+    }
+  }
+  for (auto& source : wavs_) {
     if (source->source_name() == sound.name) {
       source->Init(&sound);
       source->Stop();
@@ -82,8 +170,15 @@ void Sound::LoadSound(const DbAssets::Sound& sound) {
 
 void Sound::SoundCallback(float* result, size_t samples) {
   LockMutex l(mu_);
-  for (size_t i = 0; i < sources_.size(); ++i) {
-    auto* source = sources_[i];
+  for (size_t i = 0; i < vorbis_.size(); ++i) {
+    auto* source = vorbis_[i];
+    size_t read = source->Load(buffer_.data(), samples);
+    for (size_t i = 0; i < read; ++i) {
+      result[i] += buffer_[i];
+    }
+  }
+  for (size_t i = 0; i < wavs_.size(); ++i) {
+    auto* source = wavs_[i];
     size_t read = source->Load(buffer_.data(), samples);
     for (size_t i = 0; i < read; ++i) {
       result[i] += buffer_[i];

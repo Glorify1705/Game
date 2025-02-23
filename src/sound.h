@@ -10,6 +10,7 @@
 #include "assets.h"
 #include "clock.h"
 #include "dictionary.h"
+#include "libraries/dr_wav.h"
 #include "libraries/stb_vorbis.h"
 #include "thread.h"
 
@@ -21,7 +22,8 @@ class Sound {
       : allocator_(allocator),
         buffer_(2 * 4 * spec.samples, allocator),
         sounds_(allocator),
-        sources_(16, allocator) {
+        vorbis_(64, allocator),
+        wavs_(64, allocator) {
     buffer_.Resize(buffer_.capacity());
     mu_ = SDL_CreateMutex();
   }
@@ -30,32 +32,34 @@ class Sound {
     if (mu_ != nullptr) SDL_DestroyMutex(mu_);
   }
 
-  int AddSource(std::string_view name);
+  struct Source {
+    enum Type : uint16_t { kWav = 0, kOgg = 1 };
 
-  bool SetGain(size_t source, float gain) {
-    LockMutex l(mu_);
-    if (source >= sources_.size()) return false;
-    sources_[source]->SetGain(gain);
-    return true;
-  }
+    Type type = kWav;
+    uint16_t index = 0;
 
-  bool StartChannel(size_t source) {
-    LockMutex l(mu_);
-    if (source >= sources_.size()) return false;
-    sources_[source]->Start();
-    return true;
-  }
+    uint32_t AsNum() const { return (uint32_t(type) << 16) | index; }
 
-  bool Stop(size_t source) {
-    LockMutex l(mu_);
-    if (source >= sources_.size()) return false;
-    sources_[source]->Stop();
-    return true;
-  }
+    static Source FromNum(uint32_t s) {
+      Source result;
+      result.type = static_cast<Type>(s >> 16);
+      result.index = s & 0xFFFF;
+      return result;
+    }
+  };
+
+  bool AddSource(std::string_view name, Source* source);
+
+  bool SetGain(Source source, float gain);
+
+  bool StartChannel(Source source);
+
+  bool Stop(Source source);
 
   void StopAll() {
     LockMutex l(mu_);
-    for (auto* sources : sources_) sources->Stop();
+    for (auto* source : vorbis_) source->Stop();
+    for (auto* source : wavs_) source->Stop();
   }
 
   void LoadSound(const DbAssets::Sound& sound);
@@ -63,6 +67,53 @@ class Sound {
   void SoundCallback(float* result, size_t samples);
 
  private:
+  class WavStream {
+   public:
+    WavStream() : allocator_(decode_buffer, sizeof(decode_buffer)) {
+      callbacks_.pUserData = this;
+      callbacks_.onMalloc = Alloc;
+      callbacks_.onFree = Free;
+      callbacks_.onRealloc = nullptr;
+      gain_ = 1.0f;
+      pos_ = 0;
+    }
+
+    void Init(const DbAssets::Sound* sound);
+
+    void Start() { playing_ = true; }
+
+    void Stop() { playing_ = false; }
+
+    void SetGain(float gain) { gain_ = gain; }
+
+    size_t Load(float* output, size_t samples);
+
+    std::string_view source_name() const { return name_; }
+
+   private:
+    inline static constexpr size_t kDecoderMemorySize = Kilobytes(256);
+
+    const size_t kBufferSize = sizeof(buffer_) / sizeof(float);
+
+    static void* Alloc(size_t size, void* ud) {
+      auto* stream = reinterpret_cast<WavStream*>(ud);
+      return stream->allocator_.Alloc(size, /*align=*/1);
+    }
+
+    static void Free(void* ptr, void* ud) { (void)ptr, (void)ud; }
+
+    uint8_t decode_buffer[kDecoderMemorySize];
+    ArenaAllocator allocator_;
+
+    float buffer_[4096];
+    bool playing_;
+    size_t pos_;
+    float gain_ = 1.0;
+    std::string_view name_;
+    drwav_allocation_callbacks callbacks_;
+    drwav wav_;
+  };
+
   class VorbisStream {
    public:
     VorbisStream() {
@@ -117,7 +168,8 @@ class Sound {
   FixedArray<float> buffer_;
   SDL_mutex* mu_ = nullptr;
   Dictionary<DbAssets::Sound> sounds_;
-  FixedArray<VorbisStream*> sources_;
+  FixedArray<VorbisStream*> vorbis_;
+  FixedArray<WavStream*> wavs_;
 };
 
 }  // namespace G

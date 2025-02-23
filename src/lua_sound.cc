@@ -13,11 +13,12 @@ const struct LuaApiFunction kSoundLib[] = {
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
-       const int result = sound->AddSource(name);
-       if (result < 0) {
+       Sound::Source source;
+       if (!sound->AddSource(name, &source)) {
          LUA_ERROR(state, "Could not find sound ", name);
        }
-       lua_pushnumber(state, result);
+       LOG("Source = ", source.AsNum());
+       lua_pushnumber(state, source.AsNum());
        return 1;
      }},
     {"play_source",
@@ -29,9 +30,9 @@ const struct LuaApiFunction kSoundLib[] = {
      {{}},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
-       const int source = luaL_checkinteger(state, 1);
+       const auto source = Sound::Source::FromNum(luaL_checkinteger(state, 1));
        if (!sound->StartChannel(source)) {
-         LUA_ERROR(state, "Could not play source ", source);
+         LUA_ERROR(state, "Could not play source");
        }
        return 0;
      }},
@@ -41,13 +42,13 @@ const struct LuaApiFunction kSoundLib[] = {
      {{}},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
-       const int source = luaL_checkinteger(state, 1);
+       const auto source = Sound::Source::FromNum(luaL_checkinteger(state, 1));
        const double gain = luaL_checknumber(state, 2);
        if (gain < 0) {
          LUA_ERROR(state, "Invalid gain setting ", gain, " - must be positive");
        }
        if (!sound->SetGain(source, gain)) {
-         LUA_ERROR(state, "Could not play source ", source);
+         LUA_ERROR(state, "Could not set volume for source");
        }
        return 0;
      }},
@@ -57,9 +58,9 @@ const struct LuaApiFunction kSoundLib[] = {
      {{}},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
-       const int source = luaL_checkinteger(state, 1);
+       const auto source = Sound::Source::FromNum(luaL_checkinteger(state, 1));
        if (!sound->Stop(source)) {
-         LUA_ERROR(state, "Could not play source ", source);
+         LUA_ERROR(state, "Could not stop source");
        }
        return 0;
      }}};
