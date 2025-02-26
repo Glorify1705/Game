@@ -9,6 +9,22 @@ project(lua
     DESCRIPTION "CMake Lua Bundle"
     LANGUAGES C)
 
+set(SUPPORTS_GCC_FLAGS
+    $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>
+)
+set(GCC_AND_CLANG_FLAGS
+    -Wall
+    -Wextra
+    -Werror
+    -Wno-unused-parameter
+    -ggdb
+    -DNDEBUG
+    -DGAME_WITH_ASSERTS)
+set(MSVC_FLAGS /W4 /WX /DGAME_WITH_ASSERTS /O2 /DEBUG /NDEBUG)
+
+set(COMPILER_FLAGS $<${SUPPORTS_GCC_FLAGS}:${GCC_AND_CLANG_FLAGS}>
+                   $<$<CXX_COMPILER_ID:MSVC>:${MSVC_FLAGS}>)
+
 set(SRCS   
     src/lapi.c src/lcode.c src/ldebug.c src/ldo.c src/ldump.c src/lfunc.c 
     src/lgc.c src/llex.c src/lmem.c src/lobject.c src/lopcodes.c src/lparser.c src/lstate.c 
@@ -19,3 +35,5 @@ set(SRCS
 	src/lstrlib.c src/loadlib.c src/linit.c)
 
 add_library(lua STATIC "${SRCS}")
+
+target_compile_options(lua PRIVATE ${COMPILER_FLAGS})
