@@ -526,7 +526,6 @@ class Game {
     if (load_.should_hotreload) {
       e_->watcher_.Watch(load_.source_directory);
     }
-    LOG("Finished game initialization");
   }
 
   void Run() {
@@ -541,13 +540,11 @@ class Game {
         return;
       }
       if (e_->PendingChanges()) {
-        e_->lua.ClearError();
         TIMER("Hotload requested");
+        e_->lua.ClearError();
         e_->Reload();
-        LOG("Reloading main lua");
         e_->lua.LoadMain();
         e_->lua.Init();
-        LOG("Finished hotloading");
         e_->MarkChangesAsProcessed();
       }
       const double now = NowInSeconds();

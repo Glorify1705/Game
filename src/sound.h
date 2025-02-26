@@ -80,7 +80,11 @@ class Sound {
 
     void Init(const DbAssets::Sound* sound);
 
-    void Start() { playing_ = true; }
+    void Start() {
+      playing_ = true;
+      pos_ = 0;
+      drwav_seek_to_pcm_frame(&wav_, 0);
+    }
 
     void Stop() { playing_ = false; }
 
@@ -141,7 +145,10 @@ class Sound {
       Rewind();
     }
 
-    void Rewind() { pos_ = 0; }
+    void Rewind() {
+      pos_ = 0;
+      stb_vorbis_seek(vorbis_, 0);
+    }
 
     void SetGain(float gain) { gain_ = gain; }
 

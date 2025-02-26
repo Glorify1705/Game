@@ -90,7 +90,7 @@
             (let [{:x px :y py} g.left-player]
               (when (and (> (+ ny br) py) (< ny (+ py ph))
                          (< (- nx br) (+ px pw)))
-                (G.sound.play_sfx :pong-blip1.wav)
+                (G.sound.play_sound :pong-blip1.ogg)
                 (change-ball-color! g)
                 (set g.ball.speed.x (- 0 g.ball.speed.x))
                 (set g.ball.x (+ px pw br 1))
@@ -98,7 +98,7 @@
           (when (and (not collided) (= g.state :running))
             (let [{:x px :y py} g.right-player]
               (when (and (> (+ ny br) py) (< ny (+ py ph)) (> (+ nx br) px))
-                (G.sound.play_sfx :pong-blip1.wav)
+                (G.sound.play_sound :pong-blip1.ogg)
                 (change-ball-color! g)
                 (set g.ball.x (- px (+ br 1)))
                 (set g.ball.speed.x (- g.ball.speed.x))
@@ -108,7 +108,7 @@
                 (do
                   (set g.ball.x nx))
                 (do
-                  (G.sound.play_sfx :pong-score.wav)
+                  (G.sound.play_sound :pong-score.ogg)
                   (change-ball-color! g)
                   (set g.right-score (+ 1 g.right-score))
                   (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
@@ -120,7 +120,7 @@
                 (do
                   (set g.ball.x nx))
                 (do
-                  (G.sound.play_sfx :pong-score.wav)
+                  (G.sound.play_sound :pong-score.ogg)
                   (change-ball-color! g)
                   (set g.left-score (+ 1 g.left-score))
                   (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
@@ -132,7 +132,7 @@
                 (do
                   (set g.ball.y ny))
                 (do
-                  (G.sound.play_sfx :pong-blip2.wav)
+                  (G.sound.play_sound :pong-blip2.ogg)
                   (change-ball-color! g)
                   (set g.ball.y br)
                   (set g.ball.speed.y (- g.ball.speed.y))
@@ -142,7 +142,7 @@
                 (do
                   (set g.ball.y ny))
                 (do
-                  (G.sound.play_sfx :pong-blip2.wav)
+                  (G.sound.play_sound :pong-blip2.ogg)
                   (change-ball-color! g)
                   (set g.ball.y (- h br))
                   (set g.ball.speed.y (- g.ball.speed.y))

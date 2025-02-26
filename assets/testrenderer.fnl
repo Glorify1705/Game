@@ -1,11 +1,11 @@
 (local Game {})
 
-(fn Game.init [])
+(fn Game.init [g])
 
-(fn Game.update [t dt]
+(fn Game.update [g t dt]
   (when (G.input.is_key_pressed :q) (G.system.quit)))
 
-(fn Game.draw []
+(fn Game.draw [g]
   (G.graphics.clear)
   (let [(mx my) (G.input.mouse_position)]
     (G.graphics.draw_text :ponderosa.ttf 24

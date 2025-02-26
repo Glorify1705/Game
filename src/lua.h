@@ -17,6 +17,7 @@ extern "C" {
 #include "libraries/sqlite3.h"
 #include "mat.h"
 #include "stats.h"
+#include "stringlib.h"
 #include "vec.h"
 #include "xxhash.h"
 
@@ -24,38 +25,34 @@ namespace G {
 
 class LuaStackCheck {
  public:
-  explicit LuaStackCheck(lua_State* s, int returns) : state_(s) {
-    start_ = lua_gettop(state_);
-    end_ = start_ + returns;
-  }
-
-  explicit LuaStackCheck(lua_State* s) : state_(s) {
+  explicit LuaStackCheck(lua_State* s, const char* file, size_t line)
+      : state_(s), file_(file), line_(line) {
+    file_ = Basename(file_);
     start_ = lua_gettop(state_);
     end_ = start_;
   }
 
   ~LuaStackCheck() {
-    const bool cond = (end_ == -1 || end_ == lua_gettop(state_));
-    if (!cond) {
-      LOG("Failed stack check");
+    if (end_ != lua_gettop(state_)) {
+      LOG("Failed stack check at ", file_, ":", line_, " - ", end_, " vs ",
+          lua_gettop(state_));
     }
-  }
-
-  int Results(int r) {
-    const bool check = ((start_ + r) == lua_gettop(state_));
-    if (!check) {
-      LOG("Failed check");
-    }
-    // Disable the stack check.
-    end_ = -1;
-    return r;
   }
 
  private:
   lua_State* const state_;
   int start_;
   int end_;
+  std::string_view file_;
+  size_t line_;
 };
+
+#define LUA_INTERNAL_ID_I1(x, y) x##y
+#define LUA_INTERNAL_ID_I(x, y) INTERNAL_ID_I1(x, y)
+#define LUA_INTERNAL_ID(x) INTERNAL_ID_I(x, __COUNTER__)
+
+#define LUA_CHECK_STACK(state) \
+  LuaStackCheck LUA_INTERNAL_ID(l)(state, __FILE__, __LINE__)
 
 template <typename T>
 constexpr const char* Typename() {
@@ -318,6 +315,8 @@ class Lua {
   void AddLibrary(const char* name, const LuaApiFunction (&funcs)[N]) {
     AddLibraryWithMetadata(name, funcs, N);
   }
+
+  int StackTop() { return lua_gettop(state_); }
 
   const size_t argc_;
   const char** const argv_;

@@ -17,20 +17,32 @@ const struct LuaApiFunction kSoundLib[] = {
        if (!sound->AddSource(name, &source)) {
          LUA_ERROR(state, "Could not find sound ", name);
        }
-       LOG("Source = ", source.AsNum());
        lua_pushnumber(state, source.AsNum());
        return 1;
      }},
     {"play_source",
      "Plays an audio asset on the music channel.",
-     {{"name", "name of the sound asset to play."},
-      {"repeat?",
-       "a number indicating how many times to repeat the music. -1 means loop "
-       "forever."}},
+     {{"name", "name of the sound asset to play."}},
      {{}},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        const auto source = Sound::Source::FromNum(luaL_checkinteger(state, 1));
+       if (!sound->StartChannel(source)) {
+         LUA_ERROR(state, "Could not play source");
+       }
+       return 0;
+     }},
+    {"play_sound",
+     "Loads and immediately plays an audio asset on the music channel.",
+     {{"name", "name of the sound asset to play."}},
+     {{}},
+     [](lua_State* state) {
+       auto* sound = Registry<Sound>::Retrieve(state);
+       std::string_view name = GetLuaString(state, 1);
+       Sound::Source source;
+       if (!sound->AddSource(name, &source)) {
+         LUA_ERROR(state, "Could not find sound ", name);
+       }
        if (!sound->StartChannel(source)) {
          LUA_ERROR(state, "Could not play source");
        }

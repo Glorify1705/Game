@@ -200,7 +200,7 @@ bool Lua::LoadFromCache(std::string_view script_name, lua_State* state) {
 }
 
 void Lua::AddLibrary(const char* name, const luaL_Reg* funcs, size_t N) {
-  LuaStackCheck c(state_);
+  LUA_CHECK_STACK(state_);
   LOG("Adding library ", name);
   lua_getglobal(state_, "G");
   lua_newtable(state_);
@@ -217,12 +217,12 @@ void Lua::AddLibrary(const char* name, const luaL_Reg* funcs, size_t N) {
 
 void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
                                  size_t N) {
-  LuaStackCheck c(state_);
+  LUA_CHECK_STACK(state_);
   LOG("Adding library ", name);
   lua_getglobal(state_, "G");
   lua_newtable(state_);
   for (size_t i = 0; i < N; ++i) {
-    LuaStackCheck c(state_);
+    LUA_CHECK_STACK(state_);
     CHECK(funcs[i].name != nullptr, "Invalid entry for library ", name, ": ",
           i);
     const auto* func = &funcs[i];
@@ -235,7 +235,7 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
   lua_getglobal(state_, "_Docs");
   lua_newtable(state_);
   for (size_t i = 0; i < N; ++i) {
-    LuaStackCheck c(state_);
+    LUA_CHECK_STACK(state_);
     // Create a table with docstring, and args fields.
     lua_newtable(state_);
     lua_pushstring(state_, funcs[i].docstring);
@@ -266,7 +266,7 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
   // Add the functions in the library with a link to the
   // corresponding entry as a light user data.
   for (size_t i = 0; i < N; ++i) {
-    LuaStackCheck c(state_);
+    LUA_CHECK_STACK(state_);
     lua_getfield(state_, -1, name);
     lua_pushstring(state_, funcs[i].name);
     lua_gettable(state_, -2);
@@ -285,7 +285,6 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
 
 int Lua::LoadLuaAsset(std::string_view filename,
                       std::string_view script_contents, int traceback_handler) {
-  LuaStackCheck l(state_);
   FixedStringBuffer<kMaxPathLength + 1> buf("@", filename);
   LOG("Loading ", filename);
   if (luaL_loadbuffer(state_, script_contents.data(), script_contents.size(),
@@ -309,13 +308,12 @@ int Lua::LoadLuaAsset(std::string_view filename,
     }
   }
   LOG("Finished loading ", filename);
-  return l.Results(1);
+  return 1;
 }
 
 bool Lua::CompileFennelAsset(std::string_view name,
                              std::string_view script_contents,
                              int traceback_handler) {
-  LuaStackCheck c(state_);
   // Load fennel module if not present.
   lua_getfield(state_, LUA_GLOBALSINDEX, "package");
   lua_getfield(state_, -1, "loaded");
@@ -380,7 +378,6 @@ bool Lua::CompileFennelAsset(std::string_view name,
 int Lua::LoadFennelAsset(std::string_view name,
                          std::string_view script_contents,
                          int traceback_handler) {
-  LuaStackCheck l(state_);
   LOG("Loading script ", name);
   auto* lua = Registry<Lua>::Retrieve(state_);
   if (!lua->LoadFromCache(name, state_)) {
@@ -408,11 +405,11 @@ int Lua::LoadFennelAsset(std::string_view name,
       return 0;
     }
   }
-  return l.Results(1);
+  return 1;
 }
 
 void Lua::LogValue(lua_State* state, int pos, int depth, StringBuffer* buf) {
-  LuaStackCheck l(state);
+  LUA_CHECK_STACK(state);
   if (depth > 10) {
     buf->Append("...");
     return;
@@ -474,7 +471,7 @@ void Lua::InsertIntoCache(std::string_view script_name, lua_State* state) {
 
 void Lua::FlushCompilationCache() {
   READY();
-  LuaStackCheck c(state_);
+  LUA_CHECK_STACK(state_);
   TIMER("Flushing compilation cache");
   // Check if we have anything to flush.
   bool dirty = false;
@@ -544,7 +541,7 @@ void Lua::FlushCompilationCache() {
 }
 
 int ForwardIndexToMetatable(lua_State* state) {
-  LuaStackCheck l(state);
+  LUA_CHECK_STACK(state);
   lua_getmetatable(state, 1);
   lua_pushvalue(state, 2);
   lua_gettable(state, -2);
@@ -555,12 +552,12 @@ int ForwardIndexToMetatable(lua_State* state) {
               GetLuaString(state, -1));
     return 0;
   }
-  return l.Results(1);
+  return 1;
 }
 
 void Lua::LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
                         size_t register_count) {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   luaL_newmetatable(state_, metatable_name);
   if (registers == nullptr) {
     lua_pop(state_, 1);
@@ -615,7 +612,7 @@ void Lua::LoadLibraries() {
 }
 
 void Lua::LoadScript(const DbAssets::Script& script) {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   READY();
   LOG("Loading script ", script.name);
   std::string_view asset_name = script.name;
@@ -710,6 +707,7 @@ void Lua::BuildCompilationCache() {
 }
 
 void Lua::LoadMain() {
+  LUA_CHECK_STACK(state_);
   READY();
   Script* main = nullptr;
   // Reset the _Game var.
@@ -796,9 +794,8 @@ void Lua::SetPackagePreload(std::string_view modname) {
 }
 
 void Lua::Init() {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   if (single_evaluation_) return;
-  LOG("Initializing game");
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -808,14 +805,14 @@ void Lua::Init() {
     return;
   }
   lua_insert(state_, -2);
-  if (lua_pcall(state_, 1, LUA_MULTRET, traceback_handler_)) {
+  if (lua_pcall(state_, 1, 0, traceback_handler_)) {
     lua_error(state_);
     return;
   }
 }
 
 void Lua::Update(float t, float dt) {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
@@ -833,7 +830,7 @@ void Lua::Update(float t, float dt) {
 }
 
 void Lua::Draw() {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
@@ -847,7 +844,7 @@ void Lua::Draw() {
 }
 
 void Lua::HandleKeypressed(int scancode) {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   if (single_evaluation_) {
     if (scancode == SDL_SCANCODE_Q || scancode == SDL_SCANCODE_ESCAPE) {
       Stop();
@@ -858,23 +855,30 @@ void Lua::HandleKeypressed(int scancode) {
   READY();
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "keypressed");
-  if (lua_isnil(state_, -1)) return;
+  if (lua_isnil(state_, -1)) {
+    lua_pop(state_, 2);
+    return;
+  }
   lua_insert(state_, -2);
   lua_pushnumber(state_, scancode);
   if (lua_pcall(state_, 2, 0, traceback_handler_)) {
     lua_error(state_);
     return;
   }
+  lua_pop(state_, 1);
 }
 
 void Lua::HandleKeyreleased(int scancode) {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "keyreleased");
-  if (lua_isnil(state_, -1)) return;
+  if (lua_isnil(state_, -1)) {
+    lua_pop(state_, 2);
+    return;
+  }
   lua_insert(state_, -2);
   lua_pushnumber(state_, scancode);
   if (lua_pcall(state_, 2, 0, traceback_handler_)) {
@@ -884,13 +888,16 @@ void Lua::HandleKeyreleased(int scancode) {
 }
 
 void Lua::HandleMousePressed(int button) {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "mousepressed");
-  if (lua_isnil(state_, -1)) return;
+  if (lua_isnil(state_, -1)) {
+    lua_pop(state_, 2);
+    return;
+  }
   lua_insert(state_, -2);
   lua_pushnumber(state_, button);
   if (lua_pcall(state_, 2, 0, traceback_handler_)) {
@@ -900,13 +907,16 @@ void Lua::HandleMousePressed(int button) {
 }
 
 void Lua::HandleTextInput(std::string_view input) {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "textinput");
-  if (lua_isnil(state_, -1)) return;
+  if (lua_isnil(state_, -1)) {
+    lua_pop(state_, 2);
+    return;
+  }
   lua_insert(state_, -2);
   lua_pushlstring(state_, input.data(), input.size());
   if (lua_pcall(state_, 2, 0, traceback_handler_)) {
@@ -916,29 +926,36 @@ void Lua::HandleTextInput(std::string_view input) {
 }
 
 void Lua::HandleMouseReleased(int button) {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "mousereleased");
-  if (lua_isnil(state_, -1)) return;
+  if (lua_isnil(state_, -1)) {
+    lua_pop(state_, 2);
+    return;
+  }
   lua_insert(state_, -2);
   lua_pushnumber(state_, button);
   if (lua_pcall(state_, 2, 0, traceback_handler_)) {
     lua_error(state_);
     return;
   }
+  lua_pop(state_, 1);
 }
 
 void Lua::HandleMouseMoved(FVec2 pos, FVec2 delta) {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "mousemoved");
-  if (lua_isnil(state_, -1)) return;
+  if (lua_isnil(state_, -1)) {
+    lua_pop(state_, 2);
+    return;
+  }
   lua_insert(state_, -2);
   lua_pushnumber(state_, pos.x);
   lua_pushnumber(state_, pos.y);
@@ -948,21 +965,26 @@ void Lua::HandleMouseMoved(FVec2 pos, FVec2 delta) {
     lua_error(state_);
     return;
   }
+  lua_pop(state_, 1);
 }
 
 void Lua::HandleQuit() {
-  LuaStackCheck l(state_);
+  LUA_CHECK_STACK(state_);
   if (single_evaluation_) return;
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "quit");
-  if (lua_isnil(state_, -1)) return;
+  if (lua_isnil(state_, -1)) {
+    lua_pop(state_, 2);
+    return;
+  }
   lua_insert(state_, -2);
   if (lua_pcall(state_, 1, 0, traceback_handler_)) {
     lua_error(state_);
     return;
   }
+  lua_pop(state_, 1);
 }
 
 #undef LUA_LOG_VALUE
