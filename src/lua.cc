@@ -723,6 +723,7 @@ void Lua::LoadMain() {
     if (lua_isboolean(state_, -1)) {
       LOG("Single evaluation mode. Finished");
       single_evaluation_ = true;
+      lua_pop(state_, 1);
     } else {
       LUA_ERROR(state_, "Expected a table");
     }
@@ -984,7 +985,6 @@ void Lua::HandleQuit() {
     lua_error(state_);
     return;
   }
-  lua_pop(state_, 1);
 }
 
 #undef LUA_LOG_VALUE

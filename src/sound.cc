@@ -7,33 +7,41 @@
 namespace G {
 
 void Sound::WavStream::Init(const DbAssets::Sound* sound) {
-  drwav_init_memory(&wav_, sound->contents, sound->size, nullptr);
+  LOG("Initializing ", sound->name);
+  std::memset(&wav_, 0, sizeof(wav_));
+  CHECK(drwav_init_memory(&wav_, sound->contents, sound->size, &callbacks_));
+  const auto& fmt = wav_.fmt;
+  LOG("Channels = ", fmt.channels);
+  LOG("Sample rate = ", fmt.sampleRate);
+  // Samples are always interleaved, and we have 2 channels.
+  CHECK(drwav_read_pcm_frames_f32(&wav_, kMaxSamples / 2, buffer_) <=
+        kMaxSamples);
+  name_ = sound->name;
 }
 
 size_t Sound::WavStream::Load(float* output, size_t samples) {
   if (!playing_) return 0;
-  size_t read;
-  for (read = 0; read < samples;) {
-    if (pos_ >= kBufferSize) {
-      size_t samples_read = drwav_read_pcm_frames_f32(
-          &wav_, kBufferSize / (2 * sizeof(float)), buffer_);
+  for (size_t read = 0; read < samples;) {
+    if (pos_ >= kMaxSamples) {
+      size_t samples_read =
+          drwav_read_pcm_frames_f32(&wav_, kMaxSamples / 2, buffer_);
       if (samples_read == 0) {  // EOF.
         Stop();
         return read;
       }
       pos_ = 0;
     }
-    size_t to_copy = std::min(samples - read, kBufferSize - pos_);
+    size_t to_copy = std::min(samples - read, sizeof(buffer_) - pos_);
     for (size_t p = 0; p < to_copy; p++) {
       output[read++] = gain_ * buffer_[pos_++];
     }
   }
-  return read;
+  return samples;
 }
 
 void Sound::VorbisStream::Init(const DbAssets::Sound* sound) {
   if (vorbis_ != nullptr) Deinit();
-  LOG("Initializing to play ", sound->name);
+  TIMER("Initializing to play ", sound->name);
   playing_ = false;
   gain_ = 1.0;
   name_ = sound->name;
@@ -55,8 +63,7 @@ void Sound::VorbisStream::Init(const DbAssets::Sound* sound) {
 
 size_t Sound::VorbisStream::Load(float* output, size_t samples) {
   if (!playing_) return 0;
-  size_t read;
-  for (read = 0; read < samples;) {
+  for (size_t read = 0; read < samples;) {
     if (pos_ >= kBufferSize) {
       size_t samples_read = stb_vorbis_get_samples_float_interleaved(
           vorbis_, 2, buffer_, kBufferSize);  // two audio channels.
@@ -71,7 +78,7 @@ size_t Sound::VorbisStream::Load(float* output, size_t samples) {
       output[read++] = gain_ * buffer_[pos_++];
     }
   }
-  return read;
+  return samples;
 }
 
 bool Sound::AddSource(std::string_view name, Source* source) {
@@ -106,7 +113,7 @@ bool Sound::AddSource(std::string_view name, Source* source) {
   return true;
 }
 
-bool Sound::SetGain(Source source, float gain) {
+bool Sound::SetSourceGain(Source source, float gain) {
   LockMutex l(mu_);
   switch (source.type) {
     case Source::kOgg:
@@ -129,7 +136,7 @@ bool Sound::StartChannel(Source source) {
       vorbis_[source.index]->Start();
       return true;
     case Source::kWav:
-      if (source.index >= vorbis_.size()) return false;
+      if (source.index >= wavs_.size()) return false;
       wavs_[source.index]->Start();
       return true;
   }
@@ -151,6 +158,7 @@ bool Sound::Stop(Source source) {
 
 void Sound::LoadSound(const DbAssets::Sound& sound) {
   LockMutex l(mu_);
+  TIMER("Loading ", sound.name);
   // Find if any of the tracks are using this version.
   // In that case they need to be reinit and restarted.
   for (auto& source : vorbis_) {
@@ -183,6 +191,9 @@ void Sound::SoundCallback(float* result, size_t samples) {
     for (size_t i = 0; i < read; ++i) {
       result[i] += buffer_[i];
     }
+  }
+  for (size_t i = 0; i < samples; ++i) {
+    result[i] *= global_gain_;
   }
 }
 

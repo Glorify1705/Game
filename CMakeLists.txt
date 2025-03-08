@@ -100,6 +100,7 @@ set(GCC_AND_CLANG_FLAGS
     -Wall
     -Wextra
     -Werror
+    -O1
     -Wno-unused-parameter
     -ggdb
     -DNDEBUG
@@ -153,7 +154,7 @@ set(TEST_SRCS "src/stringlib.cc" "src/stats.cc" "src/string_table.cc"
 
 add_executable(Tests "${TEST_SRCS}")
 
-target_compile_options(Tests PRIVATE ${COMPILER_FLAGS} -O1 -fsanitize=address)
+target_compile_options(Tests PRIVATE ${COMPILER_FLAGS} -O2 -fsanitize=address)
 
 target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
                                          "${PROJECT_SOURCE_DIR}/src")

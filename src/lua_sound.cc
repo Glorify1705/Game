@@ -32,7 +32,7 @@ const struct LuaApiFunction kSoundLib[] = {
        }
        return 0;
      }},
-    {"play_sound",
+    {"play",
      "Loads and immediately plays an audio asset on the music channel.",
      {{"name", "name of the sound asset to play."}},
      {{}},
@@ -50,7 +50,8 @@ const struct LuaApiFunction kSoundLib[] = {
      }},
     {"set_volume",
      "Plays an audio asset as a special effect.",
-     {{"name", "name of the sound asset to play."}},
+     {{"name", "name of the sound asset to play."},
+      {"gain", "the gain for the channel, must be a number between 0 and 1"}},
      {{}},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
@@ -59,9 +60,26 @@ const struct LuaApiFunction kSoundLib[] = {
        if (gain < 0) {
          LUA_ERROR(state, "Invalid gain setting ", gain, " - must be positive");
        }
-       if (!sound->SetGain(source, gain)) {
+       if (!sound->SetSourceGain(source, gain)) {
          LUA_ERROR(state, "Could not set volume for source");
        }
+       return 0;
+     }},
+    {"set_global_volume",
+     "Sets the global volume",
+     {{"gain", "name of the sound asset to play."}},
+     {{}},
+     [](lua_State* state) {
+       auto* sound = Registry<Sound>::Retrieve(state);
+       const double gain = luaL_checknumber(state, 1);
+       if (gain < 0) {
+         LUA_ERROR(state, "Invalid gain setting ", gain, " - must be positive");
+       }
+       if (gain > 1) {
+         LUA_ERROR(state, "Invalid gain setting ", gain,
+                   " - must be less than 1");
+       }
+       sound->SetGlobalGain(gain);
        return 0;
      }},
     {"stop_source",

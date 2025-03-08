@@ -50,7 +50,9 @@ class Sound {
 
   bool AddSource(std::string_view name, Source* source);
 
-  bool SetGain(Source source, float gain);
+  bool SetSourceGain(Source source, float gain);
+
+  void SetGlobalGain(float gain) { global_gain_ = gain; }
 
   bool StartChannel(Source source);
 
@@ -86,6 +88,11 @@ class Sound {
       drwav_seek_to_pcm_frame(&wav_, 0);
     }
 
+    void Deinit() {
+      name_ = std::string_view();
+      drwav_uninit(&wav_);
+    }
+
     void Stop() { playing_ = false; }
 
     void SetGain(float gain) { gain_ = gain; }
@@ -97,7 +104,7 @@ class Sound {
    private:
     inline static constexpr size_t kDecoderMemorySize = Kilobytes(256);
 
-    const size_t kBufferSize = sizeof(buffer_) / sizeof(float);
+    const size_t kMaxSamples = sizeof(buffer_) / sizeof(buffer_[0]);
 
     static void* Alloc(size_t size, void* ud) {
       auto* stream = reinterpret_cast<WavStream*>(ud);
@@ -177,6 +184,7 @@ class Sound {
   Dictionary<DbAssets::Sound> sounds_;
   FixedArray<VorbisStream*> vorbis_;
   FixedArray<WavStream*> wavs_;
+  float global_gain_ = 1.0;
 };
 
 }  // namespace G

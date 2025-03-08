@@ -91,9 +91,8 @@
   (let [(sx sy) (G.window.dimensions)]
     (tset g :dimensions [sx sy])
     (for [_ 1 10] (add-rectangle! g 0)))
-  (G.sound.set_music_volume 1)
-  (G.sound.set_sfx_volume 0.8)
-  (G.sound.play_music :weapons_mode.ogg))
+  (G.sound.set_global_volume 0.8)
+  (G.sound.play :weapons_mode.ogg))
 
 (fn Game.quit [g]
   (print "Thanks for playing!"))
@@ -120,7 +119,7 @@
         (tset g :reticule :st t)
         (tset g :reticule :en (+ t 0.3)))
       (when (G.input.is_mouse_pressed 0)
-        (G.sound.play_sfx :gunshot.wav)
+        (G.sound.play :gunshot.ogg)
         (tset g :reticule :state :moving)
         (tset g :reticule :st t)
         (tset g :reticule :en (+ t 0.1))

@@ -371,7 +371,10 @@ struct EngineModules {
     }
   }
 
-  void Reload() { assets->Load(); }
+  void Reload() {
+    sound.StopAll();
+    assets->Load();
+  }
 
   void HandleEvent(const SDL_Event& event) {
     if (event.type == SDL_WINDOWEVENT) {

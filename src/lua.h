@@ -33,10 +33,8 @@ class LuaStackCheck {
   }
 
   ~LuaStackCheck() {
-    if (end_ != lua_gettop(state_)) {
-      LOG("Failed stack check at ", file_, ":", line_, " - ", end_, " vs ",
-          lua_gettop(state_));
-    }
+    CHECK(end_ == lua_gettop(state_), "Failed stack check at ", file_, ":",
+          line_, " - ", end_, " vs ", lua_gettop(state_));
   }
 
  private:

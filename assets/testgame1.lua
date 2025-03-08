@@ -49,9 +49,9 @@ function G1:init()
 			b:on_collision(a)
 		end
 	end)
-	G.sound.set_music_volume(0.2)
-	G.sound.set_sfx_volume(0.1)
-	G.sound.play_music("music.ogg")
+	local source = G.sound.add_source("music.ogg")
+	G.sound.set_volume(source, 0.4)
+	G.sound.play_source(source)
 	self.rnd = Random()
 end
 
@@ -73,10 +73,7 @@ function G1:update(t, dt)
 		end
 	end
 	if G.input.is_mouse_pressed(0) then
-		G.sound.play_sfx("laser.wav")
-	end
-	if G.input.is_key_pressed("m") then
-		G.sound.play_music("music.ogg")
+		G.sound.play_sound("laser.wav")
 	end
 	if G.input.is_key_pressed("r") then
 		G.hotload()
