@@ -12,6 +12,7 @@
     ffmpeg
     fnlfmt
     gdb
+    gf
     gperftools
     libGL
     libGLU
@@ -79,7 +80,7 @@
 
   scripts."game-debug" = {
     exec = ''
-      ${pkgs.gdb}/bin/gdb --args ./build/Game assets ./build/assets.sqlite3
+      ${pkgs.gf}/bin/gf2 --args ./build/Game assets ./build/assets.sqlite3
     '';
   };
 
