@@ -190,6 +190,48 @@ class StaticAllocator final : public ArenaAllocator {
 };
 
 template <typename T>
+class FreeList {
+ public:
+  FreeList(Allocator* a) : allocator_(a) {}
+
+  T* Alloc() {
+    if (free_ == nullptr) AddBlock(allocator_);
+    T* ptr = reinterpret_cast<T*>(free_);
+    free_ = free_->next;
+    return ptr;
+  }
+
+  template <typename... Args>
+  T* New(Args... args) {
+    T* ptr = Alloc();
+    ::new (ptr) T(std::forward<Args>(args)...);
+    return ptr;
+  }
+
+  void Dealloc(T* ptr) {
+    auto* p = reinterpret_cast<Block*>(ptr);
+    p->next = free_;
+    free_ = p;
+  }
+
+ private:
+  union Block {
+    Block* next;
+    T t;
+  };
+
+  void AddBlock(Allocator* allocator) {
+    auto* block = reinterpret_cast<Block*>(
+        allocator->Alloc(sizeof(Block), alignof(Block)));
+    block->next = free_;
+    free_ = block;
+  }
+
+  Allocator* allocator_;
+  Block* free_ = nullptr;
+};
+
+template <typename T>
 class BlockAllocator {
  public:
   explicit BlockAllocator(Allocator* allocator, size_t blocks)
@@ -507,4 +549,4 @@ class ShardedFreeListAllocator : public Allocator {
 
 }  // namespace G
 
-#endif
+#endif  // _GAME_ALLOCATORS_H

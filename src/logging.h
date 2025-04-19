@@ -74,14 +74,23 @@ inline void SetOpenGLLine(const char* file, size_t line, T&&... ts) {
 #endif
 }
 
+template <typename T>
+[[nodiscard]] T InternalDieIfNull(const char* filename, int line,
+                                  const char* expr, T&& t) {
+  if (t == nullptr) {
+    Crash(filename, line, expr, " is null");
+  }
+  return std::forward<T>(t);
+}
+
 }  // namespace G
 
 #define CHECK(cond, ...) \
-  if (!(cond)) G::Crash(__FILE__, __LINE__, #cond, " ", ##__VA_ARGS__)
+  if (!(cond)) ::G::Crash(__FILE__, __LINE__, #cond, " ", ##__VA_ARGS__)
 
-#define DIE(...) G::Crash(__FILE__, __LINE__, ##__VA_ARGS__)
+#define DIE(...) ::G::Crash(__FILE__, __LINE__, ##__VA_ARGS__)
 
-#define LOG(...) G::Log(__FILE__, __LINE__, ##__VA_ARGS__)
+#define LOG(...) ::G::Log(__FILE__, __LINE__, ##__VA_ARGS__)
 
 #define DONOTSUBMIT LOG
 
@@ -91,10 +100,12 @@ inline void SetOpenGLLine(const char* file, size_t line, T&&... ts) {
 #define DCHECK(...) CHECK(__VA_ARGS__)
 #endif
 
-#define OPENGL_CALL(f, ...)                           \
-  do {                                                \
-    SetOpenGLLine(__FILE__, __LINE__, ##__VA_ARGS__); \
-    f;                                                \
+#define OPENGL_CALL(f, ...)                                \
+  do {                                                     \
+    ::G::SetOpenGLLine(__FILE__, __LINE__, ##__VA_ARGS__); \
+    f;                                                     \
   } while (0)
+
+#define NOTNULL(x) ::G::InternalDieIfNull(__FILE__, __LINE__, #x, (x))
 
 #endif  // _GAME_LOGGING_H
