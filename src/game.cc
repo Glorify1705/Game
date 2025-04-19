@@ -193,7 +193,8 @@ struct EngineModules {
         pool(allocator, 4),
         allocator_(allocator),
         hotload_allocator_(allocator, kHotReloadMemory),
-        watcher_(db) {
+        watcher_(db),
+        spec_(spec) {
     mu = SDL_CreateMutex();
     SDL_AtomicSet(&pending_changes_, 0);
   }
@@ -203,7 +204,8 @@ struct EngineModules {
   void AudioCallback(uint8_t* buffer, int length) {
     std::memset(buffer, 0, length);
     auto* sample_buffer = reinterpret_cast<float*>(buffer);
-    sound.SoundCallback(sample_buffer, length / sizeof(float));
+    sound.SoundCallback(sample_buffer, length / sizeof(float) / spec_.channels,
+                        spec_.channels);
   }
 
   static int StaticCheckChangedFiles(void* ctx) {
@@ -419,6 +421,7 @@ struct EngineModules {
   ArenaAllocator hotload_allocator_;
   Filewatcher watcher_;
   SDL_atomic_t pending_changes_;
+  SDL_AudioSpec spec_;
 };
 
 class Game {
