@@ -12,5 +12,5 @@ end
 if #game_args > 0 then
 	return require(game_args[1])
 else
-	return require("pong")
+	return require("testsound2")
 end

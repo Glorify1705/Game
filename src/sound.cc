@@ -12,33 +12,38 @@ bool Sound::AddSource(std::string_view name, Source* source) {
     LOG("Unknown sound ", name);
     return false;
   }
+  LockMutex l(mu_);
   if (HasSuffix(sound.name, ".ogg")) {
-    LockMutex l(mu_);
-    Stream* stream = &streams_.back();
+    LOG("Loading vorbis source ", sound.name);
     auto* vorbis = vorbis_alloc_.Alloc();
-    vorbis->Init(&sound);
-    stream->InitFromStream(&sound, vorbis);
+    if (!vorbis->Init(&sound)) {
+      return false;
+    }
+    streams_[stream_].InitFromStream(&sound, vorbis);
+  } else if (HasSuffix(sound.name, ".wav")) {
+    LOG("Loading WAV source ", sound.name);
+    auto* wav = wavs_alloc_.Alloc();
+    if (!wav->Init(&sound)) {
+      return false;
+    }
+    streams_[stream_].InitFromStream(&sound, wav);
   } else {
-    LockMutex l(mu_);
-    Stream* stream = &streams_.back();
-    auto* vorbis = wavs_alloc_.Alloc();
-    vorbis->Init(&sound);
-    stream->InitFromStream(&sound, vorbis);
+    DIE("Unknown sound file", sound.name);
   }
-  *source = streams_.size() - 1;
+  *source = stream_++;
   return true;
 }
 
 bool Sound::SetSourceGain(Source source, float gain) {
   LockMutex l(mu_);
-  if (source >= streams_.size()) return false;
+  if (source >= stream_) return false;
   streams_[source].Gain(gain);
   return true;
 }
 
 bool Sound::StartChannel(Source source) {
   LockMutex l(mu_);
-  if (source >= streams_.size()) return false;
+  if (source >= stream_) return false;
   streams_[source].Start();
   return true;
 }
@@ -46,20 +51,20 @@ bool Sound::StartChannel(Source source) {
 bool Sound::Stop(Source source) {
   LockMutex l(mu_);
   streams_[source].Start();
-  if (source >= streams_.size()) return false;
+  if (source >= stream_) return false;
   streams_[source].Stop();
   return true;
 }
 
 void Sound::LoadSound(const DbAssets::Sound& sound) {
   LockMutex l(mu_);
-  TIMER("Loading ", sound.name);
+  TIMER("Loading sound ", sound.name);
+  sounds_.Insert(sound.name, sound);
   for (auto& stream : streams_) {
     if (!stream.OnReload(&sound)) {
       return;
     }
   }
-  sounds_.Insert(sound.name, sound);
 }
 
 void Sound::SoundCallback(float* result, size_t samples_per_channel,
@@ -67,8 +72,9 @@ void Sound::SoundCallback(float* result, size_t samples_per_channel,
   LockMutex l(mu_);
   const size_t samples = samples_per_channel * channels;
   std::memset(result, 0, samples * sizeof(float));
-  for (auto& stream : streams_) {
-    size_t read = stream.Load(buffer_.data(), samples_per_channel, samples);
+  for (size_t i = 0; i < stream_; ++i) {
+    auto& stream = streams_[i];
+    size_t read = stream.Load(buffer_.data(), samples_per_channel, channels);
     for (size_t i = 0; i < read; ++i) {
       result[i] += buffer_[i];
     }

@@ -21,7 +21,6 @@ class Sound {
   explicit Sound(const SDL_AudioSpec& spec, Allocator* allocator)
       : buffer_(spec.channels * spec.samples, allocator),
         sounds_(allocator),
-        streams_(256, allocator),
         vorbis_(256, allocator),
         wavs_(256, allocator),
         vorbis_alloc_(allocator),
@@ -114,24 +113,38 @@ class Sound {
    public:
     bool Init(const DbAssets::Sound* sound) {
       TIMER("Initializing to play ", sound->name);
-      int error;
+      int error = 0;
       vorbis_alloc_.alloc_buffer = vorbis_memory_;
       vorbis_alloc_.alloc_buffer_length_in_bytes = kDecoderMemorySize;
       vorbis_ = stb_vorbis_open_memory(sound->contents, sound->size, &error,
                                        &vorbis_alloc_);
-      CHECK(vorbis_ != nullptr, "Failed to open ", sound->name, ": ", error);
+      if (vorbis_ == nullptr) {
+        const char* errormsg = nullptr;
+
+        switch (error) {
+          case VORBIS_outofmem:
+            errormsg = "not enough memory";
+            break;
+          default:
+            errormsg = "unknown error";
+        }
+
+        LOG("Failed to open ", sound->name, ": ", errormsg, "(", error, ")");
+        return false;
+      }
       stb_vorbis_info info = stb_vorbis_get_info(vorbis_);
       LOG("Opened file ", sound->name, ", channels = ", info.channels,
           ", sample rate = ", info.sample_rate);
-      LOG("Memory required = ", info.temp_memory_required, ", ",
-          info.setup_memory_required, ", ", info.setup_temp_memory_required);
+      LOG("Memory required = ", info.temp_memory_required,
+          ", setup memory = ", info.setup_memory_required,
+          ", setup temp memory = ", info.setup_temp_memory_required);
       return true;
     }
 
     size_t Load(float* output, size_t samples_per_channel, size_t channels) {
-      DCHECK(channels == 2);
-      return stb_vorbis_get_samples_float_interleaved(vorbis_, channels, output,
-                                                      samples_per_channel);
+      DCHECK(channels == 2, "Expected 2 channels got ", channels);
+      return stb_vorbis_get_samples_float_interleaved(
+          vorbis_, channels, output, samples_per_channel * channels);
     }
 
     bool Rewind() {
@@ -145,7 +158,7 @@ class Sound {
     }
 
    private:
-    inline static constexpr size_t kDecoderMemorySize = Kilobytes(192);
+    inline static constexpr size_t kDecoderMemorySize = Kilobytes(256);
 
     char vorbis_memory_[kDecoderMemorySize];
     stb_vorbis_alloc vorbis_alloc_;
@@ -201,16 +214,24 @@ class Sound {
     template <typename T>
     void InitFromStream(const DbAssets::Sound* sound, T* stream) {
       cb_ = CallbackMaker<T>::callbacks(stream);
+      name_ = sound->name;
       handle_ = StringIntern(sound->name);
+      gain_ = 1.0;
+      pos_ = 0;
+      playing_ = false;
     }
 
     size_t Load(float* output, size_t samples_per_channel, size_t channels) {
       if (!playing_) return 0;
+
       size_t samples = samples_per_channel * channels;
-      for (size_t read = 0; read < samples;) {
+
+      size_t read = 0;
+
+      for (; read < samples;) {
         if (pos_ >= kBufferSize) {
           const size_t samples_read =
-              cb_.Load(samples_, samples_per_channel, channels);
+              cb_.Load(samples_, kBufferSize / channels, channels);
           // EOF.
           if (samples_read == 0) {
             Stop();
@@ -219,14 +240,17 @@ class Sound {
           pos_ = 0;
         }
         size_t to_copy = std::min(samples - read, kBufferSize - pos_);
-        for (size_t p = 0; p < to_copy; p++) {
+        while (to_copy-- > 0) {
           output[read++] = gain_ * samples_[pos_++];
         }
       }
-      return 0;
+      return read;
     }
 
-    void Start() { playing_ = true; }
+    void Start() {
+      playing_ = true;
+      pos_ = 0;
+    }
 
     void Stop() {
       playing_ = false;
@@ -246,6 +270,7 @@ class Sound {
     const size_t kBufferSize = sizeof(samples_) / sizeof(samples_[0]);
 
     uint32_t handle_;
+    std::string_view name_;
     Callbacks cb_;
     bool playing_ = false;
     float gain_ = 1.0;
@@ -256,7 +281,8 @@ class Sound {
   FixedArray<float> buffer_;
   SDL_mutex* mu_ = nullptr;
   Dictionary<DbAssets::Sound> sounds_;
-  FixedArray<Stream> streams_;
+  Stream streams_[16];
+  size_t stream_ = 0;
   FixedArray<VorbisSampler*> vorbis_;
   FixedArray<WavSampler*> wavs_;
   FreeList<VorbisSampler> vorbis_alloc_;

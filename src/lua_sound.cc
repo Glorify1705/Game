@@ -49,8 +49,8 @@ const struct LuaApiFunction kSoundLib[] = {
        return 0;
      }},
     {"set_volume",
-     "Plays an audio asset as a special effect.",
-     {{"name", "name of the sound asset to play."},
+     "Sets the volume a source",
+     {{"source", "source id of the asset to modify"},
       {"gain", "the gain for the channel, must be a number between 0 and 1"}},
      {{}},
      [](lua_State* state) {

@@ -22,20 +22,17 @@ class FixedArray {
   ~FixedArray() { allocator_->DeallocArray<T>(buffer_, size_); }
 
   void Push(T&& t) {
-    EnsureBufferIsAvailable();
     DCHECK(elems_ < size_, elems_, " vs ", size_);
     ::new (&buffer_[elems_]) T(std::move(t));
     elems_++;
   }
   void Push(const T& t) {
-    EnsureBufferIsAvailable();
     DCHECK(elems_ < size_, elems_, " vs ", size_);
     ::new (&buffer_[elems_]) T(t);
     elems_++;
   }
 
   T* Insert(const T* ptr, size_t n) {
-    EnsureBufferIsAvailable();
     DCHECK(elems_ + n < size_, "cannot fit ", n, " elements");
     auto* result = &buffer_[elems_];
     std::memcpy(result, ptr, n * sizeof(T));
@@ -82,14 +79,8 @@ class FixedArray {
   size_t bytes() const { return elems_ * sizeof(T); }
 
  private:
-  void EnsureBufferIsAvailable() {
-    if (buffer_ == nullptr) {
-      buffer_ = allocator_->NewArray<T>(size_);
-    }
-  }
-
   Allocator* allocator_;
-  T* buffer_;
+  T* buffer_ = nullptr;
   size_t elems_ = 0;
   const size_t size_;
 };

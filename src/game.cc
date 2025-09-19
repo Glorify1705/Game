@@ -665,9 +665,16 @@ class Game {
   }
 
   static void StaticAudioCallback(void* userdata, uint8_t* buffer,
-                                  int samples) {
-    auto* g = static_cast<Game*>(userdata);
-    g->e_->AudioCallback(buffer, samples);
+                                  int length_in_bytes) {
+    auto* game = static_cast<Game*>(userdata);
+    game->AudioCallback(buffer, length_in_bytes);
+  }
+
+  void AudioCallback(uint8_t* buffer, int length_in_bytes) {
+    e_->sound.SoundCallback(
+        reinterpret_cast<float*>(buffer),
+        length_in_bytes / sizeof(float) / obtained_spec_.channels,
+        obtained_spec_.channels);
   }
 
   void PrintSystemInformation() {

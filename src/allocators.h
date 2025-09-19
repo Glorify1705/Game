@@ -195,7 +195,12 @@ class FreeList {
   FreeList(Allocator* a) : allocator_(a) {}
 
   T* Alloc() {
-    if (free_ == nullptr) AddBlock(allocator_);
+    if (free_ == nullptr) {
+      auto* block = reinterpret_cast<Block*>(
+          allocator_->Alloc(sizeof(Block), alignof(Block)));
+      block->next = free_;
+      free_ = block;
+    }
     T* ptr = reinterpret_cast<T*>(free_);
     free_ = free_->next;
     return ptr;
@@ -219,13 +224,6 @@ class FreeList {
     Block* next;
     T t;
   };
-
-  void AddBlock(Allocator* allocator) {
-    auto* block = reinterpret_cast<Block*>(
-        allocator->Alloc(sizeof(Block), alignof(Block)));
-    block->next = free_;
-    free_ = block;
-  }
 
   Allocator* allocator_;
   Block* free_ = nullptr;
