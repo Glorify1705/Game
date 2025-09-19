@@ -47,7 +47,7 @@ class Sound {
 
   void StopAll() {
     LockMutex l(mu_);
-    for (auto& stream : streams_) stream.Stop();
+    for (size_t i = 0; i < stream_; ++i) streams_[i].Stop();
   }
 
   void LoadSound(const DbAssets::Sound& sound);
@@ -66,15 +66,15 @@ class Sound {
     }
 
     bool Init(const DbAssets::Sound* sound) {
-      LOG("Initializing ", sound->name);
+      TIMER("Initializing sound ", sound->name);
       std::memset(&wav_, 0, sizeof(wav_));
       if (!drwav_init_memory(&wav_, sound->contents, sound->size,
                              &callbacks_)) {
         return false;
       }
       const auto& fmt = wav_.fmt;
-      LOG("Channels = ", fmt.channels);
-      LOG("Sample rate = ", fmt.sampleRate);
+      LOG("Sound ", sound->name, "Channels = ", fmt.channels,
+          "Sample rate = ", fmt.sampleRate);
       return true;
     }
 
@@ -112,7 +112,7 @@ class Sound {
   class VorbisSampler {
    public:
     bool Init(const DbAssets::Sound* sound) {
-      TIMER("Initializing to play ", sound->name);
+      TIMER("Initializing sound ", sound->name);
       int error = 0;
       vorbis_alloc_.alloc_buffer = vorbis_memory_;
       vorbis_alloc_.alloc_buffer_length_in_bytes = kDecoderMemorySize;
@@ -191,7 +191,7 @@ class Sound {
         c.ud = ptr;
         c.load = Load;
         c.deinit = Deinit;
-        c.deinit = Rewind;
+        c.rewind = Rewind;
         return c;
       }
 
@@ -214,7 +214,6 @@ class Sound {
     template <typename T>
     void InitFromStream(const DbAssets::Sound* sound, T* stream) {
       cb_ = CallbackMaker<T>::callbacks(stream);
-      name_ = sound->name;
       handle_ = StringIntern(sound->name);
       gain_ = 1.0;
       pos_ = 0;
@@ -229,9 +228,9 @@ class Sound {
       size_t read = 0;
 
       for (; read < samples;) {
-        if (pos_ >= kBufferSize) {
+        if (pos_ >= kBufferSizeInSamples) {
           const size_t samples_read =
-              cb_.Load(samples_, kBufferSize / channels, channels);
+              cb_.Load(samples_, kBufferSizeInSamples / channels, channels);
           // EOF.
           if (samples_read == 0) {
             Stop();
@@ -239,7 +238,7 @@ class Sound {
           }
           pos_ = 0;
         }
-        size_t to_copy = std::min(samples - read, kBufferSize - pos_);
+        size_t to_copy = std::min(samples - read, kBufferSizeInSamples - pos_);
         while (to_copy-- > 0) {
           output[read++] = gain_ * samples_[pos_++];
         }
@@ -267,10 +266,9 @@ class Sound {
     void Gain(float f) { gain_ = f; }
 
    private:
-    const size_t kBufferSize = sizeof(samples_) / sizeof(samples_[0]);
+    const size_t kBufferSizeInSamples = sizeof(samples_) / sizeof(samples_[0]);
 
     uint32_t handle_;
-    std::string_view name_;
     Callbacks cb_;
     bool playing_ = false;
     float gain_ = 1.0;

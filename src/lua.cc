@@ -725,7 +725,7 @@ void Lua::LoadMain() {
       single_evaluation_ = true;
       lua_pop(state_, 1);
     } else {
-      LUA_ERROR(state_, "Expected a table");
+      LUA_ERROR(state_, "Expected a table for single evaluation mode");
     }
     return;
   }

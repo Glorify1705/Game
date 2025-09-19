@@ -30,7 +30,8 @@ bool Sound::AddSource(std::string_view name, Source* source) {
   } else {
     DIE("Unknown sound file", sound.name);
   }
-  *source = stream_++;
+  *source = stream_;
+  stream_++;
   return true;
 }
 
