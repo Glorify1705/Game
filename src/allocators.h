@@ -201,6 +201,7 @@ class FreeList {
       block->next = free_;
       free_ = block;
     }
+    DCHECK(free_ != nullptr, "Out of memory");
     T* ptr = reinterpret_cast<T*>(free_);
     free_ = free_->next;
     return ptr;
