@@ -1,0 +1,186 @@
+{
+  "main": {
+    "id": "c700db80a987bac0",
+    "type": "split",
+    "children": [
+      {
+        "id": "44f2463a21c30a0b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "d76ec7571b944708",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Sound system.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Sound system"
+            }
+          }
+        ]
+      },
+      {
+        "id": "725ec8de900d740a",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "49503db4851a179e",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "be0ee4338716d25c",
+    "type": "split",
+    "children": [
+      {
+        "id": "3b47ef930486468b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "4d54b7f8a97d8e15",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "b3c50f4554f9ebf3",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "543387ed3bd64714",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "3bffa5d3a7e5f6ac",
+    "type": "split",
+    "children": [
+      {
+        "id": "5c6ed95688c3a321",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "72f86ecf57853136",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Sound system.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Sound system"
+            }
+          },
+          {
+            "id": "d8afae6ba2153bb1",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Sound system.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Sound system"
+            }
+          },
+          {
+            "id": "de71213cc0e7ba13",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "87d8015a87a8c51c",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Sound system.md"
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Sound system"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false
+    }
+  },
+  "active": "d76ec7571b944708",
+  "lastOpenFiles": [
+    "Welcome.md",
+    "Sound system.md"
+  ]
+}
