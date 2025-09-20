@@ -57,20 +57,6 @@
 
 namespace G {
 
-#if defined(__GNUC__)
-#if defined(__clang__)
-#define COMPILER "clang++"
-#else
-#define COMPILER "g++"
-#endif
-#define COMPILER_VERSION __VERSION__
-#elif defined(_MSC_VER)
-#define COMPILER "msvc"
-#define COMPILER_VERSION _MSC_FULL_VER
-#else
-#error Please add your compiler here.
-#endif
-
 constexpr size_t kEngineMemory = Gigabytes(4);
 constexpr size_t kHotReloadMemory = Megabytes(128);
 
