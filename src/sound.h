@@ -272,7 +272,7 @@ class Sound {
     Callbacks cb_;
     bool playing_ = false;
     float gain_ = 1.0;
-    float samples_[1024];
+    float samples_[2048];
     size_t pos_;
   };
 
