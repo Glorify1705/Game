@@ -62,7 +62,7 @@ Each `lua_*.cc` file exposes a C++ subsystem to Lua under the `G` global table (
 
 ## Libraries
 
-SDL2, Lua 5.1, Box2D, PhysFS, xxHash, SQLite3, stb_image, stb_truetype, stb_vorbis, dr_wav, pugixml, GoogleTest
+SDL2, Lua 5.1, Box2D, PhysFS, rapidhash, SQLite3, stb_image, stb_truetype, stb_vorbis, dr_wav, pugixml, GoogleTest
 
 ## Asset attributions
 

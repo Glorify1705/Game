@@ -29,7 +29,7 @@
 
 ## Build
 
-- [ ] Fix CMake compatibility error with xxHash library (`cmake_minimum_required` too old)
+- [X] ~~Fix CMake compatibility error with xxHash library~~ (replaced xxHash with rapidhash)
 - [ ] Add `-fsanitize=undefined` (UBSan) alongside AddressSanitizer in test builds
 - [ ] Remove `-Wno-unused-parameter` and use `[[maybe_unused]]` where needed
 - [ ] Enable AddressSanitizer for dev builds, not just tests

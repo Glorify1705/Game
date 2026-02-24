@@ -78,4 +78,4 @@ Game modules in Lua or Fennel. Each module exports `init()`, `update(dt)`, `draw
 
 ## Key Libraries (libraries/)
 
-SDL2 (windowing/audio/input), Lua 5.1, Box2D (physics), PhysFS (virtual FS), xxHash (hashing), SQLite3 (asset DB), stb_image/stb_truetype/stb_vorbis/dr_wav (media loading), pugixml (XML), GoogleTest (testing)
+SDL2 (windowing/audio/input), Lua 5.1, Box2D (physics), PhysFS (virtual FS), rapidhash (hashing), SQLite3 (asset DB), stb_image/stb_truetype/stb_vorbis/dr_wav (media loading), pugixml (XML), GoogleTest (testing)

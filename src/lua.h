@@ -16,10 +16,10 @@ extern "C" {
 #include "clock.h"
 #include "libraries/sqlite3.h"
 #include "mat.h"
+#include "rapidhash.h"
 #include "stats.h"
 #include "stringlib.h"
 #include "vec.h"
-#include "xxhash.h"
 
 namespace G {
 

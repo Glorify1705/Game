@@ -6,14 +6,14 @@
 
 #include "allocators.h"
 #include "logging.h"
+#include "rapidhash.h"
 #include "string_table.h"
-#include "xxhash.h"
 
 namespace G {
 namespace internal_dictionary {
 
 inline uint64_t Hash(std::string_view s) {
-  return XXH64(s.data(), s.size(), 0xC0DE15D474);
+  return rapidhash_withSeed(s.data(), s.size(), 0xC0DE15D474);
 }
 
 }  // namespace internal_dictionary

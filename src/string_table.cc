@@ -1,7 +1,7 @@
 #include "string_table.h"
 
 #include "logging.h"
-#include "xxhash.h"
+#include "rapidhash.h"
 
 namespace G {
 namespace {
@@ -15,7 +15,7 @@ uint32_t MSILookup(uint64_t hash, int exp, uint32_t idx) {
 }  // namespace
 
 uint64_t StringTable::Hash(std::string_view s) {
-  return XXH64(s.data(), s.size(), 0xC0D315D474);
+  return rapidhash_withSeed(s.data(), s.size(), 0xC0D315D474);
 }
 
 bool StringTable::IsThere(uint32_t pos, std::string_view s) {

@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.8...3.30)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -21,7 +22,6 @@ set(BOX2D_BUILD_UNIT_TESTS OFF)
 add_subdirectory(libraries/box2d EXCLUDE_FROM_ALL)
 
 add_subdirectory(libraries/lua EXCLUDE_FROM_ALL)
-add_subdirectory(libraries/xxHash/cmake_unofficial EXCLUDE_FROM_ALL)
 add_subdirectory(libraries/physfs EXCLUDE_FROM_ALL)
 
 set(BUILD_REGRESS OFF)
@@ -91,7 +91,8 @@ add_executable(Game "${GAME_SRCS}")
 
 target_include_directories(
   Game PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}"
-               "${PROJECT_SOURCE_DIR}/libraries/lua/src")
+               "${PROJECT_SOURCE_DIR}/libraries/lua/src"
+               "${PROJECT_SOURCE_DIR}/libraries/rapidhash")
 
 set(SUPPORTS_GCC_FLAGS
     $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>
@@ -125,7 +126,6 @@ target_link_libraries(
           physfs-static
           box2d
           lua
-          xxHash::xxhash
           double-conversion
           OpenGL::GL)
 
@@ -157,11 +157,12 @@ add_executable(Tests "${TEST_SRCS}")
 target_compile_options(Tests PRIVATE ${COMPILER_FLAGS} -O2 -fsanitize=address)
 
 target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
-                                         "${PROJECT_SOURCE_DIR}/src")
+                                         "${PROJECT_SOURCE_DIR}/src"
+                                         "${PROJECT_SOURCE_DIR}/libraries/rapidhash")
 
 add_subdirectory(libraries/googletest)
 
-target_link_libraries(Tests GTest::gtest_main GTest::gmock xxHash::xxhash double-conversion)
+target_link_libraries(Tests GTest::gtest_main GTest::gmock double-conversion)
 target_link_options(Tests PRIVATE -fsanitize=address)
 
 include(GoogleTest)
