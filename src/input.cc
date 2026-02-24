@@ -27,7 +27,10 @@ Keyboard::Keyboard(Allocator* allocator)
     const char* name = SDL_GetScancodeName(scancode);
     if (name == nullptr) continue;
     if (!*name) continue;
-    strcpy(buf, name);
+    size_t len = strlen(name);
+    CHECK(len < sizeof(buf), "Scancode name too long: ", name);
+    strncpy(buf, name, len);
+    buf[len] = '\0';
     for (char* c = buf; *c; c++) {
       if (*c >= 'A' && *c <= 'Z') *c = *c - 'A' + 'a';
     }
