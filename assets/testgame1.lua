@@ -41,6 +41,7 @@ function G1:init()
 	self.entities:add(Meteor(300, 300))
 	self.entities:add(Meteor(600, 600))
 	self.fullscreen = false
+	self.sfx_laser = G.sound.add_source("laser.wav")
 	Entities:on_collision(function(a, b)
 		if a then
 			a:on_collision(b)
@@ -73,7 +74,7 @@ function G1:update(t, dt)
 		end
 	end
 	if G.input.is_mouse_pressed(0) then
-		G.sound.play_sound("laser.wav")
+		G.sound.play_source(self.sfx_laser)
 	end
 	if G.input.is_key_pressed("r") then
 		G.hotload()
