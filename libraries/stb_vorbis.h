@@ -1399,8 +1399,7 @@ static int set_file_offset(stb_vorbis *f, unsigned int loc) {
 #endif
   f->eof = 0;
   if (USE_MEMORY(f)) {
-    if (f->stream_start + loc >= f->stream_end ||
-        f->stream_start + loc < f->stream_start) {
+    if (loc >= (unsigned int)(f->stream_end - f->stream_start)) {
       f->stream = f->stream_end;
       f->eof = 1;
       return 0;
@@ -1581,10 +1580,7 @@ static int get32_packet(vorb *f) {
   return x;
 }
 
-static void flush_packet(vorb *f) {
-  while (get8_packet_raw(f) != EOP)
-    ;
-}
+static void flush_packet(vorb *f) { while (get8_packet_raw(f) != EOP); }
 
 // @OPTIMIZE: this is the secondary bit decoder, so it's probably not as
 // important as the huffman decoder?
@@ -3120,8 +3116,7 @@ retry:
   // check packet type
   if (get_bits(f, 1) != 0) {
     if (IS_PUSH_MODE(f)) return error(f, VORBIS_bad_packet_type);
-    while (EOP != get8_packet(f))
-      ;
+    while (EOP != get8_packet(f));
     goto retry;
   }
 
@@ -4049,7 +4044,7 @@ static int start_decoder(vorb *f) {
       if (get_bits(f, 1)) high_bits = get_bits(f, 5);
       residue_cascade[j] = high_bits * 8 + low_bits;
     }
-    r->residue_books = (short(*)[8])setup_malloc(
+    r->residue_books = (short (*)[8])setup_malloc(
         f, sizeof(r->residue_books[0]) * r->classifications);
     if (r->residue_books == NULL) return error(f, VORBIS_outofmem);
     for (j = 0; j < r->classifications; ++j) {

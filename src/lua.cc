@@ -372,6 +372,10 @@ bool Lua::CompileFennelAsset(std::string_view name,
     }
     InsertIntoCache(name, state_);
   }
+  // Stack: package, loaded, fennel, compiled_result
+  // Remove the 3 setup values, keeping the compiled result on top.
+  lua_replace(state_, -4);  // compiled_result replaces package
+  lua_pop(state_, 2);       // pop loaded and fennel
   return true;
 }
 
@@ -522,6 +526,7 @@ void Lua::FlushCompilationCache() {
                   GetLuaString(state_, -1));
         return;
       }
+      lua_pop(state_, 1);  // Pop the compiled result.
       CHECK(compilation_cache_.Lookup(script.name, &cached_script),
             "Did not find ", script.name,
             " in compilation cache. File is corrupted?");
