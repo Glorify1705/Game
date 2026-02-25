@@ -19,7 +19,6 @@ class CircularBuffer {
   }
 
   void Push(T t) {
-    DCHECK(!full());
     buffer_[start_] = std::move(t);
     if (full_) {
       end_ = Inc(end_);
@@ -28,29 +27,48 @@ class CircularBuffer {
     full_ = start_ == end_;
   }
 
-  T& Pop() {
+  T Pop() {
     DCHECK(!empty());
-    auto& result = front();
+    T result = std::move(buffer_[end_]);
     end_ = Inc(end_);
     full_ = false;
     return result;
   }
 
   T& operator[](size_t i) {
-    DCHECK(i < buffer_.capacity());
+    DCHECK(i < size());
     return buffer_[Inc(end_, i)];
   }
+
+  const T& operator[](size_t i) const {
+    DCHECK(i < size());
+    return buffer_[Inc(end_, i)];
+  }
+
   T& front() {
     DCHECK(!empty());
     return buffer_[end_];
   }
+
+  const T& front() const {
+    DCHECK(!empty());
+    return buffer_[end_];
+  }
+
   T& back() {
     DCHECK(!empty());
-    return buffer_[start_];
+    return buffer_[Dec(start_)];
+  }
+
+  const T& back() const {
+    DCHECK(!empty());
+    return buffer_[Dec(start_)];
   }
 
   bool full() const { return full_; }
-  bool empty() const { return size() == 0; }
+  bool empty() const { return !full_ && start_ == end_; }
+
+  size_t capacity() const { return buffer_.size(); }
 
   size_t size() const {
     if (full_) return buffer_.size();
@@ -58,7 +76,8 @@ class CircularBuffer {
   }
 
  private:
-  size_t Inc(size_t v, size_t i = 1) { return (v + i) % buffer_.size(); }
+  size_t Inc(size_t v, size_t i = 1) const { return (v + i) % buffer_.size(); }
+  size_t Dec(size_t v) const { return (v == 0) ? buffer_.size() - 1 : v - 1; }
   FixedArray<T> buffer_;
   size_t start_ = 0, end_ = 0;
   bool full_ = false;
