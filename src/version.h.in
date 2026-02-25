@@ -14,6 +14,21 @@
 #define GAME_VERSION_MINOR_STR EXPAND_AND_STRINGIFY(GAME_VERSION_MINOR)
 
 #define GAME_VERSION_STR GAME_VERSION_MAJOR_STR "." GAME_VERSION_MINOR_STR
+
+#if defined(__GNUC__)
+#if defined(__clang__)
+#define COMPILER "clang++"
+#else
+#define COMPILER "g++"
+#endif
+#define COMPILER_VERSION __VERSION__
+#elif defined(_MSC_VER)
+#define COMPILER "msvc"
+#define COMPILER_VERSION _MSC_FULL_VER
+#else
+#error Please add your compiler here.
+#endif
+
 // clang-format on
 
 #endif

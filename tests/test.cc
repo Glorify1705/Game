@@ -160,6 +160,16 @@ TEST(Tests, BlockAllocator) {
   EXPECT_EQ(q, r);
 }
 
+TEST(Tests, FreeListAllocator) {
+  FreeList<uint32_t> freelist(SystemAllocator::Instance());
+  uint32_t* p = freelist.Alloc();
+  uint32_t* q = freelist.Alloc();
+  EXPECT_NE(p, q);
+  freelist.Dealloc(q);
+  uint32_t* r = freelist.Alloc();
+  EXPECT_EQ(q, r);
+}
+
 TEST(Tests, ShardedFreeListAllocator) {
   void* buffer;
   ASSERT_TRUE(posix_memalign(&buffer, kMaxAlign, Megabytes(128)) == 0);

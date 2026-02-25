@@ -57,20 +57,6 @@
 
 namespace G {
 
-#if defined(__GNUC__)
-#if defined(__clang__)
-#define COMPILER "clang++"
-#else
-#define COMPILER "g++"
-#endif
-#define COMPILER_VERSION __VERSION__
-#elif defined(_MSC_VER)
-#define COMPILER "msvc"
-#define COMPILER_VERSION _MSC_FULL_VER
-#else
-#error Please add your compiler here.
-#endif
-
 constexpr size_t kEngineMemory = Gigabytes(4);
 constexpr size_t kHotReloadMemory = Megabytes(128);
 
@@ -193,7 +179,8 @@ struct EngineModules {
         pool(allocator, 4),
         allocator_(allocator),
         hotload_allocator_(allocator, kHotReloadMemory),
-        watcher_(db) {
+        watcher_(db),
+        spec_(spec) {
     mu = SDL_CreateMutex();
     SDL_AtomicSet(&pending_changes_, 0);
   }
@@ -203,7 +190,8 @@ struct EngineModules {
   void AudioCallback(uint8_t* buffer, int length) {
     std::memset(buffer, 0, length);
     auto* sample_buffer = reinterpret_cast<float*>(buffer);
-    sound.SoundCallback(sample_buffer, length / sizeof(float));
+    sound.SoundCallback(sample_buffer, length / sizeof(float) / spec_.channels,
+                        spec_.channels);
   }
 
   static int StaticCheckChangedFiles(void* ctx) {
@@ -419,6 +407,7 @@ struct EngineModules {
   ArenaAllocator hotload_allocator_;
   Filewatcher watcher_;
   SDL_atomic_t pending_changes_;
+  SDL_AudioSpec spec_;
 };
 
 class Game {
@@ -662,9 +651,16 @@ class Game {
   }
 
   static void StaticAudioCallback(void* userdata, uint8_t* buffer,
-                                  int samples) {
-    auto* g = static_cast<Game*>(userdata);
-    g->e_->AudioCallback(buffer, samples);
+                                  int length_in_bytes) {
+    auto* game = static_cast<Game*>(userdata);
+    game->AudioCallback(buffer, length_in_bytes);
+  }
+
+  void AudioCallback(uint8_t* buffer, int length_in_bytes) {
+    e_->sound.SoundCallback(
+        reinterpret_cast<float*>(buffer),
+        length_in_bytes / sizeof(float) / obtained_spec_.channels,
+        obtained_spec_.channels);
   }
 
   void PrintSystemInformation() {

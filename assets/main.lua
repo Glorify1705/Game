@@ -9,8 +9,8 @@ for index, arg in ipairs(G.system.cli_arguments()) do
 	end
 end
 
-if #game_args > 0 then
-	return require(game_args[1])
-else
-	return require("pong")
-end
+local module = game_args[1] or "testgame1"
+
+G.window.set_title("Now running " .. module)
+
+return require(module)

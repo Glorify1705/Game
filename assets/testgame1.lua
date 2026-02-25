@@ -73,7 +73,7 @@ function G1:update(t, dt)
 		end
 	end
 	if G.input.is_mouse_pressed(0) then
-		G.sound.play_sound("laser.wav")
+		G.sound.play("laser.wav")
 	end
 	if G.input.is_key_pressed("r") then
 		G.hotload()
