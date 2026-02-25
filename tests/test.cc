@@ -1,6 +1,7 @@
 #include "allocators.h"
 #include "array.h"
 #include "bits.h"
+#include "circular_buffer.h"
 #include "defer.h"
 #include "dictionary.h"
 #include "gmock/gmock-matchers.h"
@@ -193,6 +194,205 @@ TEST(Tests, ShardedFreeListAllocator) {
   for (size_t i = 0; i < 1000; ++i) {
     a->Dealloc(ptrs[i], 513);
   }
+}
+
+// ---------------------------------------------------------------------------
+// CircularBuffer
+// ---------------------------------------------------------------------------
+
+TEST(CircularBuffer, EmptyOnConstruction) {
+  CircularBuffer<int> buf(4, SystemAllocator::Instance());
+  EXPECT_TRUE(buf.empty());
+  EXPECT_FALSE(buf.full());
+  EXPECT_EQ(buf.size(), 0u);
+  EXPECT_EQ(buf.capacity(), 4u);
+}
+
+TEST(CircularBuffer, PushAndSize) {
+  CircularBuffer<int> buf(4, SystemAllocator::Instance());
+  buf.Push(10);
+  EXPECT_EQ(buf.size(), 1u);
+  EXPECT_FALSE(buf.empty());
+  EXPECT_FALSE(buf.full());
+  buf.Push(20);
+  EXPECT_EQ(buf.size(), 2u);
+  buf.Push(30);
+  buf.Push(40);
+  EXPECT_EQ(buf.size(), 4u);
+  EXPECT_TRUE(buf.full());
+}
+
+TEST(CircularBuffer, FrontAndBack) {
+  CircularBuffer<int> buf(4, SystemAllocator::Instance());
+  buf.Push(10);
+  EXPECT_EQ(buf.front(), 10);
+  EXPECT_EQ(buf.back(), 10);
+  buf.Push(20);
+  EXPECT_EQ(buf.front(), 10);
+  EXPECT_EQ(buf.back(), 20);
+  buf.Push(30);
+  EXPECT_EQ(buf.front(), 10);
+  EXPECT_EQ(buf.back(), 30);
+}
+
+TEST(CircularBuffer, PopReturnsOldest) {
+  CircularBuffer<int> buf(4, SystemAllocator::Instance());
+  buf.Push(10);
+  buf.Push(20);
+  buf.Push(30);
+  EXPECT_EQ(buf.Pop(), 10);
+  EXPECT_EQ(buf.Pop(), 20);
+  EXPECT_EQ(buf.Pop(), 30);
+  EXPECT_TRUE(buf.empty());
+}
+
+TEST(CircularBuffer, PopUpdatesState) {
+  CircularBuffer<int> buf(4, SystemAllocator::Instance());
+  buf.Push(1);
+  buf.Push(2);
+  buf.Push(3);
+  buf.Push(4);
+  EXPECT_TRUE(buf.full());
+  buf.Pop();
+  EXPECT_FALSE(buf.full());
+  EXPECT_EQ(buf.size(), 3u);
+  EXPECT_EQ(buf.front(), 2);
+}
+
+TEST(CircularBuffer, IndexedAccess) {
+  CircularBuffer<int> buf(4, SystemAllocator::Instance());
+  buf.Push(10);
+  buf.Push(20);
+  buf.Push(30);
+  EXPECT_EQ(buf[0], 10);
+  EXPECT_EQ(buf[1], 20);
+  EXPECT_EQ(buf[2], 30);
+}
+
+TEST(CircularBuffer, IndexedAccessAfterPop) {
+  CircularBuffer<int> buf(4, SystemAllocator::Instance());
+  buf.Push(10);
+  buf.Push(20);
+  buf.Push(30);
+  buf.Pop();
+  EXPECT_EQ(buf[0], 20);
+  EXPECT_EQ(buf[1], 30);
+}
+
+TEST(CircularBuffer, Wraparound) {
+  CircularBuffer<int> buf(3, SystemAllocator::Instance());
+  buf.Push(1);
+  buf.Push(2);
+  buf.Push(3);
+  EXPECT_TRUE(buf.full());
+
+  EXPECT_EQ(buf.Pop(), 1);
+  EXPECT_EQ(buf.Pop(), 2);
+
+  buf.Push(4);
+  buf.Push(5);
+  EXPECT_TRUE(buf.full());
+
+  EXPECT_EQ(buf[0], 3);
+  EXPECT_EQ(buf[1], 4);
+  EXPECT_EQ(buf[2], 5);
+  EXPECT_EQ(buf.front(), 3);
+  EXPECT_EQ(buf.back(), 5);
+}
+
+TEST(CircularBuffer, OverwriteWhenFull) {
+  CircularBuffer<int> buf(3, SystemAllocator::Instance());
+  buf.Push(1);
+  buf.Push(2);
+  buf.Push(3);
+  EXPECT_TRUE(buf.full());
+
+  buf.Push(4);
+  EXPECT_TRUE(buf.full());
+  EXPECT_EQ(buf.size(), 3u);
+  EXPECT_EQ(buf.front(), 2);
+  EXPECT_EQ(buf.back(), 4);
+  EXPECT_EQ(buf[0], 2);
+  EXPECT_EQ(buf[1], 3);
+  EXPECT_EQ(buf[2], 4);
+}
+
+TEST(CircularBuffer, OverwriteMultiple) {
+  CircularBuffer<int> buf(3, SystemAllocator::Instance());
+  buf.Push(1);
+  buf.Push(2);
+  buf.Push(3);
+
+  buf.Push(4);
+  buf.Push(5);
+  buf.Push(6);
+  EXPECT_TRUE(buf.full());
+  EXPECT_EQ(buf.size(), 3u);
+  EXPECT_EQ(buf.front(), 4);
+  EXPECT_EQ(buf.back(), 6);
+}
+
+TEST(CircularBuffer, PushPopInterleaved) {
+  CircularBuffer<int> buf(2, SystemAllocator::Instance());
+  for (int i = 0; i < 100; ++i) {
+    buf.Push(i);
+    EXPECT_EQ(buf.Pop(), i);
+    EXPECT_TRUE(buf.empty());
+  }
+}
+
+TEST(CircularBuffer, FillEmptyRepeatedly) {
+  CircularBuffer<int> buf(3, SystemAllocator::Instance());
+  for (int round = 0; round < 10; ++round) {
+    buf.Push(round * 3);
+    buf.Push(round * 3 + 1);
+    buf.Push(round * 3 + 2);
+    EXPECT_TRUE(buf.full());
+    EXPECT_EQ(buf.Pop(), round * 3);
+    EXPECT_EQ(buf.Pop(), round * 3 + 1);
+    EXPECT_EQ(buf.Pop(), round * 3 + 2);
+    EXPECT_TRUE(buf.empty());
+  }
+}
+
+TEST(CircularBuffer, SizeOneBuffer) {
+  CircularBuffer<int> buf(1, SystemAllocator::Instance());
+  EXPECT_TRUE(buf.empty());
+  EXPECT_EQ(buf.capacity(), 1u);
+
+  buf.Push(42);
+  EXPECT_TRUE(buf.full());
+  EXPECT_EQ(buf.size(), 1u);
+  EXPECT_EQ(buf.front(), 42);
+  EXPECT_EQ(buf.back(), 42);
+
+  EXPECT_EQ(buf.Pop(), 42);
+  EXPECT_TRUE(buf.empty());
+}
+
+TEST(CircularBuffer, SizeOneOverwrite) {
+  CircularBuffer<int> buf(1, SystemAllocator::Instance());
+  buf.Push(1);
+  buf.Push(2);
+  EXPECT_TRUE(buf.full());
+  EXPECT_EQ(buf.size(), 1u);
+  EXPECT_EQ(buf.front(), 2);
+  EXPECT_EQ(buf.back(), 2);
+}
+
+TEST(CircularBuffer, ConstAccess) {
+  CircularBuffer<int> buf(4, SystemAllocator::Instance());
+  buf.Push(10);
+  buf.Push(20);
+  const auto& cbuf = buf;
+  EXPECT_EQ(cbuf[0], 10);
+  EXPECT_EQ(cbuf[1], 20);
+  EXPECT_EQ(cbuf.front(), 10);
+  EXPECT_EQ(cbuf.back(), 20);
+  EXPECT_EQ(cbuf.size(), 2u);
+  EXPECT_FALSE(cbuf.empty());
+  EXPECT_FALSE(cbuf.full());
+  EXPECT_EQ(cbuf.capacity(), 4u);
 }
 
 }  // namespace G
