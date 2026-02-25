@@ -22,6 +22,10 @@
 
 (lambda Game.init [g]
   (G.window.set_title :Pong!)
+  (set g.sfx-blip1 (G.sound.add_source :pong-blip1.ogg))
+  (set g.sfx-blip2 (G.sound.add_source :pong-blip2.ogg))
+  (set g.sfx-score (G.sound.add_source :pong-score.ogg))
+  (set g.sfx-gameover (G.sound.add_source :game-over.ogg))
   (let [(w h) (G.window.dimensions)]
     (set g.state (G.random.pick (G.random.non_deterministic)
                                 [:serve-left :serve-right]))
@@ -53,7 +57,7 @@
       (if (or (>= g.left-score max-score) (>= g.right-score max-score))
           (do
             (tset g :state :finished)
-            (G.sound.play_music :game-over.ogg 0))
+            (G.sound.play_source g.sfx-gameover))
           (do
             (set g.ball.x (+ g.left-player.x g.player-width g.ball-radius))
             (set g.ball.y (+ g.left-player.y (/ g.player-height 2)))
@@ -65,7 +69,7 @@
       (if (or (>= g.left-score max-score) (>= g.right-score max-score))
           (do
             (tset g :state :finished)
-            (G.sound.play_music :game-over.ogg 0))
+            (G.sound.play_source g.sfx-gameover))
           (do
             (set g.ball.x (- g.right-player.x g.ball-radius))
             (set g.ball.y (+ g.right-player.y (/ g.player-height 2)))
@@ -90,7 +94,7 @@
             (let [{:x px :y py} g.left-player]
               (when (and (> (+ ny br) py) (< ny (+ py ph))
                          (< (- nx br) (+ px pw)))
-                (G.sound.play_sound :pong-blip1.ogg)
+                (G.sound.play_source g.sfx-blip1)
                 (change-ball-color! g)
                 (set g.ball.speed.x (- 0 g.ball.speed.x))
                 (set g.ball.x (+ px pw br 1))
@@ -98,7 +102,7 @@
           (when (and (not collided) (= g.state :running))
             (let [{:x px :y py} g.right-player]
               (when (and (> (+ ny br) py) (< ny (+ py ph)) (> (+ nx br) px))
-                (G.sound.play_sound :pong-blip1.ogg)
+                (G.sound.play_source g.sfx-blip1)
                 (change-ball-color! g)
                 (set g.ball.x (- px (+ br 1)))
                 (set g.ball.speed.x (- g.ball.speed.x))
@@ -108,7 +112,7 @@
                 (do
                   (set g.ball.x nx))
                 (do
-                  (G.sound.play_sound :pong-score.ogg)
+                  (G.sound.play_source g.sfx-score)
                   (change-ball-color! g)
                   (set g.right-score (+ 1 g.right-score))
                   (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
@@ -120,7 +124,7 @@
                 (do
                   (set g.ball.x nx))
                 (do
-                  (G.sound.play_sound :pong-score.ogg)
+                  (G.sound.play_source g.sfx-score)
                   (change-ball-color! g)
                   (set g.left-score (+ 1 g.left-score))
                   (set g.left-player {:x 10 :y (- (/ h 2) (/ ph 2))})
@@ -132,7 +136,7 @@
                 (do
                   (set g.ball.y ny))
                 (do
-                  (G.sound.play_sound :pong-blip2.ogg)
+                  (G.sound.play_source g.sfx-blip2)
                   (change-ball-color! g)
                   (set g.ball.y br)
                   (set g.ball.speed.y (- g.ball.speed.y))
@@ -142,7 +146,7 @@
                 (do
                   (set g.ball.y ny))
                 (do
-                  (G.sound.play_sound :pong-blip2.ogg)
+                  (G.sound.play_source g.sfx-blip2)
                   (change-ball-color! g)
                   (set g.ball.y (- h br))
                   (set g.ball.speed.y (- g.ball.speed.y))

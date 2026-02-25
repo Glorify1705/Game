@@ -636,8 +636,13 @@ void Renderer::LoadSpritesheet(const DbAssets::Spritesheet& spritesheet) {
   LOG("Loading texture ", spritesheet.name);
   CHECK(image != nullptr, "Unknown image ", spritesheet.image,
         " for spritesheet ", spritesheet.name);
-  textures_table_.Insert(spritesheet.name, textures_.size());
-  textures_.Push(renderer_->LoadTexture(*image));
+  uint32_t texture_index;
+  if (textures_table_.Lookup(spritesheet.image, &texture_index)) {
+    textures_table_.Insert(spritesheet.name, texture_index);
+  } else {
+    textures_table_.Insert(spritesheet.name, textures_.size());
+    textures_.Push(renderer_->LoadTexture(*image));
+  }
   loaded_spritesheets_.Push(spritesheet);
   loaded_spritesheets_table_.Insert(spritesheet.name,
                                     &loaded_spritesheets_.back());
