@@ -35,6 +35,10 @@
 - [ ] Enable AddressSanitizer for dev builds, not just tests
 - [ ] Port inotify file watcher to cross-platform (`src/game.cc:124` has TODO)
 
+## Performance
+
+- [ ] Integrate https://github.com/wolfpld/tracy.
+
 ## Tests
 
 - [ ] Add tests for `vec.h` — all vector types and operations (1305 lines, minimal coverage)
