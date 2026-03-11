@@ -1,18 +1,16 @@
-cmake_minimum_required(VERSION 3.8...3.30)
+cmake_minimum_required(VERSION 3.21...3.30)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
+endif()
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS True)
-
-set(CMAKE_VERBOSE_MAKEFILE ON)
 
 project(
   Game
   VERSION 0.1
   DESCRIPTION "The game"
   LANGUAGES C CXX)
-
-set(SDL2_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libraries/SDL2/cmake")
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -89,11 +87,13 @@ configure_file(src/version.h.in version.h)
 
 add_executable(Game "${GAME_SRCS}")
 
+target_compile_features(Game PRIVATE cxx_std_17)
+
 target_include_directories(
   Game PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}"
                "${PROJECT_SOURCE_DIR}/libraries/lua/src")
 
-set(SUPPORTS_GCC_FLAGS
+set(IS_GCC_LIKE
     $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>
 )
 set(GCC_AND_CLANG_FLAGS
@@ -101,18 +101,24 @@ set(GCC_AND_CLANG_FLAGS
     -Wextra
     -Werror
     -O1
+    -Wno-unused-parameter
     -ggdb
     -DNDEBUG
     -DGAME_WITH_ASSERTS)
 set(MSVC_FLAGS /W4 /WX /DGAME_WITH_ASSERTS /O2 /DEBUG /NDEBUG)
 
-set(COMPILER_FLAGS $<${SUPPORTS_GCC_FLAGS}:${GCC_AND_CLANG_FLAGS}>
-                   $<$<CXX_COMPILER_ID:MSVC>:${MSVC_FLAGS}>)
+target_compile_options(Game PRIVATE
+    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
+    $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
+)
 
-target_compile_options(Game PRIVATE ${COMPILER_FLAGS})
+target_compile_definitions(Game PRIVATE
+    $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
+)
 
 add_custom_target(
-  Run ALL
+  Run
   COMMAND "${CMAKE_CURRENT_BINARY_DIR}/Game" "${PROJECT_SOURCE_DIR}/assets"
           "${CMAKE_CURRENT_BINARY_DIR}/assets.sqlite3"
   DEPENDS Game
@@ -136,24 +142,26 @@ if(WIN32)
       "${CMAKE_COMMAND}" -E copy_if_different
       "$<TARGET_FILE_DIR:SDL2::Core>/../bin/SDL2.dll" "$<TARGET_FILE_DIR:Game>"
     VERBATIM)
-  add_custom_command(
-    TARGET Game
-    POST_BUILD
-    COMMAND
-      "${CMAKE_COMMAND}" -E copy_if_different
-      "$<TARGET_FILE_DIR:Game>"
-    VERBATIM)
 endif()
 
 enable_testing()
-
 
 set(TEST_SRCS "src/stringlib.cc" "src/stats.cc" "src/string_table.cc"
               "src/logging.cc" "tests/test.cc")
 
 add_executable(Tests "${TEST_SRCS}")
 
-target_compile_options(Tests PRIVATE ${COMPILER_FLAGS} -O2 -fsanitize=address)
+target_compile_features(Tests PRIVATE cxx_std_17)
+
+target_compile_options(Tests PRIVATE
+    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
+    $<${IS_GCC_LIKE}:-fsanitize=address>
+)
+
+target_compile_definitions(Tests PRIVATE
+    $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
+)
 
 target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
                                          "${PROJECT_SOURCE_DIR}/src")
@@ -161,7 +169,7 @@ target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
 add_subdirectory(libraries/googletest)
 
 target_link_libraries(Tests GTest::gtest_main GTest::gmock xxHash::xxhash double-conversion)
-target_link_options(Tests PRIVATE -fsanitize=address)
+target_link_options(Tests PRIVATE $<${IS_GCC_LIKE}:-fsanitize=address>)
 
 include(GoogleTest)
 gtest_discover_tests(Tests)
