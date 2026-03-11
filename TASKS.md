@@ -14,7 +14,7 @@
 - [ ] Add error handling to `ParseVersionFromString` in `src/config.cc:18` (has TODO)
 - [ ] Add error handling to `LoadImageFromMemory` in `src/renderer.cc:614` (has TODO)
 - [ ] Add error handling to `LoadFontFromMemory` in `src/renderer.cc:633` (has TODO)
-- [ ] Add `glCheckFramebufferStatus` validation after framebuffer creation in `src/renderer.cc`
+- [x] Add `glCheckFramebufferStatus` validation after framebuffer creation in `src/renderer.cc`
 - [ ] Change `uint8_t*` signatures in `src/packer.cc:179` (has TODO)
 - [ ] Remove dead `#if 0` block in `src/input.cc:106-111` or restore with text file loader
 - [ ] Remove dead `G2` module in `assets/testgame1.lua:102-108`

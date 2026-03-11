@@ -181,6 +181,9 @@ void BatchRenderer::InitializeFramebuffers() {
                                      GL_TEXTURE_2D_MULTISAMPLE, render_texture_,
                                      /*level=*/0));
   CHECK(!glGetError(), "Could generate render texture: ", glGetError());
+  CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
+        "Render target framebuffer incomplete: ",
+        glCheckFramebufferStatus(GL_FRAMEBUFFER));
   // Create downsampled texture data.
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, downsampled_target_));
   OPENGL_CALL(glActiveTexture(GL_TEXTURE1));
@@ -194,6 +197,9 @@ void BatchRenderer::InitializeFramebuffers() {
                                      GL_TEXTURE_2D, downsampled_texture_,
                                      /*level=*/0));
   CHECK(!glGetError(), "Could generate downsampled texture: ", glGetError());
+  CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
+        "Downsampled target framebuffer incomplete: ",
+        glCheckFramebufferStatus(GL_FRAMEBUFFER));
   OPENGL_CALL(glGenRenderbuffers(1, &depth_buffer_));
   OPENGL_CALL(glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_));
   OPENGL_CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8,
@@ -201,6 +207,9 @@ void BatchRenderer::InitializeFramebuffers() {
   OPENGL_CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                         GL_DEPTH_STENCIL_ATTACHMENT,
                                         GL_RENDERBUFFER, depth_buffer_));
+  CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
+        "Downsampled target framebuffer incomplete after depth/stencil attach: ",
+        glCheckFramebufferStatus(GL_FRAMEBUFFER));
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   glActiveTexture(GL_TEXTURE0);
 }
