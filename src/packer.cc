@@ -6,6 +6,7 @@
 #include "filesystem.h"
 #include "libraries/json.h"
 #include "libraries/pugixml.h"
+#include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
 #include "lua.h"
 #include "physfs.h"
@@ -13,7 +14,6 @@
 #include "src/allocators.h"
 #include "src/stringlib.h"
 #include "src/units.h"
-#include "xxhash.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
@@ -381,7 +381,7 @@ class DbPacker {
       CHECK(PHYSFS_close(handle), "failed to finish reading ", filename, ": ",
             PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
       auto method = handler.handler;
-      const auto hash = XXH3_64bits(buffer, bytes);
+      const auto hash = rapidhash(buffer, bytes);
       DbAssets::ChecksumType saved;
       if (checksums_.Lookup(filename, &saved) &&
           !std::memcmp(&saved, &hash, sizeof(hash))) {
@@ -429,7 +429,7 @@ class DbPacker {
     // Ensure we always have the debug font available.
     if (!checksums_.Contains("debug_font.ttf")) {
       InsertFont("debug_font.ttf", kProggyCleanFont, kProggyCleanFontLength);
-      const auto hash = XXH3_64bits(kProggyCleanFont, kProggyCleanFontLength);
+      const auto hash = rapidhash(kProggyCleanFont, kProggyCleanFontLength);
       InsertIntoAssetMeta("debug_font.ttf", kProggyCleanFontLength, "font",
                           hash);
     }

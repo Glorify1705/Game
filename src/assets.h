@@ -17,7 +17,7 @@ namespace G {
 
 class DbAssets {
  public:
-  using ChecksumType = XXH64_hash_t;
+  using ChecksumType = uint64_t;
 
   struct Image {
     std::string_view name;
@@ -86,7 +86,7 @@ class DbAssets {
   template <typename T>
   class ArrayView {
    public:
-    explicit ArrayView(const DynArray<T>* array) : array_(array){};
+    explicit ArrayView(const DynArray<T>* array) : array_(array) {};
 
     using const_iterator = const T*;
 

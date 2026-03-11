@@ -5,15 +5,15 @@
 #include <array>
 
 #include "allocators.h"
+#include "libraries/rapidhash.h"
 #include "logging.h"
 #include "string_table.h"
-#include "xxhash.h"
 
 namespace G {
 namespace internal_dictionary {
 
 inline uint64_t Hash(std::string_view s) {
-  return XXH64(s.data(), s.size(), 0xC0DE15D474);
+  return rapidhash(s.data(), s.size());
 }
 
 }  // namespace internal_dictionary

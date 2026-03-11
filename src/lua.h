@@ -19,7 +19,6 @@ extern "C" {
 #include "stats.h"
 #include "stringlib.h"
 #include "vec.h"
-#include "xxhash.h"
 
 namespace G {
 

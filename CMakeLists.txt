@@ -19,7 +19,6 @@ set(BOX2D_BUILD_UNIT_TESTS OFF)
 add_subdirectory(libraries/box2d EXCLUDE_FROM_ALL)
 
 add_subdirectory(libraries/lua EXCLUDE_FROM_ALL)
-add_subdirectory(libraries/xxHash/cmake_unofficial EXCLUDE_FROM_ALL)
 add_subdirectory(libraries/physfs EXCLUDE_FROM_ALL)
 
 set(BUILD_REGRESS OFF)
@@ -130,7 +129,6 @@ target_link_libraries(
           physfs-static
           box2d
           lua
-          xxHash::xxhash
           double-conversion
           OpenGL::GL)
 
@@ -168,7 +166,7 @@ target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
 
 add_subdirectory(libraries/googletest)
 
-target_link_libraries(Tests GTest::gtest_main GTest::gmock xxHash::xxhash double-conversion)
+target_link_libraries(Tests GTest::gtest_main GTest::gmock double-conversion)
 target_link_options(Tests PRIVATE $<${IS_GCC_LIKE}:-fsanitize=address>)
 
 include(GoogleTest)

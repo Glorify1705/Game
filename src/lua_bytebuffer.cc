@@ -1,5 +1,7 @@
 #include "lua_bytebuffer.h"
 
+#include "libraries/rapidhash.h"
+
 namespace G {
 namespace {
 
@@ -61,8 +63,8 @@ const struct luaL_Reg kDataLib[] = {
          default:
            LUA_ERROR(state, "Argument 1 cannot be hashed");
        }
-       lua_pushnumber(state,
-                      XXH64(contents.data(), contents.size(), 0xC0D315D474));
+       lua_pushnumber(state, rapidhash_withSeed(contents.data(),
+                                                contents.size(), 0xC0D315D474));
        return 1;
      }}};
 
