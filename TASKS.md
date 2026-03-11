@@ -31,7 +31,7 @@
 
 - [X] ~~Fix CMake compatibility error with xxHash library~~ (replaced xxHash with rapidhash)
 - [ ] Add `-fsanitize=undefined` (UBSan) alongside AddressSanitizer in test builds
-- [ ] Remove `-Wno-unused-parameter` and use `[[maybe_unused]]` where needed
+- [x] Remove `-Wno-unused-parameter` and use `[[maybe_unused]]` where needed
 - [ ] Enable AddressSanitizer for dev builds, not just tests
 - [ ] Port inotify file watcher to cross-platform (`src/game.cc:124` has TODO)
 

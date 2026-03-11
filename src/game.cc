@@ -257,7 +257,7 @@ struct EngineModules {
 
   void RegisterLoaders() {
     assets->RegisterShaderLoad(
-        [](DbAssets::Shader* shader, StringBuffer* err, void* ud) {
+        [](DbAssets::Shader* shader, StringBuffer* /*err*/, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           Shaders::Error error;
           if (!self->shaders.Load(*shader, &error)) {
@@ -267,37 +267,37 @@ struct EngineModules {
         },
         this);
     assets->RegisterScriptLoad(
-        [](DbAssets::Script* script, StringBuffer* err, void* ud) {
+        [](DbAssets::Script* script, StringBuffer* /*err*/, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->lua.LoadScript(*script);
         },
         this);
     assets->RegisterImageLoad(
-        [](DbAssets::Image* image, StringBuffer* err, void* ud) {
+        [](DbAssets::Image* image, StringBuffer* /*err*/, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadImage(*image);
         },
         this);
     assets->RegisterSpritesheetLoad(
-        [](DbAssets::Spritesheet* spritesheet, StringBuffer* err, void* ud) {
+        [](DbAssets::Spritesheet* spritesheet, StringBuffer* /*err*/, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadSpritesheet(*spritesheet);
         },
         this);
     assets->RegisterSpriteLoad(
-        [](DbAssets::Sprite* sprite, StringBuffer* err, void* ud) {
+        [](DbAssets::Sprite* sprite, StringBuffer* /*err*/, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadSprite(*sprite);
         },
         this);
     assets->RegisterSoundLoad(
-        [](DbAssets::Sound* sound, StringBuffer* err, void* ud) {
+        [](DbAssets::Sound* sound, StringBuffer* /*err*/, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->sound.LoadSound(*sound);
         },
         this);
     assets->RegisterFontLoad(
-        [](DbAssets::Font* font, StringBuffer* err, void* ud) {
+        [](DbAssets::Font* font, StringBuffer* /*err*/, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadFont(*font);
         },

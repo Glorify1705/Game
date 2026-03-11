@@ -101,7 +101,6 @@ set(GCC_AND_CLANG_FLAGS
     -Wextra
     -Werror
     -O1
-    -Wno-unused-parameter
     -ggdb
     -DNDEBUG
     -DGAME_WITH_ASSERTS)
