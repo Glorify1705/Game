@@ -1,6 +1,7 @@
 #include "lua.h"
 
 #include <algorithm>
+#include <cstdio>
 
 #include "SDL.h"
 #include "clock.h"
@@ -219,6 +220,8 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
                                  size_t N) {
   LUA_CHECK_STACK(state_);
   LOG("Adding library ", name);
+  CHECK(registered_library_count_ < kMaxLibraries, "Too many libraries");
+  registered_libraries_[registered_library_count_++] = {name, funcs, N};
   lua_getglobal(state_, "G");
   lua_newtable(state_);
   for (size_t i = 0; i < N; ++i) {
@@ -281,6 +284,84 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
     lua_pop(state_, 5);
   }
   lua_pop(state_, 1);
+}
+
+void Lua::GenerateLuaLSStubs(const char* output_path) {
+  FILE* f = fopen(output_path, "w");
+  CHECK(f != nullptr, "Could not open ", output_path, " for writing");
+
+  // Strip "N:" overload prefix from parameter names (e.g. "2:r" -> "r").
+  auto strip_prefix = [](const char* name) -> const char* {
+    if (name == nullptr) return nullptr;
+    for (const char* p = name; *p; ++p) {
+      if (*p == ':') return p + 1;
+    }
+    return name;
+  };
+
+  fprintf(f, "---@meta\n");
+  fprintf(f, "-- Auto-generated LuaLS stubs from LuaApiFunction metadata.\n");
+  fprintf(f, "-- Do not edit manually.\n\n");
+
+  // Write the G namespace class.
+  fprintf(f, "---@class G\n");
+  for (size_t i = 0; i < registered_library_count_; ++i) {
+    const auto& lib = registered_libraries_[i];
+    fprintf(f, "---@field %s G.%s\n", lib.name, lib.name);
+  }
+  fprintf(f, "G = {}\n\n");
+
+  // Write each library.
+  for (size_t i = 0; i < registered_library_count_; ++i) {
+    const auto& lib = registered_libraries_[i];
+    fprintf(f, "---@class G.%s\n", lib.name);
+    fprintf(f, "G.%s = {}\n\n", lib.name);
+
+    for (size_t j = 0; j < lib.count; ++j) {
+      const auto& func = lib.funcs[j];
+      if (func.name == nullptr) continue;
+
+      // Write docstring.
+      if (func.docstring != nullptr) {
+        fprintf(f, "---%s\n", func.docstring);
+      }
+
+      // Write param annotations.
+      for (size_t k = 0; k < func.args.argc; ++k) {
+        const auto& arg = func.args[k];
+        const char* name = strip_prefix(arg.name);
+        if (arg.type != nullptr) {
+          fprintf(f, "---@param %s %s %s\n", name, arg.type,
+                  arg.docs ? arg.docs : "");
+        } else if (name != nullptr) {
+          fprintf(f, "---@param %s any %s\n", name, arg.docs ? arg.docs : "");
+        }
+      }
+
+      // Write return annotations.
+      for (size_t k = 0; k < func.returns.argc; ++k) {
+        const auto& ret = func.returns[k];
+        if (ret.type != nullptr) {
+          fprintf(f, "---@return %s %s %s\n", ret.type,
+                  ret.name ? ret.name : "", ret.docs ? ret.docs : "");
+        } else if (ret.name != nullptr) {
+          fprintf(f, "---@return any %s %s\n", ret.name,
+                  ret.docs ? ret.docs : "");
+        }
+      }
+
+      // Write function signature.
+      fprintf(f, "function G.%s.%s(", lib.name, func.name);
+      for (size_t k = 0; k < func.args.argc; ++k) {
+        if (k > 0) fprintf(f, ", ");
+        fprintf(f, "%s", strip_prefix(func.args[k].name));
+      }
+      fprintf(f, ") end\n\n");
+    }
+  }
+
+  fclose(f);
+  LOG("Generated LuaLS stubs: ", output_path);
 }
 
 int Lua::LoadLuaAsset(std::string_view filename,

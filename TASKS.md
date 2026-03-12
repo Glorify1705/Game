@@ -25,7 +25,7 @@
 - [ ] Wrap `require()` in `assets/main.lua` with `pcall` and validate returned module has `init`/`update`/`draw`
 - [ ] Add nil checks after C++ API calls in Lua scripts (`G.assets.sprite_info` in `entity.lua`, `G.sound.add_source` in `testgame1.lua`)
 - [ ] Add `SQLITE_BUSY` retry logic in `src/assets.cc` and `src/config.cc` instead of dying on transient errors
-- [ ] Warn when obtained SDL audio spec differs from requested spec in `src/game.cc:655`
+- [x] Warn when obtained SDL audio spec differs from requested spec in `src/game.cc:655`
 
 ## Build
 
@@ -34,6 +34,27 @@
 - [x] Remove `-Wno-unused-parameter` and use `[[maybe_unused]]` where needed
 - [ ] Enable AddressSanitizer for dev builds, not just tests
 - [ ] Port inotify file watcher to cross-platform (`src/game.cc:124` has TODO)
+
+## Lua API for LSP and LLMs
+
+See `design/Lua API for LSP and LLMs.md` for full design.
+
+- [x] Migrate all Lua libraries to `LuaApiFunction` registration
+  - Switch `input`, `math`, `physics`, `system`, `clock`, `filesystem`, `data`, `assets`, `random` from bare `luaL_Reg` to `LuaApiFunction` with docstrings and argument names/descriptions
+  - `graphics` and `sound` already use `LuaApiFunction`
+- [x] Add type annotations to `LuaApiFunction` args and returns
+  - Add a `type` field to `LuaApiFunctionArg` (e.g. `"number"`, `"string"`, `"vec2"`, `"boolean"`, `"physics_handle"`, `"rng"`)
+  - Add typed return annotations to `LuaApiFunction`
+  - Update all libraries to include type info
+  - Requires changes to structs in `src/lua.h` and all `lua_*.cc` files
+- [x] Auto-generate LuaLS stub file from `LuaApiFunction` metadata
+  - Add a command that iterates all registered `LuaApiFunction` arrays and emits `definitions/game.lua` with LuaCATS annotations
+  - Generate `.luarc.json` for the assets directory so LuaLS picks up stubs automatically
+  - Handle overloads (e.g. `G.random.sample` with 1 or 3 args)
+- [ ] Design and implement type registration API for userdata metatables
+  - Design a C++ API in `src/lua.h` / `src/lua.cc` for describing userdata types (vec2, vec3, vec4, mat2x2, mat3x3, mat4x4, byte_buffer, physics_handle, rng, sprite_asset)
+  - Capture: metatable name, LuaLS type alias, fields (name + type), methods (name + params + returns), metamethods/operators, constructors (which `G.*` functions return this type)
+  - Extend the stub generator to emit `---@class`, `---@field`, `---@operator`, and method annotations from this registry
 
 ## Performance
 

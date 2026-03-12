@@ -183,6 +183,9 @@ class Lua {
 
   void LoadLibraries();
 
+  // Generates LuaLS stub file (definitions/game.lua) from registered metadata.
+  void GenerateLuaLSStubs(const char* output_path);
+
   void LoadScript(const DbAssets::Script& script);
 
   void LoadMain();
@@ -327,6 +330,16 @@ class Lua {
   Allocator* allocator_;
   sqlite3* db_;
   DbAssets* assets_;
+
+  struct RegisteredLibrary {
+    const char* name;
+    const LuaApiFunction* funcs;
+    size_t count;
+  };
+
+  static constexpr size_t kMaxLibraries = 16;
+  RegisteredLibrary registered_libraries_[kMaxLibraries];
+  size_t registered_library_count_ = 0;
 
   FixedStringBuffer<1024> error_;
   std::jmp_buf on_error_buf_;

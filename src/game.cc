@@ -422,8 +422,16 @@ class Game {
     TIMER("Setup");
     InitializeLogging();
     LOG("Program name = ", argv[0], " args = ", argc);
-    for (int i = 1; i < argc; ++i) {
-      LOG("argv[", i, "] = ", argv[i]);
+    // Strip --generate-stubs before LoadDb sees it.
+    for (size_t i = 1; i < argc_; ++i) {
+      if (strcmp(argv_[i], "--generate-stubs") == 0) {
+        generate_stubs_ = true;
+        for (size_t j = i; j + 1 < argc_; ++j) {
+          argv_[j] = argv_[j + 1];
+        }
+        argc_--;
+        break;
+      }
     }
     PHYSFS_CHECK(PHYSFS_init(argv[0]),
                  "Could not initialize PhysFS: ", argv[0]);
@@ -441,7 +449,7 @@ class Game {
     }
     {
       TIMER("Getting assets");
-      db_assets_ = GetAssets(argv + 1, argc - 1, db_);
+      db_assets_ = GetAssets(argv_ + 1, argc_ - 1, db_);
     }
     LOG("Using engine version ", GAME_VERSION_STR);
     LOG("Game requested engine version ", config_.version.major, ".",
@@ -523,6 +531,10 @@ class Game {
                                         obtained_spec_, window_, allocator_,
                                         load_.source_directory);
     e_->Initialize();
+    if (generate_stubs_) {
+      e_->lua.GenerateLuaLSStubs("definitions/game.lua");
+      exit(0);
+    }
     e_->lua.Init();
     if (load_.should_hotreload) {
       e_->watcher_.Watch(load_.source_directory);
@@ -792,8 +804,9 @@ class Game {
     return context;
   }
 
-  const size_t argc_;
+  size_t argc_;
   const char** const argv_;
+  bool generate_stubs_ = false;
   LoadResult load_;
   Allocator* allocator_;
   void* sqlite_heap_;
