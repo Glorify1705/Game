@@ -35,6 +35,7 @@
 #include "lua_system.h"
 #include "mat.h"
 #include "math.h"
+#include "mimalloc_allocator.h"
 #include "packer.h"
 #include "physics.h"
 #include "renderer.h"
@@ -172,7 +173,9 @@ struct EngineModules {
         controllers(db_assets, allocator),
         sound(spec, allocator),
         renderer(*db_assets, &batch_renderer, allocator),
-        lua(argc, argv, db, db_assets, SystemAllocator::Instance()),
+        lua_allocator(allocator->Alloc(Megabytes(64), kMaxAlign),
+                      Megabytes(64)),
+        lua(argc, argv, db, db_assets, &lua_allocator),
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)),
@@ -279,7 +282,8 @@ struct EngineModules {
         },
         this);
     assets->RegisterSpritesheetLoad(
-        [](DbAssets::Spritesheet* spritesheet, StringBuffer* /*err*/, void* ud) {
+        [](DbAssets::Spritesheet* spritesheet, StringBuffer* /*err*/,
+           void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadSpritesheet(*spritesheet);
         },
@@ -399,6 +403,7 @@ struct EngineModules {
   Controllers controllers;
   Sound sound;
   Renderer renderer;
+  MimallocAllocator lua_allocator;
   Lua lua;
   Physics physics;
   ArenaAllocator frame_allocator;

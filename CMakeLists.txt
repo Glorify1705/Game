@@ -21,6 +21,12 @@ add_subdirectory(libraries/box2d EXCLUDE_FROM_ALL)
 add_subdirectory(libraries/lua EXCLUDE_FROM_ALL)
 add_subdirectory(libraries/physfs EXCLUDE_FROM_ALL)
 
+set(MI_OVERRIDE OFF CACHE BOOL "" FORCE)
+set(MI_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(MI_BUILD_OBJECT OFF CACHE BOOL "" FORCE)
+set(MI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(libraries/mimalloc EXCLUDE_FROM_ALL)
+
 set(BUILD_REGRESS OFF)
 set(BUILD_EXAMPLES OFF)
 set(BUILD_DOC OFF)
@@ -128,6 +134,7 @@ target_link_libraries(
           physfs-static
           box2d
           lua
+          mimalloc-static
           double-conversion
           OpenGL::GL)
 
