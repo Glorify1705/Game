@@ -279,7 +279,8 @@ class Sound {
   FixedArray<float> buffer_;
   SDL_mutex* mu_ = nullptr;
   Dictionary<DbAssets::Sound> sounds_;
-  Stream streams_[16];
+  static constexpr size_t kMaxStreams = 16;
+  Stream streams_[kMaxStreams];
   size_t stream_ = 0;
   FixedArray<VorbisSampler*> vorbis_;
   FixedArray<WavSampler*> wavs_;

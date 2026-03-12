@@ -15,7 +15,7 @@ const struct LuaApiFunction kSoundLib[] = {
        std::string_view name = GetLuaString(state, 1);
        Sound::Source source;
        if (!sound->AddSource(name, &source)) {
-         LUA_ERROR(state, "Could not find sound ", name);
+         LUA_ERROR(state, "Could not add sound source ", name);
        }
        lua_pushnumber(state, source);
        return 1;
@@ -41,7 +41,7 @@ const struct LuaApiFunction kSoundLib[] = {
        std::string_view name = GetLuaString(state, 1);
        Sound::Source source;
        if (!sound->AddSource(name, &source)) {
-         LUA_ERROR(state, "Could not find sound ", name);
+         LUA_ERROR(state, "Could not add sound source ", name);
        }
        if (!sound->StartChannel(source)) {
          LUA_ERROR(state, "Could not play source");

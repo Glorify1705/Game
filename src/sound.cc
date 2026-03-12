@@ -13,6 +13,10 @@ bool Sound::AddSource(std::string_view name, Source* source) {
     return false;
   }
   LockMutex l(mu_);
+  if (stream_ >= kMaxStreams) {
+    LOG("Maximum number of streams exceeded");
+    return false;
+  }
   if (HasSuffix(sound.name, ".ogg")) {
     LOG("Loading vorbis source ", sound.name);
     auto* vorbis = vorbis_alloc_.Alloc();
@@ -22,13 +26,14 @@ bool Sound::AddSource(std::string_view name, Source* source) {
     streams_[stream_].InitFromStream(&sound, vorbis);
   } else if (HasSuffix(sound.name, ".wav")) {
     LOG("Loading WAV source ", sound.name);
-    auto* wav = wavs_alloc_.Alloc();
+    auto* wav = wavs_alloc_.New();
     if (!wav->Init(&sound)) {
       return false;
     }
     streams_[stream_].InitFromStream(&sound, wav);
   } else {
-    DIE("Unknown sound file", sound.name);
+    LOG("Unsupported sound format: ", sound.name);
+    return false;
   }
   *source = stream_;
   stream_++;
@@ -51,7 +56,6 @@ bool Sound::StartChannel(Source source) {
 
 bool Sound::Stop(Source source) {
   LockMutex l(mu_);
-  streams_[source].Start();
   if (source >= stream_) return false;
   streams_[source].Stop();
   return true;

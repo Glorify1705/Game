@@ -5,7 +5,7 @@
 - [ ] Fix infinite recursion in `assets/vector2d.lua:39` — `Vec2.distance` calls itself instead of `Vec2.distance2`
 - [ ] Fix `assets/random.lua:7` — uses deprecated Lua 5.0 `arg` table; use explicit parameter instead
 - [ ] Fix `assets/random.lua:13` — `Random.non_deterministic()` references `self` but is not a method (missing colon)
-- [ ] Fix missing return in `src/sound.cc:143` — `StartChannel` falls off end without returning when source type is unrecognized
+- [x] Fix missing return in `src/sound.cc:143` — `StartChannel` falls off end without returning when source type is unrecognized
 - [ ] Fix global variables in `assets/player.lua:4-5` — `FORCE` and `ANGLE_DELTA` pollute global namespace, should be `local`
 
 ## Code quality
