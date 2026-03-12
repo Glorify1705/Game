@@ -39,6 +39,11 @@ void LoadConfig(std::string_view json_configuration, GameConfig* config,
 void LoadConfigFromDatabase(sqlite3* db, GameConfig* config,
                             Allocator* allocator);
 
+// Reads conf.json from disk and parses it into config.
+// Returns true if the file was found and parsed, false if not found.
+bool LoadConfigFromFile(const char* path, GameConfig* config,
+                        Allocator* allocator);
+
 }  // namespace G
 
 #endif  // _GAME_CONFIG_H

@@ -86,11 +86,18 @@ set(GAME_SRCS
     "src/stringlib.cc"
     "src/thread_pool.cc"
     "src/transformations.cc"
-    "src/packer.cc")
+    "src/packer.cc"
+    "src/cmd_help.cc"
+    "src/cmd_init.cc"
+    "src/cmd_package.cc"
+    "src/cmd_run.cc"
+    "src/cmd_stubs.cc"
+    "src/cmd_version.cc")
 
 configure_file(src/version.h.in version.h)
 
 add_executable(Game "${GAME_SRCS}")
+set_target_properties(Game PROPERTIES OUTPUT_NAME "game")
 
 target_compile_features(Game PRIVATE cxx_std_17)
 
@@ -126,8 +133,7 @@ set_source_files_properties(libraries/sqlite3.c PROPERTIES
 
 add_custom_target(
   Run
-  COMMAND "${CMAKE_CURRENT_BINARY_DIR}/Game" "${PROJECT_SOURCE_DIR}/assets"
-          "${CMAKE_CURRENT_BINARY_DIR}/assets.sqlite3"
+  COMMAND "${CMAKE_CURRENT_BINARY_DIR}/game" run "${PROJECT_SOURCE_DIR}/assets"
   DEPENDS Game
   VERBATIM COMMAND_EXPAND_LISTS)
 
