@@ -4,79 +4,18 @@
 
 #include "cli.h"
 #include "config.h"
-#include "filesystem.h"
+#include "fileutil.h"
 #include "libraries/sqlite3.h"
 #include "packer.h"
 #include "stringlib.h"
 #include "units.h"
 
 #ifndef _WIN32
-#include <errno.h>
 #include <limits.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
 namespace G {
-
-namespace {
-
-bool FileExists(const char* path) {
-#ifdef _WIN32
-  DWORD attr = GetFileAttributesA(path);
-  return attr != INVALID_FILE_ATTRIBUTES;
-#else
-  struct stat st;
-  return stat(path, &st) == 0;
-#endif
-}
-
-bool MakeDirs(const char* path) {
-#ifdef _WIN32
-  char tmp[MAX_PATH];
-  snprintf(tmp, sizeof(tmp), "%s", path);
-  for (char* p = tmp + 1; *p; ++p) {
-    if (*p == '/' || *p == '\\') {
-      *p = '\0';
-      CreateDirectoryA(tmp, nullptr);
-      *p = '/';
-    }
-  }
-  return CreateDirectoryA(tmp, nullptr) ||
-         GetLastError() == ERROR_ALREADY_EXISTS;
-#else
-  char tmp[PATH_MAX];
-  snprintf(tmp, sizeof(tmp), "%s", path);
-  for (char* p = tmp + 1; *p; ++p) {
-    if (*p == '/') {
-      *p = '\0';
-      mkdir(tmp, 0755);
-      *p = '/';
-    }
-  }
-  return mkdir(tmp, 0755) == 0 || errno == EEXIST;
-#endif
-}
-
-bool CopyFile(const char* src, const char* dst) {
-  FILE* in = fopen(src, "rb");
-  if (in == nullptr) return false;
-  FILE* out = fopen(dst, "wb");
-  if (out == nullptr) {
-    fclose(in);
-    return false;
-  }
-  char buf[8192];
-  size_t n;
-  while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
-    fwrite(buf, 1, n, out);
-  }
-  fclose(in);
-  fclose(out);
-  return true;
-}
-
-}  // namespace
 
 int CmdPackage(int argc, const char* argv[]) {
   const char* source_directory = ".";

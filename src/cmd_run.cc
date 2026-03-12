@@ -4,6 +4,7 @@
 
 #include "cli.h"
 #include "config.h"
+#include "fileutil.h"
 #include "game.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
@@ -12,77 +13,12 @@
 #include "units.h"
 
 #ifndef _WIN32
-#include <errno.h>
-#include <limits.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
 namespace G {
 
 namespace {
-
-// Resolves a path to an absolute path. Caller must use the result before the
-// next call (returns a static buffer).
-const char* AbsolutePath(const char* path) {
-#ifdef _WIN32
-  static char resolved[MAX_PATH];
-  if (_fullpath(resolved, path, MAX_PATH) != nullptr) return resolved;
-  return path;
-#else
-  static char resolved[PATH_MAX];
-  if (realpath(path, resolved) != nullptr) return resolved;
-  return path;
-#endif
-}
-
-bool DirectoryExists(const char* path) {
-#ifdef _WIN32
-  DWORD attr = GetFileAttributesA(path);
-  return attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY);
-#else
-  struct stat st;
-  return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
-#endif
-}
-
-bool FileExists(const char* path) {
-#ifdef _WIN32
-  DWORD attr = GetFileAttributesA(path);
-  return attr != INVALID_FILE_ATTRIBUTES;
-#else
-  struct stat st;
-  return stat(path, &st) == 0;
-#endif
-}
-
-bool MakeDirs(const char* path) {
-#ifdef _WIN32
-  // Simple recursive mkdir for Windows.
-  char tmp[MAX_PATH];
-  snprintf(tmp, sizeof(tmp), "%s", path);
-  for (char* p = tmp + 1; *p; ++p) {
-    if (*p == '/' || *p == '\\') {
-      *p = '\0';
-      CreateDirectoryA(tmp, nullptr);
-      *p = '/';
-    }
-  }
-  return CreateDirectoryA(tmp, nullptr) ||
-         GetLastError() == ERROR_ALREADY_EXISTS;
-#else
-  char tmp[PATH_MAX];
-  snprintf(tmp, sizeof(tmp), "%s", path);
-  for (char* p = tmp + 1; *p; ++p) {
-    if (*p == '/') {
-      *p = '\0';
-      mkdir(tmp, 0755);
-      *p = '/';
-    }
-  }
-  return mkdir(tmp, 0755) == 0 || errno == EEXIST;
-#endif
-}
 
 void ComputeCacheDir(const char* source_directory, char* out, size_t out_size) {
   const char* abs_path = AbsolutePath(source_directory);
@@ -273,14 +209,7 @@ bool PackagedGameExists(const char* argv0) {
 
   last_slash[1] = '\0';
   FixedStringBuffer<1024> asset_path(exe_path, "assets.sqlite3");
-
-#ifdef _WIN32
-  DWORD attr = GetFileAttributesA(asset_path.str());
-  return attr != INVALID_FILE_ATTRIBUTES;
-#else
-  struct stat st;
-  return stat(asset_path.str(), &st) == 0;
-#endif
+  return FileExists(asset_path.str());
 }
 
 }  // namespace G

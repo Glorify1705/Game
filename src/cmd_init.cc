@@ -2,56 +2,15 @@
 #include <cstring>
 
 #include "cli.h"
+#include "fileutil.h"
 #include "stringlib.h"
 #include "templates.h"
 
 #ifndef _WIN32
-#include <errno.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
 namespace G {
-
-namespace {
-
-bool MakeDir(const char* path) {
-#ifdef _WIN32
-  return CreateDirectoryA(path, nullptr) ||
-         GetLastError() == ERROR_ALREADY_EXISTS;
-#else
-  return mkdir(path, 0755) == 0 || errno == EEXIST;
-#endif
-}
-
-bool FileExists(const char* path) {
-#ifdef _WIN32
-  DWORD attr = GetFileAttributesA(path);
-  return attr != INVALID_FILE_ATTRIBUTES;
-#else
-  struct stat st;
-  return stat(path, &st) == 0;
-#endif
-}
-
-bool WriteFile(const char* path, const char* contents) {
-  FILE* f = fopen(path, "w");
-  if (f == nullptr) return false;
-  fputs(contents, f);
-  fclose(f);
-  return true;
-}
-
-bool WriteFileF(const char* path, const char* fmt, const char* arg1,
-                const char* arg2) {
-  FILE* f = fopen(path, "w");
-  if (f == nullptr) return false;
-  fprintf(f, fmt, arg1, arg2);
-  fclose(f);
-  return true;
-}
-
-}  // namespace
 
 int CmdInit(int argc, const char* argv[]) {
   const char* dir = ".";
