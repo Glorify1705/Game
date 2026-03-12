@@ -8,13 +8,13 @@ namespace {
 const struct LuaApiFunction kPhysicsLib[] = {
     {"add_box",
      "Adds a dynamic box body to the physics world",
-     {{"tx", "top-left x"},
-      {"ty", "top-left y"},
-      {"bx", "bottom-right x"},
-      {"by", "bottom-right y"},
-      {"angle", "rotation in radians"},
-      {"callback", "collision callback function"}},
-     {{"handle", "a physics handle for the new body"}},
+     {{"tx", "top-left x", "number"},
+      {"ty", "top-left y", "number"},
+      {"bx", "bottom-right x", "number"},
+      {"by", "bottom-right y", "number"},
+      {"angle", "rotation in radians", "number"},
+      {"callback", "collision callback function", "function"}},
+     {{"handle", "a physics handle for the new body", "physics_handle"}},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
        const float tx = luaL_checknumber(state, 1);
@@ -33,11 +33,11 @@ const struct LuaApiFunction kPhysicsLib[] = {
      }},
     {"add_circle",
      "Adds a dynamic circle body to the physics world",
-     {{"tx", "center x"},
-      {"ty", "center y"},
-      {"radius", "the circle radius"},
-      {"callback", "collision callback function"}},
-     {{"handle", "a physics handle for the new body"}},
+     {{"tx", "center x", "number"},
+      {"ty", "center y", "number"},
+      {"radius", "the circle radius", "number"},
+      {"callback", "collision callback function", "function"}},
+     {{"handle", "a physics handle for the new body", "physics_handle"}},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
        const float tx = luaL_checknumber(state, 1);
@@ -54,7 +54,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
      }},
     {"destroy_handle",
      "Destroys a physics body",
-     {{"handle", "the physics handle to destroy"}},
+     {{"handle", "the physics handle to destroy", "physics_handle"}},
      {},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
@@ -74,7 +74,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
      }},
     {"set_collision_callback",
      "Sets a global callback invoked when two bodies begin contact",
-     {{"callback", "function called with two collision callbacks"}},
+     {{"callback", "function called with two collision callbacks", "function"}},
      {},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
@@ -113,8 +113,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
      }},
     {"position",
      "Returns the position of a physics body",
-     {{"handle", "the physics handle"}},
-     {{"x", "x position"}, {"y", "y position"}},
+     {{"handle", "the physics handle", "physics_handle"}},
+     {{"x", "x position", "number"}, {"y", "y position", "number"}},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* handle = static_cast<Physics::Handle*>(
@@ -126,8 +126,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
      }},
     {"angle",
      "Returns the rotation angle of a physics body in radians",
-     {{"handle", "the physics handle"}},
-     {{"angle", "the angle in radians"}},
+     {{"handle", "the physics handle", "physics_handle"}},
+     {{"angle", "the angle in radians", "number"}},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* handle = static_cast<Physics::Handle*>(
@@ -138,7 +138,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
      }},
     {"rotate",
      "Sets the rotation angle of a physics body",
-     {{"handle", "the physics handle"}, {"angle", "the angle in radians"}},
+     {{"handle", "the physics handle", "physics_handle"},
+      {"angle", "the angle in radians", "number"}},
      {},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
@@ -150,9 +151,9 @@ const struct LuaApiFunction kPhysicsLib[] = {
      }},
     {"apply_linear_impulse",
      "Applies a linear impulse to a physics body",
-     {{"handle", "the physics handle"},
-      {"x", "impulse x component"},
-      {"y", "impulse y component"}},
+     {{"handle", "the physics handle", "physics_handle"},
+      {"x", "impulse x component", "number"},
+      {"y", "impulse y component", "number"}},
      {},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
@@ -165,9 +166,9 @@ const struct LuaApiFunction kPhysicsLib[] = {
      }},
     {"apply_force",
      "Applies a continuous force to a physics body",
-     {{"handle", "the physics handle"},
-      {"x", "force x component"},
-      {"y", "force y component"}},
+     {{"handle", "the physics handle", "physics_handle"},
+      {"x", "force x component", "number"},
+      {"y", "force y component", "number"}},
      {},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
@@ -180,7 +181,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
      }},
     {"apply_torque",
      "Applies a torque to a physics body",
-     {{"handle", "the physics handle"}, {"torque", "the torque value"}},
+     {{"handle", "the physics handle", "physics_handle"},
+      {"torque", "the torque value", "number"}},
      {},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);

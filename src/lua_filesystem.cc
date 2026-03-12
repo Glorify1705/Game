@@ -18,43 +18,47 @@ PHYSFS_EnumerateCallbackResult LuaListDirectory(void* userdata, const char* dir,
 const struct LuaApiFunction kFilesystemLib[] = {
     {"spit",
      "Writes a string to a given file, overwriting all contents",
-     {{"name", "Filename to write to"}, {"str", "string to write"}},
-     {{"result", "nil on success, a string if there were any errors"}},
+     {{"name", "Filename to write to", "string"},
+      {"str", "string to write", "string"}},
+     {{"result", "nil on success, a string if there were any errors",
+       "string"}},
      [](lua_State* state) {
        return LuaWriteToFile(state, 2, /*name=*/GetLuaString(state, 1));
      }},
     {"slurp",
      "Reads a whole file into a string",
-     {{"name", "Filename to read from"}},
-     {{"error", "nil on success, a string if there were any errors"},
-      {"contents", "File contents on success, nil in case of errors"}},
+     {{"name", "Filename to read from", "string"}},
+     {{"error", "nil on success, a string if there were any errors", "string"},
+      {"contents", "File contents on success, nil in case of errors",
+       "byte_buffer"}},
      [](lua_State* state) {
        return LuaLoadFileIntoBuffer(state, GetLuaString(state, 1));
      }},
     {"load_json",
      "Loads a Json file from a string.",
-     {{"name", "Filename to read from"}},
-     {{"error", "nil on success, a string if there were any errors"},
+     {{"name", "Filename to read from", "string"}},
+     {{"error", "nil on success, a string if there were any errors", "string"},
       {"result",
        "Table result of evaluating the Json file, nil if there were any "
-       "errors"}},
+       "errors",
+       "table"}},
      [](lua_State* state) {
        LUA_ERROR(state, "Unimplemented");
        return 0;
      }},
     {"save_json",
      "Saves a Lua table into a file.",
-     {{"name", "Filename to write to from"},
-      {"contents", "Table to serialize"}},
-     {{"error", "nil on success, a string if there were any errors"}},
+     {{"name", "Filename to write to from", "string"},
+      {"contents", "Table to serialize", "table"}},
+     {{"error", "nil on success, a string if there were any errors", "string"}},
      [](lua_State* state) {
        LUA_ERROR(state, "Unimplemented");
        return 0;
      }},
     {"list_directory",
      "List all files in a givne directory",
-     {{"name", "Directory to list"}},
-     {{"files", "A list with all the files in the given directory"}},
+     {{"name", "Directory to list", "string"}},
+     {{"files", "A list with all the files in the given directory", "table"}},
      [](lua_State* state) {
        auto* filesystem = Registry<Filesystem>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
@@ -64,8 +68,8 @@ const struct LuaApiFunction kFilesystemLib[] = {
      }},
     {"exists",
      "Returns whether a file exists",
-     {{"name", "Path to the potential file to check"}},
-     {{"exists", "Whether the file exists or not"}},
+     {{"name", "Path to the potential file to check", "string"}},
+     {{"exists", "Whether the file exists or not", "boolean"}},
      [](lua_State* state) {
        auto* filesystem = Registry<Filesystem>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);

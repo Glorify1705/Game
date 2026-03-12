@@ -9,7 +9,7 @@ const struct LuaApiFunction kInputLib[] = {
     {"mouse_position",
      "Returns the current mouse position",
      {},
-     {{"x", "x coordinate"}, {"y", "y coordinate"}},
+     {{"x", "x coordinate", "number"}, {"y", "y coordinate", "number"}},
      [](lua_State* state) {
        const FVec2 pos = Mouse::GetPosition();
        lua_pushnumber(state, pos.x);
@@ -18,8 +18,8 @@ const struct LuaApiFunction kInputLib[] = {
      }},
     {"is_key_down",
      "Returns true if the key is currently held down",
-     {{"key", "the key name"}},
-     {{"down", "whether the key is down"}},
+     {{"key", "the key name", "string"}},
+     {{"down", "whether the key is down", "boolean"}},
      [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
@@ -28,8 +28,8 @@ const struct LuaApiFunction kInputLib[] = {
      }},
     {"is_key_released",
      "Returns true if the key was released this frame",
-     {{"key", "the key name"}},
-     {{"released", "whether the key was released"}},
+     {{"key", "the key name", "string"}},
+     {{"released", "whether the key was released", "boolean"}},
      [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
@@ -38,8 +38,8 @@ const struct LuaApiFunction kInputLib[] = {
      }},
     {"is_key_pressed",
      "Returns true if the key was pressed this frame",
-     {{"key", "the key name"}},
-     {{"pressed", "whether the key was pressed"}},
+     {{"key", "the key name", "string"}},
+     {{"pressed", "whether the key was pressed", "boolean"}},
      [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
        auto* keyboard = Registry<Keyboard>::Retrieve(state);
@@ -49,7 +49,7 @@ const struct LuaApiFunction kInputLib[] = {
     {"mouse_wheel",
      "Returns the mouse wheel scroll delta",
      {},
-     {{"x", "horizontal scroll"}, {"y", "vertical scroll"}},
+     {{"x", "horizontal scroll", "number"}, {"y", "vertical scroll", "number"}},
      [](lua_State* state) {
        auto* mouse = Registry<Mouse>::Retrieve(state);
        const FVec2 wheel = mouse->GetWheel();
@@ -59,8 +59,8 @@ const struct LuaApiFunction kInputLib[] = {
      }},
     {"is_mouse_pressed",
      "Returns true if the mouse button was pressed this frame",
-     {{"button", "the mouse button number"}},
-     {{"pressed", "whether the button was pressed"}},
+     {{"button", "the mouse button number", "number"}},
+     {{"pressed", "whether the button was pressed", "boolean"}},
      [](lua_State* state) {
        auto* mouse = Registry<Mouse>::Retrieve(state);
        const auto button = luaL_checknumber(state, 1);
@@ -69,8 +69,8 @@ const struct LuaApiFunction kInputLib[] = {
      }},
     {"is_mouse_released",
      "Returns true if the mouse button was released this frame",
-     {{"button", "the mouse button number"}},
-     {{"released", "whether the button was released"}},
+     {{"button", "the mouse button number", "number"}},
+     {{"released", "whether the button was released", "boolean"}},
      [](lua_State* state) {
        auto* mouse = Registry<Mouse>::Retrieve(state);
        const auto button = luaL_checknumber(state, 1);
@@ -79,8 +79,8 @@ const struct LuaApiFunction kInputLib[] = {
      }},
     {"is_mouse_down",
      "Returns true if the mouse button is currently held down",
-     {{"button", "the mouse button number"}},
-     {{"down", "whether the button is down"}},
+     {{"button", "the mouse button number", "number"}},
+     {{"down", "whether the button is down", "boolean"}},
      [](lua_State* state) {
        auto* mouse = Registry<Mouse>::Retrieve(state);
        const auto button = luaL_checknumber(state, 1);
@@ -89,8 +89,8 @@ const struct LuaApiFunction kInputLib[] = {
      }},
     {"is_controller_button_pressed",
      "Returns true if the controller button was pressed this frame",
-     {{"button", "the controller button name"}},
-     {{"pressed", "whether the button was pressed"}},
+     {{"button", "the controller button name", "string"}},
+     {{"pressed", "whether the button was pressed", "boolean"}},
      [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
        auto* controllers = Registry<Controllers>::Retrieve(state);
@@ -101,8 +101,8 @@ const struct LuaApiFunction kInputLib[] = {
      }},
     {"is_controller_button_down",
      "Returns true if the controller button is currently held down",
-     {{"button", "the controller button name"}},
-     {{"down", "whether the button is down"}},
+     {{"button", "the controller button name", "string"}},
+     {{"down", "whether the button is down", "boolean"}},
      [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
        auto* controllers = Registry<Controllers>::Retrieve(state);
@@ -113,8 +113,8 @@ const struct LuaApiFunction kInputLib[] = {
      }},
     {"is_controller_button_released",
      "Returns true if the controller button was released this frame",
-     {{"button", "the controller button name"}},
-     {{"released", "whether the button was released"}},
+     {{"button", "the controller button name", "string"}},
+     {{"released", "whether the button was released", "boolean"}},
      [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
        auto* controllers = Registry<Controllers>::Retrieve(state);
@@ -125,8 +125,8 @@ const struct LuaApiFunction kInputLib[] = {
      }},
     {"get_controller_axis",
      "Returns the current position of a controller axis or trigger",
-     {{"axis", "the axis or trigger name"}},
-     {{"position", "the axis position"}},
+     {{"axis", "the axis or trigger name", "string"}},
+     {{"position", "the axis position", "number"}},
      [](lua_State* state) {
        std::string_view c = GetLuaString(state, 1);
        auto* controllers = Registry<Controllers>::Retrieve(state);

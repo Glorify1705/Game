@@ -12,8 +12,8 @@ constexpr double kRandomRange = 1LL << 32;
 const struct LuaApiFunction kRandomLib[] = {
     {"from_seed",
      "Deterministically creates a random number generator from a seed",
-     {{"seed", "integer with seed number for the rng"}},
-     {{"rng", "random number generator"}},
+     {{"seed", "integer with seed number for the rng", "integer"}},
+     {{"rng", "random number generator", "rng"}},
      [](lua_State* state) {
        auto* handle =
            static_cast<pcg32*>(lua_newuserdata(state, sizeof(pcg64)));
@@ -25,7 +25,7 @@ const struct LuaApiFunction kRandomLib[] = {
     {"non_deterministic",
      "Creates a random number generator from a non deterministic seed",
      {},
-     {{"rng", "random number generator"}},
+     {{"rng", "random number generator", "rng"}},
      [](lua_State* state) {
        pcg_extras::seed_seq_from<std::random_device> seed_source;
        auto* handle =
@@ -38,11 +38,12 @@ const struct LuaApiFunction kRandomLib[] = {
     {"sample",
      "Samples a random number generator in a range. "
      "If no range is provided it uses 32 bit integers.",
-     {{"rng", "rng from `from_seed` or `non_deterministic`"},
-      {"start?", "start of the range to sample."},
+     {{"rng", "rng from `from_seed` or `non_deterministic`", "rng"},
+      {"start?", "start of the range to sample.", "number"},
       {"end?",
-       "end of the range to sample. Must be provided if start is provided."}},
-     {{"result", "an integer in the range provided"}},
+       "end of the range to sample. Must be provided if start is provided.",
+       "number"}},
+     {{"result", "an integer in the range provided", "number"}},
      [](lua_State* state) {
        auto* handle = static_cast<pcg32*>(
            luaL_checkudata(state, 1, "random_number_generator"));
@@ -63,10 +64,9 @@ const struct LuaApiFunction kRandomLib[] = {
      }},
     {"pick",
      "Picks an element from a list using a random number generator",
-     {{"rng", "rng from `from_seed` or `non_deterministic`"},
-      {"list", "list to pick elements from. Must be non empty."}},
-     {{"result", "an element from the list"},
-      {"list", "list to pick elements from"}},
+     {{"rng", "rng from `from_seed` or `non_deterministic`", "rng"},
+      {"list", "list to pick elements from. Must be non empty.", "table"}},
+     {{"result", "an element from the list"}},
      [](lua_State* state) {
        if (lua_gettop(state) != 2) {
          LUA_ERROR(state, "Insufficient arguments");

@@ -8,8 +8,8 @@ namespace {
 const struct LuaApiFunction kAssetsLib[] = {
     {"sprite",
      "Returns a sprite object ptr by name. Returns nil if it cannot find.",
-     {{"name", "name of the sprite to fetch"}},
-     {{"result", "A userdata ptr to a sprite object"}},
+     {{"name", "name of the sprite to fetch", "string"}},
+     {{"result", "A userdata ptr to a sprite object", "sprite_asset"}},
      [](lua_State* state) {
        std::string_view name = GetLuaString(state, 1);
        auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -25,8 +25,8 @@ const struct LuaApiFunction kAssetsLib[] = {
      }},
     {"sprite_info",
      "Returns a table with width and height in pixels of a sprite.",
-     {{"name", "sprite object ptr or sprite name as string"}},
-     {{"result", "A table with two keys, width and height"}},
+     {{"name", "sprite object ptr or sprite name as string", "string"}},
+     {{"result", "A table with two keys, width and height", "table"}},
      [](lua_State* state) {
        const DbAssets::Sprite* ptr = nullptr;
        if (lua_isstring(state, 1)) {
@@ -49,7 +49,7 @@ const struct LuaApiFunction kAssetsLib[] = {
     {"list_images",
      "Returns a list with all images",
      {},
-     {{"result", "A list with name, width, height of all images."}},
+     {{"result", "A list with name, width, height of all images.", "table"}},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        lua_newtable(state);
@@ -69,7 +69,8 @@ const struct LuaApiFunction kAssetsLib[] = {
      {},
      {{"result",
        "A list with width, height, x, y position and spritesheet name of all "
-       "sprites."}},
+       "sprites.",
+       "table"}},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        lua_newtable(state);

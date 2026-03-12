@@ -49,10 +49,10 @@ T FromLuaMatrix(lua_State* state, int index) {
 const struct LuaApiFunction kMathLib[] = {
     {"clamp",
      "Clamps a value between a minimum and maximum",
-     {{"x", "the value to clamp"},
-      {"low", "the minimum value"},
-      {"high", "the maximum value"}},
-     {{"result", "the clamped value"}},
+     {{"x", "the value to clamp", "number"},
+      {"low", "the minimum value", "number"},
+      {"high", "the maximum value", "number"}},
+     {{"result", "the clamped value", "number"}},
      [](lua_State* state) {
        const float x = luaL_checknumber(state, 1);
        const float low = luaL_checknumber(state, 2);
@@ -62,8 +62,8 @@ const struct LuaApiFunction kMathLib[] = {
      }},
     {"v2",
      "Creates a 2D vector",
-     {{"x", "x component"}, {"y", "y component"}},
-     {{"vec", "a new vec2"}},
+     {{"x", "x component", "number"}, {"y", "y component", "number"}},
+     {{"vec", "a new vec2", "vec2"}},
      [](lua_State* state) {
        const float x = luaL_checknumber(state, 1);
        const float y = luaL_checknumber(state, 2);
@@ -72,8 +72,10 @@ const struct LuaApiFunction kMathLib[] = {
      }},
     {"v3",
      "Creates a 3D vector",
-     {{"x", "x component"}, {"y", "y component"}, {"z", "z component"}},
-     {{"vec", "a new vec3"}},
+     {{"x", "x component", "number"},
+      {"y", "y component", "number"},
+      {"z", "z component", "number"}},
+     {{"vec", "a new vec3", "vec3"}},
      [](lua_State* state) {
        const float x = luaL_checknumber(state, 1);
        const float y = luaL_checknumber(state, 2);
@@ -83,11 +85,11 @@ const struct LuaApiFunction kMathLib[] = {
      }},
     {"v4",
      "Creates a 4D vector",
-     {{"x", "x component"},
-      {"y", "y component"},
-      {"z", "z component"},
-      {"w", "w component"}},
-     {{"vec", "a new vec4"}},
+     {{"x", "x component", "number"},
+      {"y", "y component", "number"},
+      {"z", "z component", "number"},
+      {"w", "w component", "number"}},
+     {{"vec", "a new vec4", "vec4"}},
      [](lua_State* state) {
        const float x = luaL_checknumber(state, 1);
        const float y = luaL_checknumber(state, 2);
@@ -98,11 +100,11 @@ const struct LuaApiFunction kMathLib[] = {
      }},
     {"m2x2",
      "Creates a 2x2 matrix from 4 values in row-major order",
-     {{"v1", "value 1"},
-      {"v2", "value 2"},
-      {"v3", "value 3"},
-      {"v4", "value 4"}},
-     {{"mat", "a new mat2x2"}},
+     {{"v1", "value 1", "number"},
+      {"v2", "value 2", "number"},
+      {"v3", "value 3", "number"},
+      {"v4", "value 4", "number"}},
+     {{"mat", "a new mat2x2", "mat2x2"}},
      [](lua_State* state) {
        std::array<float, FMat2x2::kCardinality> values;
        for (size_t i = 0; i < values.size(); i++) {
@@ -113,16 +115,16 @@ const struct LuaApiFunction kMathLib[] = {
      }},
     {"m3x3",
      "Creates a 3x3 matrix from 9 values in row-major order",
-     {{"v1", "value 1"},
-      {"v2", "value 2"},
-      {"v3", "value 3"},
-      {"v4", "value 4"},
-      {"v5", "value 5"},
-      {"v6", "value 6"},
-      {"v7", "value 7"},
-      {"v8", "value 8"},
-      {"v9", "value 9"}},
-     {{"mat", "a new mat3x3"}},
+     {{"v1", "value 1", "number"},
+      {"v2", "value 2", "number"},
+      {"v3", "value 3", "number"},
+      {"v4", "value 4", "number"},
+      {"v5", "value 5", "number"},
+      {"v6", "value 6", "number"},
+      {"v7", "value 7", "number"},
+      {"v8", "value 8", "number"},
+      {"v9", "value 9", "number"}},
+     {{"mat", "a new mat3x3", "mat3x3"}},
      [](lua_State* state) {
        std::array<float, FMat3x3::kCardinality> values;
        for (size_t i = 0; i < values.size(); i++) {
@@ -133,23 +135,23 @@ const struct LuaApiFunction kMathLib[] = {
      }},
     {"m4x4",
      "Creates a 4x4 matrix from 16 values in row-major order",
-     {{"v1", "value 1"},
-      {"v2", "value 2"},
-      {"v3", "value 3"},
-      {"v4", "value 4"},
-      {"v5", "value 5"},
-      {"v6", "value 6"},
-      {"v7", "value 7"},
-      {"v8", "value 8"},
-      {"v9", "value 9"},
-      {"v10", "value 10"},
-      {"v11", "value 11"},
-      {"v12", "value 12"},
-      {"v13", "value 13"},
-      {"v14", "value 14"},
-      {"v15", "value 15"},
-      {"v16", "value 16"}},
-     {{"mat", "a new mat4x4"}},
+     {{"v1", "value 1", "number"},
+      {"v2", "value 2", "number"},
+      {"v3", "value 3", "number"},
+      {"v4", "value 4", "number"},
+      {"v5", "value 5", "number"},
+      {"v6", "value 6", "number"},
+      {"v7", "value 7", "number"},
+      {"v8", "value 8", "number"},
+      {"v9", "value 9", "number"},
+      {"v10", "value 10", "number"},
+      {"v11", "value 11", "number"},
+      {"v12", "value 12", "number"},
+      {"v13", "value 13", "number"},
+      {"v14", "value 14", "number"},
+      {"v15", "value 15", "number"},
+      {"v16", "value 16", "number"}},
+     {{"mat", "a new mat4x4", "mat4x4"}},
      [](lua_State* state) {
        std::array<float, FMat4x4::kCardinality> values;
        for (size_t i = 0; i < values.size(); i++) {

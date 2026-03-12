@@ -26,12 +26,13 @@ static const LuaApiFunction kGraphicsLib[] = {
      }},
     {"take_screenshot",
      "Saves a screenshot from the contents of the current framebuffer",
-     {{"file?",
-       "If provided, a filename where we should write the screenshot."}},
+     {{"file?", "If provided, a filename where we should write the screenshot.",
+       "string"}},
      {{"result",
        "If a file was provided, nil if the write suceeded or an error message "
        "otherwise. If no file was provided, a byte buffer with the image "
-       "contents"}},
+       "contents",
+       "byte_buffer"}},
      [](lua_State* state) {
        TIMER("Screenshot");
 
@@ -72,14 +73,16 @@ static const LuaApiFunction kGraphicsLib[] = {
      }},
     {"draw_sprite",
      "Draws a sprite by name to the screen",
-     {{"sprite", "the name of the sprite in any sprite sheet"},
+     {{"sprite", "the name of the sprite in any sprite sheet", "string"},
       {"x",
        "the x position (left-right) in screen coordinates where to draw the "
-       "sprite"},
+       "sprite",
+       "number"},
       {"y",
        "the y position (top-bottom) in screen coordinates where to draw the "
-       "sprite"},
-      {"angle?", "if provided, the angle to rotate the sprite"}},
+       "sprite",
+       "number"},
+      {"angle?", "if provided, the angle to rotate the sprite", "number"}},
      {},
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
@@ -94,14 +97,16 @@ static const LuaApiFunction kGraphicsLib[] = {
      }},
     {"draw_image",
      "Draws an image by name to the screen",
-     {{"sprite", "the name of the sprite in any sprite sheet"},
+     {{"sprite", "the name of the sprite in any sprite sheet", "string"},
       {"x",
        "the x position (left-right) in screen coordinates where to draw the "
-       "sprite"},
+       "sprite",
+       "number"},
       {"y",
        "the y position (top-bottom) in screen coordinates where to draw the "
-       "sprite"},
-      {"angle?", "if provided, the angle to rotate the sprite"}},
+       "sprite",
+       "number"},
+      {"angle?", "if provided, the angle to rotate the sprite", "number"}},
      {},
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
@@ -117,11 +122,11 @@ static const LuaApiFunction kGraphicsLib[] = {
     {"draw_rect",
      "Draws a solid rectangle to the screen, with the color provided by the "
      "global context",
-     {{"x1", "the x coordinate for the top left of the rectangle"},
-      {"y1", "the y position for the top left of the rectangle"},
-      {"x2", "the x position for the bottom right of the rectangle"},
-      {"y2", "the y position for the bottom right of the rectangle"},
-      {"angle?", "if provided, the angle to rotate the rectangle"}},
+     {{"x1", "the x coordinate for the top left of the rectangle", "number"},
+      {"y1", "the y position for the top left of the rectangle", "number"},
+      {"x2", "the x position for the bottom right of the rectangle", "number"},
+      {"y2", "the y position for the bottom right of the rectangle", "number"},
+      {"angle?", "if provided, the angle to rotate the rectangle", "number"}},
      {},
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
@@ -137,11 +142,11 @@ static const LuaApiFunction kGraphicsLib[] = {
      }},
     {"set_color",
      "Set the global context color for all subsequent operations",
-     {{"1:color", "a string representing a color name"},
-      {"2:r", "r component of the RGBA for the color"},
-      {"2:g", "g component of the RGBA for the color"},
-      {"2:b", "b component of the RGBA for the color"},
-      {"2:a", "a component of the RGBA for the color"}},
+     {{"1:color", "a string representing a color name", "string"},
+      {"2:r", "r component of the RGBA for the color", "number"},
+      {"2:g", "g component of the RGBA for the color", "number"},
+      {"2:b", "b component of the RGBA for the color", "number"},
+      {"2:a", "a component of the RGBA for the color", "number"}},
      {},
      [](lua_State* state) {
        Color color = Color::Zero();
@@ -177,11 +182,13 @@ static const LuaApiFunction kGraphicsLib[] = {
      "Draws a circle with the global context color to the screen",
      {{"x",
        "the x position (left-right) in screen coordinates of the center of the "
-       "circle"},
+       "circle",
+       "number"},
       {"y",
        "the y position (top-bottom) in screen coordinates of the center of the "
-       "circle"},
-      {"r", "the radius in pixels of the center of the circle"}},
+       "circle",
+       "number"},
+      {"r", "the radius in pixels of the center of the circle", "number"}},
      {},
      [](lua_State* state) {
        const float x = luaL_checknumber(state, 1);
@@ -195,22 +202,28 @@ static const LuaApiFunction kGraphicsLib[] = {
      "Draws a triangle with the global context color to the screen",
      {{"p1x",
        "The x coordinate in screen coordinates of the first point of the "
-       "triangle"},
+       "triangle",
+       "number"},
       {"p1y",
        "The y coordinate in screen coordinates of the first point of the "
-       "triangle"},
+       "triangle",
+       "number"},
       {"p2x",
        "The x coordinate in screen coordinates of the second point of the "
-       "triangle"},
+       "triangle",
+       "number"},
       {"p2y",
        "The y coordinate in screen coordinates of the second point of the "
-       "triangle"},
+       "triangle",
+       "number"},
       {"p3x",
        "The x coordinate in screen coordinates of the third point of the "
-       "triangle"},
+       "triangle",
+       "number"},
       {"p3y",
        "The y coordinate in screen coordinates of the third point of the "
-       "triangle"}},
+       "triangle",
+       "number"}},
      {},
      [](lua_State* state) {
        const auto p1 =
@@ -226,15 +239,19 @@ static const LuaApiFunction kGraphicsLib[] = {
     {"draw_line",
      "Draws a line with the global context color to the screen",
      {{"p1x",
-       "The x coordinate in screen coordinates of the first point of the line"},
+       "The x coordinate in screen coordinates of the first point of the line",
+       "number"},
       {"p1y",
-       "The y coordinate in screen coordinates of the first point of the line"},
+       "The y coordinate in screen coordinates of the first point of the line",
+       "number"},
       {"p2x",
        "The x coordinate in screen coordinates of the second point of the "
-       "line"},
+       "line",
+       "number"},
       {"p2y",
        "The y coordinate in screen coordinates of the second point of the "
-       "line"}},
+       "line",
+       "number"}},
      {},
      [](lua_State* state) {
        const auto p1 =
@@ -247,15 +264,8 @@ static const LuaApiFunction kGraphicsLib[] = {
      }},
     {"draw_lines",
      "Draws a list of lines with the global context color to the screen",
-     {{"ps", "A list of points, two consecutive points i and i+1 for a line."},
-      {"p1y",
-       "The y coordinate in screen coordinates of the first point of the line"},
-      {"p2x",
-       "The x coordinate in screen coordinates of the second point of the "
-       "line"},
-      {"p2y",
-       "The y coordinate in screen coordinates of the second point of the "
-       "line"}},
+     {{"ps", "A list of points, two consecutive points i and i+1 for a line.",
+       "table"}},
      {},
      [](lua_State* state) {
        if (!lua_istable(state, 1)) {
@@ -284,13 +294,16 @@ static const LuaApiFunction kGraphicsLib[] = {
      "Writes text to the screen with debug font and fixed size. For quick "
      "debug printing.",
      {{"text",
-       "A string or byte buffer with the contents to render to the screen"},
+       "A string or byte buffer with the contents to render to the screen",
+       "string"},
       {"x",
        "Horizontal position in screen space pixels left-to-right where to "
-       "render the text"},
+       "render the text",
+       "number"},
       {"y",
        "Vertical position in screen space pixels top-to-bottom where to render "
-       "the text"}},
+       "the text",
+       "number"}},
      {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -311,16 +324,19 @@ static const LuaApiFunction kGraphicsLib[] = {
      }},
     {"draw_text",
      "Writes text to the screen.",
-     {{"font", "Font name to use for writing text"},
+     {{"font", "Font name to use for writing text", "string"},
       {"text",
-       "A string or byte buffer with the contents to render to the screen"},
-      {"size", "Size in pixels to use for rendering the text"},
+       "A string or byte buffer with the contents to render to the screen",
+       "string"},
+      {"size", "Size in pixels to use for rendering the text", "integer"},
       {"x",
        "Horizontal position in screen space pixels left-to-right where to "
-       "render the text"},
+       "render the text",
+       "number"},
       {"y",
        "Vertical position in screen space pixels top-to-bottom where to render "
-       "the text"}},
+       "the text",
+       "number"}},
      {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -341,13 +357,17 @@ static const LuaApiFunction kGraphicsLib[] = {
      }},
     {"text_dimensions",
      "Returns the dimensions for a text rendered with a given font and size",
-     {{"font", "Font name to use for writing text"},
-      {"size", "Size in pixels that the text would be rendered to the screen"},
+     {{"font", "Font name to use for writing text", "string"},
+      {"size", "Size in pixels that the text would be rendered to the screen",
+       "integer"},
       {"text",
        "A string or byte buffer with the contents that would be rendered to "
-       "the screen"}},
-     {{"width", "Width in pixels the text would occupy in the screen"},
-      {"height", "Height in pixels the text would occupy in the screen"}},
+       "the screen",
+       "string"}},
+     {{"width", "Width in pixels the text would occupy in the screen",
+       "integer"},
+      {"height", "Height in pixels the text would occupy in the screen",
+       "integer"}},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        std::string_view font = GetLuaString(state, 1);
@@ -360,7 +380,7 @@ static const LuaApiFunction kGraphicsLib[] = {
      }},
     {"push",
      "Push a transform to the screen into the transform stack.",
-     {{"transform", "A 4x4 matrix with the transform to push"}},
+     {{"transform", "A 4x4 matrix with the transform to push", "mat4x4"}},
      {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -379,7 +399,8 @@ static const LuaApiFunction kGraphicsLib[] = {
     {"rotate",
      "Push a transform to the screen that rotates all objects by a given angle",
      {{"angle",
-       "All objects will be rotated by this angle in radians clockwise"}},
+       "All objects will be rotated by this angle in radians clockwise",
+       "number"}},
      {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -388,8 +409,8 @@ static const LuaApiFunction kGraphicsLib[] = {
      }},
     {"scale",
      "Push a transform to the screen that scales all objects by a given angle",
-     {{"xf", "Scalar factor to scale up the x coordinate"},
-      {"yf", "Scalar factor to scale up the y coordinate"}},
+     {{"xf", "Scalar factor to scale up the x coordinate", "number"},
+      {"yf", "Scalar factor to scale up the y coordinate", "number"}},
      {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -399,8 +420,8 @@ static const LuaApiFunction kGraphicsLib[] = {
     {"translate",
      "Translate all objects in the screen by moving the coordinate system "
      "center",
-     {{"x", "New x position of the coordinate system center"},
-      {"y", "New y position of the coordinate system center"}},
+     {{"x", "New x position of the coordinate system center", "number"},
+      {"y", "New y position of the coordinate system center", "number"}},
      {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -413,7 +434,8 @@ static const LuaApiFunction kGraphicsLib[] = {
      "the GPU",
      {{"shader?",
        "Shader to attach, if nothing is passed then pre_pass.frag will be "
-       "passed"}},
+       "passed",
+       "string"}},
      {},
      [](lua_State* state) {
        auto* shaders = Registry<Shaders>::Retrieve(state);
@@ -434,7 +456,8 @@ static const LuaApiFunction kGraphicsLib[] = {
      "shader",
      {{"shader?",
        "Shader to attach, if nothing is passed then pre_pass.frag will be "
-       "passed"}},
+       "passed",
+       "string"}},
      {},
      [](lua_State* state) {
        auto* renderer = Registry<BatchRenderer>::Retrieve(state);
@@ -465,10 +488,11 @@ static const LuaApiFunction kGraphicsLib[] = {
      }},
     {"send_uniform",
      "Sends a uniform with the given name to the current shader",
-     {{"name", "Name of the uniform to send"},
+     {{"name", "Name of the uniform to send", "string"},
       {"value",
        "Value to send. Supported values are G.math.v2,v3,v4, G.math.m2x2, "
-       "G.math.m3x3, G.math.m4x4, and floats"}},
+       "G.math.m3x3, G.math.m4x4, and floats",
+       "number"}},
      {},
      [](lua_State* state) {
        auto* shaders = Registry<Shaders>::Retrieve(state);
@@ -517,7 +541,8 @@ static const LuaApiFunction kWindowLib[] = {
     {"dimensions",
      "Returns the window dimensions in pixels",
      {},
-     {{"width", "the window width"}, {"height", "the window height"}},
+     {{"width", "the window width", "number"},
+      {"height", "the window height", "number"}},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        IVec2 viewport = renderer->viewport();
@@ -527,7 +552,8 @@ static const LuaApiFunction kWindowLib[] = {
      }},
     {"set_dimensions",
      "Sets the window dimensions",
-     {{"width", "the window width"}, {"height", "the window height"}},
+     {{"width", "the window width", "integer"},
+      {"height", "the window height", "integer"}},
      {},
      [](lua_State* state) {
        auto* renderer = Registry<BatchRenderer>::Retrieve(state);
@@ -568,7 +594,7 @@ static const LuaApiFunction kWindowLib[] = {
      }},
     {"set_title",
      "Sets the window title",
-     {{"title", "the new window title"}},
+     {{"title", "the new window title", "string"}},
      {},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
@@ -578,7 +604,7 @@ static const LuaApiFunction kWindowLib[] = {
     {"get_title",
      "Returns the current window title",
      {},
-     {{"title", "the window title"}},
+     {{"title", "the window title", "string"}},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        lua_pushstring(state, SDL_GetWindowTitle(window));
@@ -587,7 +613,7 @@ static const LuaApiFunction kWindowLib[] = {
     {"has_input_focus",
      "Returns true if the window has keyboard input focus",
      {},
-     {{"focused", "whether the window has input focus"}},
+     {{"focused", "whether the window has input focus", "boolean"}},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        lua_pushboolean(state,
@@ -597,7 +623,7 @@ static const LuaApiFunction kWindowLib[] = {
     {"has_mouse_focus",
      "Returns true if the window has mouse focus",
      {},
-     {{"focused", "whether the window has mouse focus"}},
+     {{"focused", "whether the window has mouse focus", "boolean"}},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        lua_pushboolean(state,

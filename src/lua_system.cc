@@ -19,7 +19,7 @@ const struct LuaApiFunction kSystemLib[] = {
     {"operating_system",
      "Returns the name of the operating system",
      {},
-     {{"os", "the operating system name"}},
+     {{"os", "the operating system name", "string"}},
      [](lua_State* state) {
        lua_pushstring(state, SDL_GetPlatform());
        return 1;
@@ -27,14 +27,14 @@ const struct LuaApiFunction kSystemLib[] = {
     {"cpu_count",
      "Returns the number of logical CPU cores",
      {},
-     {{"count", "the number of CPUs"}},
+     {{"count", "the number of CPUs", "integer"}},
      [](lua_State* state) {
        lua_pushinteger(state, SDL_GetCPUCount());
        return 1;
      }},
     {"set_clipboard",
      "Sets the system clipboard text",
-     {{"text", "the text to copy to the clipboard"}},
+     {{"text", "the text to copy to the clipboard", "string"}},
      {},
      [](lua_State* state) {
        const char* str = luaL_checkstring(state, 1);
@@ -43,8 +43,8 @@ const struct LuaApiFunction kSystemLib[] = {
      }},
     {"open_url",
      "Opens a URL in the default browser",
-     {{"url", "the URL to open"}},
-     {{"error", "nil on success, error message on failure"}},
+     {{"url", "the URL to open", "string"}},
+     {{"error", "nil on success, error message on failure", "string"}},
      [](lua_State* state) {
        const char* url = luaL_checkstring(state, 1);
        const int result = SDL_OpenURL(url);
@@ -60,7 +60,7 @@ const struct LuaApiFunction kSystemLib[] = {
     {"cli_arguments",
      "Returns the command-line arguments as a table",
      {},
-     {{"args", "table of argument strings"}},
+     {{"args", "table of argument strings", "table"}},
      [](lua_State* state) {
        auto* lua = Registry<Lua>::Retrieve(state);
        lua_createtable(state, lua->argc(), 0);
@@ -74,7 +74,7 @@ const struct LuaApiFunction kSystemLib[] = {
     {"get_clipboard",
      "Returns the current system clipboard text",
      {},
-     {{"text", "the clipboard contents"}},
+     {{"text", "the clipboard contents", "string"}},
      [](lua_State* state) {
        char* result = SDL_GetClipboardText();
        const size_t length = strlen(result);
@@ -90,7 +90,7 @@ const struct LuaApiFunction kClockLib[] = {
     {"walltime",
      "Returns the wall clock time in seconds",
      {},
-     {{"time", "time in seconds"}},
+     {{"time", "time in seconds", "number"}},
      [](lua_State* state) {
        lua_pushnumber(state, NowInSeconds());
        return 1;
@@ -98,7 +98,7 @@ const struct LuaApiFunction kClockLib[] = {
     {"gametime",
      "Returns the elapsed game time in seconds",
      {},
-     {{"time", "game time in seconds"}},
+     {{"time", "game time in seconds", "number"}},
      [](lua_State* state) {
        auto* lua = Registry<Lua>::Retrieve(state);
        lua_pushnumber(state, lua->time());
@@ -106,7 +106,7 @@ const struct LuaApiFunction kClockLib[] = {
      }},
     {"sleep_ms",
      "Sleeps for the given number of milliseconds",
-     {{"ms", "the number of milliseconds to sleep"}},
+     {{"ms", "the number of milliseconds to sleep", "number"}},
      {},
      [](lua_State* state) {
        SDL_Delay(luaL_checknumber(state, 1));
@@ -115,7 +115,7 @@ const struct LuaApiFunction kClockLib[] = {
     {"gamedelta",
      "Returns the time elapsed since the last frame in seconds",
      {},
-     {{"dt", "delta time in seconds"}},
+     {{"dt", "delta time in seconds", "number"}},
      [](lua_State* state) {
        auto* lua = Registry<Lua>::Retrieve(state);
        lua_pushnumber(state, lua->dt());

@@ -143,6 +143,7 @@ inline std::string_view GetLuaString(lua_State* state, int index) {
 struct LuaApiFunctionArg {
   const char* name = {0};
   const char* docs = {0};
+  const char* type = {0};
 };
 
 struct LuaApiFunctionArgList {

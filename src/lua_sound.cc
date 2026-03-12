@@ -8,8 +8,8 @@ namespace {
 const struct LuaApiFunction kSoundLib[] = {
     {"add_source",
      "Adds an audio source from an asset name",
-     {{"name", "name of the asset to play."}},
-     {{"source", "a handle for the source"}},
+     {{"name", "name of the asset to play.", "string"}},
+     {{"source", "a handle for the source", "integer"}},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
@@ -22,8 +22,8 @@ const struct LuaApiFunction kSoundLib[] = {
      }},
     {"play_source",
      "Plays an audio asset on the music channel.",
-     {{"name", "name of the sound asset to play."}},
-     {{}},
+     {{"source", "source id of the sound to play", "integer"}},
+     {},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        const auto source = luaL_checkinteger(state, 1);
@@ -34,8 +34,8 @@ const struct LuaApiFunction kSoundLib[] = {
      }},
     {"play",
      "Loads and immediately plays an audio asset on the music channel.",
-     {{"name", "name of the sound asset to play."}},
-     {{}},
+     {{"name", "name of the sound asset to play.", "string"}},
+     {},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
@@ -50,9 +50,10 @@ const struct LuaApiFunction kSoundLib[] = {
      }},
     {"set_volume",
      "Sets the volume a source",
-     {{"source", "source id of the asset to modify"},
-      {"gain", "the gain for the channel, must be a number between 0 and 1"}},
-     {{}},
+     {{"source", "source id of the asset to modify", "integer"},
+      {"gain", "the gain for the channel, must be a number between 0 and 1",
+       "number"}},
+     {},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        const auto source = luaL_checkinteger(state, 1);
@@ -67,8 +68,8 @@ const struct LuaApiFunction kSoundLib[] = {
      }},
     {"set_global_volume",
      "Sets the global volume",
-     {{"gain", "name of the sound asset to play."}},
-     {{}},
+     {{"gain", "the global gain between 0 and 1", "number"}},
+     {},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        const double gain = luaL_checknumber(state, 1);
@@ -84,8 +85,8 @@ const struct LuaApiFunction kSoundLib[] = {
      }},
     {"stop_source",
      "Stops sound source and rewinds it",
-     {{}},
-     {{}},
+     {{"source", "source id to stop", "integer"}},
+     {},
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        const auto source = luaL_checkinteger(state, 1);
