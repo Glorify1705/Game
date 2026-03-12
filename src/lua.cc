@@ -517,11 +517,13 @@ void Lua::FlushCompilationCache() {
         continue;
       }
     } else {
+      int top = lua_gettop(state_);
       if (!CompileFennelAsset(script.name, script.contents)) {
         LUA_ERROR(state_, "Failed to compile ", script.name, ": \n",
                   GetLuaString(state_, -1));
         return;
       }
+      lua_settop(state_, top);
       CHECK(compilation_cache_.Lookup(script.name, &cached_script),
             "Did not find ", script.name,
             " in compilation cache. File is corrupted?");

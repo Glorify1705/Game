@@ -10,8 +10,15 @@ namespace G {
 
 class MimallocAllocator final : public Allocator {
  public:
+  static constexpr size_t kSliceSize = 64 * 1024;  // MI_ARENA_SLICE_SIZE
+
   MimallocAllocator(void* buffer, size_t size) {
-    mi_manage_os_memory_ex(buffer, size,
+    // mimalloc requires 64 KiB slice alignment.
+    size_t addr = reinterpret_cast<size_t>(buffer);
+    size_t aligned = Align(addr, kSliceSize);
+    size -= (aligned - addr);
+    size &= ~(kSliceSize - 1);
+    mi_manage_os_memory_ex(reinterpret_cast<void*>(aligned), size,
                            /*is_committed=*/true, /*is_pinned=*/false,
                            /*is_zero=*/false, /*numa_node=*/-1,
                            /*exclusive=*/true, &arena_id_);
