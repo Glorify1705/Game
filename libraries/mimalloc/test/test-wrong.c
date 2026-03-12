@@ -17,14 +17,13 @@ terms of the MIT license. A copy of the license can be found in the file
 
    and then compile this file as:
 
-   > gcc -g -o test-wrong -I../../include ../../test/test-wrong.c
-   libmimalloc-valgrind-debug.a -lpthread
+   > gcc -g -o test-wrong -I../../include ../../test/test-wrong.c libmimalloc-valgrind-debug.a -lpthread
 
    and test as:
 
    > valgrind ./test-wrong
 
-
+   
    ASAN
    ----------
    Compile in an "out/debug" folder:
@@ -35,9 +34,7 @@ terms of the MIT license. A copy of the license can be found in the file
 
    and then compile this file as:
 
-   > clang -g -o test-wrong -I../../include ../../test/test-wrong.c
-   libmimalloc-asan-debug.a -lpthread -fsanitize=address
-   -fsanitize-recover=address
+   > clang -g -o test-wrong -I../../include ../../test/test-wrong.c libmimalloc-asan-debug.a -lpthread -fsanitize=address -fsanitize-recover=address
 
    and test as:
 
@@ -47,19 +44,18 @@ terms of the MIT license. A copy of the license can be found in the file
 */
 #include <stdio.h>
 #include <stdlib.h>
-
 #include "mimalloc.h"
 
 #ifdef USE_STD_MALLOC
-#define mi(x) x
+# define mi(x) x
 #else
-#define mi(x) mi_##x
+# define mi(x) mi_##x
 #endif
 
 int main(int argc, char** argv) {
-  int* p = (int*)mi(malloc)(3 * sizeof(int));
+  int* p = (int*)mi(malloc)(3*sizeof(int));
 
-  int* r = (int*)mi_malloc_aligned(8, 16);
+  int* r = (int*)mi_malloc_aligned(8,16);
   mi_free(r);
 
   // illegal byte wise read

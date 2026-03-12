@@ -427,6 +427,10 @@ class Game {
     }
     PHYSFS_CHECK(PHYSFS_init(argv[0]),
                  "Could not initialize PhysFS: ", argv[0]);
+    sqlite_heap_ = allocator->Alloc(Megabytes(16), kMaxAlign);
+    CHECK(sqlite3_config(SQLITE_CONFIG_HEAP, sqlite_heap_, Megabytes(16), 64) ==
+              SQLITE_OK,
+          "Failed to configure SQLite memsys5 heap");
     {
       TIMER("Load database");
       load_ = LoadDb(argc_ - 1, argv_ + 1);
@@ -780,6 +784,7 @@ class Game {
   const char** const argv_;
   LoadResult load_;
   Allocator* allocator_;
+  void* sqlite_heap_;
   sqlite3* db_;
   DbAssets* db_assets_ = nullptr;
   GameConfig config_;

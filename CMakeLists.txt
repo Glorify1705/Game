@@ -121,6 +121,9 @@ target_compile_definitions(Game PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
 )
 
+set_source_files_properties(libraries/sqlite3.c PROPERTIES
+    COMPILE_DEFINITIONS SQLITE_ENABLE_MEMSYS5)
+
 add_custom_target(
   Run
   COMMAND "${CMAKE_CURRENT_BINARY_DIR}/Game" "${PROJECT_SOURCE_DIR}/assets"

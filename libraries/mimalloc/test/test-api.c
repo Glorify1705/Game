@@ -13,9 +13,9 @@ Testing allocators is difficult as bugs may only surface after particular
 allocation patterns. The main approach to testing _mimalloc_ is therefore
 to have extensive internal invariant checking (see `page_is_valid` in `page.c`
 for example), which is enabled in debug mode with `-DMI_DEBUG_FULL=ON`.
-The main testing is then to run `mimalloc-bench` [1] using full invariant
-checking to catch any potential problems over a wide range of intensive
-allocation bench marks.
+The main testing is then to run `mimalloc-bench` [1] using full invariant checking
+to catch any potential problems over a wide range of intensive allocation bench
+marks.
 
 However, this does not test well for the entire API surface. In this test file
 we therefore test the API over various inputs. Please add more tests :-)
@@ -24,9 +24,9 @@ we therefore test the API over various inputs. Please add more tests :-)
 */
 
 #include <assert.h>
-#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <errno.h>
 
 #ifdef __cplusplus
 #include <vector>
@@ -34,7 +34,8 @@ we therefore test the API over various inputs. Please add more tests :-)
 
 #include "mimalloc.h"
 // #include "mimalloc/internal.h"
-#include "mimalloc/types.h"  // for MI_DEBUG and MI_PAGE_MAX_OVERALLOC_ALIGN
+#include "mimalloc/types.h" // for MI_DEBUG and MI_PAGE_MAX_OVERALLOC_ALIGN
+
 #include "testhelper.h"
 
 // ---------------------------------------------------------------------------
@@ -53,7 +54,7 @@ bool test_stl_theap_allocator3(void);
 bool test_stl_theap_allocator4(void);
 
 bool mem_is_zero(uint8_t* p, size_t size) {
-  if (p == NULL) return false;
+  if (p==NULL) return false;
   for (size_t i = 0; i < size; ++i) {
     if (p[i] != 0) return false;
   }
@@ -66,13 +67,14 @@ bool mem_is_zero(uint8_t* p, size_t size) {
 int main(void) {
   mi_option_disable(mi_option_verbose);
 
-  CHECK_BODY("malloc-aligned9a") {  // test large alignments
+  CHECK_BODY("malloc-aligned9a") { // test large alignments
     void* p = mi_zalloc_aligned(1024 * 1024, 2);
     mi_free(p);
     p = mi_zalloc_aligned(1024 * 1024, 2);
     mi_free(p);
     result = true;
   };
+
 
   // ---------------------------------------------------
   // Malloc
@@ -86,23 +88,24 @@ int main(void) {
   CHECK_BODY("malloc-nomem1") {
     result = (mi_malloc((size_t)PTRDIFF_MAX + (size_t)1) == NULL);
   };
-  CHECK_BODY("malloc-free-null") { mi_free(NULL); };
-#if MI_INTPTR_BITS > 32
-  CHECK_BODY("malloc-free-invalid-low") {
-    mi_free((void*)(MI_ZU(0x0000000003990080)));  // issue #1087
+  CHECK_BODY("malloc-free-null") {
+    mi_free(NULL);
   };
-#endif
+  #if MI_INTPTR_BITS > 32
+  CHECK_BODY("malloc-free-invalid-low") {
+    mi_free((void*)(MI_ZU(0x0000000003990080))); // issue #1087
+  };
+  #endif
   CHECK_BODY("calloc-overflow") {
-    // use (size_t)&mi_calloc to get some number without triggering compiler
-    // warnings
-    result = (mi_calloc((size_t)&mi_calloc, SIZE_MAX / 1000) == NULL);
+    // use (size_t)&mi_calloc to get some number without triggering compiler warnings
+    result = (mi_calloc((size_t)&mi_calloc,SIZE_MAX/1000) == NULL);
   };
   CHECK_BODY("calloc0") {
-    void* p = mi_calloc(0, 1000);
+    void* p = mi_calloc(0,1000);
     result = (mi_usable_size(p) <= 16);
     mi_free(p);
   };
-  CHECK_BODY("malloc-large") {  // see PR #544.
+  CHECK_BODY("malloc-large") {   // see PR #544.
     void* p = mi_malloc(67108872);
     mi_free(p);
   };
@@ -113,65 +116,58 @@ int main(void) {
   CHECK_BODY("posix_memalign1") {
     void* p = &p;
     int err = mi_posix_memalign(&p, sizeof(void*), 32);
-    result = ((err == 0 && (uintptr_t)p % sizeof(void*) == 0) || p == &p);
+    result = ((err==0 && (uintptr_t)p % sizeof(void*) == 0) || p==&p);
     mi_free(p);
   };
   CHECK_BODY("posix_memalign_no_align") {
     void* p = &p;
     int err = mi_posix_memalign(&p, 3, 32);
-    result = (err == EINVAL && p == &p);
+    result = (err==EINVAL && p==&p);
   };
   CHECK_BODY("posix_memalign_zero") {
     void* p = &p;
     int err = mi_posix_memalign(&p, sizeof(void*), 0);
     mi_free(p);
-    result = (err == 0);
+    result = (err==0);
   };
   CHECK_BODY("posix_memalign_nopow2") {
     void* p = &p;
-    int err = mi_posix_memalign(&p, 3 * sizeof(void*), 32);
-    result = (err == EINVAL && p == &p);
+    int err = mi_posix_memalign(&p, 3*sizeof(void*), 32);
+    result = (err==EINVAL && p==&p);
   };
   CHECK_BODY("posix_memalign_nomem") {
     void* p = &p;
     int err = mi_posix_memalign(&p, sizeof(void*), SIZE_MAX);
-    result = (err == ENOMEM && p == &p);
+    result = (err==ENOMEM && p==&p);
   };
 
   // ---------------------------------------------------
   // Aligned API
   // ---------------------------------------------------
   CHECK_BODY("malloc-aligned1") {
-    void* p = mi_malloc_aligned(32, 32);
-    result = (p != NULL && (uintptr_t)(p) % 32 == 0);
-    mi_free(p);
+    void* p = mi_malloc_aligned(32,32); result = (p != NULL && (uintptr_t)(p) % 32 == 0); mi_free(p);
   };
   CHECK_BODY("malloc-aligned2") {
-    void* p = mi_malloc_aligned(48, 32);
-    result = (p != NULL && (uintptr_t)(p) % 32 == 0);
-    mi_free(p);
+    void* p = mi_malloc_aligned(48,32); result = (p != NULL && (uintptr_t)(p) % 32 == 0); mi_free(p);
   };
   CHECK_BODY("malloc-aligned3") {
-    void* p1 = mi_malloc_aligned(48, 32);
-    bool result1 = (p1 != NULL && (uintptr_t)(p1) % 32 == 0);
-    void* p2 = mi_malloc_aligned(48, 32);
-    bool result2 = (p2 != NULL && (uintptr_t)(p2) % 32 == 0);
+    void* p1 = mi_malloc_aligned(48,32); bool result1 = (p1 != NULL && (uintptr_t)(p1) % 32 == 0);
+    void* p2 = mi_malloc_aligned(48,32); bool result2 = (p2 != NULL && (uintptr_t)(p2) % 32 == 0);
     mi_free(p2);
     mi_free(p1);
-    result = (result1 && result2);
+    result = (result1&&result2);
   };
   CHECK_BODY("malloc-aligned4") {
     void* p;
     bool ok = true;
     for (int i = 0; i < 8 && ok; i++) {
       p = mi_malloc_aligned(8, 16);
-      ok = (p != NULL && (uintptr_t)(p) % 16 == 0);
-      mi_free(p);
+      ok = (p != NULL && (uintptr_t)(p) % 16 == 0); mi_free(p);
     }
     result = ok;
   };
   CHECK_BODY("malloc-aligned5") {
-    void* p = mi_malloc_aligned(4097, 4096);
+    void* p = mi_malloc_aligned(4097,4096);
     size_t usable = mi_usable_size(p);
     result = (usable >= 4097 && usable < 16000);
     fprintf(stderr, "malloc_aligned5: usable size: %zi.  ", usable);
@@ -180,10 +176,13 @@ int main(void) {
   /*
   CHECK_BODY("malloc-aligned6") {
     bool ok = true;
-    for (size_t align = 1; align <= MI_PAGE_MAX_OVERALLOC_ALIGN && ok; align *=
-  2) { void* ps[8]; for (int i = 0; i < 8 && ok; i++) { ps[i] =
-  mi_malloc_aligned(align*13  // size , align); if (ps[i] == NULL ||
-  (uintptr_t)(ps[i]) % align != 0) { ok = false;
+    for (size_t align = 1; align <= MI_PAGE_MAX_OVERALLOC_ALIGN && ok; align *= 2) {
+      void* ps[8];
+      for (int i = 0; i < 8 && ok; i++) {
+        ps[i] = mi_malloc_aligned(align*13  // size
+                                 , align);
+        if (ps[i] == NULL || (uintptr_t)(ps[i]) % align != 0) {
+          ok = false;
         }
       }
       for (int i = 0; i < 8 && ok; i++) {
@@ -194,7 +193,7 @@ int main(void) {
   };
   */
   CHECK_BODY("malloc-aligned7") {
-    void* p = mi_malloc_aligned(1024, MI_PAGE_MAX_OVERALLOC_ALIGN);
+    void* p = mi_malloc_aligned(1024,MI_PAGE_MAX_OVERALLOC_ALIGN);
     mi_free(p);
     result = ((uintptr_t)p % MI_PAGE_MAX_OVERALLOC_ALIGN) == 0;
   };
@@ -203,29 +202,22 @@ int main(void) {
     for (int i = 0; i < 5 && ok; i++) {
       int n = (1 << i);
       void* p = mi_malloc_aligned(1024, n * MI_PAGE_MAX_OVERALLOC_ALIGN);
-      ok = ((uintptr_t)p % (n * MI_PAGE_MAX_OVERALLOC_ALIGN)) == 0;
+      ok = ((uintptr_t)p % (n*MI_PAGE_MAX_OVERALLOC_ALIGN)) == 0;
       mi_free(p);
     }
     result = ok;
   };
-  CHECK_BODY("malloc-aligned9") {  // test large alignments
+  CHECK_BODY("malloc-aligned9") { // test large alignments
     bool ok = true;
     void* p[8];
     const int max_align_shift =
-#if SIZE_MAX > UINT32_MAX
-        28
-#else
-        20
-#endif
-        ;
-    size_t sizes[8] = {8,
-                       512,
-                       1024 * 1024,
-                       MI_PAGE_MAX_OVERALLOC_ALIGN,
-                       MI_PAGE_MAX_OVERALLOC_ALIGN + 1,
-                       2 * MI_PAGE_MAX_OVERALLOC_ALIGN,
-                       8 * MI_PAGE_MAX_OVERALLOC_ALIGN,
-                       0};
+      #if SIZE_MAX > UINT32_MAX
+      28
+      #else
+      20
+      #endif
+      ;
+    size_t sizes[8] = { 8, 512, 1024 * 1024, MI_PAGE_MAX_OVERALLOC_ALIGN, MI_PAGE_MAX_OVERALLOC_ALIGN + 1, 2 * MI_PAGE_MAX_OVERALLOC_ALIGN, 8 * MI_PAGE_MAX_OVERALLOC_ALIGN, 0 };
     for (int i = 0; i < max_align_shift && ok; i++) {
       int align = (1 << i);
       for (int j = 0; j < 8 && ok; j++) {
@@ -240,46 +232,45 @@ int main(void) {
   };
   CHECK_BODY("malloc-aligned10") {
     bool ok = true;
-    void* p[10 + 1];
+    void* p[10+1];
     int align;
     int j;
-    for (j = 0, align = 1; j <= 10 && ok; align *= 2, j++) {
+    for(j = 0, align = 1; j <= 10 && ok; align *= 2, j++ ) {
       p[j] = mi_malloc_aligned(43 + align, align);
       ok = ((uintptr_t)p[j] % align) == 0;
     }
-    for (; j > 0; j--) {
-      mi_free(p[j - 1]);
+    for ( ; j > 0; j--) {
+      mi_free(p[j-1]);
     }
     result = ok;
   }
-  // CHECK_BODY("malloc_aligned11") {
-  //   mi_theap_t* theap = mi_theap_new();
-  //   void* p = mi_theap_malloc_aligned(theap, 33554426, 8);
-  //   result = mi_theap_contains_block(theap, p);
-  //   mi_theap_destroy(theap);
-  // }
+  //CHECK_BODY("malloc_aligned11") {
+  //  mi_theap_t* theap = mi_theap_new();
+  //  void* p = mi_theap_malloc_aligned(theap, 33554426, 8);
+  //  result = mi_theap_contains_block(theap, p);
+  //  mi_theap_destroy(theap);
+  //}
   CHECK_BODY("mimalloc-aligned12") {
     void* p = mi_malloc_aligned(0x100, 0x100);
-    result = (((uintptr_t)p % 0x100) == 0);  // #602
+    result = (((uintptr_t)p % 0x100) == 0); // #602
     mi_free(p);
   }
   CHECK_BODY("mimalloc-aligned13") {
     bool ok = true;
-    for (size_t size = 1; size <= (MI_SMALL_SIZE_MAX * 2) && ok; size++) {
-      for (size_t align = 1; align <= size && ok; align *= 2) {
+    for( size_t size = 1; size <= (MI_SMALL_SIZE_MAX * 2) && ok; size++ ) {
+      for(size_t align = 1; align <= size && ok; align *= 2 ) {
         void* p[10];
-        for (int i = 0; i < 10 && ok; i++) {
-          p[i] = mi_malloc_aligned(size, align);
-          ;
+        for(int i = 0; i < 10 && ok; i++) {
+          p[i] = mi_malloc_aligned(size,align);;
           ok = (p[i] != NULL && ((uintptr_t)(p[i]) % align) == 0);
         }
-        for (int i = 0; i < 10 && ok; i++) {
+        for(int i = 0; i < 10 && ok; i++) {
           mi_free(p[i]);
         }
         /*
-        if (ok && align <= size && ((size + MI_PADDING_SIZE) & (align-1)) == 0)
-        { size_t bsize = mi_good_size(size); ok = (align <= bsize && (bsize &
-        (align-1)) == 0);
+        if (ok && align <= size && ((size + MI_PADDING_SIZE) & (align-1)) == 0) {
+          size_t bsize = mi_good_size(size);
+          ok = (align <= bsize && (bsize & (align-1)) == 0);
         }
         */
       }
@@ -287,36 +278,29 @@ int main(void) {
     result = ok;
   }
   CHECK_BODY("malloc-aligned-at1") {
-    void* p = mi_malloc_aligned_at(48, 32, 0);
-    result = (p != NULL && ((uintptr_t)(p) + 0) % 32 == 0);
-    mi_free(p);
+    void* p = mi_malloc_aligned_at(48,32,0); result = (p != NULL && ((uintptr_t)(p) + 0) % 32 == 0); mi_free(p);
   };
   CHECK_BODY("malloc-aligned-at2") {
-    void* p = mi_malloc_aligned_at(50, 32, 8);
-    result = (p != NULL && ((uintptr_t)(p) + 8) % 32 == 0);
-    mi_free(p);
+    void* p = mi_malloc_aligned_at(50,32,8); result = (p != NULL && ((uintptr_t)(p) + 8) % 32 == 0); mi_free(p);
   };
   CHECK_BODY("memalign1") {
     void* p;
     bool ok = true;
     for (int i = 0; i < 8 && ok; i++) {
-      p = mi_memalign(16, 8);
-      ok = (p != NULL && (uintptr_t)(p) % 16 == 0);
-      mi_free(p);
+      p = mi_memalign(16,8);
+      ok = (p != NULL && (uintptr_t)(p) % 16 == 0); mi_free(p);
     }
     result = ok;
   };
   CHECK_BODY("zalloc-aligned-small1") {
     size_t zalloc_size = MI_SMALL_SIZE_MAX / 2;
-    uint8_t* p =
-        (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
     result = mem_is_zero(p, zalloc_size);
     mi_free(p);
   };
   CHECK_BODY("rezalloc_aligned-small1") {
     size_t zalloc_size = MI_SMALL_SIZE_MAX / 2;
-    uint8_t* p =
-        (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
     result = mem_is_zero(p, zalloc_size);
     zalloc_size *= 3;
     p = (uint8_t*)mi_rezalloc_aligned(p, zalloc_size, MI_MAX_ALIGN_SIZE * 2);
@@ -328,16 +312,13 @@ int main(void) {
   // Reallocation
   // ---------------------------------------------------
   CHECK_BODY("realloc-null") {
-    void* p = mi_realloc(NULL, 4);
+    void* p = mi_realloc(NULL,4);
     result = (p != NULL);
     mi_free(p);
   };
 
   CHECK_BODY("realloc-null-sizezero") {
-    void* p = mi_realloc(
-        NULL,
-        0);  // <https://en.cppreference.com/w/c/memory/realloc> "If ptr is
-             // NULL, the behavior is the same as calling malloc(new_size)."
+    void* p = mi_realloc(NULL,0);  // <https://en.cppreference.com/w/c/memory/realloc> "If ptr is NULL, the behavior is the same as calling malloc(new_size)."
     result = (p != NULL);
     mi_free(p);
   };
@@ -350,7 +331,7 @@ int main(void) {
   };
 
   CHECK_BODY("reallocarray-null-sizezero") {
-    void* p = mi_reallocarray(NULL, 0, 16);  // issue #574
+    void* p = mi_reallocarray(NULL,0,16);  // issue #574
     result = (p != NULL && errno == 0);
     mi_free(p);
   };
@@ -359,9 +340,9 @@ int main(void) {
   // Returned block sizes
   // ---------------------------------------------------
   CHECK_BODY("umalloc1") {
-    for (size_t size = 1; size <= 32 * MI_MiB; size *= 2) {
+    for(size_t size = 1; size <= 32*MI_MiB; size *= 2 ) {
       size_t bsize;
-      void* p = mi_umalloc(size, &bsize);
+      void* p = mi_umalloc(size,&bsize);
       assert(bsize >= size);
       size_t pre_size;
       size_t post_size;
@@ -369,40 +350,39 @@ int main(void) {
       assert(pre_size == bsize);
       assert(post_size >= size + 1024);
       size_t fsize;
-      mi_ufree(p, &fsize);
+      mi_ufree(p,&fsize);
       assert(fsize == post_size);
     }
   }
 
-// ---------------------------------------------------
-// Heaps
-// ---------------------------------------------------
-// CHECK("theap_destroy", test_theap1());
-// CHECK("theap_delete", test_theap2());
-// CHECK("theap_arena_destroy", test_theap_arena_destroy());
-// CHECK("theap_arena_delete", test_theap_arena_delete());
+  // ---------------------------------------------------
+  // Heaps
+  // ---------------------------------------------------
+  //CHECK("theap_destroy", test_theap1());
+  //CHECK("theap_delete", test_theap2());
+  //CHECK("theap_arena_destroy", test_theap_arena_destroy());
+  //CHECK("theap_arena_delete", test_theap_arena_delete());
 
-// mi_stats_print(NULL);
+  //mi_stats_print(NULL);
 
-// ---------------------------------------------------
-// various
-// ---------------------------------------------------
-#if !defined(MI_TRACK_ASAN)  // realpath may leak with ASAN enabled (as the ASAN
-                             // allocator intercepts it)
+  // ---------------------------------------------------
+  // various
+  // ---------------------------------------------------
+  #if !defined(MI_TRACK_ASAN)   // realpath may leak with ASAN enabled (as the ASAN allocator intercepts it)
   CHECK_BODY("realpath") {
-    char* s = mi_realpath(".", NULL);
+    char* s = mi_realpath( ".", NULL );
     // printf("realpath: %s\n",s);
     mi_free(s);
   };
-#endif
+  #endif
 
   CHECK("stl_allocator1", test_stl_allocator1());
   CHECK("stl_allocator2", test_stl_allocator2());
 
-  // CHECK("stl_theap_allocator1", test_stl_theap_allocator1());
-  // CHECK("stl_theap_allocator2", test_stl_theap_allocator2());
-  // CHECK("stl_theap_allocator3", test_stl_theap_allocator3());
-  // CHECK("stl_theap_allocator4", test_stl_theap_allocator4());
+	//CHECK("stl_theap_allocator1", test_stl_theap_allocator1());
+	//CHECK("stl_theap_allocator2", test_stl_theap_allocator2());
+	//CHECK("stl_theap_allocator3", test_stl_theap_allocator3());
+	//CHECK("stl_theap_allocator4", test_stl_theap_allocator4());
 
   // ---------------------------------------------------
   // Done
@@ -437,8 +417,8 @@ bool test_theap2(void) {
 
 bool test_theap_arena_destroy(void) {
   mi_arena_id_t arena_id = NULL;
-  if (mi_reserve_os_memory_ex(64 * 1024 * 1024, true, false, true, &arena_id) !=
-0) { return false;
+  if (mi_reserve_os_memory_ex(64 * 1024 * 1024, true, false, true, &arena_id) != 0) {
+    return false;
   }
   mi_theap_t* theap = mi_theap_new_ex(0, true, arena_id);
   if (theap == NULL) {
@@ -450,8 +430,8 @@ bool test_theap_arena_destroy(void) {
 
 bool test_theap_arena_delete(void) {
   mi_arena_id_t arena_id = NULL;
-  if (mi_reserve_os_memory_ex(64 * 1024 * 1024, true, false, true, &arena_id) !=
-0) { return false;
+  if (mi_reserve_os_memory_ex(64 * 1024 * 1024, true, false, true, &arena_id) != 0) {
+    return false;
   }
   mi_theap_t* theap = mi_theap_new_ex(0, true, arena_id);
   if (theap == NULL) {
@@ -472,11 +452,7 @@ bool test_stl_allocator1(void) {
 #endif
 }
 
-struct some_struct {
-  int i;
-  int j;
-  double z;
-};
+struct some_struct  { int i; int j; double z; };
 
 bool test_stl_allocator2(void) {
 #ifdef __cplusplus
@@ -514,15 +490,16 @@ bool test_stl_theap_allocator2(void) {
 
 bool test_stl_theap_allocator3(void) {
 #ifdef __cplusplus
-        mi_theap_t* theap = mi_theap_new();
-        bool good = false;
-        {
-                mi_theap_stl_allocator<some_struct> myAlloc(theap);
-                std::vector<some_struct, mi_theap_stl_allocator<some_struct> >
-vec(myAlloc); vec.push_back(some_struct()); vec.pop_back(); good = vec.size() ==
-0;
-        }
-        mi_theap_delete(theap);
+	mi_theap_t* theap = mi_theap_new();
+	bool good = false;
+	{
+		mi_theap_stl_allocator<some_struct> myAlloc(theap);
+		std::vector<some_struct, mi_theap_stl_allocator<some_struct> > vec(myAlloc);
+		vec.push_back(some_struct());
+		vec.pop_back();
+		good = vec.size() == 0;
+	}
+	mi_theap_delete(theap);
   return good;
 #else
   return true;
@@ -531,17 +508,16 @@ vec(myAlloc); vec.push_back(some_struct()); vec.pop_back(); good = vec.size() ==
 
 bool test_stl_theap_allocator4(void) {
 #ifdef __cplusplus
-        mi_theap_t* theap = mi_theap_new();
-        bool good = false;
-        {
-                mi_theap_destroy_stl_allocator<some_struct> myAlloc(theap);
-                std::vector<some_struct,
-mi_theap_destroy_stl_allocator<some_struct> > vec(myAlloc);
-                vec.push_back(some_struct());
-                vec.pop_back();
-                good = vec.size() == 0;
-        }
-        mi_theap_destroy(theap);
+	mi_theap_t* theap = mi_theap_new();
+	bool good = false;
+	{
+		mi_theap_destroy_stl_allocator<some_struct> myAlloc(theap);
+		std::vector<some_struct, mi_theap_destroy_stl_allocator<some_struct> > vec(myAlloc);
+		vec.push_back(some_struct());
+		vec.pop_back();
+		good = vec.size() == 0;
+	}
+	mi_theap_destroy(theap);
   return good;
 #else
   return true;

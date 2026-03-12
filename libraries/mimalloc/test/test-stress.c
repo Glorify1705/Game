@@ -5,8 +5,7 @@ terms of the MIT license.
 -----------------------------------------------------------------------------*/
 
 /* This is a stress test for the allocator, using multiple threads and
-   transferring objects between threads. It tries to reflect real-world
-   workloads:
+   transferring objects between threads. It tries to reflect real-world workloads:
    - allocation size is distributed linearly in powers of two
    - with some fraction extra large (and some very large)
    - the allocations are initialized and read again at free
@@ -16,104 +15,100 @@ terms of the MIT license.
      (random) thread scheduling. Do not use this test as a benchmark!
 */
 
-#include <assert.h>
-#include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
+#include <assert.h>
 
 // #define MI_GUARDED         1
 // #define USE_STD_MALLOC     1
 
 #ifndef USE_STD_MALLOC
-#define MI_USE_HEAPS 4
+#define MI_USE_HEAPS       4
 #endif
 
 // > mimalloc-test-stress [THREADS] [SCALE] [ITER]
 //
 // argument defaults
-#if defined(MI_TSAN)  // with thread-sanitizer reduce the threads to test within
-                      // the azure pipeline limits
+#if defined(MI_TSAN)          // with thread-sanitizer reduce the threads to test within the azure pipeline limits
 static int THREADS = 8;
-static int SCALE = 25;
-static int ITER = 400;
-#elif defined(MI_UBSAN)  // with undefined behavious sanitizer reduce parameters
-                         // to stay within the azure pipeline limits
+static int SCALE   = 25;
+static int ITER    = 400;
+#elif defined(MI_UBSAN)       // with undefined behavious sanitizer reduce parameters to stay within the azure pipeline limits
 static int THREADS = 8;
-static int SCALE = 25;
-static int ITER = 20;
-#elif defined(MI_GUARDED)  // with debug guard pages reduce parameters to stay
-                           // within the azure pipeline limits
+static int SCALE   = 25;
+static int ITER    = 20;
+#elif defined(MI_GUARDED)     // with debug guard pages reduce parameters to stay within the azure pipeline limits
 static int THREADS = 8;
-static int SCALE = 10;
-static int ITER = 10;
-#elif 0
+static int SCALE   = 10;
+static int ITER    = 10;
+#elif  0
 static int THREADS = 4;
-static int SCALE = 10;
-static int ITER = 20;
+static int SCALE   = 10;
+static int ITER    = 20;
 #elif 0
 static int THREADS = 32;
-static int SCALE = 50;
-static int ITER = 50;
+static int SCALE   = 50;
+static int ITER    = 50;
 #elif 0
 static int THREADS = 32;
-static int SCALE = 25;
-static int ITER = 50;
+static int SCALE   = 25;
+static int ITER    = 50;
 #define ALLOW_LARGE true
 #else
-static int THREADS = 32;  // more repeatable if THREADS <= #processors
-static int SCALE = 50;    // scaling factor
-static int ITER =
-    50;  // N full iterations destructing and re-creating all threads
+static int THREADS = 32;      // more repeatable if THREADS <= #processors
+static int SCALE   = 50;      // scaling factor
+static int ITER    = 50;      // N full iterations destructing and re-creating all threads
 #endif
 
-#define STRESS  // undefine for leak test
+
+
+#define STRESS                // undefine for leak test
 
 #ifndef ALLOW_LARGE
-#define ALLOW_LARGE false
+#define ALLOW_LARGE  false
 #endif
 
-static bool allow_large_objects =
-    ALLOW_LARGE;  // allow very large objects? (set to `true` if SCALE>100)
+static bool   allow_large_objects = ALLOW_LARGE;    // allow very large objects? (set to `true` if SCALE>100)
 
-static size_t use_one_size =
-    0;  // use single object size of `N * sizeof(uintptr_t)`?
+static size_t use_one_size = 0;               // use single object size of `N * sizeof(uintptr_t)`?
 
-static bool main_participates =
-    false;  // main thread participates as a worker too
+static bool   main_participates = false;       // main thread participates as a worker too
 
 #ifdef USE_STD_MALLOC
 
-#define custom_calloc(n, s) calloc(n, s)
-#define custom_realloc(p, s) realloc(p, s)
-#define custom_free(p) free(p)
+#define custom_calloc(n,s)    calloc(n,s)
+#define custom_realloc(p,s)   realloc(p,s)
+#define custom_free(p)        free(p)
 
 #else
 
-#include <mimalloc-stats.h>
 #include <mimalloc.h>
+#include <mimalloc-stats.h>
 
 #ifdef MI_USE_HEAPS
 static mi_heap_t* current_heap;
-#define custom_calloc(n, s) mi_heap_calloc(current_heap, n, s)
-#define custom_realloc(p, s) mi_heap_realloc(current_heap, p, s)
-#define custom_free(p) mi_free(p)
+#define custom_calloc(n,s)    mi_heap_calloc(current_heap,n,s)
+#define custom_realloc(p,s)   mi_heap_realloc(current_heap,p,s)
+#define custom_free(p)        mi_free(p)
 #else
-#define custom_calloc(n, s) mi_calloc(n, s)
-#define custom_realloc(p, s) mi_realloc(p, s)
-#define custom_free(p) mi_free(p)
+#define custom_calloc(n,s)    mi_calloc(n,s)
+#define custom_realloc(p,s)   mi_realloc(p,s)
+#define custom_free(p)        mi_free(p)
 #endif
 
 #ifndef NDEBUG
-#define xMI_HEAP_WALK  // walk the theap objects?
+#define xMI_HEAP_WALK             // walk the theap objects?
 #endif
 
 #endif
 
 // transfer pointer between threads
-#define TRANSFERS (1000)
+#define TRANSFERS     (1000)
 static volatile void* transfer[TRANSFERS];
+
 
 #if (UINTPTR_MAX != UINT32_MAX)
 const uintptr_t cookie = 0xbf58476d1ce4e5b9UL;
@@ -146,23 +141,20 @@ static uintptr_t pick(random_t r) {
   return x;
 }
 
-static bool chance(size_t perc, random_t r) { return (pick(r) % 100 <= perc); }
+static bool chance(size_t perc, random_t r) {
+  return (pick(r) % 100 <= perc);
+}
 
 static void* alloc_items(size_t items, random_t r) {
   if (chance(1, r)) {
-    if (chance(1, r) && allow_large_objects)
-      items *= 10000;  // 0.01% giant
-    else if (chance(10, r) && allow_large_objects)
-      items *= 1000;  // 0.1% huge
-    else
-      items *= 100;  // 1% large objects;
+    if (chance(1, r) && allow_large_objects) items *= 10000;       // 0.01% giant
+    else if (chance(10, r) && allow_large_objects) items *= 1000;  // 0.1% huge
+    else items *= 100;                                             // 1% large objects;
   }
-  if (items >= 32 && items <= 40)
-    items *= 2;  // pthreads uses 320b allocations (this shows that more clearly
-                 // in the stats)
+  if (items>=32 && items<=40) items*=2;              // pthreads uses 320b allocations (this shows that more clearly in the stats)
   if (use_one_size > 0) items = (use_one_size / sizeof(uintptr_t));
-  if (items == 0) items = 1;
-  uintptr_t* p = (uintptr_t*)custom_calloc(items, sizeof(uintptr_t));
+  if (items==0) items = 1;  
+  uintptr_t* p = (uintptr_t*)custom_calloc(items,sizeof(uintptr_t));
   if (p != NULL) {
     for (uintptr_t i = 0; i < items; i++) {
       assert(p[i] == 0);
@@ -187,10 +179,8 @@ static void free_items(void* p) {
 }
 
 #ifdef MI_HEAP_WALK
-static bool visit_blocks(const mi_theap_t* theap, const mi_theap_area_t* area,
-                         void* block, size_t block_size, void* arg) {
-  (void)(theap);
-  (void)(area);
+static bool visit_blocks(const mi_theap_t* theap, const mi_theap_area_t* area, void* block, size_t block_size, void* arg) {
+  (void)(theap); (void)(area);
   size_t* total = (size_t*)arg;
   if (block != NULL) {
     *total += block_size;
@@ -200,17 +190,16 @@ static bool visit_blocks(const mi_theap_t* theap, const mi_theap_area_t* area,
 #endif
 
 static void stress(intptr_t tid) {
-  // bench_start_thread();
-  uintptr_t r = ((tid + 1) * 43);   // rand();
-  const size_t max_item_shift = 5;  // 128
+  //bench_start_thread();
+  uintptr_t r = ((tid + 1) * 43); // rand();
+  const size_t max_item_shift = 5; // 128
   const size_t max_item_retained_shift = max_item_shift + 2;
-  size_t allocs =
-      100 * ((size_t)SCALE) * (tid % 8 + 1);  // some threads do more
+  size_t allocs = 100 * ((size_t)SCALE) * (tid % 8 + 1); // some threads do more
   size_t retain = allocs / 2;
   void** data = NULL;
   size_t data_size = 0;
   size_t data_top = 0;
-  void** retained = (void**)custom_calloc(retain, sizeof(void*));
+  void** retained = (void**)custom_calloc(retain,sizeof(void*));
   size_t retain_top = 0;
 
   while (allocs > 0 || retain > 0) {
@@ -222,10 +211,10 @@ static void stress(intptr_t tid) {
         data = (void**)custom_realloc(data, data_size * sizeof(void*));
       }
       data[data_top++] = alloc_items(1ULL << (pick(&r) % max_item_shift), &r);
-    } else {
+    }
+    else {
       // 25% retain
-      retained[retain_top++] =
-          alloc_items(1ULL << (pick(&r) % max_item_retained_shift), &r);
+      retained[retain_top++] = alloc_items( 1ULL << (pick(&r) % max_item_retained_shift), &r);
       retain--;
     }
     if (chance(66, &r) && data_top > 0) {
@@ -244,11 +233,11 @@ static void stress(intptr_t tid) {
     }
   }
 
-#ifdef MI_HEAP_WALK
+  #ifdef MI_HEAP_WALK
   // walk the theap
   size_t total = 0;
   mi_theap_visit_blocks(mi_theap_get_default(), true, visit_blocks, &total);
-#endif
+  #endif
 
   // free everything that is left
   for (size_t i = 0; i < retain_top; i++) {
@@ -259,77 +248,72 @@ static void stress(intptr_t tid) {
   }
   custom_free(retained);
   custom_free(data);
-  // bench_end_thread();
+  //bench_end_thread();
 }
 
 static void run_os_threads(size_t nthreads, void (*entry)(intptr_t tid));
 
 static void test_stress(void) {
-#ifdef MI_USE_HEAPS
-  mi_heap_t* prev_heaps[MI_USE_HEAPS] = {NULL};
-#endif
+  #ifdef MI_USE_HEAPS
+  mi_heap_t* prev_heaps[MI_USE_HEAPS] = { NULL };
+  #endif
   uintptr_t r = rand();
   for (int n = 0; n < ITER; n++) {
-#ifdef MI_USE_HEAPS
+    
+    #ifdef MI_USE_HEAPS
     // new heap for each iteration
-    if (prev_heaps[MI_USE_HEAPS - 1] != NULL) {
-      mi_heap_delete(
-          prev_heaps[MI_USE_HEAPS - 1]);  // delete from N iterations ago
+    if (prev_heaps[MI_USE_HEAPS-1] != NULL) {
+      mi_heap_delete(prev_heaps[MI_USE_HEAPS-1]);   // delete from N iterations ago
     }
-    for (int i = MI_USE_HEAPS - 1; i > 0; i--) {
-      prev_heaps[i] = prev_heaps[i - 1];
+    for(int i = MI_USE_HEAPS-1; i > 0; i--) {
+      prev_heaps[i] = prev_heaps[i-1];
     }
     prev_heaps[0] = current_heap;
     current_heap = mi_heap_new();
-#endif
+    #endif  
 
     run_os_threads(THREADS, &stress);
 
-#if !defined(NDEBUG) && !defined(USE_STD_MALLOC)
-// switch between arena and OS allocation for testing
-// mi_option_set_enabled(mi_option_disallow_arena_alloc, (n%2)==1);
-#endif
-#if defined(MI_HEAP_WALK) && defined(MI_USE_HEAPS)
+    #if !defined(NDEBUG) && !defined(USE_STD_MALLOC)
+    // switch between arena and OS allocation for testing
+    // mi_option_set_enabled(mi_option_disallow_arena_alloc, (n%2)==1);
+    #endif
+    #if defined(MI_HEAP_WALK) && defined(MI_USE_HEAPS)
     size_t total = 0;
-    // mi_abandoned_visit_blocks(mi_subproc_main(), -1, true, visit_blocks,
-    // &total);
+    // mi_abandoned_visit_blocks(mi_subproc_main(), -1, true, visit_blocks, &total);
     mi_heap_visit_blocks(heap, true, visit_blocks, &total);
-#endif
+    #endif
 
     for (int i = 0; i < TRANSFERS; i++) {
-      if (chance(50, &r) || n + 1 == ITER) {  // free all on last run, otherwise
-                                              // free half of the transfers
+      if (chance(50, &r) || n + 1 == ITER) { // free all on last run, otherwise free half of the transfers
         void* p = atomic_exchange_ptr(&transfer[i], NULL);
         free_items(p);
       }
     }
-
-#if !defined(NDEBUG) || defined(MI_TSAN)
+    
+    #if !defined(NDEBUG) || defined(MI_TSAN)
     if ((n + 1) % 10 == 0) {
       printf("- iterations left: %3d\n", ITER - (n + 1));
-#ifndef USE_STD_MALLOC
+      #ifndef USE_STD_MALLOC
       mi_debug_show_arenas();
-#endif
-      // mi_collect(true);
-      // mi_debug_show_arenas();
+      #endif
+      //mi_collect(true);
+      //mi_debug_show_arenas();
     }
-#endif
+    #endif
   }
-
-#ifndef USE_STD_MALLOC
+  
+  #ifndef USE_STD_MALLOC
   mi_stats_print(NULL);
-#endif
-
-// clean up  (a bit too early to test the final free_items still works
-// correctly)
-#ifdef MI_USE_HEAPS
+  #endif
+  
+  // clean up  (a bit too early to test the final free_items still works correctly)
+  #ifdef MI_USE_HEAPS
   for (int i = 0; i < MI_USE_HEAPS; i++) {
-    mi_heap_delete(prev_heaps[i]);
-    prev_heaps[i] = NULL;
+    mi_heap_delete(prev_heaps[i]); prev_heaps[i] = NULL;
   }
-  mi_heap_delete(current_heap);
-  current_heap = NULL;
-#endif
+  mi_heap_delete(current_heap); current_heap = NULL;
+  #endif
 
   for (int i = 0; i < TRANSFERS; i++) {
     void* p = atomic_exchange_ptr(&transfer[i], NULL);
@@ -355,9 +339,7 @@ static void test_leak(void) {
     run_os_threads(THREADS, &leak);
     mi_collect(false);
 #ifndef NDEBUG
-    if ((n + 1) % 10 == 0) {
-      printf("- iterations left: %3d\n", ITER - (n + 1));
-    }
+    if ((n + 1) % 10 == 0) { printf("- iterations left: %3d\n", ITER - (n + 1)); }
 #endif
   }
 }
@@ -367,24 +349,24 @@ static void test_leak(void) {
 #ifdef __cplusplus
 extern "C"
 #endif
-    int mi_version(void);
+int mi_version(void);
 #endif
 
 int main(int argc, char** argv) {
-#ifdef MI_LINK_VERSION
-  mi_version();
-#endif
-#ifdef MI_HEAP_WALK
-  mi_option_enable(mi_option_visit_abandoned);
-#endif
-#if !defined(NDEBUG) && !defined(USE_STD_MALLOC)
-  mi_option_set(mi_option_arena_reserve, 32 * 1024 /* in kib = 32MiB */);
-  mi_option_set(mi_option_purge_delay, 1);
-#endif
-#if defined(NDEBUG) && !defined(USE_STD_MALLOC)
-  // mi_option_set(mi_option_purge_delay,-1);
-  mi_option_set(mi_option_page_reclaim_on_free, 0);
-#endif
+  #ifdef MI_LINK_VERSION
+    mi_version();
+  #endif
+  #ifdef MI_HEAP_WALK
+    mi_option_enable(mi_option_visit_abandoned);
+  #endif
+  #if !defined(NDEBUG) && !defined(USE_STD_MALLOC)
+    mi_option_set(mi_option_arena_reserve, 32 * 1024 /* in kib = 32MiB */);
+    mi_option_set(mi_option_purge_delay,1);
+  #endif
+  #if defined(NDEBUG) && !defined(USE_STD_MALLOC)
+    // mi_option_set(mi_option_purge_delay,-1);
+    mi_option_set(mi_option_page_reclaim_on_free, 0);
+  #endif
 
   // > mimalloc-test-stress [THREADS] [SCALE] [ITER]
   if (argc >= 2) {
@@ -405,51 +387,49 @@ int main(int argc, char** argv) {
   if (SCALE > 100) {
     allow_large_objects = true;
   }
-  printf("Using %d threads with a %d%% load-per-thread and %d iterations%s",
-         THREADS, SCALE, ITER,
-         (allow_large_objects ? " (allow large objects)" : ""));
-#if MI_USE_HEAPS
+  printf("Using %d threads with a %d%% load-per-thread and %d iterations%s", THREADS, SCALE, ITER, (allow_large_objects ? " (allow large objects)" : ""));
+  #if MI_USE_HEAPS
   printf(" (using %d rolling heaps)", MI_USE_HEAPS);
-#endif
+  #endif
   printf("\n");
 
-#if !defined(NDEBUG) && !defined(USE_STD_MALLOC)
+  #if !defined(NDEBUG) && !defined(USE_STD_MALLOC)
   mi_stats_reset();
-#endif
+  #endif
 
-  // mi_reserve_os_memory(1024*1024*1024ULL, false, true);
-  // int res = mi_reserve_huge_os_pages(4,1);
-  // printf("(reserve huge: %i\n)", res);
+  //mi_reserve_os_memory(1024*1024*1024ULL, false, true);
+  //int res = mi_reserve_huge_os_pages(4,1);
+  //printf("(reserve huge: %i\n)", res);
 
-  // bench_start_program();
+  //bench_start_program();
 
-  // Run ITER full iterations where half the objects in the transfer buffer
-  // survive to the next round.
+  // Run ITER full iterations where half the objects in the transfer buffer survive to the next round.
   srand(0x7feb352d);
   // mi_stats_reset();
 #ifdef STRESS
-  test_stress();
+    test_stress();
 #else
-  test_leak();
+    test_leak();
 #endif
 
 #ifndef USE_STD_MALLOC
-#ifndef NDEBUG
+  #ifndef NDEBUG
   mi_collect(true);
   mi_debug_show_arenas();
-// mi_collect(true);
-// char* json = mi_stats_get_json(0, NULL);
-// if (json != NULL) {
-//   fputs(json,stderr);
-//   mi_free(json);
-// }
-#endif
+  //mi_collect(true);
+  //char* json = mi_stats_get_json(0, NULL);
+  //if (json != NULL) {
+  //  fputs(json,stderr);
+  //  mi_free(json);
+  //}
+  #endif
   mi_collect(true);
   mi_stats_print(NULL);
 #endif
-  // bench_end_program();
+  //bench_end_program();
   return 0;
 }
+
 
 static void (*thread_entry_fun)(intptr_t) = &stress;
 
@@ -464,15 +444,14 @@ static DWORD WINAPI thread_entry(LPVOID param) {
 
 static void run_os_threads(size_t nthreads, void (*fun)(intptr_t)) {
   thread_entry_fun = fun;
-  DWORD* tids = (DWORD*)custom_calloc(nthreads, sizeof(DWORD));
-  HANDLE* thandles = (HANDLE*)custom_calloc(nthreads, sizeof(HANDLE));
-  thandles[0] = GetCurrentThread();  // avoid lint warning
+  DWORD* tids = (DWORD*)custom_calloc(nthreads,sizeof(DWORD));
+  HANDLE* thandles = (HANDLE*)custom_calloc(nthreads,sizeof(HANDLE));
+  thandles[0] = GetCurrentThread(); // avoid lint warning
   const size_t start = (main_participates ? 1 : 0);
   for (size_t i = start; i < nthreads; i++) {
-    thandles[i] =
-        CreateThread(0, 8 * 1024L, &thread_entry, (void*)(i), 0, &tids[i]);
+    thandles[i] = CreateThread(0, 8*1024L, &thread_entry, (void*)(i), 0, &tids[i]);
   }
-  if (main_participates) fun(0);  // run the main thread as well
+  if (main_participates) fun(0); // run the main thread as well
   for (size_t i = start; i < nthreads; i++) {
     WaitForSingleObject(thandles[i], INFINITE);
   }
@@ -501,14 +480,14 @@ static void* thread_entry(void* param) {
 
 static void run_os_threads(size_t nthreads, void (*fun)(intptr_t)) {
   thread_entry_fun = fun;
-  pthread_t* threads = (pthread_t*)custom_calloc(nthreads, sizeof(pthread_t));
+  pthread_t* threads = (pthread_t*)custom_calloc(nthreads,sizeof(pthread_t));
   memset(threads, 0, sizeof(pthread_t) * nthreads);
   const size_t start = (main_participates ? 1 : 0);
-  // pthread_setconcurrency(nthreads);
+  //pthread_setconcurrency(nthreads);
   for (size_t i = start; i < nthreads; i++) {
     pthread_create(&threads[i], NULL, &thread_entry, (void*)i);
   }
-  if (main_participates) fun(0);  // run the main thread as well
+  if (main_participates) fun(0); // run the main thread as well
   for (size_t i = start; i < nthreads; i++) {
     pthread_join(threads[i], NULL);
   }

@@ -48,19 +48,19 @@
 //
 //*****************************************************************************
 
-#include <evntprov.h>
-#include <evntrace.h>
 #include <wmistr.h>
+#include <evntrace.h>
+#include <evntprov.h>
 
 #ifndef ETW_INLINE
-#ifdef _ETW_KM_
-// In kernel mode, save stack space by never inlining templates.
-#define ETW_INLINE DECLSPEC_NOINLINE __inline
-#else
-// In user mode, save code size by inlining templates as appropriate.
-#define ETW_INLINE __inline
-#endif
-#endif  // ETW_INLINE
+  #ifdef _ETW_KM_
+    // In kernel mode, save stack space by never inlining templates.
+    #define ETW_INLINE DECLSPEC_NOINLINE __inline
+  #else
+    // In user mode, save code size by inlining templates as appropriate.
+    #define ETW_INLINE __inline
+  #endif
+#endif // ETW_INLINE
 
 #if defined(__cplusplus)
 extern "C" {
@@ -83,12 +83,12 @@ extern "C" {
 // MCGEN_EVENTWRITETRANSFER or MCGEN_EVENTREGISTER macros.
 //
 #ifndef MCGEN_USE_KERNEL_MODE_APIS
-#ifdef _ETW_KM_
-#define MCGEN_USE_KERNEL_MODE_APIS 1
-#else
-#define MCGEN_USE_KERNEL_MODE_APIS 0
-#endif
-#endif  // MCGEN_USE_KERNEL_MODE_APIS
+  #ifdef _ETW_KM_
+    #define MCGEN_USE_KERNEL_MODE_APIS 1
+  #else
+    #define MCGEN_USE_KERNEL_MODE_APIS 0
+  #endif
+#endif // MCGEN_USE_KERNEL_MODE_APIS
 
 //
 // MCGEN_HAVE_EVENTSETINFORMATION macro:
@@ -108,28 +108,22 @@ extern "C" {
 // or more provider in a manifest has provider traits.
 //
 #ifndef MCGEN_HAVE_EVENTSETINFORMATION
-#ifdef MCGEN_EVENTSETINFORMATION  // if MCGEN_EVENTSETINFORMATION has been
-                                  // customized,
-#define MCGEN_HAVE_EVENTSETINFORMATION \
-  1  //   directly invoke MCGEN_EVENTSETINFORMATION(...).
-#elif MCGEN_USE_KERNEL_MODE_APIS  // else if using kernel-mode APIs,
-#if NTDDI_VERSION >= 0x06040000   //   if target OS is Windows 10 or later,
-#define MCGEN_HAVE_EVENTSETINFORMATION \
-  1    //     directly invoke MCGEN_EVENTSETINFORMATION(...).
-#else  //   else
-#define MCGEN_HAVE_EVENTSETINFORMATION \
-  2     //     find "EtwSetInformation" via MmGetSystemRoutineAddress.
-#endif  // else (using user-mode APIs)
-#else   //   if target OS and SDK is Windows 8 or later,
-#if WINVER >= 0x0602 && defined(EVENT_FILTER_TYPE_SCHEMATIZED)
-#define MCGEN_HAVE_EVENTSETINFORMATION \
-  1    //     directly invoke MCGEN_EVENTSETINFORMATION(...).
-#else  //   else
-#define MCGEN_HAVE_EVENTSETINFORMATION \
-  2  //     find "EventSetInformation" via GetModuleHandleExW/GetProcAddress.
-#endif
-#endif
-#endif  // MCGEN_HAVE_EVENTSETINFORMATION
+  #ifdef MCGEN_EVENTSETINFORMATION             // if MCGEN_EVENTSETINFORMATION has been customized,
+    #define MCGEN_HAVE_EVENTSETINFORMATION   1 //   directly invoke MCGEN_EVENTSETINFORMATION(...).
+  #elif MCGEN_USE_KERNEL_MODE_APIS             // else if using kernel-mode APIs,
+    #if NTDDI_VERSION >= 0x06040000            //   if target OS is Windows 10 or later,
+      #define MCGEN_HAVE_EVENTSETINFORMATION 1 //     directly invoke MCGEN_EVENTSETINFORMATION(...).
+    #else                                      //   else
+      #define MCGEN_HAVE_EVENTSETINFORMATION 2 //     find "EtwSetInformation" via MmGetSystemRoutineAddress.
+    #endif                                     // else (using user-mode APIs)
+  #else                                        //   if target OS and SDK is Windows 8 or later,
+    #if WINVER >= 0x0602 && defined(EVENT_FILTER_TYPE_SCHEMATIZED)
+      #define MCGEN_HAVE_EVENTSETINFORMATION 1 //     directly invoke MCGEN_EVENTSETINFORMATION(...).
+    #else                                      //   else
+      #define MCGEN_HAVE_EVENTSETINFORMATION 2 //     find "EventSetInformation" via GetModuleHandleExW/GetProcAddress.
+    #endif
+  #endif
+#endif // MCGEN_HAVE_EVENTSETINFORMATION
 
 //
 // MCGEN Override Macros
@@ -169,54 +163,48 @@ extern "C" {
 //
 // For example, the following will cause compile errors:
 //
-//   #define MCGEN_EVENTWRITETRANSFER MyNamespace::MyClass::MyFunction // Value
-//   has non-identifier characters (colon). #define MCGEN_EVENTWRITETRANSFER
-//   GetEventWriteFunctionPointer(7)  // Value has non-identifier characters
-//   (parentheses). #define MCGEN_EVENTWRITETRANSFER(h,e,a,r,c,d)
-//   EventWrite(h,e,c,d) // Override is defined as a function-like macro.
+//   #define MCGEN_EVENTWRITETRANSFER MyNamespace::MyClass::MyFunction // Value has non-identifier characters (colon).
+//   #define MCGEN_EVENTWRITETRANSFER GetEventWriteFunctionPointer(7)  // Value has non-identifier characters (parentheses).
+//   #define MCGEN_EVENTWRITETRANSFER(h,e,a,r,c,d) EventWrite(h,e,c,d) // Override is defined as a function-like macro.
 //   #define MY_OBJECT_LIKE_MACRO     MyNamespace::MyClass::MyEventWriteFunction
-//   #define MCGEN_EVENTWRITETRANSFER MY_OBJECT_LIKE_MACRO // Evaluates to
-//   something with non-identifier characters (colon).
+//   #define MCGEN_EVENTWRITETRANSFER MY_OBJECT_LIKE_MACRO // Evaluates to something with non-identifier characters (colon).
 //
 // The following would be ok:
 //
-//   #define MCGEN_EVENTWRITETRANSFER  MyEventWriteFunction1  // OK, suffix will
-//   be "MyEventWriteFunction1". #define MY_OBJECT_LIKE_MACRO
-//   MyEventWriteFunction2 #define MCGEN_EVENTWRITETRANSFER MY_OBJECT_LIKE_MACRO
-//   // OK, suffix will be "MyEventWriteFunction2". #define
-//   MY_FUNCTION_LIKE_MACRO(h,e,a,r,c,d)
-//   MyNamespace::MyClass::MyEventWriteFunction3(h,e,c,d) #define
-//   MCGEN_EVENTWRITETRANSFER  MY_FUNCTION_LIKE_MACRO // OK, suffix will be
-//   "MY_FUNCTION_LIKE_MACRO".
+//   #define MCGEN_EVENTWRITETRANSFER  MyEventWriteFunction1  // OK, suffix will be "MyEventWriteFunction1".
+//   #define MY_OBJECT_LIKE_MACRO      MyEventWriteFunction2
+//   #define MCGEN_EVENTWRITETRANSFER  MY_OBJECT_LIKE_MACRO   // OK, suffix will be "MyEventWriteFunction2".
+//   #define MY_FUNCTION_LIKE_MACRO(h,e,a,r,c,d) MyNamespace::MyClass::MyEventWriteFunction3(h,e,c,d)
+//   #define MCGEN_EVENTWRITETRANSFER  MY_FUNCTION_LIKE_MACRO // OK, suffix will be "MY_FUNCTION_LIKE_MACRO".
 //
 #ifndef MCGEN_EVENTREGISTER
-#if MCGEN_USE_KERNEL_MODE_APIS
-#define MCGEN_EVENTREGISTER EtwRegister
-#else
-#define MCGEN_EVENTREGISTER EventRegister
-#endif
-#endif  // MCGEN_EVENTREGISTER
+  #if MCGEN_USE_KERNEL_MODE_APIS
+    #define MCGEN_EVENTREGISTER        EtwRegister
+  #else
+    #define MCGEN_EVENTREGISTER        EventRegister
+  #endif
+#endif // MCGEN_EVENTREGISTER
 #ifndef MCGEN_EVENTUNREGISTER
-#if MCGEN_USE_KERNEL_MODE_APIS
-#define MCGEN_EVENTUNREGISTER EtwUnregister
-#else
-#define MCGEN_EVENTUNREGISTER EventUnregister
-#endif
-#endif  // MCGEN_EVENTUNREGISTER
+  #if MCGEN_USE_KERNEL_MODE_APIS
+    #define MCGEN_EVENTUNREGISTER      EtwUnregister
+  #else
+    #define MCGEN_EVENTUNREGISTER      EventUnregister
+  #endif
+#endif // MCGEN_EVENTUNREGISTER
 #ifndef MCGEN_EVENTSETINFORMATION
-#if MCGEN_USE_KERNEL_MODE_APIS
-#define MCGEN_EVENTSETINFORMATION EtwSetInformation
-#else
-#define MCGEN_EVENTSETINFORMATION EventSetInformation
-#endif
-#endif  // MCGEN_EVENTSETINFORMATION
+  #if MCGEN_USE_KERNEL_MODE_APIS
+    #define MCGEN_EVENTSETINFORMATION  EtwSetInformation
+  #else
+    #define MCGEN_EVENTSETINFORMATION  EventSetInformation
+  #endif
+#endif // MCGEN_EVENTSETINFORMATION
 #ifndef MCGEN_EVENTWRITETRANSFER
-#if MCGEN_USE_KERNEL_MODE_APIS
-#define MCGEN_EVENTWRITETRANSFER EtwWriteTransfer
-#else
-#define MCGEN_EVENTWRITETRANSFER EventWriteTransfer
-#endif
-#endif  // MCGEN_EVENTWRITETRANSFER
+  #if MCGEN_USE_KERNEL_MODE_APIS
+    #define MCGEN_EVENTWRITETRANSFER   EtwWriteTransfer
+  #else
+    #define MCGEN_EVENTWRITETRANSFER   EventWriteTransfer
+  #endif
+#endif // MCGEN_EVENTWRITETRANSFER
 
 //
 // MCGEN_EVENT_ENABLED macro:
@@ -236,8 +224,7 @@ extern "C" {
 // EventEnabled[EventName]_ForContext macros.
 //
 #ifndef MCGEN_EVENT_ENABLED_FORCONTEXT
-#define MCGEN_EVENT_ENABLED_FORCONTEXT(pContext, EventName) \
-  EventEnabled##EventName##_ForContext(pContext)
+#define MCGEN_EVENT_ENABLED_FORCONTEXT(pContext, EventName) EventEnabled##EventName##_ForContext(pContext)
 #endif
 
 //
@@ -247,29 +234,28 @@ extern "C" {
 // McGenEventEnabled directly.
 //
 #ifndef MCGEN_ENABLE_CHECK
-#define MCGEN_ENABLE_CHECK(Context, Descriptor) \
-  (Context.IsEnabled && McGenEventEnabled(&Context, &Descriptor))
+#define MCGEN_ENABLE_CHECK(Context, Descriptor) (Context.IsEnabled && McGenEventEnabled(&Context, &Descriptor))
 #endif
 
 #if !defined(MCGEN_TRACE_CONTEXT_DEF)
 #define MCGEN_TRACE_CONTEXT_DEF
-// This structure is for use by MC-generated code and should not be used
-// directly.
-typedef struct _MCGEN_TRACE_CONTEXT {
-  TRACEHANDLE RegistrationHandle;
-  TRACEHANDLE Logger;  // Used as pointer to provider traits.
-  ULONGLONG MatchAnyKeyword;
-  ULONGLONG MatchAllKeyword;
-  ULONG Flags;
-  ULONG IsEnabled;
-  UCHAR Level;
-  UCHAR Reserve;
-  USHORT EnableBitsCount;
-  PULONG EnableBitMask;
-  const ULONGLONG* EnableKeyWords;
-  const UCHAR* EnableLevel;
+// This structure is for use by MC-generated code and should not be used directly.
+typedef struct _MCGEN_TRACE_CONTEXT
+{
+    TRACEHANDLE            RegistrationHandle;
+    TRACEHANDLE            Logger;      // Used as pointer to provider traits.
+    ULONGLONG              MatchAnyKeyword;
+    ULONGLONG              MatchAllKeyword;
+    ULONG                  Flags;
+    ULONG                  IsEnabled;
+    UCHAR                  Level;
+    UCHAR                  Reserve;
+    USHORT                 EnableBitsCount;
+    PULONG                 EnableBitMask;
+    const ULONGLONG*       EnableKeyWords;
+    const UCHAR*           EnableLevel;
 } MCGEN_TRACE_CONTEXT, *PMCGEN_TRACE_CONTEXT;
-#endif  // MCGEN_TRACE_CONTEXT_DEF
+#endif // MCGEN_TRACE_CONTEXT_DEF
 
 #if !defined(MCGEN_LEVEL_KEYWORD_ENABLED_DEF)
 #define MCGEN_LEVEL_KEYWORD_ENABLED_DEF
@@ -281,33 +267,36 @@ typedef struct _MCGEN_TRACE_CONTEXT {
 //
 FORCEINLINE
 BOOLEAN
-McGenLevelKeywordEnabled(_In_ PMCGEN_TRACE_CONTEXT EnableInfo, _In_ UCHAR Level,
-                         _In_ ULONGLONG Keyword) {
-  //
-  // Check if the event Level is lower than the level at which
-  // the channel is enabled.
-  // If the event Level is 0 or the channel is enabled at level 0,
-  // all levels are enabled.
-  //
-
-  if ((Level <=
-       EnableInfo->Level) ||  // This also covers the case of Level == 0.
-      (EnableInfo->Level == 0)) {
+McGenLevelKeywordEnabled(
+    _In_ PMCGEN_TRACE_CONTEXT EnableInfo,
+    _In_ UCHAR Level,
+    _In_ ULONGLONG Keyword
+    )
+{
     //
-    // Check if Keyword is enabled
+    // Check if the event Level is lower than the level at which
+    // the channel is enabled.
+    // If the event Level is 0 or the channel is enabled at level 0,
+    // all levels are enabled.
     //
 
-    if ((Keyword == (ULONGLONG)0) ||
-        ((Keyword & EnableInfo->MatchAnyKeyword) &&
-         ((Keyword & EnableInfo->MatchAllKeyword) ==
-          EnableInfo->MatchAllKeyword))) {
-      return TRUE;
+    if ((Level <= EnableInfo->Level) || // This also covers the case of Level == 0.
+        (EnableInfo->Level == 0)) {
+
+        //
+        // Check if Keyword is enabled
+        //
+
+        if ((Keyword == (ULONGLONG)0) ||
+            ((Keyword & EnableInfo->MatchAnyKeyword) &&
+             ((Keyword & EnableInfo->MatchAllKeyword) == EnableInfo->MatchAllKeyword))) {
+            return TRUE;
+        }
     }
-  }
 
-  return FALSE;
+    return FALSE;
 }
-#endif  // MCGEN_LEVEL_KEYWORD_ENABLED_DEF
+#endif // MCGEN_LEVEL_KEYWORD_ENABLED_DEF
 
 #if !defined(MCGEN_EVENT_ENABLED_DEF)
 #define MCGEN_EVENT_ENABLED_DEF
@@ -318,23 +307,31 @@ McGenLevelKeywordEnabled(_In_ PMCGEN_TRACE_CONTEXT EnableInfo, _In_ UCHAR Level,
 //
 FORCEINLINE
 BOOLEAN
-McGenEventEnabled(_In_ PMCGEN_TRACE_CONTEXT EnableInfo,
-                  _In_ PCEVENT_DESCRIPTOR EventDescriptor) {
-  return McGenLevelKeywordEnabled(EnableInfo, EventDescriptor->Level,
-                                  EventDescriptor->Keyword);
+McGenEventEnabled(
+    _In_ PMCGEN_TRACE_CONTEXT EnableInfo,
+    _In_ PCEVENT_DESCRIPTOR EventDescriptor
+    )
+{
+    return McGenLevelKeywordEnabled(EnableInfo, EventDescriptor->Level, EventDescriptor->Keyword);
 }
-#endif  // MCGEN_EVENT_ENABLED_DEF
+#endif // MCGEN_EVENT_ENABLED_DEF
 
 #if !defined(MCGEN_CONTROL_CALLBACK)
 #define MCGEN_CONTROL_CALLBACK
 
-// This function is for use by MC-generated code and should not be used
-// directly.
-DECLSPEC_NOINLINE __inline VOID __stdcall McGenControlCallbackV2(
-    _In_ LPCGUID SourceId, _In_ ULONG ControlCode, _In_ UCHAR Level,
-    _In_ ULONGLONG MatchAnyKeyword, _In_ ULONGLONG MatchAllKeyword,
+// This function is for use by MC-generated code and should not be used directly.
+DECLSPEC_NOINLINE __inline
+VOID
+__stdcall
+McGenControlCallbackV2(
+    _In_ LPCGUID SourceId,
+    _In_ ULONG ControlCode,
+    _In_ UCHAR Level,
+    _In_ ULONGLONG MatchAnyKeyword,
+    _In_ ULONGLONG MatchAllKeyword,
     _In_opt_ PEVENT_FILTER_DESCRIPTOR FilterData,
-    _Inout_opt_ PVOID CallbackContext)
+    _Inout_opt_ PVOID CallbackContext
+    )
 /*++
 
 Routine Description:
@@ -358,8 +355,8 @@ Arguments:
 
     FilterData - The provider-defined data.
 
-    CallbackContext - The context of the callback that is defined when the
-provider called EtwRegister to register itself.
+    CallbackContext - The context of the callback that is defined when the provider
+                      called EtwRegister to register itself.
 
 Remarks:
 
@@ -367,84 +364,88 @@ Remarks:
 
 --*/
 {
-  PMCGEN_TRACE_CONTEXT Ctx = (PMCGEN_TRACE_CONTEXT)CallbackContext;
-  ULONG Ix;
+    PMCGEN_TRACE_CONTEXT Ctx = (PMCGEN_TRACE_CONTEXT)CallbackContext;
+    ULONG Ix;
 #ifndef MCGEN_PRIVATE_ENABLE_CALLBACK_V2
-  UNREFERENCED_PARAMETER(SourceId);
-  UNREFERENCED_PARAMETER(FilterData);
+    UNREFERENCED_PARAMETER(SourceId);
+    UNREFERENCED_PARAMETER(FilterData);
 #endif
 
-  if (Ctx == NULL) {
-    return;
-  }
+    if (Ctx == NULL) {
+        return;
+    }
 
-  switch (ControlCode) {
-    case EVENT_CONTROL_CODE_ENABLE_PROVIDER:
-      Ctx->Level = Level;
-      Ctx->MatchAnyKeyword = MatchAnyKeyword;
-      Ctx->MatchAllKeyword = MatchAllKeyword;
-      Ctx->IsEnabled = EVENT_CONTROL_CODE_ENABLE_PROVIDER;
+    switch (ControlCode) {
 
-      for (Ix = 0; Ix < Ctx->EnableBitsCount; Ix += 1) {
-        if (McGenLevelKeywordEnabled(Ctx, Ctx->EnableLevel[Ix],
-                                     Ctx->EnableKeyWords[Ix]) != FALSE) {
-          Ctx->EnableBitMask[Ix >> 5] |= (1 << (Ix % 32));
-        } else {
-          Ctx->EnableBitMask[Ix >> 5] &= ~(1 << (Ix % 32));
-        }
-      }
-      break;
+        case EVENT_CONTROL_CODE_ENABLE_PROVIDER:
+            Ctx->Level = Level;
+            Ctx->MatchAnyKeyword = MatchAnyKeyword;
+            Ctx->MatchAllKeyword = MatchAllKeyword;
+            Ctx->IsEnabled = EVENT_CONTROL_CODE_ENABLE_PROVIDER;
 
-    case EVENT_CONTROL_CODE_DISABLE_PROVIDER:
-      Ctx->IsEnabled = EVENT_CONTROL_CODE_DISABLE_PROVIDER;
-      Ctx->Level = 0;
-      Ctx->MatchAnyKeyword = 0;
-      Ctx->MatchAllKeyword = 0;
-      if (Ctx->EnableBitsCount > 0) {
-#pragma warning(suppress : 26451)  // Arithmetic overflow cannot occur, no
-                                   // matter the value of EnableBitCount
-        RtlZeroMemory(Ctx->EnableBitMask,
-                      (((Ctx->EnableBitsCount - 1) / 32) + 1) * sizeof(ULONG));
-      }
-      break;
+            for (Ix = 0; Ix < Ctx->EnableBitsCount; Ix += 1) {
+                if (McGenLevelKeywordEnabled(Ctx, Ctx->EnableLevel[Ix], Ctx->EnableKeyWords[Ix]) != FALSE) {
+                    Ctx->EnableBitMask[Ix >> 5] |= (1 << (Ix % 32));
+                } else {
+                    Ctx->EnableBitMask[Ix >> 5] &= ~(1 << (Ix % 32));
+                }
+            }
+            break;
 
-    default:
-      break;
-  }
+        case EVENT_CONTROL_CODE_DISABLE_PROVIDER:
+            Ctx->IsEnabled = EVENT_CONTROL_CODE_DISABLE_PROVIDER;
+            Ctx->Level = 0;
+            Ctx->MatchAnyKeyword = 0;
+            Ctx->MatchAllKeyword = 0;
+            if (Ctx->EnableBitsCount > 0) {
+#pragma warning(suppress: 26451) // Arithmetic overflow cannot occur, no matter the value of EnableBitCount
+                RtlZeroMemory(Ctx->EnableBitMask, (((Ctx->EnableBitsCount - 1) / 32) + 1) * sizeof(ULONG));
+            }
+            break;
+
+        default:
+            break;
+    }
 
 #ifdef MCGEN_PRIVATE_ENABLE_CALLBACK_V2
-  //
-  // Call user defined callback
-  //
-  MCGEN_PRIVATE_ENABLE_CALLBACK_V2(SourceId, ControlCode, Level,
-                                   MatchAnyKeyword, MatchAllKeyword, FilterData,
-                                   CallbackContext);
-#endif  // MCGEN_PRIVATE_ENABLE_CALLBACK_V2
+    //
+    // Call user defined callback
+    //
+    MCGEN_PRIVATE_ENABLE_CALLBACK_V2(
+        SourceId,
+        ControlCode,
+        Level,
+        MatchAnyKeyword,
+        MatchAllKeyword,
+        FilterData,
+        CallbackContext
+        );
+#endif // MCGEN_PRIVATE_ENABLE_CALLBACK_V2
 
-  return;
+    return;
 }
 
-#endif  // MCGEN_CONTROL_CALLBACK
+#endif // MCGEN_CONTROL_CALLBACK
 
 #ifndef _mcgen_PENABLECALLBACK
-#if MCGEN_USE_KERNEL_MODE_APIS
-#define _mcgen_PENABLECALLBACK PETWENABLECALLBACK
-#else
-#define _mcgen_PENABLECALLBACK PENABLECALLBACK
-#endif
-#endif  // _mcgen_PENABLECALLBACK
+  #if MCGEN_USE_KERNEL_MODE_APIS
+    #define _mcgen_PENABLECALLBACK      PETWENABLECALLBACK
+  #else
+    #define _mcgen_PENABLECALLBACK      PENABLECALLBACK
+  #endif
+#endif // _mcgen_PENABLECALLBACK
 
 #if !defined(_mcgen_PASTE2)
 // This macro is for use by MC-generated code and should not be used directly.
 #define _mcgen_PASTE2(a, b) _mcgen_PASTE2_imp(a, b)
 #define _mcgen_PASTE2_imp(a, b) a##b
-#endif  // _mcgen_PASTE2
+#endif // _mcgen_PASTE2
 
 #if !defined(_mcgen_PASTE3)
 // This macro is for use by MC-generated code and should not be used directly.
 #define _mcgen_PASTE3(a, b, c) _mcgen_PASTE3_imp(a, b, c)
 #define _mcgen_PASTE3_imp(a, b, c) a##b##_##c
-#endif  // _mcgen_PASTE3
+#endif // _mcgen_PASTE3
 
 //
 // Macro validation
@@ -452,140 +453,117 @@ Remarks:
 
 // Validate MCGEN_EVENTREGISTER:
 
-// Trigger an error if MCGEN_EVENTREGISTER is not an unqualified (simple)
-// identifier:
-struct _mcgen_PASTE2(
-    MCGEN_EVENTREGISTER_definition_must_be_an_unqualified_identifier_,
-    MCGEN_EVENTREGISTER);
+// Trigger an error if MCGEN_EVENTREGISTER is not an unqualified (simple) identifier:
+struct _mcgen_PASTE2(MCGEN_EVENTREGISTER_definition_must_be_an_unqualified_identifier_, MCGEN_EVENTREGISTER);
 
 // Trigger an error if MCGEN_EVENTREGISTER is redefined:
-typedef struct _mcgen_PASTE2(
-    MCGEN_EVENTREGISTER_definition_must_be_an_unqualified_identifier_,
-    MCGEN_EVENTREGISTER)
+typedef struct _mcgen_PASTE2(MCGEN_EVENTREGISTER_definition_must_be_an_unqualified_identifier_, MCGEN_EVENTREGISTER)
     MCGEN_EVENTREGISTER_must_not_be_redefined_between_headers;
 
 // Trigger an error if MCGEN_EVENTREGISTER is defined as a function-like macro:
-typedef void
-    MCGEN_EVENTREGISTER_must_not_be_a_functionLike_macro_MCGEN_EVENTREGISTER;
-typedef int _mcgen_PASTE2(MCGEN_EVENTREGISTER_must_not_be_a_functionLike_macro_,
-                          MCGEN_EVENTREGISTER);
+typedef void MCGEN_EVENTREGISTER_must_not_be_a_functionLike_macro_MCGEN_EVENTREGISTER;
+typedef int _mcgen_PASTE2(MCGEN_EVENTREGISTER_must_not_be_a_functionLike_macro_, MCGEN_EVENTREGISTER);
 
 // Validate MCGEN_EVENTUNREGISTER:
 
-// Trigger an error if MCGEN_EVENTUNREGISTER is not an unqualified (simple)
-// identifier:
-struct _mcgen_PASTE2(
-    MCGEN_EVENTUNREGISTER_definition_must_be_an_unqualified_identifier_,
-    MCGEN_EVENTUNREGISTER);
+// Trigger an error if MCGEN_EVENTUNREGISTER is not an unqualified (simple) identifier:
+struct _mcgen_PASTE2(MCGEN_EVENTUNREGISTER_definition_must_be_an_unqualified_identifier_, MCGEN_EVENTUNREGISTER);
 
 // Trigger an error if MCGEN_EVENTUNREGISTER is redefined:
-typedef struct _mcgen_PASTE2(
-    MCGEN_EVENTUNREGISTER_definition_must_be_an_unqualified_identifier_,
-    MCGEN_EVENTUNREGISTER)
+typedef struct _mcgen_PASTE2(MCGEN_EVENTUNREGISTER_definition_must_be_an_unqualified_identifier_, MCGEN_EVENTUNREGISTER)
     MCGEN_EVENTUNREGISTER_must_not_be_redefined_between_headers;
 
-// Trigger an error if MCGEN_EVENTUNREGISTER is defined as a function-like
-// macro:
-typedef void
-    MCGEN_EVENTUNREGISTER_must_not_be_a_functionLike_macro_MCGEN_EVENTUNREGISTER;
-typedef int _mcgen_PASTE2(
-    MCGEN_EVENTUNREGISTER_must_not_be_a_functionLike_macro_,
-    MCGEN_EVENTUNREGISTER);
+// Trigger an error if MCGEN_EVENTUNREGISTER is defined as a function-like macro:
+typedef void MCGEN_EVENTUNREGISTER_must_not_be_a_functionLike_macro_MCGEN_EVENTUNREGISTER;
+typedef int _mcgen_PASTE2(MCGEN_EVENTUNREGISTER_must_not_be_a_functionLike_macro_, MCGEN_EVENTUNREGISTER);
 
 // Validate MCGEN_EVENTSETINFORMATION:
 
-// Trigger an error if MCGEN_EVENTSETINFORMATION is not an unqualified (simple)
-// identifier:
-struct _mcgen_PASTE2(
-    MCGEN_EVENTSETINFORMATION_definition_must_be_an_unqualified_identifier_,
-    MCGEN_EVENTSETINFORMATION);
+// Trigger an error if MCGEN_EVENTSETINFORMATION is not an unqualified (simple) identifier:
+struct _mcgen_PASTE2(MCGEN_EVENTSETINFORMATION_definition_must_be_an_unqualified_identifier_, MCGEN_EVENTSETINFORMATION);
 
 // Trigger an error if MCGEN_EVENTSETINFORMATION is redefined:
-typedef struct _mcgen_PASTE2(
-    MCGEN_EVENTSETINFORMATION_definition_must_be_an_unqualified_identifier_,
-    MCGEN_EVENTSETINFORMATION)
+typedef struct _mcgen_PASTE2(MCGEN_EVENTSETINFORMATION_definition_must_be_an_unqualified_identifier_, MCGEN_EVENTSETINFORMATION)
     MCGEN_EVENTSETINFORMATION_must_not_be_redefined_between_headers;
 
-// Trigger an error if MCGEN_EVENTSETINFORMATION is defined as a function-like
-// macro:
-typedef void
-    MCGEN_EVENTSETINFORMATION_must_not_be_a_functionLike_macro_MCGEN_EVENTSETINFORMATION;
-typedef int _mcgen_PASTE2(
-    MCGEN_EVENTSETINFORMATION_must_not_be_a_functionLike_macro_,
-    MCGEN_EVENTSETINFORMATION);
+// Trigger an error if MCGEN_EVENTSETINFORMATION is defined as a function-like macro:
+typedef void MCGEN_EVENTSETINFORMATION_must_not_be_a_functionLike_macro_MCGEN_EVENTSETINFORMATION;
+typedef int _mcgen_PASTE2(MCGEN_EVENTSETINFORMATION_must_not_be_a_functionLike_macro_, MCGEN_EVENTSETINFORMATION);
 
 // Validate MCGEN_EVENTWRITETRANSFER:
 
-// Trigger an error if MCGEN_EVENTWRITETRANSFER is not an unqualified (simple)
-// identifier:
-struct _mcgen_PASTE2(
-    MCGEN_EVENTWRITETRANSFER_definition_must_be_an_unqualified_identifier_,
-    MCGEN_EVENTWRITETRANSFER);
+// Trigger an error if MCGEN_EVENTWRITETRANSFER is not an unqualified (simple) identifier:
+struct _mcgen_PASTE2(MCGEN_EVENTWRITETRANSFER_definition_must_be_an_unqualified_identifier_, MCGEN_EVENTWRITETRANSFER);
 
 // Trigger an error if MCGEN_EVENTWRITETRANSFER is redefined:
-typedef struct _mcgen_PASTE2(
-    MCGEN_EVENTWRITETRANSFER_definition_must_be_an_unqualified_identifier_,
-    MCGEN_EVENTWRITETRANSFER)
-    MCGEN_EVENTWRITETRANSFER_must_not_be_redefined_between_headers;
-;
+typedef struct _mcgen_PASTE2(MCGEN_EVENTWRITETRANSFER_definition_must_be_an_unqualified_identifier_, MCGEN_EVENTWRITETRANSFER)
+    MCGEN_EVENTWRITETRANSFER_must_not_be_redefined_between_headers;;
 
-// Trigger an error if MCGEN_EVENTWRITETRANSFER is defined as a function-like
-// macro:
-typedef void
-    MCGEN_EVENTWRITETRANSFER_must_not_be_a_functionLike_macro_MCGEN_EVENTWRITETRANSFER;
-typedef int _mcgen_PASTE2(
-    MCGEN_EVENTWRITETRANSFER_must_not_be_a_functionLike_macro_,
-    MCGEN_EVENTWRITETRANSFER);
+// Trigger an error if MCGEN_EVENTWRITETRANSFER is defined as a function-like macro:
+typedef void MCGEN_EVENTWRITETRANSFER_must_not_be_a_functionLike_macro_MCGEN_EVENTWRITETRANSFER;
+typedef int _mcgen_PASTE2(MCGEN_EVENTWRITETRANSFER_must_not_be_a_functionLike_macro_, MCGEN_EVENTWRITETRANSFER);
 
 #ifndef McGenEventWrite_def
 #define McGenEventWrite_def
 
 // This macro is for use by MC-generated code and should not be used directly.
-#define McGenEventWrite \
-  _mcgen_PASTE2(McGenEventWrite_, MCGEN_EVENTWRITETRANSFER)
+#define McGenEventWrite _mcgen_PASTE2(McGenEventWrite_, MCGEN_EVENTWRITETRANSFER)
 
-// This function is for use by MC-generated code and should not be used
-// directly.
-DECLSPEC_NOINLINE __inline ULONG __stdcall McGenEventWrite(
-    _In_ PMCGEN_TRACE_CONTEXT Context, _In_ PCEVENT_DESCRIPTOR Descriptor,
-    _In_opt_ LPCGUID ActivityId, _In_range_(1, 128) ULONG EventDataCount,
-    _Pre_cap_(EventDataCount) EVENT_DATA_DESCRIPTOR* EventData) {
-  const USHORT UNALIGNED* Traits;
+// This function is for use by MC-generated code and should not be used directly.
+DECLSPEC_NOINLINE __inline
+ULONG __stdcall
+McGenEventWrite(
+    _In_ PMCGEN_TRACE_CONTEXT Context,
+    _In_ PCEVENT_DESCRIPTOR Descriptor,
+    _In_opt_ LPCGUID ActivityId,
+    _In_range_(1, 128) ULONG EventDataCount,
+    _Pre_cap_(EventDataCount) EVENT_DATA_DESCRIPTOR* EventData
+    )
+{
+    const USHORT UNALIGNED* Traits;
 
-  // Some customized MCGEN_EVENTWRITETRANSFER macros might ignore ActivityId.
-  UNREFERENCED_PARAMETER(ActivityId);
+    // Some customized MCGEN_EVENTWRITETRANSFER macros might ignore ActivityId.
+    UNREFERENCED_PARAMETER(ActivityId);
 
-  Traits = (const USHORT UNALIGNED*)(UINT_PTR)Context->Logger;
+    Traits = (const USHORT UNALIGNED*)(UINT_PTR)Context->Logger;
 
-  if (Traits == NULL) {
-    EventData[0].Ptr = 0;
-    EventData[0].Size = 0;
-    EventData[0].Reserved = 0;
-  } else {
-    EventData[0].Ptr = (ULONG_PTR)Traits;
-    EventData[0].Size = *Traits;
-    EventData[0].Reserved = 2;  // EVENT_DATA_DESCRIPTOR_TYPE_PROVIDER_METADATA
-  }
+    if (Traits == NULL) {
+        EventData[0].Ptr = 0;
+        EventData[0].Size = 0;
+        EventData[0].Reserved = 0;
+    } else {
+        EventData[0].Ptr = (ULONG_PTR)Traits;
+        EventData[0].Size = *Traits;
+        EventData[0].Reserved = 2; // EVENT_DATA_DESCRIPTOR_TYPE_PROVIDER_METADATA
+    }
 
-  return MCGEN_EVENTWRITETRANSFER(Context->RegistrationHandle, Descriptor,
-                                  ActivityId, NULL, EventDataCount, EventData);
+    return MCGEN_EVENTWRITETRANSFER(
+        Context->RegistrationHandle,
+        Descriptor,
+        ActivityId,
+        NULL,
+        EventDataCount,
+        EventData);
 }
-#endif  // McGenEventWrite_def
+#endif // McGenEventWrite_def
 
 #if !defined(McGenEventRegisterUnregister)
 #define McGenEventRegisterUnregister
 
 // This macro is for use by MC-generated code and should not be used directly.
-#define McGenEventRegister \
-  _mcgen_PASTE2(McGenEventRegister_, MCGEN_EVENTREGISTER)
+#define McGenEventRegister _mcgen_PASTE2(McGenEventRegister_, MCGEN_EVENTREGISTER)
 
 #pragma warning(push)
-#pragma warning(disable : 6103)
-// This function is for use by MC-generated code and should not be used
-// directly.
-DECLSPEC_NOINLINE __inline ULONG __stdcall McGenEventRegister(
-    _In_ LPCGUID ProviderId, _In_opt_ _mcgen_PENABLECALLBACK EnableCallback,
-    _In_opt_ PVOID CallbackContext, _Inout_ PREGHANDLE RegHandle)
+#pragma warning(disable:6103)
+// This function is for use by MC-generated code and should not be used directly.
+DECLSPEC_NOINLINE __inline
+ULONG __stdcall
+McGenEventRegister(
+    _In_ LPCGUID ProviderId,
+    _In_opt_ _mcgen_PENABLECALLBACK EnableCallback,
+    _In_opt_ PVOID CallbackContext,
+    _Inout_ PREGHANDLE RegHandle
+    )
 /*++
 
 Routine Description:
@@ -611,27 +589,28 @@ Remarks:
 
 --*/
 {
-  ULONG Error;
+    ULONG Error;
 
-  if (*RegHandle != 0) {
-    Error = 0;  // ERROR_SUCCESS
-  } else {
-    Error = MCGEN_EVENTREGISTER(ProviderId, EnableCallback, CallbackContext,
-                                RegHandle);
-  }
+    if (*RegHandle != 0)
+    {
+        Error = 0; // ERROR_SUCCESS
+    }
+    else
+    {
+        Error = MCGEN_EVENTREGISTER(ProviderId, EnableCallback, CallbackContext, RegHandle);
+    }
 
-  return Error;
+    return Error;
 }
 #pragma warning(pop)
 
 // This macro is for use by MC-generated code and should not be used directly.
-#define McGenEventUnregister \
-  _mcgen_PASTE2(McGenEventUnregister_, MCGEN_EVENTUNREGISTER)
+#define McGenEventUnregister _mcgen_PASTE2(McGenEventUnregister_, MCGEN_EVENTUNREGISTER)
 
-// This function is for use by MC-generated code and should not be used
-// directly.
-DECLSPEC_NOINLINE __inline ULONG __stdcall McGenEventUnregister(
-    _Inout_ PREGHANDLE RegHandle)
+// This function is for use by MC-generated code and should not be used directly.
+DECLSPEC_NOINLINE __inline
+ULONG __stdcall
+McGenEventUnregister(_Inout_ PREGHANDLE RegHandle)
 /*++
 
 Routine Description:
@@ -650,58 +629,52 @@ Remarks:
 
 --*/
 {
-  ULONG Error;
+    ULONG Error;
 
-  if (*RegHandle == 0) {
-    Error = 0;  // ERROR_SUCCESS
-  } else {
-    Error = MCGEN_EVENTUNREGISTER(*RegHandle);
-    *RegHandle = (REGHANDLE)0;
-  }
+    if(*RegHandle == 0)
+    {
+        Error = 0; // ERROR_SUCCESS
+    }
+    else
+    {
+        Error = MCGEN_EVENTUNREGISTER(*RegHandle);
+        *RegHandle = (REGHANDLE)0;
+    }
 
-  return Error;
+    return Error;
 }
 
-#endif  // McGenEventRegisterUnregister
+#endif // McGenEventRegisterUnregister
 
 #ifndef _mcgen_EVENT_BIT_SET
-#if defined(_M_IX86) || defined(_M_X64)
-// This macro is for use by MC-generated code and should not be used directly.
-#define _mcgen_EVENT_BIT_SET(EnableBits, BitPosition)      \
-  ((((const unsigned char*)EnableBits)[BitPosition >> 3] & \
-    (1u << (BitPosition & 7))) != 0)
-#else  // CPU type
-// This macro is for use by MC-generated code and should not be used directly.
-#define _mcgen_EVENT_BIT_SET(EnableBits, BitPosition) \
-  ((EnableBits[BitPosition >> 5] & (1u << (BitPosition & 31))) != 0)
-#endif  // CPU type
-#endif  // _mcgen_EVENT_BIT_SET
+  #if defined(_M_IX86) || defined(_M_X64)
+    // This macro is for use by MC-generated code and should not be used directly.
+    #define _mcgen_EVENT_BIT_SET(EnableBits, BitPosition) ((((const unsigned char*)EnableBits)[BitPosition >> 3] & (1u << (BitPosition & 7))) != 0)
+  #else // CPU type
+    // This macro is for use by MC-generated code and should not be used directly.
+    #define _mcgen_EVENT_BIT_SET(EnableBits, BitPosition) ((EnableBits[BitPosition >> 5] & (1u << (BitPosition & 31))) != 0)
+  #endif // CPU type
+#endif // _mcgen_EVENT_BIT_SET
 
-#endif  // MCGEN_DISABLE_PROVIDER_CODE_GENERATION
+#endif // MCGEN_DISABLE_PROVIDER_CODE_GENERATION
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Provider "microsoft-windows-mimalloc" event count 2
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 // Provider GUID = 138f4dbb-ee04-4899-aa0a-572ad4475779
-EXTERN_C __declspec(selectany)
-const GUID ETW_MI_Provider = {0x138f4dbb,
-                              0xee04,
-                              0x4899,
-                              {0xaa, 0x0a, 0x57, 0x2a, 0xd4, 0x47, 0x57, 0x79}};
+EXTERN_C __declspec(selectany) const GUID ETW_MI_Provider = {0x138f4dbb, 0xee04, 0x4899, {0xaa, 0x0a, 0x57, 0x2a, 0xd4, 0x47, 0x57, 0x79}};
 
 #ifndef ETW_MI_Provider_Traits
 #define ETW_MI_Provider_Traits NULL
-#endif  // ETW_MI_Provider_Traits
+#endif // ETW_MI_Provider_Traits
 
 //
 // Event Descriptors
 //
-EXTERN_C __declspec(selectany)
-const EVENT_DESCRIPTOR ETW_MI_ALLOC = {0x64, 0x1, 0x0, 0x4, 0x0, 0x0, 0x0};
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR ETW_MI_ALLOC = {0x64, 0x1, 0x0, 0x4, 0x0, 0x0, 0x0};
 #define ETW_MI_ALLOC_value 0x64
-EXTERN_C __declspec(selectany)
-const EVENT_DESCRIPTOR ETW_MI_FREE = {0x65, 0x1, 0x0, 0x4, 0x0, 0x0, 0x0};
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR ETW_MI_FREE = {0x65, 0x1, 0x0, 0x4, 0x0, 0x0, 0x0};
 #define ETW_MI_FREE_value 0x65
 
 //
@@ -713,38 +686,21 @@ const EVENT_DESCRIPTOR ETW_MI_FREE = {0x65, 0x1, 0x0, 0x4, 0x0, 0x0, 0x0};
 
 //
 // Event Enablement Bits
-// These variables are for use by MC-generated code and should not be used
-// directly.
+// These variables are for use by MC-generated code and should not be used directly.
 //
-EXTERN_C __declspec(selectany) DECLSPEC_CACHEALIGN ULONG
-    microsoft_windows_mimallocEnableBits[1];
-EXTERN_C __declspec(selectany)
-const ULONGLONG microsoft_windows_mimallocKeywords[1] = {0x0};
-EXTERN_C __declspec(selectany)
-const unsigned char microsoft_windows_mimallocLevels[1] = {4};
+EXTERN_C __declspec(selectany) DECLSPEC_CACHEALIGN ULONG microsoft_windows_mimallocEnableBits[1];
+EXTERN_C __declspec(selectany) const ULONGLONG microsoft_windows_mimallocKeywords[1] = {0x0};
+EXTERN_C __declspec(selectany) const unsigned char microsoft_windows_mimallocLevels[1] = {4};
 
 //
 // Provider context
 //
-EXTERN_C __declspec(selectany) MCGEN_TRACE_CONTEXT ETW_MI_Provider_Context = {
-    0,
-    (ULONG_PTR)ETW_MI_Provider_Traits,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    microsoft_windows_mimallocEnableBits,
-    microsoft_windows_mimallocKeywords,
-    microsoft_windows_mimallocLevels};
+EXTERN_C __declspec(selectany) MCGEN_TRACE_CONTEXT ETW_MI_Provider_Context = {0, (ULONG_PTR)ETW_MI_Provider_Traits, 0, 0, 0, 0, 0, 0, 1, microsoft_windows_mimallocEnableBits, microsoft_windows_mimallocKeywords, microsoft_windows_mimallocLevels};
 
 //
 // Provider REGHANDLE
 //
-#define microsoft_windows_mimallocHandle \
-  (ETW_MI_Provider_Context.RegistrationHandle)
+#define microsoft_windows_mimallocHandle (ETW_MI_Provider_Context.RegistrationHandle)
 
 //
 // This macro is set to 0, indicating that the EventWrite[Name] macros do not
@@ -762,10 +718,7 @@ EXTERN_C __declspec(selectany) MCGEN_TRACE_CONTEXT ETW_MI_Provider_Context = {
 // EventUnregister macros (they will be no-ops if EventRegister failed).
 //
 #ifndef EventRegistermicrosoft_windows_mimalloc
-#define EventRegistermicrosoft_windows_mimalloc()              \
-  McGenEventRegister(&ETW_MI_Provider, McGenControlCallbackV2, \
-                     &ETW_MI_Provider_Context,                 \
-                     &microsoft_windows_mimallocHandle)
+#define EventRegistermicrosoft_windows_mimalloc() McGenEventRegister(&ETW_MI_Provider, McGenControlCallbackV2, &ETW_MI_Provider_Context, &microsoft_windows_mimallocHandle)
 #endif
 
 //
@@ -773,10 +726,7 @@ EXTERN_C __declspec(selectany) MCGEN_TRACE_CONTEXT ETW_MI_Provider_Context = {
 // is specified in the manifest). Advanced scenarios only.
 //
 #ifndef EventRegisterByGuidmicrosoft_windows_mimalloc
-#define EventRegisterByGuidmicrosoft_windows_mimalloc(Guid) \
-  McGenEventRegister(&(Guid), McGenControlCallbackV2,       \
-                     &ETW_MI_Provider_Context,              \
-                     &microsoft_windows_mimallocHandle)
+#define EventRegisterByGuidmicrosoft_windows_mimalloc(Guid) McGenEventRegister(&(Guid), McGenControlCallbackV2, &ETW_MI_Provider_Context, &microsoft_windows_mimallocHandle)
 #endif
 
 //
@@ -788,8 +738,7 @@ EXTERN_C __declspec(selectany) MCGEN_TRACE_CONTEXT ETW_MI_Provider_Context = {
 // will result in crashes.
 //
 #ifndef EventUnregistermicrosoft_windows_mimalloc
-#define EventUnregistermicrosoft_windows_mimalloc() \
-  McGenEventUnregister(&microsoft_windows_mimallocHandle)
+#define EventUnregistermicrosoft_windows_mimalloc() McGenEventUnregister(&microsoft_windows_mimallocHandle)
 #endif
 
 //
@@ -807,142 +756,109 @@ EXTERN_C __declspec(selectany) MCGEN_TRACE_CONTEXT ETW_MI_Provider_Context = {
 //
 // - Caller enables the feature before including this header, e.g.
 //   #define MCGEN_ENABLE_FORCONTEXT_CODE_GENERATION 1
-// - Caller allocates memory, e.g. pContext =
-// malloc(sizeof(McGenContext_microsoft_windows_mimalloc));
-// - Caller registers the provider, e.g.
-// EventRegistermicrosoft_windows_mimalloc_ForContext(pContext);
+// - Caller allocates memory, e.g. pContext = malloc(sizeof(McGenContext_microsoft_windows_mimalloc));
+// - Caller registers the provider, e.g. EventRegistermicrosoft_windows_mimalloc_ForContext(pContext);
 // - Caller writes events, e.g. EventWriteMyEvent_ForContext(pContext, ...);
-// - Caller unregisters, e.g.
-// EventUnregistermicrosoft_windows_mimalloc_ForContext(pContext);
+// - Caller unregisters, e.g. EventUnregistermicrosoft_windows_mimalloc_ForContext(pContext);
 // - Caller frees memory, e.g. free(pContext);
 //
 
 typedef struct tagMcGenContext_microsoft_windows_mimalloc {
-  // The fields of this structure are subject to change and should
-  // not be accessed directly. To access the provider's REGHANDLE,
-  // use microsoft_windows_mimallocHandle_ForContext(pContext).
-  MCGEN_TRACE_CONTEXT Context;
-  ULONG EnableBits[1];
+    // The fields of this structure are subject to change and should
+    // not be accessed directly. To access the provider's REGHANDLE,
+    // use microsoft_windows_mimallocHandle_ForContext(pContext).
+    MCGEN_TRACE_CONTEXT Context;
+    ULONG EnableBits[1];
 } McGenContext_microsoft_windows_mimalloc;
 
-#define EventRegistermicrosoft_windows_mimalloc_ForContext(pContext)   \
-  _mcgen_PASTE2(_mcgen_RegisterForContext_microsoft_windows_mimalloc_, \
-                MCGEN_EVENTREGISTER)(&ETW_MI_Provider, pContext)
-#define EventRegisterByGuidmicrosoft_windows_mimalloc_ForContext(Guid,     \
-                                                                 pContext) \
-  _mcgen_PASTE2(_mcgen_RegisterForContext_microsoft_windows_mimalloc_,     \
-                MCGEN_EVENTREGISTER)(&(Guid), pContext)
-#define EventUnregistermicrosoft_windows_mimalloc_ForContext(pContext) \
-  McGenEventUnregister(&(pContext)->Context.RegistrationHandle)
+#define EventRegistermicrosoft_windows_mimalloc_ForContext(pContext)             _mcgen_PASTE2(_mcgen_RegisterForContext_microsoft_windows_mimalloc_, MCGEN_EVENTREGISTER)(&ETW_MI_Provider, pContext)
+#define EventRegisterByGuidmicrosoft_windows_mimalloc_ForContext(Guid, pContext) _mcgen_PASTE2(_mcgen_RegisterForContext_microsoft_windows_mimalloc_, MCGEN_EVENTREGISTER)(&(Guid), pContext)
+#define EventUnregistermicrosoft_windows_mimalloc_ForContext(pContext)           McGenEventUnregister(&(pContext)->Context.RegistrationHandle)
 
 //
 // Provider REGHANDLE for caller-allocated context.
 //
-#define microsoft_windows_mimallocHandle_ForContext(pContext) \
-  ((pContext)->Context.RegistrationHandle)
+#define microsoft_windows_mimallocHandle_ForContext(pContext) ((pContext)->Context.RegistrationHandle)
 
-// This function is for use by MC-generated code and should not be used
-// directly. Initialize and register the caller-allocated context.
-__inline ULONG __stdcall _mcgen_PASTE2(
-    _mcgen_RegisterForContext_microsoft_windows_mimalloc_, MCGEN_EVENTREGISTER)(
+// This function is for use by MC-generated code and should not be used directly.
+// Initialize and register the caller-allocated context.
+__inline
+ULONG __stdcall
+_mcgen_PASTE2(_mcgen_RegisterForContext_microsoft_windows_mimalloc_, MCGEN_EVENTREGISTER)(
     _In_ LPCGUID pProviderId,
-    _Out_ McGenContext_microsoft_windows_mimalloc* pContext) {
-  RtlZeroMemory(pContext, sizeof(*pContext));
-  pContext->Context.Logger = (ULONG_PTR)ETW_MI_Provider_Traits;
-  pContext->Context.EnableBitsCount = 1;
-  pContext->Context.EnableBitMask = pContext->EnableBits;
-  pContext->Context.EnableKeyWords = microsoft_windows_mimallocKeywords;
-  pContext->Context.EnableLevel = microsoft_windows_mimallocLevels;
-  return McGenEventRegister(pProviderId, McGenControlCallbackV2,
-                            &pContext->Context,
-                            &pContext->Context.RegistrationHandle);
+    _Out_ McGenContext_microsoft_windows_mimalloc* pContext)
+{
+    RtlZeroMemory(pContext, sizeof(*pContext));
+    pContext->Context.Logger = (ULONG_PTR)ETW_MI_Provider_Traits;
+    pContext->Context.EnableBitsCount = 1;
+    pContext->Context.EnableBitMask = pContext->EnableBits;
+    pContext->Context.EnableKeyWords = microsoft_windows_mimallocKeywords;
+    pContext->Context.EnableLevel = microsoft_windows_mimallocLevels;
+    return McGenEventRegister(
+        pProviderId,
+        McGenControlCallbackV2,
+        &pContext->Context,
+        &pContext->Context.RegistrationHandle);
 }
 
-// This function is for use by MC-generated code and should not be used
-// directly. Trigger a compile error if called with the wrong parameter type.
+// This function is for use by MC-generated code and should not be used directly.
+// Trigger a compile error if called with the wrong parameter type.
 FORCEINLINE
 _Ret_ McGenContext_microsoft_windows_mimalloc*
-_mcgen_CheckContextType_microsoft_windows_mimalloc(
-    _In_ McGenContext_microsoft_windows_mimalloc* pContext) {
-  return pContext;
+_mcgen_CheckContextType_microsoft_windows_mimalloc(_In_ McGenContext_microsoft_windows_mimalloc* pContext)
+{
+    return pContext;
 }
 
-#endif  // MCGEN_ENABLE_FORCONTEXT_CODE_GENERATION
+#endif // MCGEN_ENABLE_FORCONTEXT_CODE_GENERATION
 
 //
 // Enablement check macro for event "ETW_MI_ALLOC"
 //
-#define EventEnabledETW_MI_ALLOC() \
-  _mcgen_EVENT_BIT_SET(microsoft_windows_mimallocEnableBits, 0)
-#define EventEnabledETW_MI_ALLOC_ForContext(pContext)              \
-  _mcgen_EVENT_BIT_SET(                                            \
-      _mcgen_CheckContextType_microsoft_windows_mimalloc(pContext) \
-          ->EnableBits,                                            \
-      0)
+#define EventEnabledETW_MI_ALLOC() _mcgen_EVENT_BIT_SET(microsoft_windows_mimallocEnableBits, 0)
+#define EventEnabledETW_MI_ALLOC_ForContext(pContext) _mcgen_EVENT_BIT_SET(_mcgen_CheckContextType_microsoft_windows_mimalloc(pContext)->EnableBits, 0)
 
 //
 // Event write macros for event "ETW_MI_ALLOC"
 //
-#define EventWriteETW_MI_ALLOC(Address, Size)                                 \
-  MCGEN_EVENT_ENABLED(ETW_MI_ALLOC)                                           \
-  ? _mcgen_TEMPLATE_FOR_ETW_MI_ALLOC(&ETW_MI_Provider_Context, &ETW_MI_ALLOC, \
-                                     Address, Size)                           \
-  : 0
-#define EventWriteETW_MI_ALLOC_AssumeEnabled(Address, Size)                 \
-  _mcgen_TEMPLATE_FOR_ETW_MI_ALLOC(&ETW_MI_Provider_Context, &ETW_MI_ALLOC, \
-                                   Address, Size)
-#define EventWriteETW_MI_ALLOC_ForContext(pContext, Address, Size)        \
-  MCGEN_EVENT_ENABLED_FORCONTEXT(pContext, ETW_MI_ALLOC)                  \
-  ? _mcgen_TEMPLATE_FOR_ETW_MI_ALLOC(&(pContext)->Context, &ETW_MI_ALLOC, \
-                                     Address, Size)                       \
-  : 0
-#define EventWriteETW_MI_ALLOC_ForContextAssumeEnabled(pContext, Address,     \
-                                                       Size)                  \
-  _mcgen_TEMPLATE_FOR_ETW_MI_ALLOC(                                           \
-      &_mcgen_CheckContextType_microsoft_windows_mimalloc(pContext)->Context, \
-      &ETW_MI_ALLOC, Address, Size)
+#define EventWriteETW_MI_ALLOC(Address, Size) \
+        MCGEN_EVENT_ENABLED(ETW_MI_ALLOC) \
+        ? _mcgen_TEMPLATE_FOR_ETW_MI_ALLOC(&ETW_MI_Provider_Context, &ETW_MI_ALLOC, Address, Size) : 0
+#define EventWriteETW_MI_ALLOC_AssumeEnabled(Address, Size) \
+        _mcgen_TEMPLATE_FOR_ETW_MI_ALLOC(&ETW_MI_Provider_Context, &ETW_MI_ALLOC, Address, Size)
+#define EventWriteETW_MI_ALLOC_ForContext(pContext, Address, Size) \
+        MCGEN_EVENT_ENABLED_FORCONTEXT(pContext, ETW_MI_ALLOC) \
+        ? _mcgen_TEMPLATE_FOR_ETW_MI_ALLOC(&(pContext)->Context, &ETW_MI_ALLOC, Address, Size) : 0
+#define EventWriteETW_MI_ALLOC_ForContextAssumeEnabled(pContext, Address, Size) \
+        _mcgen_TEMPLATE_FOR_ETW_MI_ALLOC(&_mcgen_CheckContextType_microsoft_windows_mimalloc(pContext)->Context, &ETW_MI_ALLOC, Address, Size)
 
 // This macro is for use by MC-generated code and should not be used directly.
-#define _mcgen_TEMPLATE_FOR_ETW_MI_ALLOC \
-  _mcgen_PASTE2(McTemplateU0xx_, MCGEN_EVENTWRITETRANSFER)
+#define _mcgen_TEMPLATE_FOR_ETW_MI_ALLOC _mcgen_PASTE2(McTemplateU0xx_, MCGEN_EVENTWRITETRANSFER)
 
 //
 // Enablement check macro for event "ETW_MI_FREE"
 //
-#define EventEnabledETW_MI_FREE() \
-  _mcgen_EVENT_BIT_SET(microsoft_windows_mimallocEnableBits, 0)
-#define EventEnabledETW_MI_FREE_ForContext(pContext)               \
-  _mcgen_EVENT_BIT_SET(                                            \
-      _mcgen_CheckContextType_microsoft_windows_mimalloc(pContext) \
-          ->EnableBits,                                            \
-      0)
+#define EventEnabledETW_MI_FREE() _mcgen_EVENT_BIT_SET(microsoft_windows_mimallocEnableBits, 0)
+#define EventEnabledETW_MI_FREE_ForContext(pContext) _mcgen_EVENT_BIT_SET(_mcgen_CheckContextType_microsoft_windows_mimalloc(pContext)->EnableBits, 0)
 
 //
 // Event write macros for event "ETW_MI_FREE"
 //
-#define EventWriteETW_MI_FREE(Address, Size)                                \
-  MCGEN_EVENT_ENABLED(ETW_MI_FREE)                                          \
-  ? _mcgen_TEMPLATE_FOR_ETW_MI_FREE(&ETW_MI_Provider_Context, &ETW_MI_FREE, \
-                                    Address, Size)                          \
-  : 0
-#define EventWriteETW_MI_FREE_AssumeEnabled(Address, Size)                \
-  _mcgen_TEMPLATE_FOR_ETW_MI_FREE(&ETW_MI_Provider_Context, &ETW_MI_FREE, \
-                                  Address, Size)
-#define EventWriteETW_MI_FREE_ForContext(pContext, Address, Size)       \
-  MCGEN_EVENT_ENABLED_FORCONTEXT(pContext, ETW_MI_FREE)                 \
-  ? _mcgen_TEMPLATE_FOR_ETW_MI_FREE(&(pContext)->Context, &ETW_MI_FREE, \
-                                    Address, Size)                      \
-  : 0
+#define EventWriteETW_MI_FREE(Address, Size) \
+        MCGEN_EVENT_ENABLED(ETW_MI_FREE) \
+        ? _mcgen_TEMPLATE_FOR_ETW_MI_FREE(&ETW_MI_Provider_Context, &ETW_MI_FREE, Address, Size) : 0
+#define EventWriteETW_MI_FREE_AssumeEnabled(Address, Size) \
+        _mcgen_TEMPLATE_FOR_ETW_MI_FREE(&ETW_MI_Provider_Context, &ETW_MI_FREE, Address, Size)
+#define EventWriteETW_MI_FREE_ForContext(pContext, Address, Size) \
+        MCGEN_EVENT_ENABLED_FORCONTEXT(pContext, ETW_MI_FREE) \
+        ? _mcgen_TEMPLATE_FOR_ETW_MI_FREE(&(pContext)->Context, &ETW_MI_FREE, Address, Size) : 0
 #define EventWriteETW_MI_FREE_ForContextAssumeEnabled(pContext, Address, Size) \
-  _mcgen_TEMPLATE_FOR_ETW_MI_FREE(                                             \
-      &_mcgen_CheckContextType_microsoft_windows_mimalloc(pContext)->Context,  \
-      &ETW_MI_FREE, Address, Size)
+        _mcgen_TEMPLATE_FOR_ETW_MI_FREE(&_mcgen_CheckContextType_microsoft_windows_mimalloc(pContext)->Context, &ETW_MI_FREE, Address, Size)
 
 // This macro is for use by MC-generated code and should not be used directly.
-#define _mcgen_TEMPLATE_FOR_ETW_MI_FREE \
-  _mcgen_PASTE2(McTemplateU0xx_, MCGEN_EVENTWRITETRANSFER)
+#define _mcgen_TEMPLATE_FOR_ETW_MI_FREE _mcgen_PASTE2(McTemplateU0xx_, MCGEN_EVENTWRITETRANSFER)
 
-#endif  // MCGEN_DISABLE_PROVIDER_CODE_GENERATION
+#endif // MCGEN_DISABLE_PROVIDER_CODE_GENERATION
 
 //
 // MCGEN_DISABLE_PROVIDER_CODE_GENERATION macro:
@@ -957,32 +873,32 @@ _mcgen_CheckContextType_microsoft_windows_mimalloc(
 
 //
 // Function for template "ETW_CUSTOM_HEAP_ALLOC_DATA" (and possibly others).
-// This function is for use by MC-generated code and should not be used
-// directly.
+// This function is for use by MC-generated code and should not be used directly.
 //
 #ifndef McTemplateU0xx_def
 #define McTemplateU0xx_def
 ETW_INLINE
 ULONG
-_mcgen_PASTE2(McTemplateU0xx_,
-              MCGEN_EVENTWRITETRANSFER)(_In_ PMCGEN_TRACE_CONTEXT Context,
-                                        _In_ PCEVENT_DESCRIPTOR Descriptor,
-                                        _In_ const unsigned __int64 _Arg0,
-                                        _In_ const unsigned __int64 _Arg1) {
+_mcgen_PASTE2(McTemplateU0xx_, MCGEN_EVENTWRITETRANSFER)(
+    _In_ PMCGEN_TRACE_CONTEXT Context,
+    _In_ PCEVENT_DESCRIPTOR Descriptor,
+    _In_ const unsigned __int64  _Arg0,
+    _In_ const unsigned __int64  _Arg1
+    )
+{
 #define McTemplateU0xx_ARGCOUNT 2
 
-  EVENT_DATA_DESCRIPTOR EventData[McTemplateU0xx_ARGCOUNT + 1];
+    EVENT_DATA_DESCRIPTOR EventData[McTemplateU0xx_ARGCOUNT + 1];
 
-  EventDataDescCreate(&EventData[1], &_Arg0, sizeof(const unsigned __int64));
+    EventDataDescCreate(&EventData[1],&_Arg0, sizeof(const unsigned __int64)  );
 
-  EventDataDescCreate(&EventData[2], &_Arg1, sizeof(const unsigned __int64));
+    EventDataDescCreate(&EventData[2],&_Arg1, sizeof(const unsigned __int64)  );
 
-  return McGenEventWrite(Context, Descriptor, NULL, McTemplateU0xx_ARGCOUNT + 1,
-                         EventData);
+    return McGenEventWrite(Context, Descriptor, NULL, McTemplateU0xx_ARGCOUNT + 1, EventData);
 }
-#endif  // McTemplateU0xx_def
+#endif // McTemplateU0xx_def
 
-#endif  // MCGEN_DISABLE_PROVIDER_CODE_GENERATION
+#endif // MCGEN_DISABLE_PROVIDER_CODE_GENERATION
 
 #if defined(__cplusplus)
 }

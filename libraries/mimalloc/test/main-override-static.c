@@ -1,13 +1,14 @@
 #if _WIN32
 #include <windows.h>
 #endif
-#include <assert.h>
-#include <mimalloc-override.h>  // redefines malloc etc.
-#include <mimalloc.h>
-#include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <assert.h>
 #include <string.h>
+#include <stdint.h>
+
+#include <mimalloc.h>
+#include <mimalloc-override.h>  // redefines malloc etc.
 
 static void mi_bins(void);
 
@@ -26,6 +27,7 @@ static void test_heap_walk(void);
 static void test_canary_leak(void);
 static void test_manage_os_memory(void);
 // static void test_large_pages(void);
+
 
 int main() {
   mi_version();
@@ -49,6 +51,7 @@ int main() {
   // test_theap_walk();
   // alloc_huge();
 
+
   void* p1 = malloc(78);
   void* p2 = malloc(24);
   free(p1);
@@ -66,13 +69,13 @@ int main() {
   free(s);
 
   /* now test if override worked by allocating/freeing across the api's*/
-  // p1 = mi_malloc(32);
-  // free(p1);
-  // p2 = malloc(32);
-  // mi_free(p2);
+  //p1 = mi_malloc(32);
+  //free(p1);
+  //p2 = malloc(32);
+  //mi_free(p2);
 
-  // mi_collect(true);
-  // mi_stats_print(NULL);
+  //mi_collect(true);
+  //mi_stats_print(NULL);
 
   // test_process_info();
 
@@ -101,7 +104,7 @@ static void block_overflow2() {
 
 static void double_free1() {
   void* p[256];
-  // uintptr_t buf[256];
+  //uintptr_t buf[256];
 
   p[0] = mi_malloc(622616);
   p[1] = mi_malloc(655362);
@@ -112,15 +115,14 @@ static void double_free1() {
   p[3] = mi_malloc(786456);
   // [BUG] Found overlap
   // p[3]=0x429b2ea2000 (size=917504), p[1]=0x429b2e42000 (size=786432)
-  fprintf(stderr, "p3: %p-%p, p1: %p-%p, p2: %p\n", p[3],
-          (uint8_t*)(p[3]) + 786456, p[1], (uint8_t*)(p[1]) + 655362, p[2]);
+  fprintf(stderr, "p3: %p-%p, p1: %p-%p, p2: %p\n", p[3], (uint8_t*)(p[3]) + 786456, p[1], (uint8_t*)(p[1]) + 655362, p[2]);
 }
 
 static void double_free2() {
   void* p[256];
-  // uintptr_t buf[256];
-  //  [INFO] Command buffer: 0x327b2000
-  //  [INFO] Input size: 182
+  //uintptr_t buf[256];
+  // [INFO] Command buffer: 0x327b2000
+  // [INFO] Input size: 182
   p[0] = malloc(712352);
   p[1] = malloc(786432);
   free(p[0]);
@@ -131,13 +133,13 @@ static void double_free2() {
   p[4] = malloc(786440);
   // [BUG] Found overlap
   // p[4]=0x433f1402000 (size=917504), p[1]=0x433f14c2000 (size=786432)
-  fprintf(stderr, "p1: %p-%p, p2: %p-%p\n", p[4], (uint8_t*)(p[4]) + 917504,
-          p[1], (uint8_t*)(p[1]) + 786432);
+  fprintf(stderr, "p1: %p-%p, p2: %p-%p\n", p[4], (uint8_t*)(p[4]) + 917504, p[1], (uint8_t*)(p[1]) + 786432);
 }
 
+
 // Try to corrupt the theap through buffer overflow
-#define N 256
-#define SZ 64
+#define N   256
+#define SZ  64
 
 static void corrupt_free() {
   void* p[N];
@@ -146,14 +148,14 @@ static void corrupt_free() {
     p[i] = malloc(SZ);
   }
   // free some
-  for (int i = 0; i < N; i += (N / 10)) {
+  for (int i = 0; i < N; i += (N/10)) {
     free(p[i]);
     p[i] = NULL;
   }
   // try to corrupt the free list
   for (int i = 0; i < N; i++) {
     if (p[i] != NULL) {
-      memset(p[i], 0, SZ + 8);
+      memset(p[i], 0, SZ+8);
     }
   }
   // allocate more.. trying to trigger an allocation from a corrupted entry
@@ -183,30 +185,27 @@ static void test_process_info(void) {
     void* p = calloc(100, 10);
     free(p);
   }
-  mi_process_info(&elapsed, &user_msecs, &system_msecs, &current_rss, &peak_rss,
-                  &current_commit, &peak_commit, &page_faults);
-  printf(
-      "\n\n*** process info: elapsed %3zd.%03zd s, user: %3zd.%03zd s, rss: "
-      "%zd b, commit: %zd b\n\n",
-      elapsed / 1000, elapsed % 1000, user_msecs / 1000, user_msecs % 1000,
-      peak_rss, peak_commit);
+  mi_process_info(&elapsed, &user_msecs, &system_msecs, &current_rss, &peak_rss, &current_commit, &peak_commit, &page_faults);
+  printf("\n\n*** process info: elapsed %3zd.%03zd s, user: %3zd.%03zd s, rss: %zd b, commit: %zd b\n\n", elapsed/1000, elapsed%1000, user_msecs/1000, user_msecs%1000, peak_rss, peak_commit);
 }
 
 static void test_reserved(void) {
 #define KiB 1024ULL
-#define MiB (KiB * KiB)
-#define GiB (MiB * KiB)
-  mi_reserve_os_memory(3 * GiB, false, true);
+#define MiB (KiB*KiB)
+#define GiB (MiB*KiB)
+  mi_reserve_os_memory(3*GiB, false, true);
   void* p1 = malloc(100);
   void* p2 = malloc(100000);
-  void* p3 = malloc(2 * GiB);
-  void* p4 = malloc(1 * GiB + 100000);
+  void* p3 = malloc(2*GiB);
+  void* p4 = malloc(1*GiB + 100000);
   free(p1);
   free(p2);
   free(p3);
-  p3 = malloc(1 * GiB);
+  p3 = malloc(1*GiB);
   free(p4);
 }
+
+
 
 static void negative_stat(void) {
   int* p = mi_malloc(60000);
@@ -221,21 +220,19 @@ static void alloc_huge(void) {
   mi_free(p);
 }
 
-static bool test_visit(const mi_heap_t* heap, const mi_heap_area_t* area,
-                       void* block, size_t block_size, void* arg) {
+static bool test_visit(const mi_heap_t* heap, const mi_heap_area_t* area, void* block, size_t block_size, void* arg) {
   if (block == NULL) {
-    printf("visiting an area with blocks of size %zu (including padding)\n",
-           area->full_block_size);
-  } else {
-    printf("  block of size %zu (allocated size is %zu)\n", block_size,
-           mi_usable_size(block));
+    printf("visiting an area with blocks of size %zu (including padding)\n", area->full_block_size);
+  }
+  else {
+    printf("  block of size %zu (allocated size is %zu)\n", block_size, mi_usable_size(block));
   }
   return true;
 }
 
 static void test_heap_walk(void) {
   mi_heap_t* heap = mi_heap_new();
-  mi_heap_malloc(heap, 16 * 2097152);
+  mi_heap_malloc(heap, 16*2097152);
   mi_heap_malloc(heap, 2067152);
   mi_heap_malloc(heap, 2097160);
   mi_heap_malloc(heap, 24576);
@@ -245,7 +242,7 @@ static void test_heap_walk(void) {
 static void test_canary_leak(void) {
   char* p = mi_mallocn_tp(char, 22);
   for (int i = 0; i < 22; i++) {
-    p[i] = '0' + i;
+    p[i] = '0'+i;
   }
   puts(p);
   free(p);
@@ -254,25 +251,19 @@ static void test_canary_leak(void) {
 #if _WIN32
 static void test_manage_os_memory(void) {
   size_t size = 256 * 1024 * 1024;
-  void* ptr =
-      VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+  void* ptr = VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   mi_arena_id_t arena_id;
-  mi_manage_os_memory_ex(ptr, size, true /* committed */, true /* pinned */,
-                         false /* is zero */, -1 /* numa node */,
-                         true /* exclusive */, &arena_id);
-  mi_heap_t* cuda_theap =
-      mi_heap_new_in_arena(arena_id);  // you can do this in any thread
+  mi_manage_os_memory_ex(ptr, size, true /* committed */, true /* pinned */, false /* is zero */, -1 /* numa node */, true /* exclusive */, &arena_id);
+  mi_heap_t* cuda_theap = mi_heap_new_in_arena(arena_id);    // you can do this in any thread
 
   // now allocate only in the cuda arena
   void* p1 = mi_heap_malloc(cuda_theap, 8);
-  int* p2 = mi_heap_malloc_tp(int, cuda_theap);
+  int* p2  = mi_heap_malloc_tp(int,cuda_theap);
   *p2 = 42;
 
-  // and maybe set the cuda theap as the default theap? (but careful as now
-  // `malloc` will allocate in the cuda theap as well)
+  // and maybe set the cuda theap as the default theap? (but careful as now `malloc` will allocate in the cuda theap as well)
   {
-    mi_theap_t* prev_default_theap =
-        mi_theap_set_default(mi_heap_theap(cuda_theap));
+    mi_theap_t* prev_default_theap = mi_theap_set_default(mi_heap_theap(cuda_theap));
     void* p3 = mi_malloc(8);  // allocate in the cuda theap
     mi_free(p3);
   }
@@ -288,10 +279,10 @@ static void test_manage_os_memory(void) {
 // Experiment with huge OS pages
 #if 0
 
-#include <mimalloc/internal.h>
 #include <mimalloc/types.h>
-#include <sys/mman.h>
+#include <mimalloc/internal.h>
 #include <unistd.h>
+#include <sys/mman.h>
 
 static void test_large_pages(void) {
   mi_memid_t memid;
@@ -325,11 +316,11 @@ static void test_large_pages(void) {
 // ------------------------------
 
 #if 0
-#include <mimalloc/bits.h>
-#include <stdbool.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <mimalloc/bits.h>
 
-#define MI_LARGE_WSIZE_MAX (4 * 1024 * 1024 / MI_INTPTR_SIZE)
+#define MI_LARGE_WSIZE_MAX (4*1024*1024 / MI_INTPTR_SIZE)
 
 #define MI_BIN_HUGE 100
 //#define MI_ALIGN2W
@@ -370,14 +361,14 @@ static inline uint8_t mi_bsr32(uint32_t x) {
 // Bit scan reverse: return the index of the highest bit.
 uint8_t _mi_bsr(uintptr_t x) {
   if (x == 0) return 0;
-#if MI_INTPTR_SIZE == 8
+  #if MI_INTPTR_SIZE==8
   uint32_t hi = (x >> 32);
   return (hi == 0 ? mi_bsr32((uint32_t)x) : 32 + mi_bsr32(hi));
-#elif MI_INTPTR_SIZE == 4
+  #elif MI_INTPTR_SIZE==4
   return mi_bsr32(x);
-#else
-#error "define bsr for non-32 or 64-bit platforms"
-#endif
+  #else
+  # error "define bsr for non-32 or 64-bit platforms"
+  #endif
 }
 
 static inline size_t _mi_wsize_from_size(size_t size) {

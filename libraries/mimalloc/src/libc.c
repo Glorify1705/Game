@@ -14,13 +14,11 @@ terms of the MIT license. A copy of the license can be found in the file
 
 #include "mimalloc.h"
 #include "mimalloc/internal.h"
-#include "mimalloc/prim.h"  // mi_prim_getenv
+#include "mimalloc/prim.h"      // mi_prim_getenv
 
 char _mi_toupper(char c) {
-  if (c >= 'a' && c <= 'z')
-    return (c - 'a' + 'A');
-  else
-    return c;
+  if (c >= 'a' && c <= 'z') return (c - 'a' + 'A');
+                       else return c;
 }
 
 int _mi_strnicmp(const char* s, const char* t, size_t n) {
@@ -32,7 +30,7 @@ int _mi_strnicmp(const char* s, const char* t, size_t n) {
 }
 
 void _mi_strlcpy(char* dest, const char* src, size_t dest_size) {
-  if (dest == NULL || src == NULL || dest_size == 0) return;
+  if (dest==NULL || src==NULL || dest_size == 0) return;
   // copy until end of src, or when dest is (almost) full
   while (*src != 0 && dest_size > 1) {
     *dest++ = *src++;
@@ -43,7 +41,7 @@ void _mi_strlcpy(char* dest, const char* src, size_t dest_size) {
 }
 
 void _mi_strlcat(char* dest, const char* src, size_t dest_size) {
-  if (dest == NULL || src == NULL || dest_size == 0) return;
+  if (dest==NULL || src==NULL || dest_size == 0) return;
   // find end of string in the dest buffer
   while (*dest != 0 && dest_size > 1) {
     dest++;
@@ -54,34 +52,30 @@ void _mi_strlcat(char* dest, const char* src, size_t dest_size) {
 }
 
 size_t _mi_strlen(const char* s) {
-  if (s == NULL) return 0;
+  if (s==NULL) return 0;
   size_t len = 0;
-  while (s[len] != 0) {
-    len++;
-  }
+  while(s[len] != 0) { len++; }
   return len;
 }
 
 size_t _mi_strnlen(const char* s, size_t max_len) {
-  if (s == NULL) return 0;
+  if (s==NULL) return 0;
   size_t len = 0;
-  while (s[len] != 0 && len < max_len) {
-    len++;
-  }
+  while(s[len] != 0 && len < max_len) { len++; }
   return len;
 }
 
 char* _mi_strnstr(char* s, size_t max_len, const char* pat) {
-  if (s == NULL) return NULL;
-  if (pat == NULL) return s;
+  if (s==NULL) return NULL;
+  if (pat==NULL) return s;
   const size_t m = _mi_strnlen(s, max_len);
-  const size_t n = _mi_strlen(pat);
+  const size_t n = _mi_strlen(pat);  
   for (size_t start = 0; start + n <= m; start++) {
     size_t i = 0;
-    while (i < n && pat[i] == s[start + i]) {
+    while (i<n && pat[i]==s[start+i]) {
       i++;
     }
-    if (i == n) return &s[start];
+    if (i==n) return &s[start];
   }
   return NULL;
 }
@@ -95,8 +89,8 @@ bool _mi_getenv(const char* name, char* result, size_t result_size) {
 }
 #else
 bool _mi_getenv(const char* name, char* result, size_t result_size) {
-  if (name == NULL || result == NULL || result_size < 64) return false;
-  return _mi_prim_getenv(name, result, result_size);
+  if (name==NULL || result == NULL || result_size < 64) return false;
+  return _mi_prim_getenv(name,result,result_size);
 }
 #endif
 
@@ -137,8 +131,7 @@ static void mi_out_fill(char fill, size_t len, char** out, char* end) {
   *out = p;
 }
 
-static void mi_out_alignright(char fill, char* start, size_t len, size_t extra,
-                              char* end) {
+static void mi_out_alignright(char fill, char* start, size_t len, size_t extra, char* end) {
   if (len == 0 || extra == 0) return;
   if (start + len + extra >= end) return;
   // move `len` characters to the right (in reverse since it can overlap)
@@ -151,19 +144,19 @@ static void mi_out_alignright(char fill, char* start, size_t len, size_t extra,
   }
 }
 
-static void mi_out_num(uintmax_t x, size_t base, char prefix, char** out,
-                       char* end) {
+
+static void mi_out_num(uintmax_t x, size_t base, char prefix, char** out, char* end)
+{
   if (x == 0 || base == 0 || base > 16) {
-    if (prefix != 0) {
-      mi_outc(prefix, out, end);
-    }
-    mi_outc('0', out, end);
-  } else {
+    if (prefix != 0) { mi_outc(prefix, out, end); }
+    mi_outc('0',out,end);
+  }
+  else {
     // output digits in reverse
     char* start = *out;
     while (x > 0) {
       char digit = (char)(x % base);
-      mi_outc((digit <= 9 ? '0' + digit : 'A' + digit - 10), out, end);
+      mi_outc((digit <= 9 ? '0' + digit : 'A' + digit - 10),out,end);
       x = x / base;
     }
     if (prefix != 0) {
@@ -179,10 +172,8 @@ static void mi_out_num(uintmax_t x, size_t base, char prefix, char** out,
   }
 }
 
-#define MI_NEXTC()   \
-  c = *in;           \
-  if (c == 0) break; \
-  in++;
+
+#define MI_NEXTC()  c = *in; if (c==0) break; in++;
 
 int _mi_vsnprintf(char* buf, size_t bufsize, const char* fmt, va_list args) {
   if (buf == NULL || bufsize == 0 || fmt == NULL) return 0;
@@ -198,133 +189,92 @@ int _mi_vsnprintf(char* buf, size_t bufsize, const char* fmt, va_list args) {
       if (c == '\\') {
         MI_NEXTC();
         switch (c) {
-          case 'e':
-            mi_outc('\x1B', &out, end);
-            break;
-          case 't':
-            mi_outc('\t', &out, end);
-            break;
-          case 'n':
-            mi_outc('\n', &out, end);
-            break;
-          case 'r':
-            mi_outc('\r', &out, end);
-            break;
-          case '\\':
-            mi_outc('\\', &out, end);
-            break;
-          default: /* ignore */
-            break;
+        case 'e': mi_outc('\x1B', &out, end); break;
+        case 't': mi_outc('\t', &out, end); break;
+        case 'n': mi_outc('\n', &out, end); break;
+        case 'r': mi_outc('\r', &out, end); break;
+        case '\\': mi_outc('\\', &out, end); break;
+        default: /* ignore */ break;
         }
-      } else if ((c >= ' ' && c <= '~') || c == '\n' || c == '\r' ||
-                 c == '\t' ||
-                 c ==
-                     '\x1b') {  // output visible ascii or standard control only
+      }
+      else if ((c >= ' ' && c <= '~') || c=='\n' || c=='\r' || c=='\t' || c=='\x1b') { // output visible ascii or standard control only
         mi_outc(c, &out, end);
       }
-    } else {
+    }
+    else {
       MI_NEXTC();
-      char fill = ' ';
+      char   fill = ' ';
       size_t width = 0;
-      char numtype = 'd';
-      char numplus = 0;
-      bool alignright = true;
-      if (c == '+' || c == ' ') {
-        numplus = c;
-        MI_NEXTC();
-      }
-      if (c == '-') {
-        alignright = false;
-        MI_NEXTC();
-      }
-      if (c == '0') {
-        fill = '0';
-        MI_NEXTC();
-      }
+      char   numtype = 'd';
+      char   numplus = 0;
+      bool   alignright = true;
+      if (c == '+' || c == ' ') { numplus = c; MI_NEXTC(); }
+      if (c == '-') { alignright = false; MI_NEXTC(); }
+      if (c == '0') { fill = '0'; MI_NEXTC(); }
       if (c >= '1' && c <= '9') {
-        width = (c - '0');
-        MI_NEXTC();
+        width = (c - '0'); MI_NEXTC();
         while (c >= '0' && c <= '9') {
-          width = (10 * width) + (c - '0');
-          MI_NEXTC();
+          width = (10 * width) + (c - '0'); MI_NEXTC();
         }
         if (c == 0) break;  // extra check due to while
       }
-      if (c == 'z' || c == 't' || c == 'L') {
-        numtype = c;
-        MI_NEXTC();
-      } else if (c == 'l') {
-        numtype = c;
-        MI_NEXTC();
-        if (c == 'l') {
-          numtype = 'L';
-          MI_NEXTC();
-        }
+      if (c == 'z' || c == 't' || c == 'L') { numtype = c; MI_NEXTC(); }
+      else if (c == 'l') {
+        numtype = c; MI_NEXTC();
+        if (c == 'l') { numtype = 'L'; MI_NEXTC(); }
       }
 
       char* start = out;
       if (c == '%') {
         mi_outc('%', &out, end);
-      } else if (c == 's') {
+      }
+      else if (c == 's') {
         // string
         const char* s = va_arg(args, const char*);
         mi_outs(s, &out, end);
-      } else if (c == 'p' || c == 'x' || c == 'u') {
+      }
+      else if (c == 'p' || c == 'x' || c == 'u') {
         // unsigned
         uintmax_t x = 0;
         if (c == 'x' || c == 'u') {
-          if (numtype == 'z')
-            x = va_arg(args, size_t);
-          else if (numtype == 't')
-            x = va_arg(args, uintptr_t);  // unsigned ptrdiff_t
-          else if (numtype == 'L')
-            x = va_arg(args, unsigned long long);
-          else if (numtype == 'l')
-            x = va_arg(args, unsigned long);
-          else
-            x = va_arg(args, unsigned int);
-        } else if (c == 'p') {
+          if (numtype == 'z')       x = va_arg(args, size_t);
+          else if (numtype == 't')  x = va_arg(args, uintptr_t); // unsigned ptrdiff_t
+          else if (numtype == 'L')  x = va_arg(args, unsigned long long);
+          else if (numtype == 'l')  x = va_arg(args, unsigned long);
+                               else x = va_arg(args, unsigned int);
+        }
+        else if (c == 'p') {
           x = va_arg(args, uintptr_t);
           mi_outs("0x", &out, end);
           start = out;
           width = (width >= 2 ? width - 2 : 0);
         }
         if (width == 0 && (c == 'x' || c == 'p')) {
-          if (c == 'p') {
-            width = 2 * (x <= UINT32_MAX
-                             ? 4
-                             : ((x >> 16) <= UINT32_MAX ? 6 : sizeof(void*)));
-          }
-          if (width == 0) {
-            width = 2;
-          }
+          if (c == 'p')   { width = 2 * (x <= UINT32_MAX ? 4 : ((x >> 16) <= UINT32_MAX ? 6 : sizeof(void*))); }
+          if (width == 0) { width = 2; }
           fill = '0';
         }
         mi_out_num(x, (c == 'x' || c == 'p' ? 16 : 10), numplus, &out, end);
-      } else if (c == 'i' || c == 'd') {
+      }
+      else if (c == 'i' || c == 'd') {
         // signed
         intmax_t x = 0;
-        if (numtype == 'z')
-          x = va_arg(args, intptr_t);
-        else if (numtype == 't')
-          x = va_arg(args, ptrdiff_t);
-        else if (numtype == 'L')
-          x = va_arg(args, long long);
-        else if (numtype == 'l')
-          x = va_arg(args, long);
-        else
-          x = va_arg(args, int);
+        if (numtype == 'z')       x = va_arg(args, intptr_t );
+        else if (numtype == 't')  x = va_arg(args, ptrdiff_t);
+        else if (numtype == 'L')  x = va_arg(args, long long);
+        else if (numtype == 'l')  x = va_arg(args, long);
+                             else x = va_arg(args, int);
         char pre = 0;
         if (x < 0) {
           pre = '-';
-          if (x > INTMAX_MIN) {
-            x = -x;
-          }
-        } else if (numplus != 0) {
+          if (x > INTMAX_MIN) { x = -x; }
+        }
+        else if (numplus != 0) {
           pre = numplus;
         }
         mi_out_num((uintmax_t)x, 10, pre, &out, end);
-      } else if (c >= ' ' && c <= '~') {
+      }
+      else if (c >= ' ' && c <= '~') {
         // unknown format
         mi_outc('%', &out, end);
         mi_outc(c, &out, end);
@@ -355,6 +305,8 @@ int _mi_snprintf(char* buf, size_t buflen, const char* fmt, ...) {
   return written;
 }
 
+
+
 // --------------------------------------------------------
 // generic trailing and leading zero count, and popcount
 // --------------------------------------------------------
@@ -362,23 +314,22 @@ int _mi_snprintf(char* buf, size_t buflen, const char* fmt, ...) {
 #if !MI_HAS_FAST_BITSCAN
 
 static size_t mi_ctz_generic32(uint32_t x) {
-  // de Bruijn multiplication, see
-  // <http://keithandkatie.com/keith/papers/debruijn.html>
+  // de Bruijn multiplication, see <http://keithandkatie.com/keith/papers/debruijn.html>
   static const uint8_t debruijn[32] = {
-      0,  1,  28, 2,  29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4,  8,
-      31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6,  11, 5,  10, 9};
-  if (x == 0) return 32;
-  return debruijn[(uint32_t)((x & -(int32_t)x) * (uint32_t)(0x077CB531U)) >>
-                  27];
+    0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
+    31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+  };
+  if (x==0) return 32;
+  return debruijn[(uint32_t)((x & -(int32_t)x) * (uint32_t)(0x077CB531U)) >> 27];
 }
 
 static size_t mi_clz_generic32(uint32_t x) {
-  // de Bruijn multiplication, see
-  // <http://keithandkatie.com/keith/papers/debruijn.html>
+  // de Bruijn multiplication, see <http://keithandkatie.com/keith/papers/debruijn.html>
   static const uint8_t debruijn[32] = {
-      31, 22, 30, 21, 18, 10, 29, 2,  20, 17, 15, 13, 9, 6,  28, 1,
-      23, 19, 11, 3,  16, 14, 7,  24, 12, 4,  8,  25, 5, 26, 27, 0};
-  if (x == 0) return 32;
+    31, 22, 30, 21, 18, 10, 29, 2, 20, 17, 15, 13, 9, 6, 28, 1,
+    23, 19, 11, 3, 16, 14, 7, 24, 12, 4, 8, 25, 5, 26, 27, 0
+  };
+  if (x==0) return 32;
   x |= x >> 1;
   x |= x >> 2;
   x |= x >> 4;
@@ -388,39 +339,42 @@ static size_t mi_clz_generic32(uint32_t x) {
 }
 
 size_t _mi_ctz_generic(size_t x) {
-  if (x == 0) return MI_SIZE_BITS;
-#if (MI_SIZE_BITS <= 32)
-  return mi_ctz_generic32((uint32_t)x);
-#else
-  const uint32_t lo = (uint32_t)x;
-  if (lo != 0) {
-    return mi_ctz_generic32(lo);
-  } else {
-    return (32 + mi_ctz_generic32((uint32_t)(x >> 32)));
-  }
-#endif
+  if (x==0) return MI_SIZE_BITS;
+  #if (MI_SIZE_BITS <= 32)
+    return mi_ctz_generic32((uint32_t)x);
+  #else
+    const uint32_t lo = (uint32_t)x;
+    if (lo != 0) {
+      return mi_ctz_generic32(lo);
+    }
+    else {
+      return (32 + mi_ctz_generic32((uint32_t)(x>>32)));
+    }
+  #endif
 }
 
 size_t _mi_clz_generic(size_t x) {
-  if (x == 0) return MI_SIZE_BITS;
-#if (MI_SIZE_BITS <= 32)
-  return mi_clz_generic32((uint32_t)x);
-#else
-  const uint32_t hi = (uint32_t)(x >> 32);
-  if (hi != 0) {
-    return mi_clz_generic32(hi);
-  } else {
-    return 32 + mi_clz_generic32((uint32_t)x);
-  }
-#endif
+  if (x==0) return MI_SIZE_BITS;
+  #if (MI_SIZE_BITS <= 32)
+    return mi_clz_generic32((uint32_t)x);
+  #else
+    const uint32_t hi = (uint32_t)(x>>32);
+    if (hi != 0) {
+      return mi_clz_generic32(hi);
+    }
+    else {
+      return 32 + mi_clz_generic32((uint32_t)x);
+    }
+  #endif
 }
 
-#endif  // bit scan
+#endif // bit scan
+
 
 #if MI_SIZE_SIZE == 4
-#define mi_mask_even_bits32 (0x55555555)
-#define mi_mask_even_pairs32 (0x33333333)
-#define mi_mask_even_nibbles32 (0x0F0F0F0F)
+#define mi_mask_even_bits32      (0x55555555)
+#define mi_mask_even_pairs32     (0x33333333)
+#define mi_mask_even_nibbles32   (0x0F0F0F0F)
 
 // sum of all the bytes in `x` if it is guaranteed that the sum < 256!
 static size_t mi_byte_sum32(uint32_t x) {
@@ -431,10 +385,9 @@ static size_t mi_byte_sum32(uint32_t x) {
 }
 
 static size_t mi_popcount_generic32(uint32_t x) {
-  // first count each 2-bit group `a`, where: a==0b00 -> 00, a==0b01 -> 01,
-  // a==0b10 -> 01, a==0b11 -> 10 in other words, `a - (a>>1)`; to do this in
-  // parallel, we need to mask to prevent spilling a bit pair into the lower
-  // bit-pair:
+  // first count each 2-bit group `a`, where: a==0b00 -> 00, a==0b01 -> 01, a==0b10 -> 01, a==0b11 -> 10
+  // in other words, `a - (a>>1)`; to do this in parallel, we need to mask to prevent spilling a bit pair
+  // into the lower bit-pair:
   x = x - ((x >> 1) & mi_mask_even_bits32);
   // add the 2-bit pair results
   x = (x & mi_mask_even_pairs32) + ((x >> 2) & mi_mask_even_pairs32);
@@ -445,15 +398,15 @@ static size_t mi_popcount_generic32(uint32_t x) {
 }
 
 mi_decl_noinline size_t _mi_popcount_generic(size_t x) {
-  if (x <= 1) return x;
-  if (~x == 0) return MI_SIZE_BITS;
+  if (x<=1) return x;
+  if (~x==0) return MI_SIZE_BITS;
   return mi_popcount_generic32(x);
 }
 
 #else
-#define mi_mask_even_bits64 (0x5555555555555555)
-#define mi_mask_even_pairs64 (0x3333333333333333)
-#define mi_mask_even_nibbles64 (0x0F0F0F0F0F0F0F0F)
+#define mi_mask_even_bits64      (0x5555555555555555)
+#define mi_mask_even_pairs64     (0x3333333333333333)
+#define mi_mask_even_nibbles64   (0x0F0F0F0F0F0F0F0F)
 
 // sum of all the bytes in `x` if it is guaranteed that the sum < 256!
 static size_t mi_byte_sum64(uint64_t x) {
@@ -471,8 +424,9 @@ static size_t mi_popcount_generic64(uint64_t x) {
 }
 
 mi_decl_noinline size_t _mi_popcount_generic(size_t x) {
-  if (x <= 1) return x;
-  if (~x == 0) return MI_SIZE_BITS;
+  if (x<=1) return x;
+  if (~x==0) return MI_SIZE_BITS;
   return mi_popcount_generic64(x);
 }
 #endif
+

@@ -6,6 +6,7 @@ terms of the MIT license. A copy of the license can be found in the file
 -----------------------------------------------------------------------------*/
 #include "mimalloc.h"
 #include "mimalloc/types.h"
+
 #include "testhelper.h"
 
 // ---------------------------------------------------------------------------
@@ -101,38 +102,33 @@ int main(void) {
   // ---------------------------------------------------
   CHECK_BODY("zeroinit-zalloc_aligned-small") {
     size_t zalloc_size = MI_SMALL_SIZE_MAX / 2;
-    uint8_t* p =
-        (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
     result = check_zero_init(p, zalloc_size);
     mi_free(p);
   };
   CHECK_BODY("zeroinit-zalloc_aligned-large") {
     size_t zalloc_size = MI_SMALL_SIZE_MAX * 2;
-    uint8_t* p =
-        (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
     result = check_zero_init(p, zalloc_size);
     mi_free(p);
   };
 
   CHECK_BODY("zeroinit-calloc_aligned-small") {
     size_t calloc_size = MI_SMALL_SIZE_MAX / 2;
-    uint8_t* p =
-        (uint8_t*)mi_calloc_aligned(calloc_size, 1, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_calloc_aligned(calloc_size, 1, MI_MAX_ALIGN_SIZE * 2);
     result = check_zero_init(p, calloc_size);
     mi_free(p);
   };
   CHECK_BODY("zeroinit-calloc_aligned-large") {
     size_t calloc_size = MI_SMALL_SIZE_MAX * 2;
-    uint8_t* p =
-        (uint8_t*)mi_calloc_aligned(calloc_size, 1, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_calloc_aligned(calloc_size, 1, MI_MAX_ALIGN_SIZE * 2);
     result = check_zero_init(p, calloc_size);
     mi_free(p);
   };
 
   CHECK_BODY("zeroinit-rezalloc_aligned-small") {
     size_t zalloc_size = MI_SMALL_SIZE_MAX / 2;
-    uint8_t* p =
-        (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
     result = check_zero_init(p, zalloc_size);
     zalloc_size *= 3;
     p = (uint8_t*)mi_rezalloc_aligned(p, zalloc_size, MI_MAX_ALIGN_SIZE * 2);
@@ -141,8 +137,7 @@ int main(void) {
   };
   CHECK_BODY("zeroinit-rezalloc_aligned-large") {
     size_t zalloc_size = MI_SMALL_SIZE_MAX * 2;
-    uint8_t* p =
-        (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_zalloc_aligned(zalloc_size, MI_MAX_ALIGN_SIZE * 2);
     result = check_zero_init(p, zalloc_size);
     zalloc_size *= 3;
     p = (uint8_t*)mi_rezalloc_aligned(p, zalloc_size, MI_MAX_ALIGN_SIZE * 2);
@@ -152,8 +147,7 @@ int main(void) {
 
   CHECK_BODY("zeroinit-recalloc_aligned-small") {
     size_t calloc_size = MI_SMALL_SIZE_MAX / 2;
-    uint8_t* p =
-        (uint8_t*)mi_calloc_aligned(calloc_size, 1, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_calloc_aligned(calloc_size, 1, MI_MAX_ALIGN_SIZE * 2);
     result = check_zero_init(p, calloc_size);
     calloc_size *= 3;
     p = (uint8_t*)mi_recalloc_aligned(p, calloc_size, 1, MI_MAX_ALIGN_SIZE * 2);
@@ -162,8 +156,7 @@ int main(void) {
   };
   CHECK_BODY("zeroinit-recalloc_aligned-large") {
     size_t calloc_size = MI_SMALL_SIZE_MAX * 2;
-    uint8_t* p =
-        (uint8_t*)mi_calloc_aligned(calloc_size, 1, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_calloc_aligned(calloc_size, 1, MI_MAX_ALIGN_SIZE * 2);
     result = check_zero_init(p, calloc_size);
     calloc_size *= 3;
     p = (uint8_t*)mi_recalloc_aligned(p, calloc_size, 1, MI_MAX_ALIGN_SIZE * 2);
@@ -248,23 +241,20 @@ int main(void) {
 
   CHECK_BODY("uninit-malloc_aligned-small") {
     size_t malloc_size = MI_SMALL_SIZE_MAX / 2;
-    uint8_t* p =
-        (uint8_t*)mi_malloc_aligned(malloc_size, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_malloc_aligned(malloc_size, MI_MAX_ALIGN_SIZE * 2);
     result = check_debug_fill_uninit(p, malloc_size);
     mi_free(p);
   };
   CHECK_BODY("uninit-malloc_aligned-large") {
     size_t malloc_size = MI_SMALL_SIZE_MAX * 2;
-    uint8_t* p =
-        (uint8_t*)mi_malloc_aligned(malloc_size, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_malloc_aligned(malloc_size, MI_MAX_ALIGN_SIZE * 2);
     result = check_debug_fill_uninit(p, malloc_size);
     mi_free(p);
   };
 
   CHECK_BODY("uninit-realloc_aligned-small") {
     size_t malloc_size = MI_SMALL_SIZE_MAX / 2;
-    uint8_t* p =
-        (uint8_t*)mi_malloc_aligned(malloc_size, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_malloc_aligned(malloc_size, MI_MAX_ALIGN_SIZE * 2);
     result = check_debug_fill_uninit(p, malloc_size);
     malloc_size *= 3;
     p = (uint8_t*)mi_realloc_aligned(p, malloc_size, MI_MAX_ALIGN_SIZE * 2);
@@ -273,8 +263,7 @@ int main(void) {
   };
   CHECK_BODY("uninit-realloc_aligned-large") {
     size_t malloc_size = MI_SMALL_SIZE_MAX * 2;
-    uint8_t* p =
-        (uint8_t*)mi_malloc_aligned(malloc_size, MI_MAX_ALIGN_SIZE * 2);
+    uint8_t* p = (uint8_t*)mi_malloc_aligned(malloc_size, MI_MAX_ALIGN_SIZE * 2);
     result = check_debug_fill_uninit(p, malloc_size);
     malloc_size *= 3;
     p = (uint8_t*)mi_realloc_aligned(p, malloc_size, MI_MAX_ALIGN_SIZE * 2);
@@ -282,24 +271,22 @@ int main(void) {
     mi_free(p);
   };
 
-#if !(MI_TRACK_VALGRIND || MI_TRACK_ASAN || MI_GUARDED)
+  #if !(MI_TRACK_VALGRIND || MI_TRACK_ASAN || MI_GUARDED)
   CHECK_BODY("fill-freed-small") {
     size_t malloc_size = MI_SMALL_SIZE_MAX / 2;
     uint8_t* p = (uint8_t*)mi_malloc(malloc_size);
     mi_free(p);
     // First sizeof(void*) bytes will contain housekeeping data, skip these
-    result =
-        check_debug_fill_freed(p + sizeof(void*), malloc_size - sizeof(void*));
+    result = check_debug_fill_freed(p + sizeof(void*), malloc_size - sizeof(void*));
   };
   CHECK_BODY("fill-freed-large") {
     size_t malloc_size = MI_SMALL_SIZE_MAX * 2;
     uint8_t* p = (uint8_t*)mi_malloc(malloc_size);
     mi_free(p);
     // First sizeof(void*) bytes will contain housekeeping data, skip these
-    result =
-        check_debug_fill_freed(p + sizeof(void*), malloc_size - sizeof(void*));
+    result = check_debug_fill_freed(p + sizeof(void*), malloc_size - sizeof(void*));
   };
-#endif
+  #endif
 #endif
 
   // ---------------------------------------------------
@@ -312,7 +299,8 @@ int main(void) {
 // Helper functions
 // ---------------------------------------------------------------------------
 bool check_zero_init(uint8_t* p, size_t size) {
-  if (!p) return false;
+  if(!p)
+    return false;
   bool result = true;
   for (size_t i = 0; i < size; ++i) {
     result &= p[i] == 0;
@@ -323,11 +311,11 @@ bool check_zero_init(uint8_t* p, size_t size) {
 #if MI_DEBUG >= 2
 bool check_debug_fill_uninit(uint8_t* p, size_t size) {
 #if MI_TRACK_VALGRIND || MI_TRACK_ASAN
-  (void)p;
-  (void)size;
-  return true;  // when compiled with valgrind we don't init on purpose
+  (void)p; (void)size;
+  return true; // when compiled with valgrind we don't init on purpose
 #else
-  if (!p) return false;
+  if(!p)
+    return false;
 
   bool result = true;
   for (size_t i = 0; i < size; ++i) {
@@ -339,11 +327,11 @@ bool check_debug_fill_uninit(uint8_t* p, size_t size) {
 
 bool check_debug_fill_freed(uint8_t* p, size_t size) {
 #if MI_TRACK_VALGRIND
-  (void)p;
-  (void)size;
-  return true;  // when compiled with valgrind we don't fill on purpose
+  (void)p; (void)size;
+  return true; // when compiled with valgrind we don't fill on purpose
 #else
-  if (!p) return false;
+  if(!p)
+    return false;
 
   bool result = true;
   for (size_t i = 0; i < size; ++i) {
