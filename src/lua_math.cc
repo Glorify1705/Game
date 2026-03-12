@@ -383,6 +383,39 @@ constexpr luaL_Reg kM4x4Methods[] = {
        return 1;
      }}};
 
+// "self" is replaced by the type's own LuaLS alias during stub generation.
+const LuaUserdataMethod kVecMethods[] = {
+    {"dot",
+     "Dot product with another vector",
+     {{"other", "the other vector", "self"}},
+     {{"result", "dot product", "number"}}},
+    {"len2",
+     "Squared length of the vector",
+     {},
+     {{"result", "squared length", "number"}}},
+    {"normalized",
+     "Returns a normalized copy of the vector",
+     {},
+     {{"result", "normalized vector", "self"}}},
+    {"send_as_uniform",
+     "Sends this value as a shader uniform",
+     {{"name", "uniform name", "string"}},
+     {{"ok", "whether the uniform was set", "boolean"}}},
+};
+
+const LuaUserdataOperator kVecOperators[] = {
+    {"add", "self", "self"},
+    {"sub", "self", "self"},
+    {"mul", "number", "self"},
+};
+
+const LuaUserdataMethod kMatMethods[] = {
+    {"send_as_uniform",
+     "Sends this matrix as a shader uniform",
+     {{"name", "uniform name", "string"}},
+     {{"ok", "whether the uniform was set", "boolean"}}},
+};
+
 }  // namespace
 
 void AddMathLibrary(Lua* lua) {
@@ -393,6 +426,22 @@ void AddMathLibrary(Lua* lua) {
   lua->LoadMetatable("fmat3x3", kM3x3Methods);
   lua->LoadMetatable("fmat4x4", kM4x4Methods);
   lua->AddLibrary("math", kMathLib);
+
+  lua->RegisterUserdataType({"fvec2", "vec2", "A 2D floating-point vector",
+                             nullptr, 0, kVecMethods, std::size(kVecMethods),
+                             kVecOperators, std::size(kVecOperators)});
+  lua->RegisterUserdataType({"fvec3", "vec3", "A 3D floating-point vector",
+                             nullptr, 0, kVecMethods, std::size(kVecMethods),
+                             kVecOperators, std::size(kVecOperators)});
+  lua->RegisterUserdataType({"fvec4", "vec4", "A 4D floating-point vector",
+                             nullptr, 0, kVecMethods, std::size(kVecMethods),
+                             kVecOperators, std::size(kVecOperators)});
+  lua->RegisterUserdataType({"fmat2x2", "mat2x2", "A 2x2 floating-point matrix",
+                             nullptr, 0, kMatMethods, std::size(kMatMethods)});
+  lua->RegisterUserdataType({"fmat3x3", "mat3x3", "A 3x3 floating-point matrix",
+                             nullptr, 0, kMatMethods, std::size(kMatMethods)});
+  lua->RegisterUserdataType({"fmat4x4", "mat4x4", "A 4x4 floating-point matrix",
+                             nullptr, 0, kMatMethods, std::size(kMatMethods)});
 }
 
 }  // namespace G

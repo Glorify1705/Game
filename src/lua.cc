@@ -216,6 +216,11 @@ void Lua::AddLibrary(const char* name, const luaL_Reg* funcs, size_t N) {
   lua_pop(state_, 1);
 }
 
+void Lua::RegisterUserdataType(const LuaUserdataType& type) {
+  CHECK(registered_type_count_ < kMaxUserdataTypes, "Too many userdata types");
+  registered_types_[registered_type_count_++] = type;
+}
+
 void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
                                  size_t N) {
   LUA_CHECK_STACK(state_);
@@ -355,6 +360,69 @@ void Lua::GenerateLuaLSStubs(const char* output_path) {
       for (size_t k = 0; k < func.args.argc; ++k) {
         if (k > 0) fprintf(f, ", ");
         fprintf(f, "%s", strip_prefix(func.args[k].name));
+      }
+      fprintf(f, ") end\n\n");
+    }
+  }
+
+  // Resolve "self" sentinel to the type's own alias.
+  auto resolve_type = [](const char* t, const char* self_alias) -> const char* {
+    if (t == nullptr) return "any";
+    if (strcmp(t, "self") == 0) return self_alias;
+    return t;
+  };
+
+  // Write userdata type classes.
+  for (size_t i = 0; i < registered_type_count_; ++i) {
+    const auto& type = registered_types_[i];
+    const char* alias = type.luals_alias;
+    if (type.docstring != nullptr) {
+      fprintf(f, "---%s\n", type.docstring);
+    }
+    fprintf(f, "---@class %s\n", alias);
+
+    for (size_t j = 0; j < type.field_count; ++j) {
+      const auto& field = type.fields[j];
+      fprintf(f, "---@field %s %s %s\n", field.name,
+              resolve_type(field.type, alias), field.docs ? field.docs : "");
+    }
+
+    for (size_t j = 0; j < type.operator_count; ++j) {
+      const auto& op = type.operators[j];
+      if (op.operand_type != nullptr) {
+        fprintf(f, "---@operator %s(%s): %s\n", op.op,
+                resolve_type(op.operand_type, alias),
+                resolve_type(op.return_type, alias));
+      } else {
+        fprintf(f, "---@operator %s: %s\n", op.op,
+                resolve_type(op.return_type, alias));
+      }
+    }
+
+    fprintf(f, "local %s = {}\n\n", alias);
+
+    for (size_t j = 0; j < type.method_count; ++j) {
+      const auto& method = type.methods[j];
+      if (method.docstring != nullptr) {
+        fprintf(f, "---%s\n", method.docstring);
+      }
+
+      for (size_t k = 0; k < method.params.argc; ++k) {
+        const auto& param = method.params[k];
+        fprintf(f, "---@param %s %s %s\n", param.name,
+                resolve_type(param.type, alias), param.docs ? param.docs : "");
+      }
+
+      for (size_t k = 0; k < method.returns.argc; ++k) {
+        const auto& ret = method.returns[k];
+        fprintf(f, "---@return %s %s %s\n", resolve_type(ret.type, alias),
+                ret.name ? ret.name : "", ret.docs ? ret.docs : "");
+      }
+
+      fprintf(f, "function %s:%s(", alias, method.name);
+      for (size_t k = 0; k < method.params.argc; ++k) {
+        if (k > 0) fprintf(f, ", ");
+        fprintf(f, "%s", method.params[k].name);
       }
       fprintf(f, ") end\n\n");
     }

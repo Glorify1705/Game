@@ -51,7 +51,7 @@ See `design/Lua API for LSP and LLMs.md` for full design.
   - Add a command that iterates all registered `LuaApiFunction` arrays and emits `definitions/game.lua` with LuaCATS annotations
   - Generate `.luarc.json` for the assets directory so LuaLS picks up stubs automatically
   - Handle overloads (e.g. `G.random.sample` with 1 or 3 args)
-- [ ] Design and implement type registration API for userdata metatables
+- [x] Design and implement type registration API for userdata metatables
   - Design a C++ API in `src/lua.h` / `src/lua.cc` for describing userdata types (vec2, vec3, vec4, mat2x2, mat3x3, mat4x4, byte_buffer, physics_handle, rng, sprite_asset)
   - Capture: metatable name, LuaLS type alias, fields (name + type), methods (name + params + returns), metamethods/operators, constructors (which `G.*` functions return this type)
   - Extend the stub generator to emit `---@class`, `---@field`, `---@operator`, and method annotations from this registry

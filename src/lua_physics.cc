@@ -199,6 +199,8 @@ void AddPhysicsLibrary(Lua* lua) {
   lua->LoadMetatable("physics_handle", /*registers=*/nullptr,
                      /*register_count=*/0);
   lua->AddLibrary("physics", kPhysicsLib);
+  lua->RegisterUserdataType({"physics_handle", "physics_handle",
+                             "An opaque handle to a physics body"});
 }
 
 }  // namespace G

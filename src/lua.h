@@ -170,6 +170,37 @@ struct LuaApiFunction {
   lua_CFunction func = nullptr;
 };
 
+struct LuaUserdataField {
+  const char* name = {0};
+  const char* type = {0};
+  const char* docs = {0};
+};
+
+struct LuaUserdataOperator {
+  const char* op = {0};            // LuaLS operator: "add", "sub", "mul", etc.
+  const char* operand_type = {0};  // Right operand type (nullptr for unary)
+  const char* return_type = {0};
+};
+
+struct LuaUserdataMethod {
+  const char* name = {0};
+  const char* docstring = {0};
+  LuaApiFunctionArgList params;
+  LuaApiFunctionArgList returns;
+};
+
+struct LuaUserdataType {
+  const char* metatable_name = {0};
+  const char* luals_alias = {0};
+  const char* docstring = {0};
+  const LuaUserdataField* fields = nullptr;
+  size_t field_count = 0;
+  const LuaUserdataMethod* methods = nullptr;
+  size_t method_count = 0;
+  const LuaUserdataOperator* operators = nullptr;
+  size_t operator_count = 0;
+};
+
 class Lua {
  public:
   Lua(size_t argc, const char** argv, sqlite3* db, DbAssets* assets,
@@ -340,6 +371,12 @@ class Lua {
   static constexpr size_t kMaxLibraries = 16;
   RegisteredLibrary registered_libraries_[kMaxLibraries];
   size_t registered_library_count_ = 0;
+
+  void RegisterUserdataType(const LuaUserdataType& type);
+
+  static constexpr size_t kMaxUserdataTypes = 16;
+  LuaUserdataType registered_types_[kMaxUserdataTypes];
+  size_t registered_type_count_ = 0;
 
   FixedStringBuffer<1024> error_;
   std::jmp_buf on_error_buf_;

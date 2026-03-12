@@ -98,6 +98,10 @@ const struct LuaApiFunction kAssetsLib[] = {
 
 }  // namespace
 
-void AddAssetsLibrary(Lua* lua) { lua->AddLibrary("assets", kAssetsLib); }
+void AddAssetsLibrary(Lua* lua) {
+  lua->AddLibrary("assets", kAssetsLib);
+  lua->RegisterUserdataType(
+      {"asset_sprite_ptr", "sprite_asset", "A reference to a sprite asset"});
+}
 
 }  // namespace G

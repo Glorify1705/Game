@@ -92,6 +92,8 @@ void AddRandomLibrary(Lua* lua) {
   lua->LoadMetatable("random_number_generator", /*registers=*/nullptr,
                      /*register_count=*/0);
   lua->AddLibrary("random", kRandomLib);
+  lua->RegisterUserdataType(
+      {"random_number_generator", "rng", "A random number generator"});
 }
 
 }  // namespace G

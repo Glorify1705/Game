@@ -557,3 +557,123 @@ function G.assets.list_images() end
 ---@return table result A list with width, height, x, y position and spritesheet name of all sprites.
 function G.assets.list_sprites() end
 
+---A binary data buffer
+---@class byte_buffer
+---@operator len: integer
+---@operator concat(any): string
+local byte_buffer = {}
+
+---A 2D floating-point vector
+---@class vec2
+---@operator add(vec2): vec2
+---@operator sub(vec2): vec2
+---@operator mul(number): vec2
+local vec2 = {}
+
+---Dot product with another vector
+---@param other vec2 the other vector
+---@return number result dot product
+function vec2:dot(other) end
+
+---Squared length of the vector
+---@return number result squared length
+function vec2:len2() end
+
+---Returns a normalized copy of the vector
+---@return vec2 result normalized vector
+function vec2:normalized() end
+
+---Sends this value as a shader uniform
+---@param name string uniform name
+---@return boolean ok whether the uniform was set
+function vec2:send_as_uniform(name) end
+
+---A 3D floating-point vector
+---@class vec3
+---@operator add(vec3): vec3
+---@operator sub(vec3): vec3
+---@operator mul(number): vec3
+local vec3 = {}
+
+---Dot product with another vector
+---@param other vec3 the other vector
+---@return number result dot product
+function vec3:dot(other) end
+
+---Squared length of the vector
+---@return number result squared length
+function vec3:len2() end
+
+---Returns a normalized copy of the vector
+---@return vec3 result normalized vector
+function vec3:normalized() end
+
+---Sends this value as a shader uniform
+---@param name string uniform name
+---@return boolean ok whether the uniform was set
+function vec3:send_as_uniform(name) end
+
+---A 4D floating-point vector
+---@class vec4
+---@operator add(vec4): vec4
+---@operator sub(vec4): vec4
+---@operator mul(number): vec4
+local vec4 = {}
+
+---Dot product with another vector
+---@param other vec4 the other vector
+---@return number result dot product
+function vec4:dot(other) end
+
+---Squared length of the vector
+---@return number result squared length
+function vec4:len2() end
+
+---Returns a normalized copy of the vector
+---@return vec4 result normalized vector
+function vec4:normalized() end
+
+---Sends this value as a shader uniform
+---@param name string uniform name
+---@return boolean ok whether the uniform was set
+function vec4:send_as_uniform(name) end
+
+---A 2x2 floating-point matrix
+---@class mat2x2
+local mat2x2 = {}
+
+---Sends this matrix as a shader uniform
+---@param name string uniform name
+---@return boolean ok whether the uniform was set
+function mat2x2:send_as_uniform(name) end
+
+---A 3x3 floating-point matrix
+---@class mat3x3
+local mat3x3 = {}
+
+---Sends this matrix as a shader uniform
+---@param name string uniform name
+---@return boolean ok whether the uniform was set
+function mat3x3:send_as_uniform(name) end
+
+---A 4x4 floating-point matrix
+---@class mat4x4
+local mat4x4 = {}
+
+---Sends this matrix as a shader uniform
+---@param name string uniform name
+---@return boolean ok whether the uniform was set
+function mat4x4:send_as_uniform(name) end
+
+---An opaque handle to a physics body
+---@class physics_handle
+local physics_handle = {}
+
+---A random number generator
+---@class rng
+local rng = {}
+
+---A reference to a sprite asset
+---@class sprite_asset
+local sprite_asset = {}
+
