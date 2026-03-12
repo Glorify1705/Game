@@ -444,12 +444,12 @@ class Game {
       load_ = LoadDb(argc_ - 1, argv_ + 1);
     }
     {
-      TIMER("Loading config");
-      LoadConfigFromDatabase(db_, &config_, allocator_);
-    }
-    {
       TIMER("Getting assets");
       db_assets_ = GetAssets(argv_ + 1, argc_ - 1, db_);
+    }
+    {
+      TIMER("Loading config");
+      LoadConfigFromDatabase(db_, &config_, allocator_);
     }
     LOG("Using engine version ", GAME_VERSION_STR);
     LOG("Game requested engine version ", config_.version.major, ".",

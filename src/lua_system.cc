@@ -79,7 +79,7 @@ const struct LuaApiFunction kSystemLib[] = {
        char* result = SDL_GetClipboardText();
        const size_t length = strlen(result);
        if (length == 0) {
-         LUA_ERROR(state, "Failed to get the clipboard: %s", SDL_GetError());
+         LUA_ERROR(state, "Failed to get the clipboard: ", SDL_GetError());
          return 0;
        }
        lua_pushlstring(state, result, length);

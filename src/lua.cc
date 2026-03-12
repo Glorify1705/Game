@@ -899,7 +899,7 @@ int Lua::PackageLoader() {
   const std::string_view modname = GetLuaString(state_, 1);
   Script* script = nullptr;
   if (!scripts_by_name_.Lookup(modname, &script)) {
-    LUA_ERROR(state_, "Could not find asset %s.lua", modname);
+    LUA_ERROR(state_, "Could not find asset ", modname, ".lua");
     return 0;
   }
   int result = 0;
