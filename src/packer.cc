@@ -337,6 +337,14 @@ class DbPacker {
   }
 
   void HandleFile(const char* directory, const char* filename) {
+    // Skip directories (e.g. "definitions/") — they are not asset files.
+    FixedStringBuffer<kMaxPathLength> full_path(directory, "/", filename);
+    PHYSFS_Stat stat;
+    if (PHYSFS_stat(full_path.str(), &stat) &&
+        stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
+      return;
+    }
+
     struct DbHandler {
       std::string_view extension;
       AssetInfo (DbPacker::*handler)(std::string_view filename,
