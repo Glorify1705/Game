@@ -657,6 +657,18 @@ class Game {
     LOG("Audio Spec Buffer Samples: ", obtained_spec_.samples);
     LOG("Audio Spec Sample Frequency: ", obtained_spec_.freq);
     LOG("Audio Spec Format: ", obtained_spec_.format);
+    if (obtained_spec_.freq != desired_spec.freq) {
+      LOG("WARNING: obtained audio frequency ", obtained_spec_.freq,
+          " differs from requested ", desired_spec.freq);
+    }
+    if (obtained_spec_.format != desired_spec.format) {
+      LOG("WARNING: obtained audio format ", obtained_spec_.format,
+          " differs from requested ", desired_spec.format);
+    }
+    if (obtained_spec_.channels != desired_spec.channels) {
+      LOG("WARNING: obtained audio channels ", obtained_spec_.channels,
+          " differs from requested ", desired_spec.channels);
+    }
   }
 
   static void StaticAudioCallback(void* userdata, uint8_t* buffer,
