@@ -513,8 +513,11 @@ static const LuaApiFunction kGraphicsLib[] = {
        return 0;
      }}};
 
-static const luaL_Reg kWindowLib[] = {
+static const LuaApiFunction kWindowLib[] = {
     {"dimensions",
+     "Returns the window dimensions in pixels",
+     {},
+     {{"width", "the window width"}, {"height", "the window height"}},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        IVec2 viewport = renderer->viewport();
@@ -523,6 +526,9 @@ static const luaL_Reg kWindowLib[] = {
        return 2;
      }},
     {"set_dimensions",
+     "Sets the window dimensions",
+     {{"width", "the window width"}, {"height", "the window height"}},
+     {},
      [](lua_State* state) {
        auto* renderer = Registry<BatchRenderer>::Retrieve(state);
        size_t x = luaL_checkinteger(state, 1);
@@ -533,18 +539,27 @@ static const luaL_Reg kWindowLib[] = {
        return 0;
      }},
     {"set_fullscreen",
+     "Sets the window to exclusive fullscreen mode",
+     {},
+     {},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
        return 0;
      }},
     {"set_borderless",
+     "Sets the window to borderless fullscreen mode",
+     {},
+     {},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
        return 0;
      }},
     {"set_windowed",
+     "Sets the window to windowed mode",
+     {},
+     {},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        // 0 means we use windowed mode.
@@ -552,25 +567,38 @@ static const luaL_Reg kWindowLib[] = {
        return 0;
      }},
     {"set_title",
+     "Sets the window title",
+     {{"title", "the new window title"}},
+     {},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        SDL_SetWindowTitle(window, luaL_checkstring(state, 1));
        return 0;
      }},
     {"get_title",
+     "Returns the current window title",
+     {},
+     {{"title", "the window title"}},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        lua_pushstring(state, SDL_GetWindowTitle(window));
        return 1;
      }},
     {"has_input_focus",
+     "Returns true if the window has keyboard input focus",
+     {},
+     {{"focused", "whether the window has input focus"}},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        lua_pushboolean(state,
                        SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
        return 1;
      }},
-    {"has_mouse_focus", [](lua_State* state) {
+    {"has_mouse_focus",
+     "Returns true if the window has mouse focus",
+     {},
+     {{"focused", "whether the window has mouse focus"}},
+     [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        lua_pushboolean(state,
                        SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);

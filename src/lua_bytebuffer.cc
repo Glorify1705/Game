@@ -48,8 +48,12 @@ constexpr luaL_Reg kByteBufferMethods[] = {
        return 1;
      }}};
 
-const struct luaL_Reg kDataLib[] = {
-    {"hash", [](lua_State* state) {
+const struct LuaApiFunction kDataLib[] = {
+    {"hash",
+     "Computes a hash of a string or byte buffer",
+     {{"data", "a string or byte_buffer to hash"}},
+     {{"hash", "the hash value"}},
+     [](lua_State* state) {
        std::string_view contents;
        switch (lua_type(state, 1)) {
          case LUA_TSTRING:
