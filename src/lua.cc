@@ -523,6 +523,9 @@ void Lua::FlushCompilationCache() {
                   GetLuaString(state_, -1));
         return;
       }
+      // CompileFennelAsset leaves package/loaded/fennel tables and the
+      // compiled result on the stack. Clean up since we only need the
+      // result in the compilation cache, not on the stack.
       lua_settop(state_, top);
       CHECK(compilation_cache_.Lookup(script.name, &cached_script),
             "Did not find ", script.name,
