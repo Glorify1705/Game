@@ -12,6 +12,7 @@ extern "C" {
 }
 
 #include "SDL.h"
+#include "array.h"
 #include "assets.h"
 #include "clock.h"
 #include "libraries/sqlite3.h"
@@ -203,7 +204,7 @@ struct LuaUserdataType {
 
 class Lua {
  public:
-  Lua(size_t argc, const char** argv, sqlite3* db, DbAssets* assets,
+  Lua(Slice<const char*> args, sqlite3* db, DbAssets* assets,
       Allocator* allocator);
   ~Lua() { lua_close(state_); }
 
@@ -266,8 +267,8 @@ class Lua {
   double time() const { return t_; }
   double dt() const { return dt_; }
 
-  size_t argc() const { return argc_; }
-  std::string_view argv(size_t i) const { return argv_[i]; }
+  size_t argc() const { return args_.size(); }
+  std::string_view argv(size_t i) const { return args_[i]; }
 
   void RequestHotload() { hotload_requested_ = true; }
 
@@ -350,8 +351,7 @@ class Lua {
 
   int StackTop() { return lua_gettop(state_); }
 
-  const size_t argc_;
-  const char** const argv_;
+  Slice<const char*> args_;
 
   lua_State* state_ = nullptr;
   bool stopped_ = false;

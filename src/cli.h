@@ -2,25 +2,27 @@
 #ifndef _GAME_CLI_H
 #define _GAME_CLI_H
 
+#include "array.h"
+
 namespace G {
 
 // Scaffold a new game project: game init [dir]
-int CmdInit(int argc, const char* argv[]);
+int CmdInit(Slice<const char*> args);
 
 // Run a game project in development mode: game run [dir] [--no-hotreload]
 // [--clean]
-int CmdRun(int argc, const char* argv[]);
+int CmdRun(Slice<const char*> args);
 
 // Run a packaged game from assets.sqlite3 adjacent to the binary.
-int CmdRunPackaged(int argc, const char* argv[]);
+int CmdRunPackaged(Slice<const char*> args);
 
 // Bundle binary + assets for distribution: game package [dir] [-o dir]
 // [--strip]
-int CmdPackage(int argc, const char* argv[]);
+int CmdPackage(Slice<const char*> args);
 
 // Generate LuaLS type stubs without starting the engine: game stubs [--output
 // path]
-int CmdStubs(int argc, const char* argv[]);
+int CmdStubs(Slice<const char*> args);
 
 // Print engine version.
 int CmdVersion();

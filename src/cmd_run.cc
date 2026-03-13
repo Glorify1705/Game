@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string_view>
 
 #include "cli.h"
 #include "config.h"
@@ -44,26 +45,25 @@ void ComputeCacheDir(const char* source_directory, char* out, size_t out_size) {
 
 }  // namespace
 
-int CmdRun(int argc, const char* argv[]) {
+int CmdRun(Slice<const char*> args) {
   const char* source_directory = ".";
   bool hotreload = true;
   bool clean = false;
-  size_t game_argc = 0;
-  const char** game_argv = nullptr;
+  Slice<const char*> game_args;
 
   // Parse arguments: game run [dir] [--flags] [-- game-args...]
-  for (int i = 1; i < argc; ++i) {
-    if (strcmp(argv[i], "--") == 0) {
-      game_argc = argc - i - 1;
-      game_argv = argv + i + 1;
+  for (size_t i = 1; i < args.size(); ++i) {
+    std::string_view arg = args[i];
+    if (arg == "--") {
+      game_args = {args.data() + i + 1, args.size() - i - 1};
       break;
     }
-    if (strcmp(argv[i], "--no-hotreload") == 0) {
+    if (arg == "--no-hotreload") {
       hotreload = false;
-    } else if (strcmp(argv[i], "--clean") == 0) {
+    } else if (arg == "--clean") {
       clean = true;
-    } else if (argv[i][0] != '-') {
-      source_directory = argv[i];
+    } else if (arg[0] != '-') {
+      source_directory = args[i];
     }
   }
 
@@ -117,14 +117,13 @@ int CmdRun(int argc, const char* argv[]) {
   GameOptions opts;
   opts.source_directory = source_directory;
   opts.hotreload = hotreload;
-  opts.argc = game_argc;
-  opts.argv = game_argv;
+  opts.args = game_args;
 
   RunGame(opts, db);
   return 0;
 }
 
-int CmdRunPackaged(int argc, const char* argv[]) {
+int CmdRunPackaged(Slice<const char*> args) {
   // Find the directory containing the binary.
 #ifdef _WIN32
   char exe_path[MAX_PATH];
@@ -164,12 +163,11 @@ int CmdRunPackaged(int argc, const char* argv[]) {
   }
 
   // Parse game arguments (after --).
-  size_t game_argc = 0;
-  const char** game_argv = nullptr;
-  for (int i = 1; i < argc; ++i) {
-    if (strcmp(argv[i], "--") == 0) {
-      game_argc = argc - i - 1;
-      game_argv = argv + i + 1;
+  Slice<const char*> game_args;
+  for (size_t i = 1; i < args.size(); ++i) {
+    std::string_view arg = args[i];
+    if (arg == "--") {
+      game_args = {args.data() + i + 1, args.size() - i - 1};
       break;
     }
   }
@@ -177,8 +175,7 @@ int CmdRunPackaged(int argc, const char* argv[]) {
   GameOptions opts;
   opts.source_directory = nullptr;
   opts.hotreload = false;
-  opts.argc = game_argc;
-  opts.argv = game_argv;
+  opts.args = game_args;
 
   RunGame(opts, db);
   return 0;

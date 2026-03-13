@@ -1,5 +1,5 @@
 #include <cstdio>
-#include <cstring>
+#include <string_view>
 
 #include "cli.h"
 #include "version.h"
@@ -85,22 +85,25 @@ void PrintStubsHelp() {
 int CmdHelp(const char* subcommand) {
   if (subcommand == nullptr) {
     PrintGeneralHelp();
-  } else if (strcmp(subcommand, "init") == 0) {
-    PrintInitHelp();
-  } else if (strcmp(subcommand, "run") == 0) {
-    PrintRunHelp();
-  } else if (strcmp(subcommand, "package") == 0) {
-    PrintPackageHelp();
-  } else if (strcmp(subcommand, "stubs") == 0) {
-    PrintStubsHelp();
-  } else if (strcmp(subcommand, "version") == 0) {
-    printf("Usage: game version\n\nPrints the engine version and exits.\n");
-  } else if (strcmp(subcommand, "help") == 0) {
-    printf("Usage: game help [command]\n\nShows help for a command.\n");
   } else {
-    fprintf(stderr, "Unknown command: %s\n\n", subcommand);
-    PrintGeneralHelp();
-    return 1;
+    std::string_view cmd = subcommand;
+    if (cmd == "init") {
+      PrintInitHelp();
+    } else if (cmd == "run") {
+      PrintRunHelp();
+    } else if (cmd == "package") {
+      PrintPackageHelp();
+    } else if (cmd == "stubs") {
+      PrintStubsHelp();
+    } else if (cmd == "version") {
+      printf("Usage: game version\n\nPrints the engine version and exits.\n");
+    } else if (cmd == "help") {
+      printf("Usage: game help [command]\n\nShows help for a command.\n");
+    } else {
+      fprintf(stderr, "Unknown command: %s\n\n", subcommand);
+      PrintGeneralHelp();
+      return 1;
+    }
   }
   return 0;
 }

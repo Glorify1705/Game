@@ -158,10 +158,10 @@ class Filewatcher {
 #endif
 
 struct EngineModules {
-  EngineModules(size_t argc, const char* argv[], sqlite3* db,
-                DbAssets* db_assets, const GameConfig& config,
-                const SDL_AudioSpec& spec, SDL_Window* sdl_window,
-                Allocator* allocator, const char* source_directory)
+  EngineModules(Slice<const char*> args, sqlite3* db, DbAssets* db_assets,
+                const GameConfig& config, const SDL_AudioSpec& spec,
+                SDL_Window* sdl_window, Allocator* allocator,
+                const char* source_directory)
       : console(allocator),
         db(db),
         assets(db_assets),
@@ -177,7 +177,7 @@ struct EngineModules {
         renderer(*db_assets, &batch_renderer, allocator),
         lua_allocator(allocator->Alloc(Megabytes(64), kMaxAlign),
                       Megabytes(64)),
-        lua(argc, argv, db, db_assets, &lua_allocator),
+        lua(args, db, db_assets, &lua_allocator),
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)),
@@ -480,9 +480,9 @@ class Game {
 
   void Init() {
     TIMER("Game Initialization");
-    e_ = allocator_->New<EngineModules>(opts_.argc, opts_.argv, db_, db_assets_,
-                                        config_, obtained_spec_, window_,
-                                        allocator_, opts_.source_directory);
+    e_ = allocator_->New<EngineModules>(opts_.args, db_, db_assets_, config_,
+                                        obtained_spec_, window_, allocator_,
+                                        opts_.source_directory);
     e_->Initialize();
     e_->lua.Init();
     if (opts_.hotreload) {
@@ -787,18 +787,19 @@ void RunGame(const GameOptions& opts, sqlite3* db) {
 
 int main(int argc, const char* argv[]) {
   if (argc >= 2) {
-    if (strcmp(argv[1], "init") == 0) return G::CmdInit(argc - 1, argv + 1);
-    if (strcmp(argv[1], "run") == 0) return G::CmdRun(argc - 1, argv + 1);
-    if (strcmp(argv[1], "package") == 0)
-      return G::CmdPackage(argc - 1, argv + 1);
-    if (strcmp(argv[1], "stubs") == 0) return G::CmdStubs(argc - 1, argv + 1);
-    if (strcmp(argv[1], "version") == 0) return G::CmdVersion();
-    if (strcmp(argv[1], "help") == 0)
-      return G::CmdHelp(argc > 2 ? argv[2] : nullptr);
-    if (strcmp(argv[1], "--help") == 0) return G::CmdHelp(nullptr);
-    if (strcmp(argv[1], "--version") == 0) return G::CmdVersion();
+    G::Slice<const char*> sub(argv + 1, (size_t)(argc - 1));
+    std::string_view cmd = argv[1];
+    if (cmd == "init") return G::CmdInit(sub);
+    if (cmd == "run") return G::CmdRun(sub);
+    if (cmd == "package") return G::CmdPackage(sub);
+    if (cmd == "stubs") return G::CmdStubs(sub);
+    if (cmd == "version") return G::CmdVersion();
+    if (cmd == "help") return G::CmdHelp(argc > 2 ? argv[2] : nullptr);
+    if (cmd == "--help") return G::CmdHelp(/*subcommand=*/nullptr);
+    if (cmd == "--version") return G::CmdVersion();
   }
   // No subcommand: packaged game mode or help.
-  if (G::PackagedGameExists(argv[0])) return G::CmdRunPackaged(argc, argv);
-  return G::CmdHelp(nullptr);
+  if (G::PackagedGameExists(argv[0]))
+    return G::CmdRunPackaged({argv, (size_t)argc});
+  return G::CmdHelp(/*subcommand=*/nullptr);
 }

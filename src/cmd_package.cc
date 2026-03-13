@@ -1,6 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
+#include <string_view>
 
 #include "cli.h"
 #include "config.h"
@@ -17,22 +17,22 @@
 
 namespace G {
 
-int CmdPackage(int argc, const char* argv[]) {
+int CmdPackage(Slice<const char*> args) {
   const char* source_directory = ".";
   const char* output_dir = "dist";
   const char* name_override = nullptr;
   bool strip = false;
 
-  for (int i = 1; i < argc; ++i) {
-    if ((strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--output") == 0) &&
-        i + 1 < argc) {
-      output_dir = argv[++i];
-    } else if (strcmp(argv[i], "--name") == 0 && i + 1 < argc) {
-      name_override = argv[++i];
-    } else if (strcmp(argv[i], "--strip") == 0) {
+  for (size_t i = 1; i < args.size(); ++i) {
+    std::string_view arg = args[i];
+    if ((arg == "-o" || arg == "--output") && i + 1 < args.size()) {
+      output_dir = args[++i];
+    } else if (arg == "--name" && i + 1 < args.size()) {
+      name_override = args[++i];
+    } else if (arg == "--strip") {
       strip = true;
-    } else if (argv[i][0] != '-') {
-      source_directory = argv[i];
+    } else if (arg[0] != '-') {
+      source_directory = args[i];
     }
   }
 

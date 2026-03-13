@@ -229,11 +229,42 @@ class DynArray {
   size_t capacity_ = 0;
 };
 
+// Non-owning read-only view over a contiguous array of T.
+// Like std::span<const T> (C++20) but available under C++17.
+template <typename T>
+class Slice {
+ public:
+  constexpr Slice() : data_(nullptr), size_(0) {}
+  constexpr Slice(const T* data, size_t size) : data_(data), size_(size) {}
+
+  constexpr const T* data() const { return data_; }
+  constexpr size_t size() const { return size_; }
+  constexpr bool empty() const { return size_ == 0; }
+  constexpr const T& operator[](size_t i) const { return data_[i]; }
+
+  constexpr const T* begin() const { return data_; }
+  constexpr const T* end() const { return data_ + size_; }
+
+ private:
+  const T* data_;
+  size_t size_;
+};
+
+template <typename T>
+Slice<T> MakeSlice(const DynArray<T>& a) {
+  return Slice<T>(a.cdata(), a.size());
+}
+
+template <typename T>
+Slice<T> MakeSlice(const FixedArray<T>& a) {
+  return Slice<T>(a.cdata(), a.size());
+}
+
 template <typename T>
 class ArrayView {
  public:
   explicit ArrayView(const T* array, size_t size)
-      : array_(array), size_(size){};
+      : array_(array), size_(size) {};
 
   using const_iterator = const T*;
 

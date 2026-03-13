@@ -2,8 +2,7 @@
 #ifndef _GAME_GAME_H
 #define _GAME_GAME_H
 
-#include <cstddef>
-
+#include "array.h"
 #include "libraries/sqlite3.h"
 
 namespace G {
@@ -11,8 +10,7 @@ namespace G {
 struct GameOptions {
   const char* source_directory = nullptr;
   bool hotreload = true;
-  size_t argc = 0;              // game arguments (after --)
-  const char** argv = nullptr;  // game arguments (after --)
+  Slice<const char*> args;  // game arguments (after --)
 };
 
 // Runs the full engine with SDL, OpenGL, audio, etc.

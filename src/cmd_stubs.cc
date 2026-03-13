@@ -1,5 +1,5 @@
 #include <cstdio>
-#include <cstring>
+#include <string_view>
 
 #include "allocators.h"
 #include "cli.h"
@@ -19,18 +19,18 @@
 
 namespace G {
 
-int CmdStubs(int argc, const char* argv[]) {
+int CmdStubs(Slice<const char*> args) {
   const char* output = "definitions/game.lua";
-  for (int i = 1; i < argc; ++i) {
-    if (strcmp(argv[i], "--output") == 0 && i + 1 < argc) {
-      output = argv[++i];
+  for (size_t i = 1; i < args.size(); ++i) {
+    if (std::string_view(args[i]) == "--output" && i + 1 < args.size()) {
+      output = args[++i];
     }
   }
 
   auto* allocator = new StaticAllocator<Megabytes(32)>();
   MimallocAllocator lua_alloc(allocator->Alloc(Megabytes(16), kMaxAlign),
                               Megabytes(16));
-  Lua lua(0, nullptr, nullptr, nullptr, &lua_alloc);
+  Lua lua(/*args=*/{}, /*db=*/nullptr, /*assets=*/nullptr, &lua_alloc);
   lua.LoadLibraries();
   AddByteBufferLibrary(&lua);
   AddFilesystemLibrary(&lua);

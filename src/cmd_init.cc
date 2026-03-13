@@ -12,11 +12,11 @@
 
 namespace G {
 
-int CmdInit(int argc, const char* argv[]) {
+int CmdInit(Slice<const char*> args) {
   const char* dir = ".";
-  for (int i = 1; i < argc; ++i) {
-    if (argv[i][0] != '-') {
-      dir = argv[i];
+  for (size_t i = 1; i < args.size(); ++i) {
+    if (args[i][0] != '-') {
+      dir = args[i];
       break;
     }
   }
@@ -73,7 +73,7 @@ int CmdInit(int argc, const char* argv[]) {
 
   FixedStringBuffer<1024> stubs_output(defs_dir.str(), "/game.lua");
   const char* stubs_argv[] = {"stubs", "--output", stubs_output.str()};
-  CmdStubs(3, stubs_argv);
+  CmdStubs({stubs_argv, 3});
 
   printf("Created new game project in '%s'.\n", dir);
   printf("\n  cd %s && game run\n\n", dir);

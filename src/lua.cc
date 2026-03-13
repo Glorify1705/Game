@@ -161,10 +161,9 @@ void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
   return allocator_->Realloc(ptr, osize, nsize, /*align=*/1);
 }
 
-Lua::Lua(size_t argc, const char** argv, sqlite3* db, DbAssets* assets,
+Lua::Lua(Slice<const char*> args, sqlite3* db, DbAssets* assets,
          Allocator* allocator)
-    : argc_(argc),
-      argv_(argv),
+    : args_(args),
       allocator_(allocator),
       db_(db),
       assets_(assets),
