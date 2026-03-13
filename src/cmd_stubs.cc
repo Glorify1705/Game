@@ -1,8 +1,10 @@
 #include <cstdio>
+#include <cstring>
 #include <string_view>
 
 #include "allocators.h"
 #include "cli.h"
+#include "fileutil.h"
 #include "lua.h"
 #include "lua_assets.h"
 #include "lua_bytebuffer.h"
@@ -25,6 +27,15 @@ int CmdStubs(Slice<const char*> args) {
     if (std::string_view(args[i]) == "--output" && i + 1 < args.size()) {
       output = args[++i];
     }
+  }
+
+  // Ensure the parent directory exists.
+  if (const char* slash = strrchr(output, '/')) {
+    char parent[1024];
+    size_t len = slash - output;
+    memcpy(parent, output, len);
+    parent[len] = '\0';
+    MakeDirs(parent);
   }
 
   auto* allocator = new StaticAllocator<Megabytes(32)>();
