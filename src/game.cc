@@ -768,12 +768,19 @@ class Game {
 };
 
 void RunGame(const GameOptions& opts, sqlite3* db) {
-  auto* allocator = new StaticAllocator<kEngineMemory>();
+  // Heap-allocated and never freed: the MimallocAllocator inside Game registers
+  // an arena via mi_manage_os_memory_ex with no unregister API, so the backing
+  // memory must outlive mimalloc's mi_process_done arena purge at process exit.
+  // Freeing it causes use-after-free; this is a one-shot allocation reclaimed
+  // by the OS on exit.
+  static ArenaAllocator* allocator = [] {
+    auto* buf = static_cast<uint8_t*>(malloc(kEngineMemory));
+    return new ArenaAllocator(buf, kEngineMemory);
+  }();
   auto* g = allocator->New<Game>(opts, db, allocator);
   g->Init();
   g->Run();
   allocator->Destroy(g);
-  delete allocator;
 }
 
 }  // namespace G
