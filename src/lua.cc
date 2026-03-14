@@ -161,10 +161,9 @@ void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
   return allocator_->Realloc(ptr, osize, nsize, /*align=*/1);
 }
 
-Lua::Lua(size_t argc, const char** argv, sqlite3* db, DbAssets* assets,
+Lua::Lua(Slice<const char*> args, sqlite3* db, DbAssets* assets,
          Allocator* allocator)
-    : argc_(argc),
-      argv_(argv),
+    : args_(args),
       allocator_(allocator),
       db_(db),
       assets_(assets),
@@ -899,7 +898,7 @@ int Lua::PackageLoader() {
   const std::string_view modname = GetLuaString(state_, 1);
   Script* script = nullptr;
   if (!scripts_by_name_.Lookup(modname, &script)) {
-    LUA_ERROR(state_, "Could not find asset %s.lua", modname);
+    LUA_ERROR(state_, "Could not find asset ", modname, ".lua");
     return 0;
   }
   int result = 0;

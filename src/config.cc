@@ -77,4 +77,21 @@ void LoadConfigFromDatabase(sqlite3* db, GameConfig* config,
   LoadConfig(contents, config, allocator);
 }
 
+bool LoadConfigFromFile(const char* path, GameConfig* config,
+                        Allocator* allocator) {
+  FILE* f = fopen(path, "rb");
+  if (f == nullptr) return false;
+  fseek(f, 0, SEEK_END);
+  long size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  char* contents = static_cast<char*>(allocator->Alloc(size + 1, 1));
+  size_t read_bytes = fread(contents, 1, size, f);
+  (void)read_bytes;
+  contents[size] = '\0';
+  fclose(f);
+  LoadConfig(std::string_view(contents, size), config, allocator);
+  allocator->Dealloc(contents, size + 1);
+  return true;
+}
+
 }  // namespace G

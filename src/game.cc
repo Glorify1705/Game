@@ -14,10 +14,12 @@
 #include "allocators.h"
 #include "assets.h"
 #include "circular_buffer.h"
+#include "cli.h"
 #include "clock.h"
 #include "config.h"
 #include "console.h"
 #include "filesystem.h"
+#include "game.h"
 #include "image.h"
 #include "input.h"
 #include "libraries/glad.h"
@@ -156,10 +158,10 @@ class Filewatcher {
 #endif
 
 struct EngineModules {
-  EngineModules(size_t argc, const char* argv[], sqlite3* db,
-                DbAssets* db_assets, const GameConfig& config,
-                const SDL_AudioSpec& spec, SDL_Window* sdl_window,
-                Allocator* allocator, const char* source_directory)
+  EngineModules(Slice<const char*> args, sqlite3* db, DbAssets* db_assets,
+                const GameConfig& config, const SDL_AudioSpec& spec,
+                SDL_Window* sdl_window, Allocator* allocator,
+                const char* source_directory)
       : console(allocator),
         db(db),
         assets(db_assets),
@@ -175,7 +177,7 @@ struct EngineModules {
         renderer(*db_assets, &batch_renderer, allocator),
         lua_allocator(allocator->Alloc(Megabytes(64), kMaxAlign),
                       Megabytes(64)),
-        lua(argc, argv, db, db_assets, &lua_allocator),
+        lua(args, db, db_assets, &lua_allocator),
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)),
@@ -210,6 +212,12 @@ struct EngineModules {
       return stopped;
     };
     while (!is_stopped()) {
+      if (source_directory == nullptr) {
+        // Packaged mode: no source files to hot-reload.  Keep the thread
+        // alive but idle until it is stopped.
+        SDL_Delay(100);
+        continue;
+      }
       hotload_allocator_.Reset();
       const auto result =
           WriteAssetsToDb(source_directory, db, &hotload_allocator_);
@@ -417,39 +425,23 @@ struct EngineModules {
 
 class Game {
  public:
-  Game(int argc, const char** argv, Allocator* allocator)
-      : argc_(argc), argv_(argv), allocator_(allocator) {
+  Game(const GameOptions& opts, sqlite3* db, Allocator* allocator)
+      : opts_(opts), allocator_(allocator), db_(db) {
     TIMER("Setup");
     InitializeLogging();
-    LOG("Program name = ", argv[0], " args = ", argc);
-    // Strip --generate-stubs before LoadDb sees it.
-    for (size_t i = 1; i < argc_; ++i) {
-      if (strcmp(argv_[i], "--generate-stubs") == 0) {
-        generate_stubs_ = true;
-        for (size_t j = i; j + 1 < argc_; ++j) {
-          argv_[j] = argv_[j + 1];
-        }
-        argc_--;
-        break;
-      }
-    }
-    PHYSFS_CHECK(PHYSFS_init(argv[0]),
-                 "Could not initialize PhysFS: ", argv[0]);
-    sqlite_heap_ = allocator->Alloc(Megabytes(16), kMaxAlign);
-    CHECK(sqlite3_config(SQLITE_CONFIG_HEAP, sqlite_heap_, Megabytes(16), 64) ==
-              SQLITE_OK,
-          "Failed to configure SQLite memsys5 heap");
+    LOG("Program name = game, source = ",
+        opts.source_directory ? opts.source_directory : "(packaged)");
+    PHYSFS_CHECK(PHYSFS_init("game"), "Could not initialize PhysFS");
     {
-      TIMER("Load database");
-      load_ = LoadDb(argc_ - 1, argv_ + 1);
+      TIMER("Getting assets");
+      if (opts.source_directory != nullptr) {
+        WriteAssetsToDb(opts.source_directory, db_, allocator_);
+      }
+      db_assets_ = allocator_->New<DbAssets>(db_, allocator_);
     }
     {
       TIMER("Loading config");
       LoadConfigFromDatabase(db_, &config_, allocator_);
-    }
-    {
-      TIMER("Getting assets");
-      db_assets_ = GetAssets(argv_ + 1, argc_ - 1, db_);
     }
     LOG("Using engine version ", GAME_VERSION_STR);
     LOG("Game requested engine version ", config_.version.major, ".",
@@ -488,56 +480,15 @@ class Game {
     sqlite3_close(db_);
   }
 
-  DbAssets* GetAssets(const char* argv[], size_t argc, sqlite3* db) {
-    WriteAssetsToDb(argv[0], db, allocator_);
-    auto* result = allocator_->New<DbAssets>(db, allocator_);
-    return result;
-  }
-
-  struct LoadResult {
-    const char* source_directory;
-    bool should_hotreload;
-  };
-
-  LoadResult LoadDb(size_t argc, const char** argv) {
-    LoadResult result;
-    result.should_hotreload = false;
-    result.source_directory = nullptr;
-    if (argc == 0) {
-      LOG("Reading assets from default DB since no file was provided");
-      if (sqlite3_open("assets.sqlite3", &db_) != SQLITE_OK) {
-        DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db_));
-      }
-    } else if (argc_ == 1) {
-      LOG("Reading assets from ", argv[0]);
-      if (sqlite3_open(argv[0], &db_) != SQLITE_OK) {
-        DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db_));
-      }
-    } else {
-      LOG("Packing all files in directory ", argv[0], " into the database");
-      result.should_hotreload = true;
-      result.source_directory = argv[0];
-      if (sqlite3_open(argv[1], &db_) != SQLITE_OK) {
-        DIE("Failed to open ", argv[0], ": ", sqlite3_errmsg(db_));
-      }
-      InitializeAssetDb(db_);
-    }
-    return result;
-  }
-
   void Init() {
     TIMER("Game Initialization");
-    e_ = allocator_->New<EngineModules>(argc_, argv_, db_, db_assets_, config_,
+    e_ = allocator_->New<EngineModules>(opts_.args, db_, db_assets_, config_,
                                         obtained_spec_, window_, allocator_,
-                                        load_.source_directory);
+                                        opts_.source_directory);
     e_->Initialize();
-    if (generate_stubs_) {
-      e_->lua.GenerateLuaLSStubs("definitions/game.lua");
-      exit(0);
-    }
     e_->lua.Init();
-    if (load_.should_hotreload) {
-      e_->watcher_.Watch(load_.source_directory);
+    if (opts_.hotreload) {
+      e_->watcher_.Watch(opts_.source_directory);
     }
   }
 
@@ -804,12 +755,8 @@ class Game {
     return context;
   }
 
-  size_t argc_;
-  const char** const argv_;
-  bool generate_stubs_ = false;
-  LoadResult load_;
+  GameOptions opts_;
   Allocator* allocator_;
-  void* sqlite_heap_;
   sqlite3* db_;
   DbAssets* db_assets_ = nullptr;
   GameConfig config_;
@@ -822,20 +769,46 @@ class Game {
   SDL_AudioDeviceID audio_device_;
 };
 
-void GameMain(int argc, const char* argv[]) {
-  auto* allocator = new StaticAllocator<kEngineMemory>();
-  // Ensure we don't overflow the stack in any module by allocating Game on
-  // the heap.
-  auto* g = allocator->New<Game>(argc, argv, allocator);
+void RunGame(const GameOptions& opts, sqlite3* db) {
+  // Heap-allocated and never freed: the MimallocAllocator inside Game registers
+  // an arena via mi_manage_os_memory_ex with no unregister API, so the backing
+  // memory must outlive mimalloc's mi_process_done arena purge at process exit.
+  // Freeing it causes use-after-free; this is a one-shot allocation reclaimed
+  // by the OS on exit.
+  static ArenaAllocator* allocator = [] {
+    auto* buf = static_cast<uint8_t*>(malloc(kEngineMemory));
+    return new ArenaAllocator(buf, kEngineMemory);
+  }();
+  auto* g = allocator->New<Game>(opts, db, allocator);
   g->Init();
   g->Run();
   allocator->Destroy(g);
-  delete allocator;
+}
+
+int Main(int argc, const char* argv[]) {
+  // Top-level arena for CLI subcommand memory.
+  auto* cli_buf = static_cast<uint8_t*>(malloc(Megabytes(128)));
+  ArenaAllocator cli_arena(cli_buf, Megabytes(128));
+
+  if (argc >= 2) {
+    Slice<const char*> sub(argv + 1, (size_t)(argc - 1));
+    std::string_view cmd = argv[1];
+    if (cmd == "init") return CmdInit(sub, &cli_arena);
+    if (cmd == "run") return CmdRun(sub, &cli_arena);
+    if (cmd == "package") return CmdPackage(sub, &cli_arena);
+    if (cmd == "stubs") return CmdStubs(sub, &cli_arena);
+    if (cmd == "version") return CmdVersion(argv[0]);
+    if (cmd == "help") return CmdHelp(argv[0], argc > 2 ? argv[2] : nullptr);
+    if (cmd == "--help") return CmdHelp(argv[0], /*subcommand=*/nullptr);
+    if (cmd == "--version") return CmdVersion(argv[0]);
+  }
+  // No subcommand: packaged game mode or help.
+  if (PackagedGameExists(argv[0])) {
+    return CmdRunPackaged({argv, (size_t)argc}, &cli_arena);
+  }
+  return CmdHelp(argv[0], /*subcommand=*/nullptr);
 }
 
 }  // namespace G
 
-int main(int argc, const char* argv[]) {
-  G::GameMain(argc, argv);
-  return 0;
-}
+int main(int argc, const char* argv[]) { return G::Main(argc, argv); }

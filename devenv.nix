@@ -17,6 +17,7 @@
     libGL
     libGLU
     libllvm
+    lua-language-server
     lua51Packages.fennel
     lua51Packages.lua
     mesa
