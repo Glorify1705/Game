@@ -870,7 +870,8 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
     return IVec2();
   }
   auto p = FVec2::Zero();
-  const float scale = stbtt_ScaleForPixelHeight(&info->font_info, size);
+  const float pixel_scale = size / info->pixel_height;
+  const float scale = pixel_scale * info->scale;
   p.y = scale * (info->ascent - info->descent + info->line_gap);
   float x = 0;
   for (size_t i = 0; i < str.size(); ++i) {
