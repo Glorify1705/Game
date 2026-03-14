@@ -574,12 +574,17 @@ class Game {
       FixedStringBuffer<kMaxLogLineLength> log(
           "FPS: ", (1000.0f / stats_.avg()), " Stats = ", stats_,
           "\nLua memory usage: ", (e_->lua.MemoryUsage() / 1024.0));
-      e_->renderer.SetColor(Color::White());
       const IVec2 dims =
-          e_->renderer.TextDimensions("debug_font.ttf", 12, log.str());
+          e_->renderer.TextDimensions("debug_font.ttf", 16, log.str());
       const IVec2 viewport = e_->batch_renderer.GetViewport();
-      e_->renderer.DrawText("debug_font.ttf", 12, log.str(),
-                            FVec(viewport.x - dims.x, viewport.y - dims.y));
+      const FVec2 text_pos(viewport.x - dims.x, viewport.y - dims.y);
+      constexpr int kPadding = 4;
+      e_->renderer.SetColor(Color{0, 0, 0, 180});
+      e_->renderer.DrawRect(FVec(text_pos.x - kPadding, text_pos.y - kPadding),
+                            FVec(dims.x + kPadding * 2, dims.y + kPadding * 2),
+                            /*angle=*/0);
+      e_->renderer.SetColor(Color::White());
+      e_->renderer.DrawText("debug_font.ttf", 16, log.str(), text_pos);
     }
     e_->renderer.FlushFrame();
     e_->batch_renderer.Render(&e_->frame_allocator);

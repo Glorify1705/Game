@@ -756,6 +756,8 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
   ArenaAllocator scratch(allocator_, kAtlasSize * 5);
   const float pixel_height = 100;
   uint8_t* atlas = scratch.NewArray<uint8_t>(kAtlasSize);
+  constexpr int kFirstChar = 32;
+  constexpr int kNumChars = 126 - 32 + 1;
   FontInfo font;
   CHECK(stbtt_InitFont(&font.font_info, asset.contents,
                        stbtt_GetFontOffsetForIndex(asset.contents, 0)),
@@ -770,10 +772,40 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
     stbtt_PackBegin(&context, atlas, kAtlasWidth, kAtlasHeight, kAtlasWidth, 1,
                     /*alloc_context=*/&scratch);
     stbtt_PackSetOversampling(&context, 2, 2);
-    CHECK(stbtt_PackFontRange(&context, asset.contents, 0, pixel_height, 32,
-                              126 - 32 + 1, font.chars) == 1,
-          "Could not load font ", asset.name, ", atlas is too small");
+    if (stbtt_PackFontRange(&context, asset.contents, 0, pixel_height,
+                            kFirstChar, kNumChars, font.chars) != 1) {
+      stbtt_PackEnd(&context);
+      // Find minimum atlas size that works.
+      size_t min_size = kAtlasWidth;
+      for (min_size *= 2; min_size <= 8192; min_size *= 2) {
+        ArenaAllocator trial(allocator_, min_size * min_size * 2);
+        auto* buf = trial.NewArray<uint8_t>(min_size * min_size);
+        stbtt_pack_context ctx;
+        stbtt_PackBegin(&ctx, buf, min_size, min_size, min_size, 1, &trial);
+        stbtt_PackSetOversampling(&ctx, 2, 2);
+        stbtt_packedchar trial_chars[256];
+        bool ok = stbtt_PackFontRange(&ctx, asset.contents, 0, pixel_height,
+                                      kFirstChar, kNumChars, trial_chars) == 1;
+        stbtt_PackEnd(&ctx);
+        if (ok) break;
+      }
+      CHECK(false, "Font atlas ", kAtlasWidth, "x", kAtlasHeight,
+            " too small for ", asset.name, ". Minimum required: ", min_size,
+            "x", min_size);
+    }
     stbtt_PackEnd(&context);
+  }
+  // Check if atlas is oversized by finding actual used area.
+  unsigned short max_x = 0, max_y = 0;
+  for (int i = 0; i < kNumChars; ++i) {
+    if (font.chars[i].x1 > max_x) max_x = font.chars[i].x1;
+    if (font.chars[i].y1 > max_y) max_y = font.chars[i].y1;
+  }
+  const size_t min_dim = std::max(NextPow2(max_x), NextPow2(max_y));
+  if (min_dim < std::min(kAtlasWidth, kAtlasHeight)) {
+    LOG("Font atlas for ", asset.name, " is oversized: ", kAtlasWidth, "x",
+        kAtlasHeight, " but glyphs fit in ", max_x, "x", max_y, " (could use ",
+        min_dim, "x", min_dim, ")");
   }
   font.texture = renderer_->LoadFontTexture(atlas, kAtlasWidth, kAtlasHeight);
   fonts_.Push(font);
