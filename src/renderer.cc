@@ -207,9 +207,10 @@ void BatchRenderer::InitializeFramebuffers() {
   OPENGL_CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                         GL_DEPTH_STENCIL_ATTACHMENT,
                                         GL_RENDERBUFFER, depth_buffer_));
-  CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
-        "Downsampled target framebuffer incomplete after depth/stencil attach: ",
-        glCheckFramebufferStatus(GL_FRAMEBUFFER));
+  CHECK(
+      glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
+      "Downsampled target framebuffer incomplete after depth/stencil attach: ",
+      glCheckFramebufferStatus(GL_FRAMEBUFFER));
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   glActiveTexture(GL_TEXTURE0);
 }
@@ -831,7 +832,8 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
     if (c == '\033') {
       // Skip ANSI escape sequence.
       size_t st = i + 1, en = i;
-      while (str[en] != 'm') en++;
+      while (en < str.size() && str[en] != 'm') en++;
+      if (en >= str.size()) break;
       renderer_->SetActiveColor(ParseColor(str.substr(st, en - st)));
       i = en + 1;
       continue;
