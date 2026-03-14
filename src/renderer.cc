@@ -841,7 +841,8 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
     }
     if (c == '\t') {
       // Add 4 spaces.
-      for (int j = 0; j < 4; ++j) handle_char(str.size(), ' ');
+      for (int j = 0; j < 3; ++j) handle_char(str.size(), ' ');
+      handle_char(i, ' ');
       i++;
       continue;
     }
