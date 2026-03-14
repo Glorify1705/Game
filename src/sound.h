@@ -258,6 +258,8 @@ class Sound {
 
     void Pause() { playing_ = false; }
 
+    bool IsPlaying() const { return playing_; }
+
     bool OnReload(const DbAssets::Sound* sound) {
       if (StringIntern(sound->name) != handle_) return true;
       return cb_.Reload(sound);

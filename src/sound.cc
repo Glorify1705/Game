@@ -13,7 +13,15 @@ bool Sound::AddSource(std::string_view name, Source* source) {
     return false;
   }
   LockMutex l(mu_);
-  if (stream_ >= kMaxStreams) {
+  // Try to reuse a stopped stream before allocating a new one.
+  size_t slot = stream_;
+  for (size_t i = 0; i < stream_; ++i) {
+    if (!streams_[i].IsPlaying()) {
+      slot = i;
+      break;
+    }
+  }
+  if (slot >= kMaxStreams) {
     LOG("Maximum number of streams exceeded");
     return false;
   }
@@ -23,20 +31,20 @@ bool Sound::AddSource(std::string_view name, Source* source) {
     if (!vorbis->Init(&sound)) {
       return false;
     }
-    streams_[stream_].InitFromStream(&sound, vorbis);
+    streams_[slot].InitFromStream(&sound, vorbis);
   } else if (HasSuffix(sound.name, ".wav")) {
     LOG("Loading WAV source ", sound.name);
     auto* wav = wavs_alloc_.New();
     if (!wav->Init(&sound)) {
       return false;
     }
-    streams_[stream_].InitFromStream(&sound, wav);
+    streams_[slot].InitFromStream(&sound, wav);
   } else {
     LOG("Unsupported sound format: ", sound.name);
     return false;
   }
-  *source = stream_;
-  stream_++;
+  *source = slot;
+  if (slot == stream_) stream_++;
   return true;
 }
 
