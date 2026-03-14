@@ -764,13 +764,14 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
     TIMER("Building font atlas for ", asset.name);
     stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
                           &font.line_gap);
-    stbtt_PackBegin(&font.context, atlas, kAtlasWidth, kAtlasHeight,
-                    kAtlasWidth, 1, /*alloc_context=*/&scratch);
-    stbtt_PackSetOversampling(&font.context, 2, 2);
-    CHECK(stbtt_PackFontRange(&font.context, asset.contents, 0, pixel_height,
-                              32, 126 - 32 + 1, font.chars) == 1,
+    stbtt_pack_context context;
+    stbtt_PackBegin(&context, atlas, kAtlasWidth, kAtlasHeight, kAtlasWidth, 1,
+                    /*alloc_context=*/&scratch);
+    stbtt_PackSetOversampling(&context, 2, 2);
+    CHECK(stbtt_PackFontRange(&context, asset.contents, 0, pixel_height, 32,
+                              126 - 32 + 1, font.chars) == 1,
           "Could not load font ", asset.name, ", atlas is too small");
-    stbtt_PackEnd(&font.context);
+    stbtt_PackEnd(&context);
   }
   font.texture = renderer_->LoadFontTexture(atlas, kAtlasWidth, kAtlasHeight);
   fonts_.Push(font);

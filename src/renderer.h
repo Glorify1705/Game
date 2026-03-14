@@ -286,7 +286,6 @@ class Renderer {
     float pixel_height = 0;
     int ascent, descent, line_gap;
     stbtt_fontinfo font_info;
-    stbtt_pack_context context;
     stbtt_packedchar chars[256];
   };
 
