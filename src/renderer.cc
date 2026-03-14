@@ -871,6 +871,18 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
   float x = 0;
   for (size_t i = 0; i < str.size(); ++i) {
     const char c = str[i];
+    if (c == '\033') {
+      // Skip ANSI escape sequence, matching DrawText behavior.
+      while (i < str.size() && str[i] != 'm') i++;
+      continue;
+    }
+    if (c == '\t') {
+      // 4 spaces, matching DrawText behavior.
+      int width, bearing;
+      stbtt_GetCodepointHMetrics(&info->font_info, ' ', &width, &bearing);
+      p.x += scale * width * 4;
+      continue;
+    }
     if (c == '\n') {
       x = std::max(x, p.x);
       p.x = 0;
