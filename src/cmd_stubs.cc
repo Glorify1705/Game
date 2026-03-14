@@ -2,9 +2,7 @@
 #include <cstring>
 #include <string_view>
 
-#include "allocators.h"
 #include "cli.h"
-#include "fileutil.h"
 #include "lua.h"
 #include "lua_assets.h"
 #include "lua_bytebuffer.h"
@@ -17,11 +15,12 @@
 #include "lua_sound.h"
 #include "lua_system.h"
 #include "mimalloc_allocator.h"
+#include "platform.h"
 #include "units.h"
 
 namespace G {
 
-int CmdStubs(Slice<const char*> args) {
+int CmdStubs(Slice<const char*> args, Allocator* allocator) {
   const char* output = "definitions/game.lua";
   for (size_t i = 1; i < args.size(); ++i) {
     if (std::string_view(args[i]) == "--output" && i + 1 < args.size()) {
@@ -38,7 +37,9 @@ int CmdStubs(Slice<const char*> args) {
     MakeDirs(parent);
   }
 
-  auto* allocator = new StaticAllocator<Megabytes(32)>();
+  // TODO: Decouple stub generation from the Lua class.  The type and library
+  // metadata is statically known and should be loadable without instantiating
+  // a full Lua runtime.
   MimallocAllocator lua_alloc(allocator->Alloc(Megabytes(16), kMaxAlign),
                               Megabytes(16));
   Lua lua(/*args=*/{}, /*db=*/nullptr, /*assets=*/nullptr, &lua_alloc);
@@ -55,7 +56,6 @@ int CmdStubs(Slice<const char*> args) {
   AddAssetsLibrary(&lua);
   lua.GenerateLuaLSStubs(output);
   printf("Wrote LuaLS stubs to %s\n", output);
-  delete allocator;
   return 0;
 }
 

@@ -5,8 +5,8 @@
 
 namespace G {
 
-int CmdVersion() {
-  printf("game engine v%s (built %s)\n", GAME_VERSION_STR, __DATE__);
+int CmdVersion(const char* argv0) {
+  printf("%s v%s (built %s)\n", argv0, GAME_VERSION_STR, __DATE__);
   return 0;
 }
 

@@ -1,18 +1,18 @@
 #include <cstdio>
-#include <cstring>
+#include <string_view>
 
 #include "cli.h"
-#include "fileutil.h"
+#include "logging.h"
+#include "platform.h"
 #include "stringlib.h"
 #include "templates.h"
 
-#ifndef _WIN32
-#include <unistd.h>
-#endif
-
 namespace G {
 
-int CmdInit(Slice<const char*> args) {
+// Scaffolds a new game project by creating the directory structure and writing
+// starter files (conf.json, main.lua, game.lua, .luarc.json), then generates
+// LuaLS type stubs into definitions/.
+int CmdInit(Slice<const char*> args, Allocator* allocator) {
   const char* dir = ".";
   for (size_t i = 1; i < args.size(); ++i) {
     if (args[i][0] != '-') {
@@ -27,7 +27,7 @@ int CmdInit(Slice<const char*> args) {
   if (project_name.empty() || project_name == "." || project_name == "/") {
     // Use current working directory name.
     char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) != nullptr) {
+    if (GetCwd(cwd, sizeof(cwd))) {
       project_name = Basename(std::string_view(cwd));
     }
     if (project_name.empty()) project_name = "my-game";
@@ -45,27 +45,26 @@ int CmdInit(Slice<const char*> args) {
   }
 
   // Write scaffold files.
-  // Need a null-terminated copy of project_name for printf.
-  char name_buf[256];
-  size_t name_len = project_name.size() < sizeof(name_buf) - 1
-                        ? project_name.size()
-                        : sizeof(name_buf) - 1;
-  memcpy(name_buf, project_name.data(), name_len);
-  name_buf[name_len] = '\0';
+  FixedStringBuffer<256> name_buf(project_name);
 
-  if (!WriteFileF(conf_path.str(), templates::kConfJson, name_buf, name_buf)) {
+  LOG("Writing ", conf_path.str());
+  if (!WriteFileF(conf_path.str(), templates::kConfJson.data(), name_buf.str(),
+                  name_buf.str())) {
     fprintf(stderr, "Error: could not write %s\n", conf_path.str());
     return 1;
   }
 
   FixedStringBuffer<1024> main_path(dir, "/main.lua");
-  WriteFile(main_path.str(), templates::kMainLua);
+  LOG("Writing ", main_path.str());
+  WriteFile(main_path.str(), templates::kMainLua.data());
 
   FixedStringBuffer<1024> game_path(dir, "/game.lua");
-  WriteFile(game_path.str(), templates::kGameLua);
+  LOG("Writing ", game_path.str());
+  WriteFile(game_path.str(), templates::kGameLua.data());
 
   FixedStringBuffer<1024> luarc_path(dir, "/.luarc.json");
-  WriteFile(luarc_path.str(), templates::kLuarcJson);
+  LOG("Writing ", luarc_path.str());
+  WriteFile(luarc_path.str(), templates::kLuarcJson.data());
 
   // Create definitions directory and generate stubs.
   FixedStringBuffer<1024> defs_dir(dir, "/definitions");
@@ -73,7 +72,7 @@ int CmdInit(Slice<const char*> args) {
 
   FixedStringBuffer<1024> stubs_output(defs_dir.str(), "/game.lua");
   const char* stubs_argv[] = {"stubs", "--output", stubs_output.str()};
-  CmdStubs({stubs_argv, 3});
+  CmdStubs({stubs_argv, 3}, allocator);
 
   printf("Created new game project in '%s'.\n", dir);
   printf("\n  cd %s && game run\n\n", dir);

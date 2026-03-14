@@ -1,21 +1,16 @@
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <string_view>
 
 #include "cli.h"
-#include "config.h"
-#include "fileutil.h"
 #include "game.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
+#include "logging.h"
 #include "packer.h"
+#include "platform.h"
 #include "stringlib.h"
 #include "units.h"
-
-#ifndef _WIN32
-#include <unistd.h>
-#endif
 
 namespace G {
 
@@ -25,27 +20,17 @@ void ComputeCacheDir(const char* source_directory, char* out, size_t out_size) {
   const char* abs_path = AbsolutePath(source_directory);
   uint64_t hash = rapidhash(abs_path, strlen(abs_path));
 
-  const char* home = getenv("HOME");
-  if (home == nullptr) home = "/tmp";
-
   char hash_str[17];
   snprintf(hash_str, sizeof(hash_str), "%016llx", (unsigned long long)hash);
 
-#ifdef __APPLE__
-  snprintf(out, out_size, "%s/Library/Caches/game/%s", home, hash_str);
-#else
-  const char* xdg_cache = getenv("XDG_CACHE_HOME");
-  if (xdg_cache != nullptr && xdg_cache[0] != '\0') {
-    snprintf(out, out_size, "%s/game/%s", xdg_cache, hash_str);
-  } else {
-    snprintf(out, out_size, "%s/.cache/game/%s", home, hash_str);
-  }
-#endif
+  char base_cache[1024];
+  GetUserCacheDir("game", base_cache, sizeof(base_cache));
+  snprintf(out, out_size, "%s/%s", base_cache, hash_str);
 }
 
 }  // namespace
 
-int CmdRun(Slice<const char*> args) {
+int CmdRun(Slice<const char*> args, Allocator* allocator) {
   const char* source_directory = ".";
   bool hotreload = true;
   bool clean = false;
@@ -87,18 +72,19 @@ int CmdRun(Slice<const char*> args) {
   // Compute cache directory and database path.
   char cache_dir[1024];
   ComputeCacheDir(source_directory, cache_dir, sizeof(cache_dir));
+  LOG("Cache directory: ", cache_dir);
   MakeDirs(cache_dir);
 
   FixedStringBuffer<1024> db_path(cache_dir, "/assets.sqlite3");
 
   // Handle --clean: delete the cached database.
   if (clean) {
+    LOG("Deleting cached database: ", db_path.str());
     remove(db_path.str());
   }
 
   // Configure SQLite memory.
-  ArenaAllocator sqlite_arena(static_cast<uint8_t*>(malloc(Megabytes(16))),
-                              Megabytes(16));
+  ArenaAllocator sqlite_arena(allocator, Megabytes(16));
   CHECK(sqlite3_config(SQLITE_CONFIG_HEAP,
                        sqlite_arena.Alloc(Megabytes(16), kMaxAlign),
                        Megabytes(16), 64) == SQLITE_OK,
@@ -123,33 +109,18 @@ int CmdRun(Slice<const char*> args) {
   return 0;
 }
 
-int CmdRunPackaged(Slice<const char*> args) {
+int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
   // Find the directory containing the binary.
-#ifdef _WIN32
-  char exe_path[MAX_PATH];
-  GetModuleFileNameA(nullptr, exe_path, MAX_PATH);
-#else
-  char exe_path[PATH_MAX];
-  ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-  if (len <= 0) {
+  char exe_dir[1024];
+  if (!GetExeDir(exe_dir, sizeof(exe_dir))) {
     fprintf(stderr, "Error: could not determine binary location.\n");
     return 1;
   }
-  exe_path[len] = '\0';
-#endif
 
-  char* last_slash = strrchr(exe_path, '/');
-#ifdef _WIN32
-  char* last_bslash = strrchr(exe_path, '\\');
-  if (last_bslash > last_slash) last_slash = last_bslash;
-#endif
-  if (last_slash != nullptr) last_slash[1] = '\0';
-
-  FixedStringBuffer<1024> db_path(exe_path, "assets.sqlite3");
+  FixedStringBuffer<1024> db_path(exe_dir, "assets.sqlite3");
 
   // Configure SQLite memory.
-  ArenaAllocator sqlite_arena(static_cast<uint8_t*>(malloc(Megabytes(16))),
-                              Megabytes(16));
+  ArenaAllocator sqlite_arena(allocator, Megabytes(16));
   CHECK(sqlite3_config(SQLITE_CONFIG_HEAP,
                        sqlite_arena.Alloc(Megabytes(16), kMaxAlign),
                        Megabytes(16), 64) == SQLITE_OK,
@@ -182,30 +153,9 @@ int CmdRunPackaged(Slice<const char*> args) {
 }
 
 bool PackagedGameExists(const char* argv0) {
-#ifdef _WIN32
-  char exe_path[MAX_PATH];
-  GetModuleFileNameA(nullptr, exe_path, MAX_PATH);
-#elif defined(__APPLE__)
-  char exe_path[PATH_MAX];
-  uint32_t size = sizeof(exe_path);
-  if (_NSGetExecutablePath(exe_path, &size) != 0) return false;
-#else
-  char exe_path[PATH_MAX];
-  ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-  if (len <= 0) return false;
-  exe_path[len] = '\0';
-#endif
-
-  // Find the directory containing the binary.
-  char* last_slash = strrchr(exe_path, '/');
-#ifdef _WIN32
-  char* last_bslash = strrchr(exe_path, '\\');
-  if (last_bslash > last_slash) last_slash = last_bslash;
-#endif
-  if (last_slash == nullptr) return false;
-
-  last_slash[1] = '\0';
-  FixedStringBuffer<1024> asset_path(exe_path, "assets.sqlite3");
+  char exe_dir[1024];
+  if (!GetExeDir(exe_dir, sizeof(exe_dir))) return false;
+  FixedStringBuffer<1024> asset_path(exe_dir, "assets.sqlite3");
   return FileExists(asset_path.str());
 }
 

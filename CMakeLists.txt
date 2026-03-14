@@ -92,7 +92,8 @@ set(GAME_SRCS
     "src/cmd_package.cc"
     "src/cmd_run.cc"
     "src/cmd_stubs.cc"
-    "src/cmd_version.cc")
+    "src/cmd_version.cc"
+    "src/platform.cc")
 
 configure_file(src/version.h.in version.h)
 

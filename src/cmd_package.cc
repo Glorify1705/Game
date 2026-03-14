@@ -4,20 +4,16 @@
 
 #include "cli.h"
 #include "config.h"
-#include "fileutil.h"
 #include "libraries/sqlite3.h"
+#include "logging.h"
 #include "packer.h"
+#include "platform.h"
 #include "stringlib.h"
 #include "units.h"
 
-#ifndef _WIN32
-#include <limits.h>
-#include <unistd.h>
-#endif
-
 namespace G {
 
-int CmdPackage(Slice<const char*> args) {
+int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   const char* source_directory = ".";
   const char* output_dir = "dist";
   const char* name_override = nullptr;
@@ -56,8 +52,8 @@ int CmdPackage(Slice<const char*> args) {
   // Determine binary name from conf.json or override.
   const char* binary_name = "game";
   GameConfig config;
-  ArenaAllocator config_arena(static_cast<uint8_t*>(malloc(Megabytes(1))),
-                              Megabytes(1));
+  ArenaAllocator config_arena(allocator, Megabytes(1));
+  LOG("Loading config from ", conf_path.str());
   if (LoadConfigFromFile(conf_path.str(), &config, &config_arena)) {
     if (config.app_name[0] != '\0') {
       binary_name = config.app_name;
@@ -71,11 +67,13 @@ int CmdPackage(Slice<const char*> args) {
   PHYSFS_CHECK(PHYSFS_init("game"), "Could not initialize PhysFS");
 
   // Create output directory.
+  LOG("Creating output directory: ", output_dir);
   MakeDirs(output_dir);
 
-  // Pack assets into a temporary database.
+  // Pack assets into the database.
   FixedStringBuffer<1024> db_path(output_dir, "/assets.sqlite3");
   sqlite3* db = nullptr;
+  LOG("Creating asset database: ", db_path.str());
   if (sqlite3_open(db_path.str(), &db) != SQLITE_OK) {
     fprintf(stderr, "Error: failed to create database '%s': %s\n",
             db_path.str(), sqlite3_errmsg(db));
@@ -83,40 +81,32 @@ int CmdPackage(Slice<const char*> args) {
   }
   InitializeAssetDb(db);
 
-  ArenaAllocator packer_arena(static_cast<uint8_t*>(malloc(Megabytes(64))),
-                              Megabytes(64));
+  ArenaAllocator packer_arena(allocator, Megabytes(64));
+  LOG("Packing assets from ", source_directory);
   WriteAssetsToDb(source_directory, db, &packer_arena);
   sqlite3_close(db);
 
   // Copy the engine binary.
-  FixedStringBuffer<1024> binary_path(output_dir, "/", binary_name);
-#ifdef _WIN32
-  binary_path.Append(".exe");
-  char self_path[MAX_PATH];
-  GetModuleFileNameA(nullptr, self_path, MAX_PATH);
-#else
-  char self_path[PATH_MAX];
-  ssize_t len = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
-  if (len <= 0) {
+  char self_path[1024];
+  if (!GetExePath(self_path, sizeof(self_path))) {
     fprintf(stderr, "Error: could not determine engine binary path.\n");
     return 1;
   }
-  self_path[len] = '\0';
-#endif
 
+  FixedStringBuffer<1024> binary_path(output_dir, "/", binary_name,
+                                      kExeExtension);
+  LOG("Copying engine binary to ", binary_path.str());
   if (!CopyFile(self_path, binary_path.str())) {
     fprintf(stderr, "Error: could not copy binary to '%s'.\n",
             binary_path.str());
     return 1;
   }
 
-#ifndef _WIN32
-  // Make the binary executable.
-  chmod(binary_path.str(), 0755);
-#endif
+  MakeExecutable(binary_path.str());
 
   // Optionally strip.
   if (strip) {
+    LOG("Stripping binary: ", binary_path.str());
     FixedStringBuffer<1024> strip_cmd("strip ", binary_path.str());
     (void)system(strip_cmd.str());
   }

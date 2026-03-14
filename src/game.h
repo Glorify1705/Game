@@ -8,9 +8,12 @@
 namespace G {
 
 struct GameOptions {
+  // Path to the game project directory, or nullptr for packaged mode.
   const char* source_directory = nullptr;
+  // Whether to watch source files and hot-reload on changes.
   bool hotreload = true;
-  Slice<const char*> args;  // game arguments (after --)
+  // Arguments forwarded to the game scripts (everything after '--').
+  Slice<const char*> args;
 };
 
 // Runs the full engine with SDL, OpenGL, audio, etc.

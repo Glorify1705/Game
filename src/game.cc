@@ -213,6 +213,8 @@ struct EngineModules {
     };
     while (!is_stopped()) {
       if (source_directory == nullptr) {
+        // Packaged mode: no source files to hot-reload.  Keep the thread
+        // alive but idle until it is stopped.
         SDL_Delay(100);
         continue;
       }
@@ -783,23 +785,30 @@ void RunGame(const GameOptions& opts, sqlite3* db) {
   allocator->Destroy(g);
 }
 
-}  // namespace G
+int Main(int argc, const char* argv[]) {
+  // Top-level arena for CLI subcommand memory.
+  auto* cli_buf = static_cast<uint8_t*>(malloc(Megabytes(128)));
+  ArenaAllocator cli_arena(cli_buf, Megabytes(128));
 
-int main(int argc, const char* argv[]) {
   if (argc >= 2) {
-    G::Slice<const char*> sub(argv + 1, (size_t)(argc - 1));
+    Slice<const char*> sub(argv + 1, (size_t)(argc - 1));
     std::string_view cmd = argv[1];
-    if (cmd == "init") return G::CmdInit(sub);
-    if (cmd == "run") return G::CmdRun(sub);
-    if (cmd == "package") return G::CmdPackage(sub);
-    if (cmd == "stubs") return G::CmdStubs(sub);
-    if (cmd == "version") return G::CmdVersion();
-    if (cmd == "help") return G::CmdHelp(argc > 2 ? argv[2] : nullptr);
-    if (cmd == "--help") return G::CmdHelp(/*subcommand=*/nullptr);
-    if (cmd == "--version") return G::CmdVersion();
+    if (cmd == "init") return CmdInit(sub, &cli_arena);
+    if (cmd == "run") return CmdRun(sub, &cli_arena);
+    if (cmd == "package") return CmdPackage(sub, &cli_arena);
+    if (cmd == "stubs") return CmdStubs(sub, &cli_arena);
+    if (cmd == "version") return CmdVersion(argv[0]);
+    if (cmd == "help") return CmdHelp(argv[0], argc > 2 ? argv[2] : nullptr);
+    if (cmd == "--help") return CmdHelp(argv[0], /*subcommand=*/nullptr);
+    if (cmd == "--version") return CmdVersion(argv[0]);
   }
   // No subcommand: packaged game mode or help.
-  if (G::PackagedGameExists(argv[0]))
-    return G::CmdRunPackaged({argv, (size_t)argc});
-  return G::CmdHelp(/*subcommand=*/nullptr);
+  if (PackagedGameExists(argv[0])) {
+    return CmdRunPackaged({argv, (size_t)argc}, &cli_arena);
+  }
+  return CmdHelp(argv[0], /*subcommand=*/nullptr);
 }
+
+}  // namespace G
+
+int main(int argc, const char* argv[]) { return G::Main(argc, argv); }
