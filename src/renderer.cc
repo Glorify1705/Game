@@ -282,8 +282,10 @@ size_t BatchRenderer::LoadFontTexture(const void* data, size_t width,
   OPENGL_CALL(glGenTextures(1, &tex));
   OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + index));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex));
-  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
-  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
                               GL_LINEAR_MIPMAP_LINEAR));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
