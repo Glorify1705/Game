@@ -823,8 +823,9 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
                         /*angle=*/0);
     p.x += x * pixel_scale;
     if ((i + 1) < str.size()) {
-      p.x += info->scale * stbtt_GetCodepointKernAdvance(&info->font_info,
-                                                         str[i], str[i + 1]);
+      p.x +=
+          pixel_scale * info->scale *
+          stbtt_GetCodepointKernAdvance(&info->font_info, str[i], str[i + 1]);
     }
   };
   for (size_t i = 0; i < str.size();) {
