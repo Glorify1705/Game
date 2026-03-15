@@ -88,8 +88,8 @@ void Sound::SoundCallback(float* result, size_t samples_per_channel,
   for (size_t i = 0; i < stream_; ++i) {
     auto& stream = streams_[i];
     size_t read = stream.Load(buffer_.data(), samples_per_channel, channels);
-    for (size_t i = 0; i < read; ++i) {
-      result[i] += buffer_[i];
+    for (size_t j = 0; j < read; ++j) {
+      result[j] += buffer_[j];
     }
   }
   for (size_t i = 0; i < samples; ++i) {

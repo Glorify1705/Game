@@ -171,6 +171,209 @@ Each `Stream` is ~8.3 KB (dominated by `float samples_[2048]`). At 128 streams: 
 - `src/sound.cc` — `AddSource` rewrite, `SoundCallback` auto-reclaim, validation in `Stop`/`StartChannel`/`SetSourceGain`
 - `src/lua_sound.cc` — pass `auto_free` flag from `play()` vs `add_source()`
 
-## Existing bug
+## Alternative: Music vs Effects split (Love2D-style)
 
-`SoundCallback` (`sound.cc:83`) uses `i` for both the outer stream loop and the inner sample mixing loop, shadowing the variable. The inner loop should use `j`.
+Love2D distinguishes two source types: `"static"` (fully decoded, for short effects) and `"stream"` (decoded on the fly, for long music). The interesting idea isn't the decode strategy — we already stream everything — but the **partitioned allocation**. Music and effects can't starve each other because they draw from different pools.
+
+### How it would work
+
+Reserve a small number of dedicated music slots. Effects get the rest.
+
+```
+streams_[0]          ← music slot 0 (reserved)
+streams_[1]          ← music slot 1 (reserved, for crossfade)
+streams_[2..N-1]     ← effects pool
+```
+
+New Lua API:
+
+```lua
+-- Music: returns a handle, loops by default, only 1-2 active at a time.
+local music = G.sound.play_music("overworld.ogg")
+G.sound.stop_music(music)
+
+-- Effects: fire-and-forget, draws from the effects pool.
+G.sound.play("gunshot.ogg")
+
+-- Managed effects (same as today's add_source):
+local src = G.sound.add_source("door_open.ogg")
+G.sound.play_source(src)
+```
+
+### Does this solve the slot exhaustion problem?
+
+**No, not by itself.** It protects music from being crowded out by effects — which is a real usability win — but the effects pool still leaks slots the same way the current system does. You'd still need either a free list or a linear scan fix within the effects partition.
+
+So this is an **additive** API improvement, not a replacement for the free list.
+
+### What it does buy you
+
+1. **Guaranteed music playback.** A burst of 100 gunshot sounds can never evict background music. This is the main practical benefit — losing music is far more noticeable than dropping an effect.
+
+2. **Simpler music semantics.** Music typically wants looping, crossfading, and volume ducking. A dedicated `play_music` path can default to looping and handle crossfade between two reserved slots without any extra Lua bookkeeping.
+
+3. **Clearer mental model for game code.** `play_music` vs `play` is easier to reason about than remembering which `add_source` handles are long-lived vs transient.
+
+### What it costs
+
+1. **More API surface.** `play_music`, `stop_music`, `set_music_volume` alongside the existing effect functions. More code in `lua_sound.cc`.
+
+2. **Rigid partitioning.** If `kMusicSlots = 2` and some game wants 3 layered music tracks, you're stuck. Love2D avoids this because it doesn't have a hard stream limit — it creates OS-level audio sources dynamically.
+
+3. **Doesn't eliminate the need for effect slot reclamation.** The effects pool still needs the free list (or at minimum the `auto_free_` scan fix). This means the music/effects split is strictly more work than just doing the free list alone.
+
+### Code changes required (on top of the free list)
+
+**`sound.h`:**
+```cpp
+static constexpr size_t kMusicSlots = 2;
+static constexpr size_t kEffectSlotStart = kMusicSlots;
+
+// Music-specific state.
+Source music_active_ = kNullIndex;      // currently playing music slot
+Source music_next_ = kNullIndex;        // for crossfade
+bool music_looping_[kMusicSlots] = {};
+```
+
+**`sound.cc` — new `PlayMusic` method:**
+```cpp
+bool Sound::PlayMusic(std::string_view name, Source* source) {
+  // Pick music slot: prefer the inactive one (for crossfade),
+  // else reuse the active one.
+  uint32_t slot = kNullIndex;
+  for (size_t i = 0; i < kMusicSlots; ++i) {
+    if (!streams_[i].IsPlaying()) { slot = i; break; }
+  }
+  if (slot == kNullIndex) {
+    // All music slots playing — stop the oldest.
+    slot = music_active_;
+    streams_[slot].Stop();
+  }
+  // Init and start (same load logic as AddSource).
+  // ...
+  music_looping_[slot] = true;
+  *source = slot;
+  return true;
+}
+```
+
+**`sound.cc` — `SoundCallback` loop change for music:**
+```cpp
+// In SoundCallback, after a music stream's Load() returns 0:
+if (i < kMusicSlots && music_looping_[i]) {
+  stream.Start();  // rewind and keep playing
+}
+```
+
+**`sound.cc` — `AllocStream` must skip music slots:**
+```cpp
+uint32_t AllocStream() {
+  // Free list only contains effect slots (indices >= kMusicSlots).
+  if (free_head_ != kNullIndex) { ... }
+  // High-water mark starts at kEffectSlotStart.
+  if (stream_ < kMaxStreams) return stream_++;
+  return kNullIndex;
+}
+// Constructor initializes: stream_ = kEffectSlotStart;
+```
+
+**`lua_sound.cc` — 3 new functions:**
+```cpp
+{"play_music", ...},   // calls PlayMusic, returns handle
+{"stop_music", ...},   // stops music slot, rewinds
+{"set_music_volume", ...},  // sets gain on music slot
+```
+
+## Simpler alternatives considered
+
+Before committing to the free list (or the music/effects split), it's worth examining whether simpler fixes suffice.
+
+### Alternative 1: Just fix the linear scan with `auto_free_`
+
+The simplest possible fix. Keep the O(n) scan in `AddSource`, but only reuse streams marked `auto_free_`:
+
+```cpp
+bool Sound::AddSource(std::string_view name, Source* source, bool auto_free) {
+  // ...
+  size_t slot = stream_;
+  for (size_t i = 0; i < stream_; ++i) {
+    if (streams_[i].auto_free_ && !streams_[i].IsPlaying()) {
+      slot = i;
+      break;
+    }
+  }
+  // ... rest unchanged ...
+  streams_[slot].auto_free_ = auto_free;
+}
+```
+
+**Pros:**
+- Minimal diff. One new bool on Stream, a single `if` condition change in `AddSource`. No free list, no `next_free_`, no `AllocStream`/`FreeStream`.
+- Solves the correctness bug (managed streams never get stomped).
+- O(n) is irrelevant at n=16 or even n=128 — the scan is behind a mutex that the audio thread already contends on at 172 Hz. A scan over 128 bools costs ~2 cache lines.
+
+**Cons:**
+- Doesn't proactively reclaim in `SoundCallback`. Instead, slots sit "dead" until the next `AddSource` call happens to find them. This is fine — dead slots just return 0 from `Load()`, costing one branch per callback.
+- If the high-water mark hits `kMaxStreams` before any `play()` call reclaims a slot, you get a false "out of streams" error. In practice unlikely: `play()` is the only thing that creates transient streams, and it's also the only thing that reclaims them.
+
+**Verdict:** This is probably good enough. The free list is a premature optimization at these sizes. Ship this first, add the free list later only if profiling shows the scan matters (it won't).
+
+### Alternative 2: Bump `kMaxStreams` and do nothing else
+
+Just raise the limit from 16 to, say, 64 or 128. Don't fix the leak.
+
+**Pros:**
+- Zero code changes beyond one constant.
+
+**Cons:**
+- Doesn't fix the bug, just delays it. A game session that plays 129 sound effects still crashes. This is a ticking time bomb.
+- Memory cost grows for no reason (dead streams hold 8 KB each for an unused sample buffer, plus ~256 KB each for the VorbisSampler/WavSampler decode buffer that was allocated from the free list allocator and never returned).
+
+**Verdict:** Not a fix. The decoder memory leak alone makes this untenable — every unreclaimed stream holds onto its `VorbisSampler` or `WavSampler` allocation permanently.
+
+### Alternative 3: Ring buffer for effects
+
+Instead of a free list, use a circular index for fire-and-forget effects. New effects always go to `effect_next_`, which wraps around. If the slot is still playing, either skip it (drop the new sound) or stop it (cut it short).
+
+```cpp
+uint32_t effect_next_ = kEffectSlotStart;
+
+uint32_t AllocEffect() {
+  uint32_t slot = effect_next_;
+  effect_next_ = kEffectSlotStart +
+      (effect_next_ - kEffectSlotStart + 1) % kEffectSlotCount;
+  if (streams_[slot].IsPlaying()) {
+    streams_[slot].Stop();  // cut it short
+  }
+  return slot;
+}
+```
+
+**Pros:**
+- O(1), no linked list overhead.
+- Graceful degradation: when the pool is full, the oldest effect gets cut short instead of crashing. This is arguably the right behavior for sound effects.
+- Naturally prevents unbounded growth.
+
+**Cons:**
+- Only works for fire-and-forget effects. Managed sources need separate handling (same partitioning problem as the music/effects split).
+- Stopping a still-playing sound mid-stream can produce audible pops. Would need a short fade-out, which complicates `Stream::Stop()`.
+- Interleaves with managed sources awkwardly — either partition the array (back to the music/effects split) or keep managed sources in a separate structure.
+
+**Verdict:** Interesting, but the forced eviction and partitioning complexity make it harder than the free list for not much benefit.
+
+## Recommendation
+
+**Do Alternative 1 first** (linear scan + `auto_free_` flag). It's the smallest correct fix:
+- Add `bool auto_free_` to `Stream` (1 line)
+- Change `AddSource` signature to take `bool auto_free` (1 line)
+- Change the reuse scan to check `auto_free_ && !IsPlaying()` (1 line)
+- Set `auto_free_` after init (1 line)
+- Pass `true`/`false` from `lua_sound.cc` (2 call sites)
+
+That's ~6 lines of real change. It fixes the correctness bug (managed streams are never reused) and the slot exhaustion (fire-and-forget streams are reused). Ship it.
+
+**If music protection matters** (i.e., you want background music to never be interrupted by a burst of effects), add the music/effects split on top. But this is a separate concern from the slot leak — it's an API design question, not a bug fix.
+
+**The free list becomes relevant only if** `kMaxStreams` grows large enough that the O(n) scan measurably affects the mutex hold time in `SoundCallback`. At 128 streams, the scan touches ~128 bytes (one bool per stream) — well within L1 cache, ~50 ns. The SDL audio callback itself takes microseconds. Not worth optimizing.
+
+**Decoder memory note:** Whichever approach is chosen, reclaimed fire-and-forget streams should also free their `VorbisSampler`/`WavSampler` back to the respective `FreeList<>` allocator. Currently `AddSource` allocates via `vorbis_alloc_.Alloc()` / `wavs_alloc_.New()` but never frees. The `Stream::Callbacks::Deinit()` path exists but is never called. When reusing a slot, call `cb_.Deinit()` before reinitializing.
