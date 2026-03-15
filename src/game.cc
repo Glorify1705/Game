@@ -265,7 +265,8 @@ struct EngineModules {
     DbAssets::TextFile* controller_db = nullptr;
     text_files_table_.Lookup("gamecontrollerdb", &controller_db);
     if (controller_db) {
-      controllers.Initialize(controller_db->contents, controller_db->size);
+      controllers.Initialize(
+          ByteSlice(controller_db->contents, controller_db->size));
     } else {
       controllers.Initialize();
     }

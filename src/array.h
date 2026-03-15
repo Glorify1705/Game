@@ -286,6 +286,8 @@ ArrayView<T> MakeArrayView(const FixedArray<T>& a) {
   return ArrayView(a.cdata(), a.size());
 }
 
+using ByteSlice = Slice<const uint8_t>;
+
 }  // namespace G
 
 #endif  // _FIXED_ARRAY_H

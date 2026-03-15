@@ -124,9 +124,9 @@ class Controllers {
   ~Controllers();
 
   // Loads controller mappings and opens connected joysticks.
-  // If |db| is non-null, uses the provided database; otherwise falls back to
+  // If |db| is non-empty, uses the provided database; otherwise falls back to
   // the built-in default.
-  void Initialize(const uint8_t* db = nullptr, size_t db_size = 0);
+  void Initialize(ByteSlice db = {});
 
   void PushEvent(const SDL_Event& event);
 
