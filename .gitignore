@@ -30,3 +30,4 @@ vgcore.*
 ignore*
 
 .gdb_history
+worktrees/
