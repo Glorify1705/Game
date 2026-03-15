@@ -93,15 +93,8 @@ void Mouse::PushEvent(const SDL_Event& event) {
   }
 }
 
-Controllers::Controllers(DbAssets* assets, Allocator* allocator)
+Controllers::Controllers(Allocator* allocator)
     : button_table_(allocator), axis_table_(allocator) {
-  LOG("Using the default controllers database");
-  SDL_RWops* rwops = SDL_RWFromMem(
-      const_cast<void*>(static_cast<const void*>(kControllerDatabase)),
-      sizeof(kControllerDatabase));
-  CHECK(rwops != nullptr);
-  CHECK(SDL_GameControllerAddMappingsFromRW(rwops, /*freerw=*/true) > 0,
-        "Could not add Joystick database: ", SDL_GetError());
   // Button table.
   button_table_.Insert("a", SDL_CONTROLLER_BUTTON_A);
   button_table_.Insert("b", SDL_CONTROLLER_BUTTON_B);
@@ -120,7 +113,26 @@ Controllers::Controllers(DbAssets* assets, Allocator* allocator)
   axis_table_.Insert("ranalogy", SDL_CONTROLLER_AXIS_RIGHTY);
   axis_table_.Insert("ltrigger", SDL_CONTROLLER_AXIS_TRIGGERLEFT);
   axis_table_.Insert("rtrigger", SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
-  // Load controllers.
+}
+
+void Controllers::Initialize(const uint8_t* db, size_t db_size) {
+  const void* data;
+  size_t size;
+  if (db != nullptr && db_size > 0) {
+    LOG("Using custom controllers database");
+    data = db;
+    size = db_size;
+  } else {
+    LOG("Using the default controllers database");
+    data = kControllerDatabase;
+    size = sizeof(kControllerDatabase);
+  }
+  SDL_RWops* rwops =
+      SDL_RWFromMem(const_cast<void*>(data), static_cast<int>(size));
+  CHECK(rwops != nullptr);
+  CHECK(SDL_GameControllerAddMappingsFromRW(rwops, /*freerw=*/true) > 0,
+        "Could not add Joystick database: ", SDL_GetError());
+  // Open controllers.
   const int controllers = SDL_NumJoysticks();
   CHECK(controllers >= 0, "Failed to get joysticks: ", SDL_GetError());
   DCHECK(static_cast<size_t>(controllers) < controllers_.size());
