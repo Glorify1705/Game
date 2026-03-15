@@ -55,12 +55,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Layer and canvas system.md",
+                "file": "Memory allocators for third-party libraries.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Layer and canvas system"
+              "title": "Memory allocators for third-party libraries"
             }
           }
         ],
@@ -209,27 +209,28 @@
   },
   "active": "a1c9f67766d5c55c",
   "lastOpenFiles": [
-    "Sound stream free list.md",
-    "Sound stream free list.md.tmp.165035.1773526984572",
+    "Asset system.md",
+    "Memory allocators for third-party libraries.md",
+    "Single-file packaging.md",
+    "Sound system.md",
     "Graphics system.md",
-    "Font system.md",
     "Font system bug fixes.md",
     "Test input system.md",
+    "Font system.md",
+    "Layer and canvas system.md",
+    "Lua API for LSP and LLMs.md",
+    "Sound stream free list.md",
+    "Sound stream free list.md.tmp.165035.1773526984572",
     "Test input system.md.tmp.165035.1773524851423",
     "Font system bug fixes.md.tmp.165035.1773514137437",
     "Font system bug fixes.md.tmp.165035.1773508241162",
     "Font system bug fixes.md.tmp.165035.1773508231746",
     "Font system bug fixes.md.tmp.165035.1773508223859",
     "CLI workflow.md",
-    "Single-file packaging.md",
     "Single-file packaging.md.tmp.214994.1773348367438",
     "CLI workflow.md.tmp.214994.1773348334712",
     "CLI workflow.md.tmp.214994.1773348324930",
     "CLI workflow.md.tmp.214994.1773348318371",
-    "Lua API for LSP and LLMs.md",
-    "Memory allocators for third-party libraries.md",
-    "Asset system.md",
-    "Sound system.md",
     "STB Vorbis.md",
     "Welcome.md"
   ]
