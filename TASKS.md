@@ -56,6 +56,19 @@ See `design/Lua API for LSP and LLMs.md` for full design.
   - Capture: metatable name, LuaLS type alias, fields (name + type), methods (name + params + returns), metamethods/operators, constructors (which `G.*` functions return this type)
   - Extend the stub generator to emit `---@class`, `---@field`, `---@operator`, and method annotations from this registry
 
+## Features
+
+- [ ] Support LuaJIT as an alternative scripting backend
+  - LuaJIT provides 10-100x speedups via JIT compilation while maintaining Lua 5.1 compatibility
+  - FFI library enables direct C struct access without crossing the Lua/C boundary
+  - Considerations: 2GB GC memory limit, custom arena allocator integration, CMake option to select backend, limited Apple Silicon support (requires fork)
+- [ ] Implement canvas API using framebuffers (Love2D-style)
+  - `G.graphics.new_canvas(width, height)` — create an off-screen FBO with color texture attachment
+  - `G.graphics.set_canvas(canvas)` — redirect drawing to canvas; `set_canvas()` resets to screen
+  - `G.graphics.draw_canvas(canvas, x, y [, angle])` — draw canvas as textured quad
+  - Use cases: post-processing shaders, pixel art scaling, UI layers, minimap
+  - Should respect existing transform stack; `take_screenshot` should work with active canvas
+
 ## Performance
 
 - [ ] Integrate https://github.com/wolfpld/tracy.

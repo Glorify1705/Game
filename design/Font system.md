@@ -143,19 +143,19 @@ Only 95 glyphs are packed into a 3000×3000 atlas. At 100px reference height wit
 
 Love2D uses FreeType for font rasterization and creates texture atlases on demand. Key differences:
 
-| Aspect | This Engine | Love2D |
-|---|---|---|
-| Font library | stb_truetype | FreeType 2 |
-| Atlas sizing | Fixed 3000×3000 | Dynamic, grows as needed |
-| Glyph loading | All ASCII at load | On-demand per glyph |
-| Hinting | None (stb_truetype has basic auto-hinting) | FreeType hinting (auto, light, mono, none) |
-| SDF support | No | No (but can be added via shaders) |
-| Character range | ASCII 32–126 only | Full Unicode |
-| Font objects | Looked up by filename string | First-class `Font` objects with methods |
-| Text alignment | Manual | Built-in `printf` with align/wrap |
-| Colored text | ANSI escape codes | Inline color table `{color, "text", color, "text"}` |
-| Rich text | No | `Text` objects with formatted sections |
-| DPI scaling | No | Automatic DPI scaling with `love.window.getDPIScale()` |
+| Aspect          | This Engine                                | Love2D                                                 |
+| --------------- | ------------------------------------------ | ------------------------------------------------------ |
+| Font library    | stb_truetype                               | FreeType 2                                             |
+| Atlas sizing    | Fixed 3000×3000                            | Dynamic, grows as needed                               |
+| Glyph loading   | All ASCII at load                          | On-demand per glyph                                    |
+| Hinting         | None (stb_truetype has basic auto-hinting) | FreeType hinting (auto, light, mono, none)             |
+| SDF support     | No                                         | No (but can be added via shaders)                      |
+| Character range | ASCII 32–126 only                          | Full Unicode                                           |
+| Font objects    | Looked up by filename string               | First-class `Font` objects with methods                |
+| Text alignment  | Manual                                     | Built-in `printf` with align/wrap                      |
+| Colored text    | ANSI escape codes                          | Inline color table `{color, "text", color, "text"}`    |
+| Rich text       | No                                         | `Text` objects with formatted sections                 |
+| DPI scaling     | No                                         | Automatic DPI scaling with `love.window.getDPIScale()` |
 
 Love2D's `Font:getWidth()`, `Font:getHeight()`, `Font:getWrap()` provide robust text measurement. The engine's `text_dimensions` is the only measurement function and has the bugs noted above.
 
