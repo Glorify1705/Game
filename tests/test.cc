@@ -6,6 +6,7 @@
 #include "dictionary.h"
 #include "gmock/gmock-matchers.h"
 #include "gtest/gtest-matchers.h"
+#include "segmented_list.h"
 #include "stringlib.h"
 #include "vec.h"
 
@@ -368,6 +369,154 @@ TEST(CircularBuffer, ConstAccess) {
   EXPECT_FALSE(cbuf.empty());
   EXPECT_FALSE(cbuf.full());
   EXPECT_EQ(cbuf.capacity(), 4u);
+}
+
+// ---------------------------------------------------------------------------
+// SegmentedList
+// ---------------------------------------------------------------------------
+
+TEST(SegmentedList, EmptyOnConstruction) {
+  SegmentedList<int> list(SystemAllocator::Instance());
+  EXPECT_TRUE(list.empty());
+  EXPECT_EQ(list.size(), 0u);
+  EXPECT_EQ(list.capacity(), 0u);
+}
+
+TEST(SegmentedList, PushAndAccess) {
+  SegmentedList<int> list(SystemAllocator::Instance());
+  for (int i = 0; i < 100; ++i) {
+    list.Push(i);
+  }
+  EXPECT_EQ(list.size(), 100u);
+  for (int i = 0; i < 100; ++i) {
+    EXPECT_EQ(list[i], i);
+  }
+}
+
+TEST(SegmentedList, StablePointers) {
+  SegmentedList<int> list(SystemAllocator::Instance());
+  int* ptrs[64];
+  for (int i = 0; i < 64; ++i) {
+    ptrs[i] = list.Push(i);
+  }
+  // All pointers remain valid after growth.
+  for (int i = 0; i < 64; ++i) {
+    EXPECT_EQ(*ptrs[i], i);
+  }
+}
+
+TEST(SegmentedList, PtrAt) {
+  SegmentedList<int> list(SystemAllocator::Instance());
+  for (int i = 0; i < 32; ++i) {
+    list.Push(i * 10);
+  }
+  for (int i = 0; i < 32; ++i) {
+    EXPECT_EQ(*list.PtrAt(i), i * 10);
+  }
+}
+
+TEST(SegmentedList, Pop) {
+  SegmentedList<int> list(SystemAllocator::Instance());
+  list.Push(1);
+  list.Push(2);
+  list.Push(3);
+  EXPECT_EQ(list.size(), 3u);
+  EXPECT_EQ(list.back(), 3);
+  list.Pop();
+  EXPECT_EQ(list.size(), 2u);
+  EXPECT_EQ(list.back(), 2);
+}
+
+TEST(SegmentedList, Clear) {
+  SegmentedList<int> list(SystemAllocator::Instance());
+  for (int i = 0; i < 50; ++i) list.Push(i);
+  list.Clear();
+  EXPECT_TRUE(list.empty());
+  EXPECT_EQ(list.size(), 0u);
+  // Can push again after clear.
+  list.Push(42);
+  EXPECT_EQ(list[0], 42);
+}
+
+TEST(SegmentedList, Emplace) {
+  SegmentedList<int> list(SystemAllocator::Instance());
+  int* p = list.Emplace(42);
+  EXPECT_EQ(*p, 42);
+  EXPECT_EQ(list[0], 42);
+}
+
+TEST(SegmentedList, Iterator) {
+  SegmentedList<int> list(SystemAllocator::Instance());
+  for (int i = 0; i < 20; ++i) list.Push(i);
+  int expected = 0;
+  for (int v : list) {
+    EXPECT_EQ(v, expected);
+    expected++;
+  }
+  EXPECT_EQ(expected, 20);
+}
+
+TEST(SegmentedList, ConstAccess) {
+  SegmentedList<int> list(SystemAllocator::Instance());
+  for (int i = 0; i < 10; ++i) list.Push(i);
+  const auto& clist = list;
+  for (int i = 0; i < 10; ++i) {
+    EXPECT_EQ(clist[i], i);
+  }
+  EXPECT_EQ(clist.back(), 9);
+  EXPECT_EQ(*clist.PtrAt(5), 5);
+}
+
+TEST(SegmentedList, CustomPrealloc) {
+  SegmentedList<int, 4> list(SystemAllocator::Instance());
+  for (int i = 0; i < 100; ++i) {
+    list.Push(i);
+  }
+  for (int i = 0; i < 100; ++i) {
+    EXPECT_EQ(list[i], i);
+  }
+}
+
+TEST(SegmentedList, LargePrealloc) {
+  SegmentedList<int, 64> list(SystemAllocator::Instance());
+  for (int i = 0; i < 1000; ++i) {
+    list.Push(i);
+  }
+  for (int i = 0; i < 1000; ++i) {
+    EXPECT_EQ(list[i], i);
+  }
+}
+
+TEST(SegmentedList, BoundaryIndices) {
+  // Test indices right at shelf boundaries with P=4.
+  SegmentedList<int, 4> list(SystemAllocator::Instance());
+  // Shelf 0: indices 0-3 (4 items)
+  // Shelf 1: indices 4-7 (4 items)
+  // Shelf 2: indices 8-15 (8 items)
+  // Shelf 3: indices 16-31 (16 items)
+  for (int i = 0; i < 32; ++i) {
+    list.Push(i * 100);
+  }
+  // Check boundary values.
+  EXPECT_EQ(list[0], 0);      // shelf 0 start
+  EXPECT_EQ(list[3], 300);    // shelf 0 end
+  EXPECT_EQ(list[4], 400);    // shelf 1 start
+  EXPECT_EQ(list[7], 700);    // shelf 1 end
+  EXPECT_EQ(list[8], 800);    // shelf 2 start
+  EXPECT_EQ(list[15], 1500);  // shelf 2 end
+  EXPECT_EQ(list[16], 1600);  // shelf 3 start
+  EXPECT_EQ(list[31], 3100);  // shelf 3 end
+}
+
+TEST(SegmentedList, WithArenaAllocator) {
+  StaticAllocator<4096> arena;
+  SegmentedList<int> list(&arena);
+  for (int i = 0; i < 50; ++i) {
+    list.Push(i);
+  }
+  for (int i = 0; i < 50; ++i) {
+    EXPECT_EQ(list[i], i);
+  }
 }
 
 }  // namespace G
