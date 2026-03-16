@@ -276,9 +276,12 @@ class Renderer {
   void Scale(float x, float y) { ApplyTransform(ScaleXY(x, y)); }
 
  private:
-  inline static constexpr size_t kAtlasWidth = 2048;
-  inline static constexpr size_t kAtlasHeight = 2048;
-  inline static constexpr size_t kAtlasSize = kAtlasWidth * kAtlasHeight;
+  struct SDFGlyph {
+    float s0, t0, s1, t1;  // Atlas UV coordinates (normalized 0-1)
+    float x_offset, y_offset;  // Top-left offset from pen position (SDF pixels)
+    float width, height;       // Glyph quad size (SDF pixels)
+    float advance;             // Horizontal advance (SDF pixels)
+  };
 
   struct FontInfo {
     GLuint texture;
@@ -286,7 +289,8 @@ class Renderer {
     float pixel_height = 0;
     int ascent, descent, line_gap;
     stbtt_fontinfo font_info;
-    stbtt_packedchar chars[256];
+    SDFGlyph glyphs[128];     // Indexed by codepoint (only 32-126 used)
+    int atlas_width, atlas_height;
   };
 
   void ApplyTransform(const FMat4x4& mat) {

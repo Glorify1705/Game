@@ -91,6 +91,23 @@ constexpr std::string_view kPostPassFragmentShader = R"(
   }
 )";
 
+constexpr std::string_view kSDFFragmentShader = R"(
+    #version 460 core
+    out vec4 frag_color;
+
+    in vec2 tex_coord;
+    in vec4 out_color;
+
+    uniform sampler2D tex;
+
+    void main() {
+        float distance = texture(tex, tex_coord).r;
+        float smoothing = fwidth(distance);
+        float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
+        frag_color = vec4(out_color.rgb, out_color.a * alpha);
+    }
+  )";
+
 constexpr std::string_view kFragmentShaderPreamble = R"(
   #version 460 core
   #line 1
@@ -143,6 +160,10 @@ Shaders::Shaders(Allocator* allocator)
         LastError());
   CHECK(Link("pre_pass", "pre_pass.vert", "pre_pass.frag", kUseCache),
         LastError());
+  CHECK(Compile(DbAssets::ShaderType::kFragment, "sdf.frag",
+                kSDFFragmentShader, kUseCache),
+        LastError());
+  CHECK(Link("sdf", "pre_pass.vert", "sdf.frag", kUseCache), LastError());
   CHECK(Compile(DbAssets::ShaderType::kVertex, "post_pass.vert",
                 kPostPassVertexShader, kUseCache),
         LastError());
