@@ -795,6 +795,51 @@ If the game needs outlines, glow, or camera-zoom-independent text — implement 
 
 If the game only needs clean text at known UI sizes — fix the bugs, right-size the atlas, and move on. The current bitmap pipeline is simpler and the text quality is already fine for fixed-size rendering. SDF can be added later if requirements change.
 
+## Hot code reloading
+
+### How asset hot reloading works
+
+The engine has a background thread that polls every 10ms, calling `WriteAssetsToDb()` which scans the source asset directory, computes `rapidhash()` checksums of each file, and compares against the checksums stored in the `asset_metadata` SQLite table. Changed files are re-inserted into the database and an atomic counter (`pending_changes_`) is incremented.
+
+The main game loop checks `PendingChanges()` every frame. When changes are detected, it calls `Reload()` which calls `DbAssets::Load()`. This queries `asset_metadata` sorted by processing order (images first, then spritesheets, then everything else), compares checksums against previously loaded values, and calls registered loaders for each changed asset. For fonts, the registered loader calls `Renderer::LoadFont()`.
+
+After asset reload, the Lua runtime re-runs `LoadMain()` and `Init()` to pick up any script changes.
+
+### What happens when a .ttf font file changes
+
+1. Background thread detects the TTF hash changed, re-inserts it into the `fonts` table
+2. Main thread calls `Renderer::LoadFont()` with the new font bytes
+3. `LoadFont` generates a fresh SDF atlas from scratch — per-glyph `stbtt_GetCodepointSDF()`, rect packing, atlas blit, GPU upload
+4. The new `FontInfo` is pushed onto `fonts_` and `font_table_` is updated with a pointer to the new entry
+
+This works correctly: the next `DrawText` call looks up the font by name in `font_table_` and gets the new `FontInfo` with the new SDF atlas texture. The old texture and `FontInfo` remain in memory (the `FixedArray` and `Dictionary` don't free old entries), which is a small leak per reload but acceptable for a development workflow.
+
+### Cost of SDF regeneration on hot reload
+
+SDF generation is the expensive part — 10-50ms per font for 95 ASCII glyphs at 48px. During development this causes a brief hitch on font reload. This is slower than the old bitmap atlas (2-5ms), but the difference is unlikely to be noticeable since font hot reloads are rare (you typically edit scripts or shaders, not font files).
+
+If the SDF cache described in section 7 is implemented, it does not help with hot reloads — a TTF change means the hash changes, which invalidates the cache entry, so the SDF must be regenerated anyway. The cache only helps with cold starts where the font hasn't changed since the last run.
+
+### What happens when the SDF shader is modified
+
+The SDF fragment shader (`sdf.frag`) is compiled from a string constant in `shaders.cc`, not loaded from an asset file. This means it **cannot be hot reloaded** through the normal asset pipeline — changing the shader requires recompiling the engine.
+
+If the SDF shader were moved to an asset file (e.g., `assets/sdf.frag`), it would be hot-reloadable through the existing shader loading path: `Shaders::Load()` compiles fragment shaders with `kForceCompile`, deletes the old GL shader, and relinks the program. This works for all `.frag` files in the asset directory — the engine already hot-reloads custom shaders like `crt.frag` and `pixelate.frag` this way.
+
+However, there's a nuance: `Shaders::Load()` wraps user shaders with `kFragmentShaderPreamble` and `kFragmentShaderPostamble`, which define an `effect()` function signature. The SDF shader doesn't use this wrapper — it defines its own `main()`. To make it hot-reloadable, either:
+
+1. **Restructure the SDF shader as an `effect()` function** — but the SDF shader needs a different `main()` that doesn't multiply the texture sample by color (it reconstructs alpha from the distance field instead), so this doesn't fit the `effect()` pattern cleanly.
+
+2. **Add a second shader loading path** that doesn't wrap with the `effect()` postamble — compile and link the raw GLSL directly, similar to how `pre_pass.frag` and `post_pass.frag` are compiled.
+
+Neither is necessary for now. The SDF shader is small (15 lines) and unlikely to change frequently. If outline/glow uniforms are added later, testing those parameters can be done via Lua uniform bindings without recompiling the shader.
+
+### Texture handle leaking on font hot reload
+
+When `LoadFont` is called again for the same font name, it calls `LoadFontTexture` which creates a new GL texture and pushes it onto `tex_`. The old GL texture handle is never deleted because `font_table_.Insert()` overwrites the pointer to the old `FontInfo` but doesn't clean up the old texture.
+
+This is a pre-existing issue (the bitmap pipeline had the same behavior) and only matters during development hot reloading. In production, fonts are loaded once at startup. If this becomes a problem, `LoadFont` should check whether `font_table_` already contains the font name and delete the old GL texture before creating the new one.
+
 ## Files to modify
 
 | File | Changes |
