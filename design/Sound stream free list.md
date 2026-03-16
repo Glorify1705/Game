@@ -361,6 +361,168 @@ uint32_t AllocEffect() {
 
 **Verdict:** Interesting, but the forced eviction and partitioning complexity make it harder than the free list for not much benefit.
 
+## Future work: Static vs Stream sources (Love2D-style)
+
+Love2D distinguishes `"static"` sources (fully decoded into memory, replayed from a PCM buffer) from `"stream"` sources (decoded on the fly from compressed data). This is orthogonal to the music/effects split discussed above — it's about **decode strategy**, not allocation partitioning.
+
+### What Love2D actually does
+
+- **Static:** Decode the entire file to a PCM buffer on load. Playback is a memcpy from the buffer into the mix. Multiple simultaneous plays share the same decoded buffer with independent read cursors.
+- **Stream:** Open a decoder handle, decode chunks on demand during the audio callback. Each play needs its own decoder state.
+
+### Pros of adding this distinction
+
+1. **Replay without re-decode.** A static source decodes once. Playing it 100 times costs 100 memcpys, not 100 vorbis decodes. For short effects that fire frequently (footsteps, gunshots, UI clicks), this is a significant CPU win — stb_vorbis decode is ~10x more expensive than a buffer copy for a 0.2s sample.
+
+2. **Multiple simultaneous plays from one source.** Currently each `play("gunshot.ogg")` allocates a new stream with its own decoder. With a static source, you could have N lightweight "play cursors" sharing one decoded buffer. This directly reduces the pressure on the stream pool — instead of N streams for N overlapping gunshots, you have 1 static buffer + N cursors.
+
+3. **Deterministic audio-thread cost.** Streaming sources do IO/decode work inside `SoundCallback`, which runs on the audio thread at ~172 Hz. A slow decode can cause buffer underruns (audible glitches). Static sources eliminate this risk for short sounds — the audio thread only copies pre-decoded samples.
+
+4. **Better hot-reload story.** See detailed analysis below.
+
+### Cons
+
+1. **Memory cost.** A 1-second stereo 44.1kHz sound is ~345 KB decoded (vs ~40 KB as Vorbis). For many short effects this is fine (10 effects = ~3 MB). For longer sounds it's prohibitive — a 3-minute music track would be ~60 MB decoded. The static/stream boundary must be chosen carefully.
+
+2. **Added complexity.** Two decode paths, two allocation strategies, a new "play cursor" concept. The current system's uniformity (everything is a stream) is simpler. The complexity is justified only if we actually have sounds that replay frequently enough to matter.
+
+3. **Upfront load time.** Static sources block on full decode during `AddSource`. For a 2-second WAV this is instant; for a 10-second Vorbis file it's noticeable. Could be mitigated with async decode, but that's more complexity.
+
+4. **API surface.** Need to either auto-detect (by duration/file size) or expose the choice to Lua. Love2D requires the user to specify `"static"` or `"stream"` — we could default to static for short files and stream for long ones, but the threshold is game-dependent.
+
+### When it would matter for us
+
+- **Now:** We have few sound effects and no performance-critical audio path. The free list fix is sufficient. Not worth the complexity.
+- **Later:** If the game has many overlapping short effects (e.g., a bullet-hell with dozens of simultaneous hits), the decode cost in `SoundCallback` will become measurable. That's the trigger to add static sources.
+- **Music is always streamed.** No reason to ever fully decode a music track.
+
+### Sketch of what the API could look like
+
+```lua
+-- Explicit (Love2D-style):
+local sfx = G.sound.add_source("gunshot.ogg", { type = "static" })
+local bgm = G.sound.add_source("overworld.ogg", { type = "stream" })
+
+-- Or automatic (duration-based, simpler for users):
+-- Files under 2 seconds → static, longer → stream.
+local sfx = G.sound.add_source("gunshot.ogg")  -- auto-static
+local bgm = G.sound.add_source("overworld.ogg") -- auto-stream
+```
+
+### Implementation notes
+
+A static source would need:
+- A shared `DecodedBuffer` (PCM float array) per unique sound asset, ref-counted or owned by a cache.
+- A lightweight `PlayCursor` struct (just an index into the buffer + gain + playing flag). These replace full `Stream` slots for static sounds.
+- `SoundCallback` checks the source type and either copies from the decoded buffer or calls the streaming decoder.
+
+This is a medium-sized refactor but doesn't conflict with the free list — the free list manages stream slots, and static sources would bypass stream allocation entirely.
+
+### Hot reload interaction
+
+Hot reload is one of the engine's key features, and the static/stream distinction has significant implications for it. Here's how the current reload flow works and how each source type would behave.
+
+#### Current reload flow
+
+```
+File change detected (background thread, rapidhash comparison)
+  → SDL_AtomicSet(&pending_changes_, count)
+  → Main loop picks it up:
+      1. sound.StopAll()          ← stops ALL sounds unconditionally
+      2. assets->Load()           ← reloads changed assets from DB
+         → RegisterSoundLoad callback
+           → Sound::LoadSound(asset)
+             → sounds_.Insert()   ← updates the asset data in the dictionary
+             → for each stream: stream.OnReload(&sound)
+               → if name matches: cb_.Reload(sound)
+                 → ⚠ currently a no-op (returns true, does nothing)
+      3. lua.LoadMain()           ← re-executes main.lua
+      4. lua.Init()               ← calls init()
+```
+
+The `StopAll()` at step 1 is the conservative nuclear option: kill everything, reload assets, let Lua re-create whatever it needs in `init()`. This works but has two costs:
+
+- **All sound stops.** Background music, ambient loops, everything dies and must be restarted. Audible gap on every code save.
+- **Managed handles invalidated.** Lua scripts call `add_source()` in `init()` to recreate handles. Any handles from a previous `init()` cycle now point at streams that were stopped but not freed — they're zombies that waste slots until reused. (The free list partially addresses this for `auto_free` streams, but managed handles are never freed.)
+
+#### How static sources improve reload
+
+**Static sources (short effects):**
+
+A static source owns a `DecodedBuffer` — a flat PCM array keyed by asset name in a cache. On reload:
+
+1. Re-decode the asset into a **new** buffer.
+2. Atomically swap the old buffer pointer for the new one.
+3. Active play cursors keep reading. They'll transition from old samples to new samples mid-playback — for a short effect this is inaudible or irrelevant. Alternatively, invalidate all cursors for that asset (set `playing_ = false`), which is also fine since effects are transient.
+
+**No `StopAll()` needed for effects.** The buffer swap is self-contained. Music keeps playing. Ambient sounds keep playing. Only the reloaded asset is affected.
+
+**Streaming sources (music, long audio):**
+
+A streaming source holds decoder state (`VorbisSampler` / `WavSampler`) that points into the raw compressed asset data. When the asset data changes on reload:
+
+- The decoder's internal pointers (Vorbis codebook, seek table, etc.) reference the **old** data buffer.
+- The old buffer may be freed or overwritten by the asset system.
+- Continuing to decode from stale pointers is undefined behavior.
+
+So streaming sources **must** be torn down and rebuilt on reload. The `cb_.Reload()` callback exists for this but is unimplemented. Properly implementing it would:
+
+1. `Deinit()` the old decoder.
+2. Re-open the decoder against the new asset data.
+3. Seek to the same playback position (or restart from the beginning).
+
+Step 3 is the hard part — Vorbis seeking is expensive and imprecise (sample-granularity seek requires decoding from the nearest page). For music, restarting from the beginning on reload is probably acceptable — the user just edited the audio file, they likely want to hear it from the top.
+
+#### What this means for the static/stream design
+
+The reload story is one of the strongest arguments for the static/stream split:
+
+| | Static (effects) | Stream (music) |
+|---|---|---|
+| Reload mechanism | Swap decoded buffer | Rebuild decoder |
+| Audio interruption | None — cursors keep playing | Music restarts (acceptable) |
+| `StopAll()` needed? | No | Only for streams of the reloaded asset |
+| Lua `init()` re-run impact | None — buffer cache persists | May need to re-acquire handle |
+| Thread safety | Atomic pointer swap + fence | Must hold `mu_`, same as today |
+
+Without the split, the system has to either:
+- **Stop everything** (current approach) — simple but disruptive.
+- **Try to reload in-place** — must handle both decode strategies uniformly, which means the complex streaming-rebuild path is always required even for short sounds that could have been a simple buffer swap.
+
+With the split, effects get the simple path (buffer swap, no interruption) and only music needs the complex path (decoder rebuild). This is a direct upgrade to the hot-reload experience — editing a sound effect no longer kills background music.
+
+#### Reload-aware implementation sketch
+
+```cpp
+// Static source reload (in Sound::LoadSound):
+if (auto* buf = decoded_cache_.Find(sound.name)) {
+  // Re-decode into a new buffer, then swap.
+  DecodedBuffer* fresh = DecodeToBuffer(&sound);
+  buf->Swap(fresh);  // atomic pointer swap
+  // Play cursors keep running — they'll pick up new samples next read.
+  // Old buffer freed after all cursors pass it (or immediately if we
+  // accept the mid-playback transition for short effects).
+}
+
+// Stream source reload (in Stream::OnReload):
+if (handle_ == StringIntern(sound->name)) {
+  Stop();
+  cb_.Deinit();
+  // Re-init decoder with new asset data.
+  if (is_vorbis_) {
+    auto* vorbis = reinterpret_cast<VorbisSampler*>(cb_.ud);
+    if (!vorbis->Open(sound->contents, sound->size)) return false;
+  }
+  Start();  // restart from beginning
+}
+```
+
+#### Migration path
+
+1. **Now:** Keep `StopAll()` on reload. The free list handles slot exhaustion. Reload is disruptive but correct.
+2. **Next:** Implement `cb_.Reload()` for streaming sources so that only streams playing the reloaded asset restart, instead of stopping everything. This is independent of the static/stream split.
+3. **Later:** Add static sources with buffer caching. Effects survive reload completely uninterrupted. Music uses the stream reload path from step 2. `StopAll()` is removed from `Reload()` entirely.
+
 ## Recommendation
 
 **Do Alternative 1 first** (linear scan + `auto_free_` flag). It's the smallest correct fix:
