@@ -9,7 +9,6 @@
 
 #include "SDL.h"
 #include "array.h"
-#include "assets.h"
 #include "circular_buffer.h"
 #include "dictionary.h"
 #include "vec.h"
@@ -121,8 +120,13 @@ class Mouse {
 
 class Controllers {
  public:
-  Controllers(DbAssets* assets, Allocator* allocator);
+  Controllers(Allocator* allocator);
   ~Controllers();
+
+  // Loads controller mappings and opens connected joysticks.
+  // If |db| is non-empty, uses the provided database; otherwise falls back to
+  // the built-in default.
+  void Initialize(ByteSlice db = {});
 
   void PushEvent(const SDL_Event& event);
 

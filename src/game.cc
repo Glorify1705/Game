@@ -172,7 +172,9 @@ struct EngineModules {
         shaders(allocator),
         batch_renderer(GetWindowViewport(sdl_window), &shaders, allocator),
         keyboard(allocator),
-        controllers(db_assets, allocator),
+        controllers(allocator),
+        text_files_table_(allocator),
+        text_files_(256, allocator),
         sound(spec, allocator),
         renderer(*db_assets, &batch_renderer, allocator),
         lua_allocator(allocator->Alloc(Megabytes(64), kMaxAlign),
@@ -260,6 +262,14 @@ struct EngineModules {
     lua.BuildCompilationCache();
     RegisterLoaders();
     assets->Load();
+    DbAssets::TextFile* controller_db = nullptr;
+    text_files_table_.Lookup("gamecontrollerdb", &controller_db);
+    if (controller_db) {
+      controllers.Initialize(
+          ByteSlice(controller_db->contents, controller_db->size));
+    } else {
+      controllers.Initialize();
+    }
     lua.LoadMain();
     lua.FlushCompilationCache();
     pool.Start();
@@ -312,6 +322,14 @@ struct EngineModules {
         [](DbAssets::Font* font, StringBuffer* /*err*/, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadFont(*font);
+        },
+        this);
+    assets->RegisterTextLoad(
+        [](DbAssets::TextFile* text_file, StringBuffer* /*err*/, void* ud) {
+          auto* self = static_cast<EngineModules*>(ud);
+          self->text_files_.Push(*text_file);
+          self->text_files_table_.Insert(text_file->name,
+                                         &self->text_files_.back());
         },
         this);
   }
@@ -409,6 +427,8 @@ struct EngineModules {
   Keyboard keyboard;
   Mouse mouse;
   Controllers controllers;
+  Dictionary<DbAssets::TextFile*> text_files_table_;
+  FixedArray<DbAssets::TextFile> text_files_;
   Sound sound;
   Renderer renderer;
   MimallocAllocator lua_allocator;

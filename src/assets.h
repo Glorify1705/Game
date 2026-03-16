@@ -154,6 +154,13 @@ class DbAssets {
     font_loader_.ud = ud;
   }
 
+  void RegisterTextLoad(void (*load)(DbAssets::TextFile* text_file,
+                                     StringBuffer* err, void* ud),
+                        void* ud) {
+    text_file_loader_.fn = load;
+    text_file_loader_.ud = ud;
+  }
+
   ChecksumType GetChecksum(std::string_view asset);
 
   void Trace(unsigned int sql_type, void* p, void* x);
