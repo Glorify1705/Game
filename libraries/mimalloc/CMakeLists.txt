@@ -736,23 +736,7 @@ if (MI_BUILD_OBJECT)
 endif()
 
 
-# pkg-config file support
-set(mi_pc_libraries "")
-foreach(item IN LISTS mi_libraries)
-  if(item MATCHES " *[-].*")
-    set(mi_pc_libraries "${mi_pc_libraries} ${item}")
-  else()
-    set(mi_pc_libraries "${mi_pc_libraries} -l${item}")
-  endif()
-endforeach()
-
-include("cmake/JoinPaths.cmake")
-join_paths(mi_pc_includedir "\${prefix}" "${CMAKE_INSTALL_INCLUDEDIR}")
-join_paths(mi_pc_libdir "\${prefix}" "${CMAKE_INSTALL_LIBDIR}")
-
-configure_file(mimalloc.pc.in mimalloc.pc @ONLY)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/mimalloc.pc"
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig/")
+# pkg-config file support (disabled - not needed when used as subdirectory)
 
 
 

@@ -212,7 +212,7 @@ if(PHYSFS_BUILD_SHARED AND PHYSFS_BUILD_STATIC AND NOT WIN32)
     set_target_properties(physfs-static PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 endif()
 
-option(PHYSFS_BUILD_TEST "Build stdio test program." TRUE)
+option(PHYSFS_BUILD_TEST "Build stdio test program." FALSE)
 mark_as_advanced(PHYSFS_BUILD_TEST)
 if(PHYSFS_BUILD_TEST)
     find_path(READLINE_H readline/readline.h)
@@ -235,7 +235,7 @@ if(PHYSFS_BUILD_TEST)
     list(APPEND PHYSFS_INSTALL_TARGETS test_physfs)
 endif()
 
-option(PHYSFS_DISABLE_INSTALL "Disable installing PhysFS" OFF)
+option(PHYSFS_DISABLE_INSTALL "Disable installing PhysFS" ON)
 if(NOT PHYSFS_DISABLE_INSTALL)
 
     install(TARGETS ${PHYSFS_INSTALL_TARGETS} EXPORT PhysFSExport
@@ -265,7 +265,7 @@ if(NOT PHYSFS_DISABLE_INSTALL)
     endif()
 endif()
 
-option(PHYSFS_BUILD_DOCS "Build doxygen based documentation" TRUE)
+option(PHYSFS_BUILD_DOCS "Build doxygen based documentation" FALSE)
 if(PHYSFS_BUILD_DOCS)
     find_package(Doxygen)
     if(DOXYGEN_FOUND)

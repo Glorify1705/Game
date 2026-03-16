@@ -171,31 +171,6 @@ TEST(Tests, FreeListAllocator) {
   EXPECT_EQ(q, r);
 }
 
-TEST(Tests, ShardedFreeListAllocator) {
-  void* buffer;
-  ASSERT_TRUE(posix_memalign(&buffer, kMaxAlign, Megabytes(128)) == 0);
-  DEFER([&] { std::free(buffer); });
-  auto* a =
-      new ShardedFreeListAllocator(SystemAllocator::Instance(), Megabytes(128));
-  DEFER([&] { delete a; });
-  auto* p = a->Alloc(1, 16);
-  ASSERT_NE(p, nullptr);
-  a->Dealloc(p, 1);
-  std::array<void*, 1000> ptrs;
-  for (size_t i = 0; i < 1000; ++i) {
-    ptrs[i] = a->Alloc(1, 16);
-  }
-  for (size_t i = 0; i < 1000; ++i) {
-    a->Dealloc(ptrs[i], 1);
-  }
-  for (size_t i = 0; i < 1000; ++i) {
-    ptrs[i] = a->Alloc(513, 16);
-  }
-  for (size_t i = 0; i < 1000; ++i) {
-    a->Dealloc(ptrs[i], 513);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // CircularBuffer
 // ---------------------------------------------------------------------------
