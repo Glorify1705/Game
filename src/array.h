@@ -288,6 +288,11 @@ ArrayView<T> MakeArrayView(const FixedArray<T>& a) {
 
 using ByteSlice = Slice<const uint8_t>;
 
+template <size_t N>
+constexpr ByteSlice MakeByteSlice(const char (&arr)[N]) {
+  return ByteSlice(reinterpret_cast<const uint8_t*>(arr), N);
+}
+
 }  // namespace G
 
 #endif  // _FIXED_ARRAY_H

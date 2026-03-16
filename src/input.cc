@@ -116,23 +116,22 @@ Controllers::Controllers(Allocator* allocator)
 }
 
 namespace {
-SDL_RWops* RWOpsFromMemory(const void* data, size_t size) {
-  SDL_RWops* rwops =
-      SDL_RWFromMem(const_cast<void*>(data), static_cast<int>(size));
+SDL_RWops* RWOpsFromMemory(ByteSlice data) {
+  SDL_RWops* rwops = SDL_RWFromMem(const_cast<uint8_t*>(data.data()),
+                                   static_cast<int>(data.size()));
   CHECK(rwops != nullptr);
   return rwops;
 }
 }  // namespace
 
 void Controllers::Initialize(ByteSlice db) {
-  SDL_RWops* rwops;
-  if (!db.empty()) {
-    LOG("Using custom controllers database");
-    rwops = RWOpsFromMemory(db.data(), db.size());
-  } else {
+  if (db.empty()) {
     LOG("Using the default controllers database");
-    rwops = RWOpsFromMemory(kControllerDatabase, sizeof(kControllerDatabase));
+    db = MakeByteSlice(kControllerDatabase);
+  } else {
+    LOG("Using custom controllers database");
   }
+  SDL_RWops* rwops = RWOpsFromMemory(db);
   CHECK(SDL_GameControllerAddMappingsFromRW(rwops, /*freerw=*/true) > 0,
         "Could not add Joystick database: ", SDL_GetError());
   // Open controllers.
