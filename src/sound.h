@@ -268,7 +268,7 @@ class Sound {
 
     void Gain(float f) { gain_ = f; }
 
-    bool auto_free_ = false;
+    bool auto_free = false;
 
    private:
     const size_t kBufferSizeInSamples = sizeof(samples_) / sizeof(samples_[0]);
