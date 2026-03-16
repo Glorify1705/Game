@@ -101,9 +101,12 @@ constexpr std::string_view kSDFFragmentShader = R"(
     uniform sampler2D tex;
 
     void main() {
-        float distance = texture(tex, tex_coord).r;
-        float smoothing = fwidth(distance);
-        float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
+        float dist = texture(tex, tex_coord).r;
+        float grad = length(vec2(dFdx(dist), dFdy(dist)));
+        float w = min(0.5 * grad, 0.065);
+        // Shift threshold inward at small sizes to keep thin strokes opaque.
+        float threshold = 0.5 - 0.15 * grad;
+        float alpha = smoothstep(threshold - w, threshold + w, dist);
         frag_color = vec4(out_color.rgb, out_color.a * alpha);
     }
   )";

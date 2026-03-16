@@ -293,7 +293,7 @@ size_t BatchRenderer::LoadFontTexture(const void* data, size_t width,
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED));
-  OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RED,
+  OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED,
                            GL_UNSIGNED_BYTE, data));
   CHECK(!glGetError(), "Could generate texture: ", glGetError());
   tex_.Push(tex);
@@ -753,7 +753,7 @@ void Renderer::DrawCircle(FVec2 center, float radius) {
 }
 
 void Renderer::LoadFont(const DbAssets::Font& asset) {
-  constexpr float kSDFHeight = 48.0f;
+  constexpr float kSDFHeight = 80.0f;
   constexpr int kPadding = 6;
   constexpr unsigned char kOnEdge = 128;
   constexpr float kPixelDistScale = kOnEdge / (float)kPadding;
@@ -790,10 +790,11 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
       int advance, bearing;
       stbtt_GetCodepointHMetrics(&font.font_info, cp, &advance, &bearing);
       font.glyphs[cp].advance = advance * font.scale;
-      // Prepare rect for packing.
+      // Prepare rect for packing (add 2px gutter to prevent texture bleeding).
+      constexpr int kAtlasGutter = 2;
       rects[i].id = i;
-      rects[i].w = bitmaps[i].data ? bitmaps[i].w : 0;
-      rects[i].h = bitmaps[i].data ? bitmaps[i].h : 0;
+      rects[i].w = bitmaps[i].data ? bitmaps[i].w + kAtlasGutter : 0;
+      rects[i].h = bitmaps[i].data ? bitmaps[i].h + kAtlasGutter : 0;
     }
   }
 
