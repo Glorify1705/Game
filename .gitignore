@@ -31,4 +31,5 @@ vgcore.*
 ignore*
 
 .gdb_history
+.obsidian
 worktrees/
