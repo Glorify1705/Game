@@ -6,6 +6,7 @@
 #include "dictionary.h"
 #include "gmock/gmock-matchers.h"
 #include "gtest/gtest-matchers.h"
+#include "inlined_array.h"
 #include "segmented_list.h"
 #include "stringlib.h"
 #include "vec.h"
@@ -517,6 +518,163 @@ TEST(SegmentedList, WithArenaAllocator) {
   for (int i = 0; i < 50; ++i) {
     EXPECT_EQ(list[i], i);
   }
+}
+
+// ---------------------------------------------------------------------------
+// InlinedArray
+// ---------------------------------------------------------------------------
+
+TEST(InlinedArray, EmptyOnConstruction) {
+  InlinedArray<int, 4> arr(SystemAllocator::Instance());
+  EXPECT_TRUE(arr.empty());
+  EXPECT_EQ(arr.size(), 0u);
+  EXPECT_EQ(arr.capacity(), 4u);
+}
+
+TEST(InlinedArray, PushWithinInline) {
+  InlinedArray<int, 4> arr(SystemAllocator::Instance());
+  arr.Push(10);
+  arr.Push(20);
+  arr.Push(30);
+  EXPECT_EQ(arr.size(), 3u);
+  EXPECT_EQ(arr[0], 10);
+  EXPECT_EQ(arr[1], 20);
+  EXPECT_EQ(arr[2], 30);
+  EXPECT_EQ(arr.capacity(), 4u);
+}
+
+TEST(InlinedArray, FillInline) {
+  InlinedArray<int, 4> arr(SystemAllocator::Instance());
+  arr.Push(1);
+  arr.Push(2);
+  arr.Push(3);
+  arr.Push(4);
+  EXPECT_EQ(arr.size(), 4u);
+  EXPECT_EQ(arr.capacity(), 4u);
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_EQ(arr[i], i + 1);
+  }
+}
+
+TEST(InlinedArray, SpillToHeap) {
+  InlinedArray<int, 4> arr(SystemAllocator::Instance());
+  for (int i = 0; i < 5; ++i) arr.Push(i);
+  EXPECT_EQ(arr.size(), 5u);
+  EXPECT_GT(arr.capacity(), 4u);
+  for (int i = 0; i < 5; ++i) {
+    EXPECT_EQ(arr[i], i);
+  }
+}
+
+TEST(InlinedArray, GrowOnHeap) {
+  InlinedArray<int, 2> arr(SystemAllocator::Instance());
+  for (int i = 0; i < 100; ++i) arr.Push(i);
+  EXPECT_EQ(arr.size(), 100u);
+  for (int i = 0; i < 100; ++i) {
+    EXPECT_EQ(arr[i], i);
+  }
+}
+
+TEST(InlinedArray, Pop) {
+  InlinedArray<int, 4> arr(SystemAllocator::Instance());
+  arr.Push(1);
+  arr.Push(2);
+  arr.Push(3);
+  EXPECT_EQ(arr.back(), 3);
+  arr.Pop();
+  EXPECT_EQ(arr.size(), 2u);
+  EXPECT_EQ(arr.back(), 2);
+}
+
+TEST(InlinedArray, Clear) {
+  InlinedArray<int, 4> arr(SystemAllocator::Instance());
+  arr.Push(1);
+  arr.Push(2);
+  arr.Clear();
+  EXPECT_TRUE(arr.empty());
+  arr.Push(42);
+  EXPECT_EQ(arr[0], 42);
+}
+
+TEST(InlinedArray, Emplace) {
+  InlinedArray<int, 4> arr(SystemAllocator::Instance());
+  arr.Emplace(42);
+  EXPECT_EQ(arr[0], 42);
+}
+
+TEST(InlinedArray, Iterator) {
+  InlinedArray<int, 4> arr(SystemAllocator::Instance());
+  for (int i = 0; i < 3; ++i) arr.Push(i * 10);
+  int expected = 0;
+  for (int v : arr) {
+    EXPECT_EQ(v, expected);
+    expected += 10;
+  }
+}
+
+TEST(InlinedArray, IteratorAfterSpill) {
+  InlinedArray<int, 2> arr(SystemAllocator::Instance());
+  for (int i = 0; i < 10; ++i) arr.Push(i);
+  int expected = 0;
+  for (int v : arr) {
+    EXPECT_EQ(v, expected);
+    expected++;
+  }
+  EXPECT_EQ(expected, 10);
+}
+
+TEST(InlinedArray, ConstAccess) {
+  InlinedArray<int, 4> arr(SystemAllocator::Instance());
+  arr.Push(10);
+  arr.Push(20);
+  const auto& carr = arr;
+  EXPECT_EQ(carr[0], 10);
+  EXPECT_EQ(carr[1], 20);
+  EXPECT_EQ(carr.back(), 20);
+  EXPECT_EQ(carr.size(), 2u);
+}
+
+TEST(InlinedArray, SingleElementInline) {
+  InlinedArray<int, 1> arr(SystemAllocator::Instance());
+  arr.Push(42);
+  EXPECT_EQ(arr[0], 42);
+  EXPECT_EQ(arr.capacity(), 1u);
+  arr.Push(99);
+  EXPECT_EQ(arr.size(), 2u);
+  EXPECT_GT(arr.capacity(), 1u);
+  EXPECT_EQ(arr[0], 42);
+  EXPECT_EQ(arr[1], 99);
+}
+
+TEST(InlinedArray, LargeInline) {
+  InlinedArray<int, 64> arr(SystemAllocator::Instance());
+  for (int i = 0; i < 64; ++i) arr.Push(i);
+  EXPECT_EQ(arr.capacity(), 64u);
+  for (int i = 0; i < 64; ++i) {
+    EXPECT_EQ(arr[i], i);
+  }
+  // One more triggers spill.
+  arr.Push(64);
+  EXPECT_EQ(arr.size(), 65u);
+  EXPECT_GT(arr.capacity(), 64u);
+}
+
+TEST(InlinedArray, WithArenaAllocator) {
+  StaticAllocator<4096> arena;
+  InlinedArray<int, 8> arr(&arena);
+  for (int i = 0; i < 50; ++i) arr.Push(i);
+  for (int i = 0; i < 50; ++i) {
+    EXPECT_EQ(arr[i], i);
+  }
+}
+
+TEST(InlinedArray, DataPointer) {
+  InlinedArray<int, 4> arr(SystemAllocator::Instance());
+  arr.Push(1);
+  arr.Push(2);
+  int* p = arr.data();
+  EXPECT_EQ(p[0], 1);
+  EXPECT_EQ(p[1], 2);
 }
 
 }  // namespace G
