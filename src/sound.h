@@ -35,7 +35,8 @@ class Sound {
 
   using Source = uint32_t;
 
-  bool AddSource(std::string_view name, Source* source);
+  bool AddSource(std::string_view name, Source* source,
+                 bool auto_free = false);
 
   bool SetSourceGain(Source source, float gain);
 
@@ -267,12 +268,20 @@ class Sound {
 
     void Gain(float f) { gain_ = f; }
 
+    // A managed stream is held by Lua (via add_source) and can be replayed.
+    // A non-managed (fire-and-forget) stream was created by play() and its
+    // slot is reclaimable once playback finishes.
+    void SetManaged() { auto_free_ = false; }
+    void SetAutoFree() { auto_free_ = true; }
+    bool IsManaged() const { return !auto_free_; }
+
    private:
     const size_t kBufferSizeInSamples = sizeof(samples_) / sizeof(samples_[0]);
 
     uint32_t handle_;
     Callbacks cb_;
     bool playing_ = false;
+    bool auto_free_ = false;
     float gain_ = 1.0;
     float samples_[2048];
     size_t pos_;
@@ -281,7 +290,7 @@ class Sound {
   FixedArray<float> buffer_;
   SDL_mutex* mu_ = nullptr;
   Dictionary<DbAssets::Sound> sounds_;
-  static constexpr size_t kMaxStreams = 16;
+  static constexpr size_t kMaxStreams = 128;
   Stream streams_[kMaxStreams];
   size_t stream_ = 0;
   FixedArray<VorbisSampler*> vorbis_;

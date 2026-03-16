@@ -361,6 +361,67 @@ uint32_t AllocEffect() {
 
 **Verdict:** Interesting, but the forced eviction and partitioning complexity make it harder than the free list for not much benefit.
 
+## Future work: Static vs Stream sources (Love2D-style)
+
+Love2D distinguishes `"static"` sources (fully decoded into memory, replayed from a PCM buffer) from `"stream"` sources (decoded on the fly from compressed data). This is orthogonal to the music/effects split discussed above — it's about **decode strategy**, not allocation partitioning.
+
+### What Love2D actually does
+
+- **Static:** Decode the entire file to a PCM buffer on load. Playback is a memcpy from the buffer into the mix. Multiple simultaneous plays share the same decoded buffer with independent read cursors.
+- **Stream:** Open a decoder handle, decode chunks on demand during the audio callback. Each play needs its own decoder state.
+
+### Pros of adding this distinction
+
+1. **Replay without re-decode.** A static source decodes once. Playing it 100 times costs 100 memcpys, not 100 vorbis decodes. For short effects that fire frequently (footsteps, gunshots, UI clicks), this is a significant CPU win — stb_vorbis decode is ~10x more expensive than a buffer copy for a 0.2s sample.
+
+2. **Multiple simultaneous plays from one source.** Currently each `play("gunshot.ogg")` allocates a new stream with its own decoder. With a static source, you could have N lightweight "play cursors" sharing one decoded buffer. This directly reduces the pressure on the stream pool — instead of N streams for N overlapping gunshots, you have 1 static buffer + N cursors.
+
+3. **Deterministic audio-thread cost.** Streaming sources do IO/decode work inside `SoundCallback`, which runs on the audio thread at ~172 Hz. A slow decode can cause buffer underruns (audible glitches). Static sources eliminate this risk for short sounds — the audio thread only copies pre-decoded samples.
+
+4. **Better hot-reload story.** See [Sound hot reload.md](Sound%20hot%20reload.md) for full analysis.
+
+### Cons
+
+1. **Memory cost.** A 1-second stereo 44.1kHz sound is ~345 KB decoded (vs ~40 KB as Vorbis). For many short effects this is fine (10 effects = ~3 MB). For longer sounds it's prohibitive — a 3-minute music track would be ~60 MB decoded. The static/stream boundary must be chosen carefully.
+
+2. **Added complexity.** Two decode paths, two allocation strategies, a new "play cursor" concept. The current system's uniformity (everything is a stream) is simpler. The complexity is justified only if we actually have sounds that replay frequently enough to matter.
+
+3. **Upfront load time.** Static sources block on full decode during `AddSource`. For a 2-second WAV this is instant; for a 10-second Vorbis file it's noticeable. Could be mitigated with async decode, but that's more complexity.
+
+4. **API surface.** Need to either auto-detect (by duration/file size) or expose the choice to Lua. Love2D requires the user to specify `"static"` or `"stream"` — we could default to static for short files and stream for long ones, but the threshold is game-dependent.
+
+### When it would matter for us
+
+- **Now:** We have few sound effects and no performance-critical audio path. The free list fix is sufficient. Not worth the complexity.
+- **Later:** If the game has many overlapping short effects (e.g., a bullet-hell with dozens of simultaneous hits), the decode cost in `SoundCallback` will become measurable. That's the trigger to add static sources.
+- **Music is always streamed.** No reason to ever fully decode a music track.
+
+### Sketch of what the API could look like
+
+```lua
+-- Explicit (Love2D-style):
+local sfx = G.sound.add_source("gunshot.ogg", { type = "static" })
+local bgm = G.sound.add_source("overworld.ogg", { type = "stream" })
+
+-- Or automatic (duration-based, simpler for users):
+-- Files under 2 seconds → static, longer → stream.
+local sfx = G.sound.add_source("gunshot.ogg")  -- auto-static
+local bgm = G.sound.add_source("overworld.ogg") -- auto-stream
+```
+
+### Implementation notes
+
+A static source would need:
+- A shared `DecodedBuffer` (PCM float array) per unique sound asset, ref-counted or owned by a cache.
+- A lightweight `PlayCursor` struct (just an index into the buffer + gain + playing flag). These replace full `Stream` slots for static sounds.
+- `SoundCallback` checks the source type and either copies from the decoded buffer or calls the streaming decoder.
+
+This is a medium-sized refactor but doesn't conflict with the free list — the free list manages stream slots, and static sources would bypass stream allocation entirely.
+
+### Hot reload interaction
+
+See [Sound hot reload.md](Sound%20hot%20reload.md) for the full analysis of how static vs stream sources interact with hot reload. The short version: static sources can be reloaded with an atomic buffer swap (no audio interruption), while streaming sources must rebuild their decoder state. This makes the static/stream split one of the strongest arguments for the design — editing a sound effect would no longer kill background music.
+
 ## Recommendation
 
 **Do Alternative 1 first** (linear scan + `auto_free_` flag). It's the smallest correct fix:

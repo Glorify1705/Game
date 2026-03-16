@@ -6,17 +6,17 @@
 
 namespace G {
 
-bool Sound::AddSource(std::string_view name, Source* source) {
+bool Sound::AddSource(std::string_view name, Source* source, bool auto_free) {
   DbAssets::Sound sound;
   if (!sounds_.Lookup(name, &sound)) {
     LOG("Unknown sound ", name);
     return false;
   }
   LockMutex l(mu_);
-  // Try to reuse a stopped stream before allocating a new one.
+  // Reuse a finished fire-and-forget slot, or allocate a new one.
   size_t slot = stream_;
   for (size_t i = 0; i < stream_; ++i) {
-    if (!streams_[i].IsPlaying()) {
+    if (!streams_[i].IsManaged() && !streams_[i].IsPlaying()) {
       slot = i;
       break;
     }
@@ -43,6 +43,8 @@ bool Sound::AddSource(std::string_view name, Source* source) {
     LOG("Unsupported sound format: ", sound.name);
     return false;
   }
+  if (auto_free) streams_[slot].SetAutoFree();
+  else streams_[slot].SetManaged();
   *source = slot;
   if (slot == stream_) stream_++;
   return true;
@@ -73,15 +75,15 @@ void Sound::LoadSound(const DbAssets::Sound& sound) {
   LockMutex l(mu_);
   TIMER("Loading sound ", sound.name);
   sounds_.Insert(sound.name, sound);
-  for (auto& stream : streams_) {
-    if (!stream.OnReload(&sound)) {
+  for (size_t i = 0; i < stream_; ++i) {
+    if (!streams_[i].OnReload(&sound)) {
       return;
     }
   }
 }
 
 void Sound::SoundCallback(float* result, size_t samples_per_channel,
-                          size_t channels) {
+                           size_t channels) {
   LockMutex l(mu_);
   const size_t samples = samples_per_channel * channels;
   std::memset(result, 0, samples * sizeof(float));
