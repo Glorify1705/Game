@@ -58,10 +58,7 @@ See `design/Lua API for LSP and LLMs.md` for full design.
 
 ## Features
 
-- [ ] Support LuaJIT as an alternative scripting backend
-  - LuaJIT provides 10-100x speedups via JIT compilation while maintaining Lua 5.1 compatibility
-  - FFI library enables direct C struct access without crossing the Lua/C boundary
-  - Considerations: 2GB GC memory limit, custom arena allocator integration, CMake option to select backend, limited Apple Silicon support (requires fork)
+- [ ] ~~Support LuaJIT as an alternative scripting backend~~ **Postponed** — see `design/LuaJIT Migration.md`. Not worth the complexity until profiling shows Lua as a bottleneck.
 - [ ] Implement canvas API using framebuffers (Love2D-style)
   - `G.graphics.new_canvas(width, height)` — create an off-screen FBO with color texture attachment
   - `G.graphics.set_canvas(canvas)` — redirect drawing to canvas; `set_canvas()` resets to screen
