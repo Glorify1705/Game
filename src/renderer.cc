@@ -8,6 +8,7 @@
 #include "console.h"
 #include "filesystem.h"
 #include "image.h"
+#include "libraries/stb_rect_pack.h"
 #include "stringlib.h"
 #include "transformations.h"
 #include "units.h"
@@ -286,15 +287,14 @@ size_t BatchRenderer::LoadFontTexture(const void* data, size_t width,
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
   OPENGL_CALL(
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                              GL_LINEAR_MIPMAP_LINEAR));
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED));
   OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RED,
                            GL_UNSIGNED_BYTE, data));
-  OPENGL_CALL(glGenerateMipmap(GL_TEXTURE_2D));
   CHECK(!glGetError(), "Could generate texture: ", glGetError());
   tex_.Push(tex);
   return index;
@@ -753,61 +753,93 @@ void Renderer::DrawCircle(FVec2 center, float radius) {
 }
 
 void Renderer::LoadFont(const DbAssets::Font& asset) {
-  ArenaAllocator scratch(allocator_, kAtlasSize * 5);
-  const float pixel_height = 100;
-  uint8_t* atlas = scratch.NewArray<uint8_t>(kAtlasSize);
+  constexpr float kSDFHeight = 48.0f;
+  constexpr int kPadding = 6;
+  constexpr unsigned char kOnEdge = 128;
+  constexpr float kPixelDistScale = kOnEdge / (float)kPadding;
   constexpr int kFirstChar = 32;
-  constexpr int kNumChars = 126 - 32 + 1;
+  constexpr int kLastChar = 126;
+  constexpr int kNumChars = kLastChar - kFirstChar + 1;
+
   FontInfo font;
+  std::memset(&font, 0, sizeof(font));
   CHECK(stbtt_InitFont(&font.font_info, asset.contents,
                        stbtt_GetFontOffsetForIndex(asset.contents, 0)),
         "Could not initialize ", asset.name);
-  font.scale = stbtt_ScaleForPixelHeight(&font.font_info, pixel_height);
-  font.pixel_height = pixel_height;
+  font.scale = stbtt_ScaleForPixelHeight(&font.font_info, kSDFHeight);
+  font.pixel_height = kSDFHeight;
+  stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
+                        &font.line_gap);
+
+  // Phase 1: Generate individual SDF bitmaps for each glyph.
+  struct GlyphBitmap {
+    unsigned char* data;
+    int w, h, xoff, yoff;
+  };
+  GlyphBitmap bitmaps[kNumChars];
+  stbrp_rect rects[kNumChars];
+
   {
-    TIMER("Building font atlas for ", asset.name);
-    stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
-                          &font.line_gap);
-    stbtt_pack_context context;
-    stbtt_PackBegin(&context, atlas, kAtlasWidth, kAtlasHeight, kAtlasWidth, 1,
-                    /*alloc_context=*/&scratch);
-    stbtt_PackSetOversampling(&context, 2, 2);
-    if (stbtt_PackFontRange(&context, asset.contents, 0, pixel_height,
-                            kFirstChar, kNumChars, font.chars) != 1) {
-      stbtt_PackEnd(&context);
-      // Find minimum atlas size that works.
-      size_t min_size = kAtlasWidth;
-      for (min_size *= 2; min_size <= 8192; min_size *= 2) {
-        ArenaAllocator trial(allocator_, min_size * min_size * 2);
-        auto* buf = trial.NewArray<uint8_t>(min_size * min_size);
-        stbtt_pack_context ctx;
-        stbtt_PackBegin(&ctx, buf, min_size, min_size, min_size, 1, &trial);
-        stbtt_PackSetOversampling(&ctx, 2, 2);
-        stbtt_packedchar trial_chars[256];
-        bool ok = stbtt_PackFontRange(&ctx, asset.contents, 0, pixel_height,
-                                      kFirstChar, kNumChars, trial_chars) == 1;
-        stbtt_PackEnd(&ctx);
-        if (ok) break;
-      }
-      CHECK(false, "Font atlas ", kAtlasWidth, "x", kAtlasHeight,
-            " too small for ", asset.name, ". Minimum required: ", min_size,
-            "x", min_size);
+    TIMER("Generating SDF glyphs for ", asset.name);
+    for (int i = 0; i < kNumChars; ++i) {
+      int cp = kFirstChar + i;
+      bitmaps[i].data = stbtt_GetCodepointSDF(
+          &font.font_info, font.scale, cp, kPadding, kOnEdge, kPixelDistScale,
+          &bitmaps[i].w, &bitmaps[i].h, &bitmaps[i].xoff, &bitmaps[i].yoff);
+      // Store advance width.
+      int advance, bearing;
+      stbtt_GetCodepointHMetrics(&font.font_info, cp, &advance, &bearing);
+      font.glyphs[cp].advance = advance * font.scale;
+      // Prepare rect for packing.
+      rects[i].id = i;
+      rects[i].w = bitmaps[i].data ? bitmaps[i].w : 0;
+      rects[i].h = bitmaps[i].data ? bitmaps[i].h : 0;
     }
-    stbtt_PackEnd(&context);
   }
-  // Check if atlas is oversized by finding actual used area.
-  unsigned short max_x = 0, max_y = 0;
+
+  // Phase 2: Pack glyph rectangles into an atlas using stb_rect_pack.
+  int atlas_dim = 256;
+  bool packed = false;
+  while (atlas_dim <= 2048 && !packed) {
+    stbrp_context pack_ctx;
+    stbrp_node nodes[512];
+    stbrp_init_target(&pack_ctx, atlas_dim, atlas_dim, nodes, 512);
+    packed = stbrp_pack_rects(&pack_ctx, rects, kNumChars) == 1;
+    if (!packed) atlas_dim *= 2;
+  }
+  CHECK(packed, "Could not pack SDF atlas for ", asset.name,
+        " even at ", atlas_dim, "x", atlas_dim);
+
+  // Phase 3: Blit individual glyph bitmaps into the atlas.
+  const size_t atlas_bytes = atlas_dim * atlas_dim;
+  ArenaAllocator scratch(allocator_, atlas_bytes);
+  uint8_t* atlas = scratch.NewArray<uint8_t>(atlas_bytes);
+  std::memset(atlas, 0, atlas_bytes);
+
   for (int i = 0; i < kNumChars; ++i) {
-    if (font.chars[i].x1 > max_x) max_x = font.chars[i].x1;
-    if (font.chars[i].y1 > max_y) max_y = font.chars[i].y1;
+    if (!bitmaps[i].data) continue;
+    int cp = kFirstChar + i;
+    const int dx = rects[i].x;
+    const int dy = rects[i].y;
+    for (int row = 0; row < bitmaps[i].h; ++row) {
+      std::memcpy(&atlas[(dy + row) * atlas_dim + dx],
+                  &bitmaps[i].data[row * bitmaps[i].w], bitmaps[i].w);
+    }
+    font.glyphs[cp].s0 = (float)dx / atlas_dim;
+    font.glyphs[cp].t0 = (float)dy / atlas_dim;
+    font.glyphs[cp].s1 = (float)(dx + bitmaps[i].w) / atlas_dim;
+    font.glyphs[cp].t1 = (float)(dy + bitmaps[i].h) / atlas_dim;
+    font.glyphs[cp].x_offset = (float)bitmaps[i].xoff;
+    font.glyphs[cp].y_offset = (float)bitmaps[i].yoff;
+    font.glyphs[cp].width = (float)bitmaps[i].w;
+    font.glyphs[cp].height = (float)bitmaps[i].h;
+    stbtt_FreeSDF(bitmaps[i].data, 0, 0, nullptr);
   }
-  const size_t min_dim = std::max(NextPow2(max_x), NextPow2(max_y));
-  if (min_dim < std::min(kAtlasWidth, kAtlasHeight)) {
-    LOG("Font atlas for ", asset.name, " is oversized: ", kAtlasWidth, "x",
-        kAtlasHeight, " but glyphs fit in ", max_x, "x", max_y, " (could use ",
-        min_dim, "x", min_dim, ")");
-  }
-  font.texture = renderer_->LoadFontTexture(atlas, kAtlasWidth, kAtlasHeight);
+
+  font.atlas_width = atlas_dim;
+  font.atlas_height = atlas_dim;
+  font.texture = renderer_->LoadFontTexture(atlas, atlas_dim, atlas_dim);
+  LOG("SDF atlas for ", asset.name, ": ", atlas_dim, "x", atlas_dim);
   fonts_.Push(font);
   font_table_.Insert(asset.name, &fonts_.back());
 }
@@ -839,34 +871,40 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
     return;
   }
   CHECK(info != nullptr, "No texture found for ", font_name, " size ", size);
+  renderer_->SetShaderProgram("sdf");
   renderer_->SetActiveTexture(info->texture);
   const Color color = color_;
   FVec2 p = position;
-  float pixel_scale = size / info->pixel_height;
+  const float pixel_scale = size / info->pixel_height;
   auto handle_char = [&](size_t i, char c) {
-    stbtt_aligned_quad q;
-    float x = 0, y = 0;
-    stbtt_GetPackedQuad(info->chars, kAtlasWidth, kAtlasHeight, c - 32, &x, &y,
-                        &q,
-                        /*align_to_integer=*/false);
-    const float x0 = p.x + q.x0 * pixel_scale;
-    const float x1 = p.x + q.x1 * pixel_scale;
-    const float y0 = p.y + q.y0 * pixel_scale;
-    const float y1 = p.y + q.y1 * pixel_scale;
-    renderer_->PushQuad(FVec(x0, y0), FVec(x1, y1), FVec(q.s0, q.t0),
-                        FVec(q.s1, q.t1), FVec(0, 0),
+    const SDFGlyph& g = info->glyphs[(int)c];
+    if (g.width == 0 || g.height == 0) {
+      // Space or unprintable — advance only.
+      p.x += g.advance * pixel_scale;
+      if ((i + 1) < str.size()) {
+        p.x += pixel_scale * info->scale *
+               stbtt_GetCodepointKernAdvance(&info->font_info, str[i],
+                                             str[i + 1]);
+      }
+      return;
+    }
+    const float x0 = p.x + g.x_offset * pixel_scale;
+    const float y0 = p.y + g.y_offset * pixel_scale;
+    const float x1 = x0 + g.width * pixel_scale;
+    const float y1 = y0 + g.height * pixel_scale;
+    renderer_->PushQuad(FVec(x0, y0), FVec(x1, y1), FVec(g.s0, g.t0),
+                        FVec(g.s1, g.t1), FVec(0, 0),
                         /*angle=*/0);
-    p.x += x * pixel_scale;
+    p.x += g.advance * pixel_scale;
     if ((i + 1) < str.size()) {
-      p.x +=
-          pixel_scale * info->scale *
-          stbtt_GetCodepointKernAdvance(&info->font_info, str[i], str[i + 1]);
+      p.x += pixel_scale * info->scale *
+             stbtt_GetCodepointKernAdvance(&info->font_info, str[i],
+                                           str[i + 1]);
     }
   };
   for (size_t i = 0; i < str.size();) {
     const char c = str[i];
     if (c == '\033') {
-      // Skip ANSI escape sequence.
       size_t st = i + 1, en = i;
       while (en < str.size() && str[en] != 'm') en++;
       if (en >= str.size()) break;
@@ -875,7 +913,6 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
       continue;
     }
     if (c == '\t') {
-      // Add 4 spaces.
       for (int j = 0; j < 3; ++j) handle_char(str.size(), ' ');
       handle_char(i, ' ');
       i++;
@@ -892,6 +929,7 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
     i++;
   }
   renderer_->SetActiveColor(color);
+  renderer_->SetShaderProgram("pre_pass");
 }
 
 IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
@@ -901,41 +939,37 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
     LOG("Could not find ", font_name, " in fonts");
     return IVec2();
   }
-  auto p = FVec2::Zero();
   const float pixel_scale = size / info->pixel_height;
-  const float scale = pixel_scale * info->scale;
-  p.y = scale * (info->ascent - info->descent + info->line_gap);
-  float x = 0;
+  const float line_height =
+      pixel_scale * info->scale *
+      (info->ascent - info->descent + info->line_gap);
+  float px = 0, max_x = 0;
+  float py = line_height;
   for (size_t i = 0; i < str.size(); ++i) {
     const char c = str[i];
     if (c == '\033') {
-      // Skip ANSI escape sequence, matching DrawText behavior.
       while (i < str.size() && str[i] != 'm') i++;
       continue;
     }
     if (c == '\t') {
-      // 4 spaces, matching DrawText behavior.
-      int width, bearing;
-      stbtt_GetCodepointHMetrics(&info->font_info, ' ', &width, &bearing);
-      p.x += scale * width * 4;
+      px += info->glyphs[(int)' '].advance * pixel_scale * 4;
       continue;
     }
     if (c == '\n') {
-      x = std::max(x, p.x);
-      p.x = 0;
-      p.y += scale * (info->ascent - info->descent + info->line_gap);
+      max_x = std::max(max_x, px);
+      px = 0;
+      py += line_height;
     } else {
-      int width, bearing;
-      stbtt_GetCodepointHMetrics(&info->font_info, c, &width, &bearing);
-      p.x += scale * width;
+      px += info->glyphs[(int)c].advance * pixel_scale;
       if ((i + 1) < str.size()) {
-        p.x += scale * stbtt_GetCodepointKernAdvance(&info->font_info, str[i],
-                                                     str[i + 1]);
+        px += pixel_scale * info->scale *
+              stbtt_GetCodepointKernAdvance(&info->font_info, str[i],
+                                            str[i + 1]);
       }
     }
   }
-  x = std::max(x, p.x);
-  return IVec2(static_cast<int>(x), static_cast<int>(p.y));
+  max_x = std::max(max_x, px);
+  return IVec2(static_cast<int>(max_x), static_cast<int>(py));
 }
 
 }  // namespace G
