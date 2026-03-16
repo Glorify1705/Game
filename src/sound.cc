@@ -16,7 +16,7 @@ bool Sound::AddSource(std::string_view name, Source* source, bool auto_free) {
   // Reuse a finished fire-and-forget slot, or allocate a new one.
   size_t slot = stream_;
   for (size_t i = 0; i < stream_; ++i) {
-    if (streams_[i].auto_free_ && !streams_[i].IsPlaying()) {
+    if (streams_[i].auto_free && !streams_[i].IsPlaying()) {
       slot = i;
       break;
     }
@@ -43,7 +43,7 @@ bool Sound::AddSource(std::string_view name, Source* source, bool auto_free) {
     LOG("Unsupported sound format: ", sound.name);
     return false;
   }
-  streams_[slot].auto_free_ = auto_free;
+  streams_[slot].auto_free = auto_free;
   *source = slot;
   if (slot == stream_) stream_++;
   return true;
