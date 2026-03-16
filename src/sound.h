@@ -34,8 +34,6 @@ class Sound {
   }
 
   using Source = uint32_t;
-  // Sentinel for empty free list slots and invalid stream indices.
-  static constexpr uint32_t kNullIndex = UINT32_MAX;
 
   bool AddSource(std::string_view name, Source* source,
                  bool auto_free = false);
@@ -50,9 +48,7 @@ class Sound {
 
   void StopAll() {
     LockMutex l(mu_);
-    for (size_t i = 0; i < stream_; ++i) {
-      if (!streams_[i].IsOnFreeList()) streams_[i].Stop();
-    }
+    for (size_t i = 0; i < stream_; ++i) streams_[i].Stop();
   }
 
   void LoadSound(const DbAssets::Sound& sound);
@@ -265,12 +261,6 @@ class Sound {
 
     bool IsPlaying() const { return playing_; }
 
-    bool IsOnFreeList() const { return auto_free_ && !playing_; }
-
-    void DeinitSampler() { cb_.Deinit(); }
-
-    void* SamplerPtr() const { return cb_.ud; }
-
     bool OnReload(const DbAssets::Sound* sound) {
       if (StringIntern(sound->name) != handle_) return true;
       return cb_.Reload(sound);
@@ -279,8 +269,6 @@ class Sound {
     void Gain(float f) { gain_ = f; }
 
     bool auto_free_ = false;
-    uint32_t next_free_ = kNullIndex;
-    bool is_vorbis_ = false;
 
    private:
     const size_t kBufferSizeInSamples = sizeof(samples_) / sizeof(samples_[0]);
@@ -293,16 +281,12 @@ class Sound {
     size_t pos_;
   };
 
-  uint32_t AllocStream();
-  void FreeStream(uint32_t idx);
-
   FixedArray<float> buffer_;
   SDL_mutex* mu_ = nullptr;
   Dictionary<DbAssets::Sound> sounds_;
   static constexpr size_t kMaxStreams = 128;
   Stream streams_[kMaxStreams];
   size_t stream_ = 0;
-  uint32_t free_head_ = kNullIndex;
   FixedArray<VorbisSampler*> vorbis_;
   FixedArray<WavSampler*> wavs_;
   FreeList<VorbisSampler> vorbis_alloc_;
