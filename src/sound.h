@@ -34,6 +34,7 @@ class Sound {
   }
 
   using Source = uint32_t;
+  // Sentinel for empty free list slots and invalid stream indices.
   static constexpr uint32_t kNullIndex = UINT32_MAX;
 
   bool AddSource(std::string_view name, Source* source,
