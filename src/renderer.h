@@ -8,6 +8,7 @@
 #include "assets.h"
 #include "color.h"
 #include "dictionary.h"
+#include "libraries/stb_rect_pack.h"
 #include "libraries/stb_truetype.h"
 #include "mat.h"
 #include "shaders.h"
@@ -15,6 +16,8 @@
 #include "vec.h"
 
 namespace G {
+
+class ArenaAllocator;
 
 class BatchRenderer {
  public:
@@ -276,6 +279,9 @@ class Renderer {
   void Scale(float x, float y) { ApplyTransform(ScaleXY(x, y)); }
 
  private:
+  // Per-glyph SDF atlas data used by the SDF text renderer. Stores the
+  // glyph's location in the atlas texture and its positioning metrics.
+  // All spatial values are in SDF pixel units and scaled at render time.
   struct SDFGlyph {
     float s0, t0, s1, t1;  // Atlas UV coordinates (normalized 0-1)
     float x_offset, y_offset;  // Top-left offset from pen position (SDF pixels)
@@ -285,13 +291,34 @@ class Renderer {
 
   struct FontInfo {
     GLuint texture;
-    float scale = 0;
-    float pixel_height = 0;
-    int ascent, descent, line_gap;
+    float scale = 0;           // stbtt scale factor for the SDF reference height
+    float pixel_height = 0;    // SDF reference rasterization height in pixels
+    int ascent;                // Distance from baseline to top of tallest glyph
+                               // (unscaled font units; multiply by `scale`)
+    int descent;               // Distance from baseline downward (negative,
+                               // unscaled font units)
+    int line_gap;              // Extra spacing between lines (unscaled font units)
     stbtt_fontinfo font_info;
+    // TODO: For Unicode support, replace this fixed array with a hash map
+    // (codepoint -> SDFGlyph) to handle arbitrary codepoint ranges.
     SDFGlyph glyphs[128];     // Indexed by codepoint (only 32-126 used)
     int atlas_width, atlas_height;
   };
+
+  // Intermediate storage for a single glyph's SDF bitmap before it's blitted
+  // into the atlas.
+  struct GlyphBitmap {
+    unsigned char* data;
+    int w, h, xoff, yoff;
+  };
+
+  static void GenerateSDFBitmaps(FontInfo& font, GlyphBitmap* bitmaps,
+                                 stbrp_rect* rects, std::string_view name);
+  static int PackGlyphRects(stbrp_rect* rects, std::string_view name);
+  static uint8_t* BlitGlyphsIntoAtlas(FontInfo& font,
+                                       const GlyphBitmap* bitmaps,
+                                       const stbrp_rect* rects, int atlas_dim,
+                                       ArenaAllocator* scratch);
 
   void ApplyTransform(const FMat4x4& mat) {
     transform_stack_.back() = mat * transform_stack_.back();

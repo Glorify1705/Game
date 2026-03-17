@@ -14,6 +14,31 @@
 #include "units.h"
 
 namespace G {
+namespace {
+
+// Reference height for SDF rasterization. Higher values capture more glyph
+// detail (fine serifs, tight curves) but produce a larger atlas. 80px gives
+// good quality from ~8px to 300px+ rendering sizes.
+constexpr float kSDFHeight = 80.0f;
+// Extra pixels around each glyph for the distance field to extend into.
+// Enables outline/glow effects and prevents edge clipping. 6px is enough
+// for moderate outlines; use 8 for heavy effects.
+constexpr int kPadding = 6;
+// Distance value at the glyph boundary. Set to the midpoint of the 0-255
+// uint8 range so inside and outside distances have equal resolution.
+constexpr unsigned char kOnEdge = 128;
+// Maps SDF pixel distances to the 0-255 range within the padding radius.
+// A pixel `kPadding` texels from the edge maps to 0 (outside) or 255 (inside).
+constexpr float kPixelDistScale = kOnEdge / (float)kPadding;
+// ASCII printable range (space through tilde).
+constexpr int kFirstChar = 32;
+constexpr int kLastChar = 126;
+constexpr int kNumChars = kLastChar - kFirstChar + 1;
+// Spacing between packed glyphs to prevent texture bleeding during
+// bilinear sampling.
+constexpr int kAtlasGutter = 2;
+
+}  // namespace
 
 constexpr size_t kCommandMemory = 1 << 24;
 
@@ -752,53 +777,30 @@ void Renderer::DrawCircle(FVec2 center, float radius) {
   }
 }
 
-void Renderer::LoadFont(const DbAssets::Font& asset) {
-  constexpr float kSDFHeight = 80.0f;
-  constexpr int kPadding = 6;
-  constexpr unsigned char kOnEdge = 128;
-  constexpr float kPixelDistScale = kOnEdge / (float)kPadding;
-  constexpr int kFirstChar = 32;
-  constexpr int kLastChar = 126;
-  constexpr int kNumChars = kLastChar - kFirstChar + 1;
-
-  FontInfo font;
-  std::memset(&font, 0, sizeof(font));
-  CHECK(stbtt_InitFont(&font.font_info, asset.contents,
-                       stbtt_GetFontOffsetForIndex(asset.contents, 0)),
-        "Could not initialize ", asset.name);
-  font.scale = stbtt_ScaleForPixelHeight(&font.font_info, kSDFHeight);
-  font.pixel_height = kSDFHeight;
-  stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
-                        &font.line_gap);
-
-  // Phase 1: Generate individual SDF bitmaps for each glyph.
-  struct GlyphBitmap {
-    unsigned char* data;
-    int w, h, xoff, yoff;
-  };
-  GlyphBitmap bitmaps[kNumChars];
-  stbrp_rect rects[kNumChars];
-
-  {
-    TIMER("Generating SDF glyphs for ", asset.name);
-    for (int i = 0; i < kNumChars; ++i) {
-      int cp = kFirstChar + i;
-      bitmaps[i].data = stbtt_GetCodepointSDF(
-          &font.font_info, font.scale, cp, kPadding, kOnEdge, kPixelDistScale,
-          &bitmaps[i].w, &bitmaps[i].h, &bitmaps[i].xoff, &bitmaps[i].yoff);
-      // Store advance width.
-      int advance, bearing;
-      stbtt_GetCodepointHMetrics(&font.font_info, cp, &advance, &bearing);
-      font.glyphs[cp].advance = advance * font.scale;
-      // Prepare rect for packing (add 2px gutter to prevent texture bleeding).
-      constexpr int kAtlasGutter = 2;
-      rects[i].id = i;
-      rects[i].w = bitmaps[i].data ? bitmaps[i].w + kAtlasGutter : 0;
-      rects[i].h = bitmaps[i].data ? bitmaps[i].h + kAtlasGutter : 0;
-    }
+// Generate individual SDF bitmaps for each glyph and prepare packing rects.
+// Populates `bitmaps` with per-glyph SDF data and `rects` with dimensions
+// for atlas packing. Also stores advance widths into `font.glyphs`.
+void Renderer::GenerateSDFBitmaps(FontInfo& font, GlyphBitmap* bitmaps,
+                                  stbrp_rect* rects, std::string_view name) {
+  TIMER("Generating SDF glyphs for ", name);
+  for (int i = 0; i < kNumChars; ++i) {
+    int cp = kFirstChar + i;
+    bitmaps[i].data = stbtt_GetCodepointSDF(
+        &font.font_info, font.scale, cp, kPadding, kOnEdge, kPixelDistScale,
+        &bitmaps[i].w, &bitmaps[i].h, &bitmaps[i].xoff, &bitmaps[i].yoff);
+    int advance, bearing;
+    stbtt_GetCodepointHMetrics(&font.font_info, cp, &advance, &bearing);
+    font.glyphs[cp].advance = advance * font.scale;
+    rects[i].id = i;
+    rects[i].w = bitmaps[i].data ? bitmaps[i].w + kAtlasGutter : 0;
+    rects[i].h = bitmaps[i].data ? bitmaps[i].h + kAtlasGutter : 0;
   }
+}
 
-  // Phase 2: Pack glyph rectangles into an atlas using stb_rect_pack.
+// Pack glyph rectangles into the smallest square atlas that fits.
+// Starts at 256x256 and doubles until all glyphs fit (max 2048x2048).
+// Returns the atlas dimension.
+int Renderer::PackGlyphRects(stbrp_rect* rects, std::string_view name) {
   int atlas_dim = 256;
   bool packed = false;
   while (atlas_dim <= 2048 && !packed) {
@@ -808,13 +810,20 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
     packed = stbrp_pack_rects(&pack_ctx, rects, kNumChars) == 1;
     if (!packed) atlas_dim *= 2;
   }
-  CHECK(packed, "Could not pack SDF atlas for ", asset.name,
+  CHECK(packed, "Could not pack SDF atlas for ", name,
         " even at ", atlas_dim, "x", atlas_dim);
+  return atlas_dim;
+}
 
-  // Phase 3: Blit individual glyph bitmaps into the atlas.
+// Blit individual SDF bitmaps into a single atlas texture and store
+// UV coordinates + positioning metrics into the glyph array.
+// Returns a pointer to the atlas pixel data (allocated from `scratch`).
+uint8_t* Renderer::BlitGlyphsIntoAtlas(FontInfo& font,
+                                        const GlyphBitmap* bitmaps,
+                                        const stbrp_rect* rects, int atlas_dim,
+                                        ArenaAllocator* scratch) {
   const size_t atlas_bytes = atlas_dim * atlas_dim;
-  ArenaAllocator scratch(allocator_, atlas_bytes);
-  uint8_t* atlas = scratch.NewArray<uint8_t>(atlas_bytes);
+  uint8_t* atlas = scratch->NewArray<uint8_t>(atlas_bytes);
   std::memset(atlas, 0, atlas_bytes);
 
   for (int i = 0; i < kNumChars; ++i) {
@@ -836,6 +845,31 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
     font.glyphs[cp].height = (float)bitmaps[i].h;
     stbtt_FreeSDF(bitmaps[i].data, 0, 0, nullptr);
   }
+  return atlas;
+}
+
+void Renderer::LoadFont(const DbAssets::Font& asset) {
+  FontInfo font;
+  std::memset(&font, 0, sizeof(font));
+  CHECK(stbtt_InitFont(&font.font_info, asset.contents,
+                       stbtt_GetFontOffsetForIndex(asset.contents, 0)),
+        "Could not initialize ", asset.name);
+  font.scale = stbtt_ScaleForPixelHeight(&font.font_info, kSDFHeight);
+  font.pixel_height = kSDFHeight;
+  stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
+                        &font.line_gap);
+
+  // Allocate scratch space for glyph bitmaps, packing rects, and the atlas.
+  // Worst-case atlas is 2048x2048 = 4MB; bitmaps and rects are small but we
+  // keep them in the arena for consistency.
+  ArenaAllocator scratch(allocator_, 2048 * 2048 + kNumChars * 64);
+  auto* bitmaps = scratch.NewArray<GlyphBitmap>(kNumChars);
+  auto* rects = scratch.NewArray<stbrp_rect>(kNumChars);
+
+  GenerateSDFBitmaps(font, bitmaps, rects, asset.name);
+  int atlas_dim = PackGlyphRects(rects, asset.name);
+  uint8_t* atlas = BlitGlyphsIntoAtlas(font, bitmaps, rects, atlas_dim,
+                                        &scratch);
 
   font.atlas_width = atlas_dim;
   font.atlas_height = atlas_dim;

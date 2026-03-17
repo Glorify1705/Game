@@ -19,7 +19,9 @@ if (distance > 0.5) → inside the glyph (draw foreground color)
 if (distance < 0.5) → outside the glyph (discard / transparent)
 ```
 
-When you scale an SDF texture, bilinear interpolation produces *interpolated distances*, which are still geometrically meaningful. The threshold still produces a crisp edge at the correct location. A 48px SDF glyph can be rendered at 8px or 200px and the edges remain sharp because the shader is reconstructing the edge from the distance field, not stretching a pre-rendered image.
+When you scale an SDF texture, the GPU uses **bilinear interpolation** to sample between texels — it takes the four nearest texels and blends their values based on how close the sample point is to each one. For a regular bitmap, this blending produces a blurry gray pixel (the average of a black and white pixel is gray). But for an SDF, the blended values are *interpolated distances*, which are still geometrically meaningful. For example, if two adjacent texels have distance values 0.4 (just outside the edge) and 0.6 (just inside the edge), bilinear interpolation at the midpoint produces 0.5 — which correctly places the glyph edge exactly between them. The threshold still produces a crisp edge at the correct location.
+
+A 48px SDF glyph can be rendered at 8px or 200px and the edges remain sharp because the shader is reconstructing the edge from the distance field, not stretching a pre-rendered image.
 
 The quality limit is determined by how many distance samples exist to capture the shape's features. Fine details (thin serifs, tight curves) need enough SDF resolution to represent them. For most fonts, 32-64px SDF glyphs cover sizes from ~8px to 300px+ without visible artifacts.
 
@@ -97,9 +99,11 @@ DrawText:
   SetShaderProgram("pre_pass")     ← NEW: restore default shader
 
 Fragment shader (SDF):
-  float distance = texture(tex, tex_coord).r;
-  float smoothing = fwidth(distance);
-  float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
+  float dist = texture(tex, tex_coord).r;
+  float grad = length(vec2(dFdx(dist), dFdy(dist)));
+  float w = min(0.5 * grad, 0.065);
+  float threshold = 0.5 - 0.15 * grad;
+  float alpha = smoothstep(threshold - w, threshold + w, dist);
   frag_color = vec4(out_color.rgb, out_color.a * alpha);
 ```
 
@@ -120,7 +124,7 @@ None. Everything needed is already in the codebase:
 
 - **stb_truetype.h** — `stbtt_GetCodepointSDF()` for SDF generation, `stbtt_GetCodepointHMetrics()` for advance/bearing metrics
 - **stb_rect_pack.h** — `stbrp_pack_rects()` for packing individual SDF bitmaps into an atlas (already bundled in `libraries/`, currently unused)
-- **OpenGL 4.6** — `fwidth()` GLSL function for screen-space anti-aliasing (available in GLSL 4.6 core)
+- **OpenGL 4.6** — `dFdx()`/`dFdy()` GLSL functions for screen-space anti-aliasing (available in GLSL 4.6 core). "Screen-space anti-aliasing" means the shader adapts the edge softness based on how many screen pixels each texel covers, so glyph edges are always ~1 pixel soft regardless of the render size. This is computed per-fragment on the GPU, unlike CPU-side anti-aliasing which would need to know the final render size upfront.
 
 ## Detailed implementation
 
@@ -140,9 +144,14 @@ struct SDFGlyph {
 
 struct FontInfo {
   GLuint texture;
-  float scale;                    // stbtt scale for SDF reference height
-  float pixel_height;             // SDF reference height (48px)
-  int ascent, descent, line_gap;
+  float scale;                    // stbtt scale factor for the SDF reference height
+  float pixel_height;             // SDF reference rasterization height in pixels
+  int ascent;                     // Distance from baseline to top of tallest glyph
+                                  // (unscaled font units; multiply by `scale` for pixels)
+  int descent;                    // Distance from baseline downward (negative value,
+                                  // unscaled font units)
+  int line_gap;                   // Extra spacing between lines recommended by the
+                                  // font designer (unscaled font units)
   stbtt_fontinfo font_info;       // Kept for kerning queries
   SDFGlyph glyphs[128];          // Indexed by codepoint (only 32-126 used)
   int atlas_width, atlas_height;  // Actual atlas dimensions
@@ -248,42 +257,57 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
 
 ### 3. SDF fragment shader
 
-Add a new SDF fragment shader alongside the existing pre-pass shaders in `shaders.cc`:
+Add a new SDF fragment shader alongside the existing pre-pass shaders in `shaders.cc`. Here is the actual shader with line-by-line explanation:
 
 ```glsl
 #version 460 core
 out vec4 frag_color;
 
-in vec2 tex_coord;
-in vec4 out_color;
+in vec2 tex_coord;   // UV coordinates into the SDF atlas
+in vec4 out_color;   // Vertex color (from the CPU-side text color)
 
-uniform sampler2D tex;
-
-// SDF effect uniforms.
-uniform float outline_width;     // 0.0 = no outline, 0.0-0.2 typical
-uniform vec4 outline_color;      // RGBA outline color
+uniform sampler2D tex;  // The SDF atlas texture
 
 void main() {
-    float distance = texture(tex, tex_coord).r;
-    float smoothing = fwidth(distance);
+    // Sample the distance value from the SDF atlas. Values > 0.5 are inside
+    // the glyph, < 0.5 are outside, exactly 0.5 is the glyph edge.
+    float dist = texture(tex, tex_coord).r;
 
-    if (outline_width > 0.0) {
-        // Two-threshold rendering: outline edge and fill edge.
-        float outline_edge = 0.5 - outline_width;
-        float outline_alpha = smoothstep(outline_edge - smoothing,
-                                         outline_edge + smoothing, distance);
-        float fill_alpha = smoothstep(0.5 - smoothing,
-                                      0.5 + smoothing, distance);
-        vec4 color = mix(outline_color, vec4(out_color.rgb, 1.0), fill_alpha);
-        color.a *= outline_alpha * out_color.a;
-        frag_color = color;
-    } else {
-        // Simple threshold rendering.
-        float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
-        frag_color = vec4(out_color.rgb, out_color.a * alpha);
-    }
+    // Compute the screen-space gradient: how fast the distance value changes
+    // across adjacent screen pixels. dFdx() returns the rate of change of
+    // `dist` in the horizontal screen direction, dFdy() in the vertical.
+    // When text is small on screen, each pixel covers many atlas texels, so
+    // `grad` is large. When text is large, `grad` is small.
+    float grad = length(vec2(dFdx(dist), dFdy(dist)));
+
+    // Half-width of the smoothstep transition band. Proportional to `grad` so
+    // the anti-aliased edge is always ~1 screen pixel wide. Capped at 0.065
+    // (empirically tuned) so at large render sizes — where `grad` approaches
+    // zero — edges stay crisp rather than becoming infinitely sharp (which
+    // would cause aliasing).
+    float w = min(0.5 * grad, 0.065);
+
+    // Shift the inside/outside threshold inward at small sizes. When text is
+    // tiny, the gradient averaging can erode thin features (like the crossbar
+    // of 'e' or serifs). Subtracting 0.15 * grad biases the threshold toward
+    // "inside", keeping thin strokes visible.
+    float threshold = 0.5 - 0.15 * grad;
+
+    // smoothstep produces a smooth 0→1 transition over [threshold-w, threshold+w].
+    // Pixels with dist well above the threshold get alpha=1 (fully opaque),
+    // pixels well below get alpha=0 (transparent), and the narrow band in
+    // between gets a smooth anti-aliased transition.
+    float alpha = smoothstep(threshold - w, threshold + w, dist);
+
+    frag_color = vec4(out_color.rgb, out_color.a * alpha);
 }
 ```
+
+#### GLSL built-in functions used
+
+- **`dFdx(v)` / `dFdy(v)`** — Return the partial derivative of `v` with respect to screen-space x/y coordinates. The GPU computes these by comparing the value of `v` in adjacent fragments within the same 2x2 pixel quad. This is how the shader knows "how zoomed in" it is on the texture.
+- **`smoothstep(edge0, edge1, x)`** — A Hermite interpolation function. Returns 0 if `x < edge0`, 1 if `x > edge1`, and a smooth S-curve between them. Unlike a hard `step()`, it produces soft anti-aliased edges.
+- **`length(vec2)`** — Euclidean length of a 2D vector. Used here to combine the horizontal and vertical gradient rates into a single magnitude.
 
 This shader is compiled and linked at startup in `Shaders::Shaders()`:
 
