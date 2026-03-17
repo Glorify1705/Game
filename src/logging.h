@@ -10,7 +10,7 @@
 
 namespace G {
 
-enum LogLevel { LOG_LEVEL_INFO, LOG_LEVEL_FATAL };
+enum class LogLevel : uint8_t { kInfo, kFatal };
 
 using LogSink = void (*)(LogLevel /*lvl*/, const char* /*message*/);
 
@@ -39,7 +39,7 @@ template <typename... T>
   FixedStringBuffer<kMaxLogLineLength> buf("[", TrimPath(file), ":", line,
                                            "] ");
   buf.Append<T...>(std::forward<T>(ts)...);
-  GetLogSink()(LOG_LEVEL_FATAL, buf.str());
+  GetLogSink()(LogLevel::kFatal, buf.str());
   Crash(buf.str());
 }
 
@@ -48,7 +48,7 @@ void Log(std::string_view file, int line, T&&... ts) {
   FixedStringBuffer<kMaxLogLineLength> buf("[", TrimPath(file), ":", line,
                                            "] ");
   buf.Append<T...>(std::forward<T>(ts)...);
-  GetLogSink()(LOG_LEVEL_INFO, buf.str());
+  GetLogSink()(LogLevel::kInfo, buf.str());
 }
 
 struct OpenGLSourceLine {

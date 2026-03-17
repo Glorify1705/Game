@@ -7,13 +7,12 @@ namespace {
 
 const char* LevelToString(LogLevel level) {
   switch (level) {
-    case LOG_LEVEL_FATAL:
+    case LogLevel::kFatal:
       return "F";
-    case LOG_LEVEL_INFO:
+    case LogLevel::kInfo:
       return "I";
-    default:
-      return "?";
   }
+  return "?";
 }
 
 void DefaultLog(LogLevel level, const char* message) {
