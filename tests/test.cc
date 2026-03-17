@@ -162,7 +162,8 @@ TEST(Tests, BlockAllocator) {
 }
 
 TEST(Tests, FreeListAllocator) {
-  FreeList<uint32_t> freelist(SystemAllocator::Instance());
+  StaticAllocator<1024> arena;
+  FreeList<uint32_t> freelist(&arena);
   uint32_t* p = freelist.Alloc();
   uint32_t* q = freelist.Alloc();
   EXPECT_NE(p, q);
