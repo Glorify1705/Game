@@ -50,7 +50,7 @@ add_library(double-conversion STATIC
 )
 target_include_directories(double-conversion PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-set(GAME_SRCS
+set(VENDORED_SRCS
     "libraries/dr_wav.cc"
     "libraries/glad.cc"
     "libraries/json.cc"
@@ -58,7 +58,9 @@ set(GAME_SRCS
     "libraries/sqlite3.c"
     "libraries/stb_rect_pack.cc"
     "libraries/stb_truetype.cc"
-    "libraries/stb_vorbis.cc"
+    "libraries/stb_vorbis.cc")
+
+set(ENGINE_SRCS
     "src/assets.cc"
     "src/clock.cc"
     "src/color.cc"
@@ -98,6 +100,8 @@ set(GAME_SRCS
     "src/cmd_version.cc"
     "src/platform.cc")
 
+set(GAME_SRCS ${VENDORED_SRCS} ${ENGINE_SRCS})
+
 configure_file(src/version.h.in version.h)
 
 add_executable(Game "${GAME_SRCS}")
@@ -126,6 +130,12 @@ target_compile_options(Game PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1>
     $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
+)
+
+# Engine code compiles with no exceptions and no RTTI.
+# Vendored libraries are exempt since some (e.g. pugixml) use exceptions.
+set_source_files_properties(${ENGINE_SRCS} PROPERTIES
+    COMPILE_OPTIONS "$<${IS_GCC_LIKE}:-fno-exceptions;-fno-rtti>"
 )
 
 target_compile_definitions(Game PRIVATE

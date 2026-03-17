@@ -9,8 +9,6 @@
 
 namespace G {
 
-enum GameModules : uint32_t { VIDEO = 0, SOUND = 1, JOYSTICK = 2 };
-
 struct GameConfig {
   size_t window_width = 1440;
   size_t window_height = 1024;

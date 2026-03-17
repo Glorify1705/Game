@@ -2,9 +2,6 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
-#include <deque>
-#include <memory>
-#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -83,10 +80,10 @@ void SdlCrash(const char* message) {
 
 void LogToSDL(LogLevel level, const char* message) {
   switch (level) {
-    case LOG_LEVEL_FATAL:
+    case LogLevel::kFatal:
       SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "%s", message);
       break;
-    case LOG_LEVEL_INFO:
+    case LogLevel::kInfo:
       SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "%s", message);
       break;
   }

@@ -97,7 +97,7 @@ class DbPacker {
     desc.width = x;
     desc.height = y;
     desc.channels = channels;
-    desc.colorspace = 1;
+    desc.colorspace = QoiColorspace::kLinear;
     int out_len;
     auto* qoi_encoded = QoiEncode(contents, &desc, &out_len, allocator_);
     DCHECK(qoi_encoded != nullptr);
