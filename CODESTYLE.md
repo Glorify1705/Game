@@ -28,6 +28,7 @@ and keep the code simple enough to reason about locally.
 - [Comments](#comments)
 - [Constants and Enums](#constants-and-enums)
 - [Macros](#macros)
+- [API Design](#api-design)
 - [Operator Overloading](#operator-overloading)
 - [Dependencies and Vendoring](#dependencies-and-vendoring)
 - [Build System](#build-system)
@@ -853,6 +854,30 @@ Always specify the underlying type explicitly.
 
 Enum values use the `k` prefix: `kValue`, `kOtherValue`.
 
+### Exhaustive Switch Statements
+
+When switching over an enum, handle every enumerator and **omit the `default`
+case**. This way the compiler warns (and with `-Werror`, errors) when a new
+enumerator is added but not handled:
+
+```cpp
+std::string_view CommandName(CommandType t) {
+  switch (t) {
+    case kRenderQuad: return "RenderQuad";
+    case kRenderTrig: return "RenderTrig";
+    case kSetTexture: return "SetTexture";
+    // ... every case ...
+  }
+  DIE("Unexpected CommandType: ", static_cast<int>(t));
+}
+```
+
+The code after the `switch` handles the (theoretically impossible) case where
+the enum holds a value outside its enumerators. Use `DIE()` — if we get
+there, something is deeply wrong.
+
+See [Abseil Tip #147](https://abseil.io/tips/147).
+
 ---
 
 ## Macros
@@ -872,6 +897,180 @@ Name all macros `SCREAMING_SNAKE_CASE`. Macros that generate unique names
 should use `__COUNTER__` (not `__LINE__`) for uniqueness.
 
 Undefine macros that are only needed temporarily (`#undef`).
+
+---
+
+## API Design
+
+These guidelines are drawn from
+[Abseil's Tips of the Week](https://abseil.io/tips/) — a collection of C++
+best practices from Google's codebase. The tips below are the ones most
+relevant to this project.
+
+### Prefer Enums Over Bool Parameters
+
+A bare `true` or `false` at a callsite tells the reader nothing. Use an enum
+instead so the callsite is self-documenting:
+
+```cpp
+// Bad: what does `true` mean here?
+LoadTexture(data, width, height, true);
+
+// Good: the callsite reads like prose.
+enum class FilterMode { kNearest, kLinear };
+LoadTexture(data, width, height, FilterMode::kLinear);
+```
+
+This is especially important when a function has **multiple** bool parameters
+— it's nearly impossible to remember the order. If you're defining a function
+that takes a bool, stop and ask whether an enum with two values would be
+clearer. The answer is almost always yes.
+
+For existing functions that take bools, use `/*parameter_name=*/` comments
+at the callsite as a stopgap:
+
+```cpp
+ParseConfig(path, /*hot_reload=*/false, /*strict=*/true);
+```
+
+See [Abseil Tip #94](https://abseil.io/tips/94).
+
+### Prefer Return Values Over Output Parameters
+
+Return values are easier to reason about than output pointers. They make
+ownership clear, enable `const`, and compose naturally:
+
+```cpp
+// Prefer: clear ownership, works with const and auto.
+ExtractResult ExtractSpecs(const Doodad& doodad);
+
+// Avoid: unclear if out-params are input, output, or both.
+bool ExtractSpecs(const Doodad& doodad, FooSpec* foo, BarSpec* bar);
+```
+
+Use `std::optional<T>` for functions that may not produce a result.
+
+Output parameters are acceptable for **hot-path** code where the caller
+wants to reuse an existing buffer (e.g., `Render(Allocator* scratch)`),
+or for the established `bool Lookup(key, T* out)` pattern where the
+boolean already signals success/failure. Don't add a third pattern.
+
+See [Abseil Tip #176](https://abseil.io/tips/176).
+
+### Avoid Sentinel Values
+
+Don't use magic values (`-1`, `0xFFFFFFFF`, `nullptr` for "not found") when
+`std::optional` exists and communicates intent:
+
+```cpp
+// Bad: caller must know -1 means "not found."
+int FindIndex(std::string_view name);
+
+// Good: type system forces the caller to check.
+std::optional<size_t> FindIndex(std::string_view name);
+```
+
+When `std::optional` is not appropriate (e.g., returning a pointer where
+null is the natural "not found"), that's fine — `nullptr` is a well-understood
+convention for pointers. The rule targets **integer and float sentinels** that
+are easy to forget.
+
+See [Abseil Tip #171](https://abseil.io/tips/171).
+
+### Option Structs for Many Parameters
+
+When a function accumulates more than 3-4 parameters (especially if several
+have defaults), group the optional ones into a struct:
+
+```cpp
+struct TextOptions {
+  float scale = 1.0f;
+  Color color = Color::White();
+  bool wrap = false;
+};
+
+void DrawText(std::string_view text, FVec2 position,
+              const TextOptions& opts = {});
+```
+
+This avoids long parameter lists, makes defaults visible, and allows callers
+to set only the fields they care about.
+
+See [Abseil Tip #173](https://abseil.io/tips/173).
+
+### Use `if` and `switch` Initializers
+
+C++17 allows declaring variables inside `if` and `switch` statements. Use
+this to limit variable scope:
+
+```cpp
+// Good: `it` doesn't leak into the outer scope.
+if (auto* sprite = GetSprite(name); sprite != nullptr) {
+  Draw(sprite);
+}
+
+// Bad: `sprite` is visible after the if block.
+auto* sprite = GetSprite(name);
+if (sprite != nullptr) {
+  Draw(sprite);
+}
+```
+
+This is especially useful for lookup-then-use patterns.
+
+See [Abseil Tip #165](https://abseil.io/tips/165).
+
+### Mark Multi-Parameter Constructors `explicit`
+
+Following [Abseil Tip #142](https://abseil.io/tips/142), mark constructors
+`explicit` unless the arguments **are** the value (e.g., `FVec2(x, y)` is a
+natural implicit conversion from two floats to a point):
+
+```cpp
+// Good: implicit — (x, y) *is* the vector.
+FVec2(float x, float y);
+
+// Good: explicit — these arguments configure, not represent.
+explicit BatchRenderer(IVec2 viewport, Shaders* shaders, Allocator* alloc);
+```
+
+### Prefer Unnamed-Namespace Functions
+
+Helper functions that are only used in one `.cc` file should be non-member
+functions in an anonymous namespace, not private methods:
+
+```cpp
+// In renderer.cc
+namespace {
+FVec2 CalculateTexCoord(const Sprite& s, int frame) {
+  // ...
+}
+}  // namespace
+```
+
+This keeps the class interface small, makes inputs/outputs explicit through
+parameters, and is easy to find (same file, above first use).
+
+See [Abseil Tip #186](https://abseil.io/tips/186).
+
+### Good Locals, Bad Locals
+
+Only introduce a local variable when it adds clarity. Don't name things
+just to name them:
+
+```cpp
+// Bad: the variable adds nothing.
+size_t count = array.size();
+return count;
+
+// Good: just return directly.
+return array.size();
+
+// Good: the name explains a non-obvious expression.
+const float half_diagonal = viewport.Length() * 0.5f;
+```
+
+See [Abseil Tip #161](https://abseil.io/tips/161).
 
 ---
 
