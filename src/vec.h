@@ -4,9 +4,6 @@
 
 #include <cmath>
 #include <cstdint>
-#include <ostream>
-#include <string>
-
 #include "stringlib.h"
 
 namespace G {
@@ -105,23 +102,8 @@ struct FVec2 {
   float Length() const { return std::sqrt(Length2()); }
   FVec2 Normalized() const { return *this * (1.0 / Length()); }
 
-  friend std::ostream& operator<<(std::ostream& os, const FVec2& v) {
-    os << "{ ";
-    os << v.x;
-    os << ", ";
-    os << v.y;
-    return os << " }";
-  }
-
-  void DebugString(StringBuffer& sink) const {
-    sink.Append("{ ", x, " ", y, " }");
-  }
-
-  friend void AppendToString(const FVec2& v, std::string& sink) {
-    char buf[32] = {0};
-    std::size_t len =
-        std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f }", v.x, v.y);
-    sink.append(buf, len);
+  friend void AppendToString(const FVec2& v, StringBuffer& sink) {
+    sink.AppendF("{ %.3f, %.3f }", v.x, v.y);
   }
 };
 
@@ -252,25 +234,8 @@ struct FVec3 {
                  a.x * b.y - a.y * b.x);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const FVec3& v) {
-    os << "{ ";
-    os << v.x;
-    os << ", ";
-    os << v.y;
-    os << ", ";
-    os << v.z;
-    return os << " }";
-  }
-
-  void DebugString(StringBuffer& sink) const {
-    sink.Append("{ ", x, " ", y, " ", z, " }");
-  }
-
-  friend void AppendToString(const FVec3& v, std::string& sink) {
-    char buf[32] = {0};
-    std::size_t len =
-        std::snprintf(buf, sizeof(buf), "{ %.3f, %.3f, %.3f }", v.x, v.y, v.z);
-    sink.append(buf, len);
+  friend void AppendToString(const FVec3& v, StringBuffer& sink) {
+    sink.AppendF("{ %.3f, %.3f, %.3f }", v.x, v.y, v.z);
   }
 };
 
@@ -409,27 +374,8 @@ struct FVec4 {
   float Length() const { return std::sqrt(Length2()); }
   FVec4 Normalized() const { return *this * (1.0 / Length()); }
 
-  friend std::ostream& operator<<(std::ostream& os, const FVec4& v) {
-    os << "{ ";
-    os << v.x;
-    os << ", ";
-    os << v.y;
-    os << ", ";
-    os << v.z;
-    os << ", ";
-    os << v.w;
-    return os << " }";
-  }
-
-  void DebugString(StringBuffer& sink) const {
-    sink.Append("{ ", x, " ", y, " ", z, " ", w, " }");
-  }
-
-  friend void AppendToString(const FVec4& v, std::string& sink) {
-    char buf[32] = {0};
-    std::size_t len = std::snprintf(
-        buf, sizeof(buf), "{ %.3f, %.3f, %.3f, %.3f }", v.x, v.y, v.z, v.w);
-    sink.append(buf, len);
+  friend void AppendToString(const FVec4& v, StringBuffer& sink) {
+    sink.AppendF("{ %.3f, %.3f, %.3f, %.3f }", v.x, v.y, v.z, v.w);
   }
 };
 
@@ -542,23 +488,8 @@ struct DVec2 {
   double Length() const { return std::sqrt(Length2()); }
   DVec2 Normalized() const { return *this * (1.0 / Length()); }
 
-  friend std::ostream& operator<<(std::ostream& os, const DVec2& v) {
-    os << "{ ";
-    os << v.x;
-    os << ", ";
-    os << v.y;
-    return os << " }";
-  }
-
-  void DebugString(StringBuffer& sink) const {
-    sink.Append("{ ", x, " ", y, "}");
-  }
-
-  friend void AppendToString(const DVec2& v, std::string& sink) {
-    char buf[32] = {0};
-    std::size_t len =
-        std::snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf }", v.x, v.y);
-    sink.append(buf, len);
+  friend void AppendToString(const DVec2& v, StringBuffer& sink) {
+    sink.AppendF("{ %.3lf, %.3lf }", v.x, v.y);
   }
 };
 
@@ -689,25 +620,8 @@ struct DVec3 {
                  a.x * b.y - a.y * b.x);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const DVec3& v) {
-    os << "{ ";
-    os << v.x;
-    os << ", ";
-    os << v.y;
-    os << ", ";
-    os << v.z;
-    return os << " }";
-  }
-
-  void DebugString(StringBuffer& sink) const {
-    sink.Append("{ ", x, " ", y, " ", z, "}");
-  }
-
-  friend void AppendToString(const DVec3& v, std::string& sink) {
-    char buf[32] = {0};
-    std::size_t len =
-        snprintf(buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf }", v.x, v.y, v.z);
-    sink.append(buf, len);
+  friend void AppendToString(const DVec3& v, StringBuffer& sink) {
+    sink.AppendF("{ %.3lf, %.3lf, %.3lf }", v.x, v.y, v.z);
   }
 };
 
@@ -846,27 +760,8 @@ struct DVec4 {
   double Length() const { return std::sqrt(Length2()); }
   DVec4 Normalized() const { return *this * (1.0 / Length()); }
 
-  friend std::ostream& operator<<(std::ostream& os, const DVec4& v) {
-    os << "{ ";
-    os << v.x;
-    os << ", ";
-    os << v.y;
-    os << ", ";
-    os << v.z;
-    os << ", ";
-    os << v.w;
-    return os << " }";
-  }
-
-  void DebugString(StringBuffer& sink) const {
-    sink.Append("{ ", x, " ", y, " ", z, " ", w, "}");
-  }
-
-  friend void AppendToString(const DVec4& v, std::string& sink) {
-    char buf[32] = {0};
-    std::size_t len = std::snprintf(
-        buf, sizeof(buf), "{ %.3lf, %.3lf, %.3lf, %.3lf }", v.x, v.y, v.z, v.w);
-    sink.append(buf, len);
+  friend void AppendToString(const DVec4& v, StringBuffer& sink) {
+    sink.AppendF("{ %.3lf, %.3lf, %.3lf, %.3lf }", v.x, v.y, v.z, v.w);
   }
 };
 
@@ -976,22 +871,8 @@ struct IVec2 {
 
   int Length2() const { return Dot(*this); }
 
-  friend std::ostream& operator<<(std::ostream& os, const IVec2& v) {
-    os << "{ ";
-    os << v.x;
-    os << ", ";
-    os << v.y;
-    return os << " }";
-  }
-
-  void DebugString(StringBuffer& sink) const {
-    sink.Append("{ ", x, " ", y, "}");
-  }
-
-  friend void AppendToString(const IVec2& v, std::string& sink) {
-    char buf[32] = {0};
-    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %d, %d }", v.x, v.y);
-    sink.append(buf, len);
+  friend void AppendToString(const IVec2& v, StringBuffer& sink) {
+    sink.AppendF("{ %d, %d }", v.x, v.y);
   }
 };
 
@@ -1119,25 +1000,8 @@ struct IVec3 {
                  a.x * b.y - a.y * b.x);
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const IVec3& v) {
-    os << "{ ";
-    os << v.x;
-    os << ", ";
-    os << v.y;
-    os << ", ";
-    os << v.z;
-    return os << " }";
-  }
-
-  void DebugString(StringBuffer& sink) const {
-    sink.Append("{ ", x, " ", y, " ", z, "}");
-  }
-
-  friend void AppendToString(const IVec3& v, std::string& sink) {
-    char buf[32] = {0};
-    std::size_t len =
-        std::snprintf(buf, sizeof(buf), "{ %d, %d, %d }", v.x, v.y, v.z);
-    sink.append(buf, len);
+  friend void AppendToString(const IVec3& v, StringBuffer& sink) {
+    sink.AppendF("{ %d, %d, %d }", v.x, v.y, v.z);
   }
 };
 
@@ -1273,27 +1137,8 @@ struct IVec4 {
 
   int Length2() const { return Dot(*this); }
 
-  friend std::ostream& operator<<(std::ostream& os, const IVec4& v) {
-    os << "{ ";
-    os << v.x;
-    os << ", ";
-    os << v.y;
-    os << ", ";
-    os << v.z;
-    os << ", ";
-    os << v.w;
-    return os << " }";
-  }
-
-  void DebugString(StringBuffer& sink) const {
-    sink.Append("{ ", x, " ", y, " ", z, " ", w, "}");
-  }
-
-  friend void AppendToString(const IVec4& v, std::string& sink) {
-    char buf[32] = {0};
-    std::size_t len = std::snprintf(buf, sizeof(buf), "{ %d, %d, %d, %d }", v.x,
-                                    v.y, v.z, v.w);
-    sink.append(buf, len);
+  friend void AppendToString(const IVec4& v, StringBuffer& sink) {
+    sink.AppendF("{ %d, %d, %d, %d }", v.x, v.y, v.z, v.w);
   }
 };
 

@@ -4,6 +4,7 @@
 #include <limits>
 
 #include "logging.h"
+#include "stringlib.h"
 
 namespace G {
 namespace {
@@ -44,12 +45,12 @@ double Stats::Percentile(double percentile) const {
   return kMax;
 }
 
-void AppendToString(const Stats& stats, std::string& str) {
+void AppendToString(const Stats& stats, StringBuffer& sink) {
   if (stats.samples() > 1) {
-    StrAppend(&str, "min = ", stats.min(), " max = ", stats.max(),
-              " avg = ", stats.avg(), " stdev = ", stats.stdev(),
-              " p50 = ", stats.Percentile(50), " p90 = ", stats.Percentile(90),
-              " p99 = ", stats.Percentile(99));
+    sink.Append("min = ", stats.min(), " max = ", stats.max(),
+                " avg = ", stats.avg(), " stdev = ", stats.stdev(),
+                " p50 = ", stats.Percentile(50), " p90 = ", stats.Percentile(90),
+                " p99 = ", stats.Percentile(99));
   }
 }
 

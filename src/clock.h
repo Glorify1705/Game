@@ -4,7 +4,6 @@
 
 #include <cstdint>
 #include <limits>
-#include <string>
 
 #include "logging.h"
 #include "stringlib.h"

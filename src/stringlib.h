@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <string>
 #include <string_view>
 #include <type_traits>
 
@@ -24,7 +23,7 @@ struct HasAppendString : public std::false_type {};
 template <typename T>
 struct HasAppendString<
     T, std::enable_if_t<std::is_void_v<decltype(AppendToString(
-           std::declval<const T&>(), std::declval<std::string&>()))>>>
+           std::declval<const T&>(), std::declval<StringBuffer&>()))>>>
     : public std::true_type {};
 
 class Alphanumeric {
@@ -75,15 +74,11 @@ class Alphanumeric {
 
   Alphanumeric(const unsigned char* c)
       : piece_(reinterpret_cast<const char*>(c)) {}
-  Alphanumeric(const std::string& c) : piece_(c) {}
   Alphanumeric(std::string_view c) : piece_(c) {}
 
   template <typename T,
             typename = typename std::enable_if_t<HasAppendString<T>::value>>
-  Alphanumeric(const T& t, std::string&& output = {}) {
-    AppendToString(t, output);
-    piece_ = std::string_view(output);
-  }
+  Alphanumeric(const T& t);
 
   Alphanumeric(char c) {
     buf_[0] = c;
@@ -95,33 +90,11 @@ class Alphanumeric {
   std::string_view piece() const { return piece_; }
 
  private:
-  char buf_[32] = {0};
+  char buf_[128] = {0};
   std::string_view piece_;
 };
 
 }  // namespace internal_strings
-
-template <typename... T>
-std::string StrCat(T... ts) {
-  return [&](std::initializer_list<std::string_view> ss) {
-    std::string result;
-    size_t total = 0;
-    for (auto& s : ss) total += s.size();
-    result.reserve(total);
-    for (auto& s : ss) result.append(s.data(), s.size());
-    return result;
-  }({internal_strings::Alphanumeric(ts).piece()...});
-}
-
-template <typename... T>
-void StrAppend(std::string* buf, T... ts) {
-  [&](std::initializer_list<std::string_view> ss) {
-    size_t total = 0;
-    for (auto& s : ss) total += s.size();
-    buf->reserve(std::max(buf->size() * 2, buf->size() + total));
-    for (auto& s : ss) buf->append(s.data(), s.size());
-  }({internal_strings::Alphanumeric(ts).piece()...});
-}
 
 class StringBuffer {
  public:
@@ -216,6 +189,13 @@ class FixedStringBuffer final : public StringBuffer {
  private:
   char buf_[N + 1];
 };
+
+template <typename T, typename>
+internal_strings::Alphanumeric::Alphanumeric(const T& t) {
+  StringBuffer sb(buf_, sizeof(buf_));
+  AppendToString(t, sb);
+  piece_ = std::string_view(buf_, sb.size());
+}
 
 bool HasSuffix(std::string_view str, std::string_view suffix);
 bool ConsumeSuffix(std::string_view* str, std::string_view suffix);
