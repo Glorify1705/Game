@@ -2,7 +2,6 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
-#include <string>
 #include <string_view>
 
 #define SDL_MAIN_HANDLED

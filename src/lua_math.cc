@@ -211,8 +211,8 @@ constexpr luaL_Reg kV2Methods[] = {
     {"__tostring",
      [](lua_State* state) {
        auto* v = AsUserdata<FVec2>(state, 1);
-       FixedStringBuffer<32> buf;
-       v->DebugString(buf);
+       FixedStringBuffer<64> buf;
+       buf.Append(*v);
        lua_pushlstring(state, buf.str(), buf.size());
        return 1;
      }},
@@ -243,7 +243,7 @@ constexpr luaL_Reg kV3Methods[] = {
      [](lua_State* state) {
        auto* v = AsUserdata<FVec3>(state, 1);
        FixedStringBuffer<64> buf;
-       v->DebugString(buf);
+       buf.Append(*v);
        lua_pushlstring(state, buf.str(), buf.size());
        return 1;
      }},
@@ -307,7 +307,7 @@ constexpr luaL_Reg kV4Methods[] = {
      [](lua_State* state) {
        auto* v = AsUserdata<FVec4>(state, 1);
        FixedStringBuffer<64> buf;
-       v->DebugString(buf);
+       buf.Append(*v);
        lua_pushlstring(state, buf.str(), buf.size());
        return 1;
      }},

@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <string>
 #include <string_view>
 #include <type_traits>
 
@@ -24,7 +23,7 @@ struct HasAppendString : public std::false_type {};
 template <typename T>
 struct HasAppendString<
     T, std::enable_if_t<std::is_void_v<decltype(AppendToString(
-           std::declval<const T&>(), std::declval<std::string&>()))>>>
+           std::declval<const T&>(), std::declval<StringBuffer&>()))>>>
     : public std::true_type {};
 
 class Alphanumeric {
@@ -75,15 +74,7 @@ class Alphanumeric {
 
   Alphanumeric(const unsigned char* c)
       : piece_(reinterpret_cast<const char*>(c)) {}
-  Alphanumeric(const std::string& c) : piece_(c) {}
   Alphanumeric(std::string_view c) : piece_(c) {}
-
-  template <typename T,
-            typename = typename std::enable_if_t<HasAppendString<T>::value>>
-  Alphanumeric(const T& t, std::string&& output = {}) {
-    AppendToString(t, output);
-    piece_ = std::string_view(output);
-  }
 
   Alphanumeric(char c) {
     buf_[0] = c;
@@ -101,28 +92,6 @@ class Alphanumeric {
 
 }  // namespace internal_strings
 
-template <typename... T>
-std::string StrCat(T... ts) {
-  return [&](std::initializer_list<std::string_view> ss) {
-    std::string result;
-    size_t total = 0;
-    for (auto& s : ss) total += s.size();
-    result.reserve(total);
-    for (auto& s : ss) result.append(s.data(), s.size());
-    return result;
-  }({internal_strings::Alphanumeric(ts).piece()...});
-}
-
-template <typename... T>
-void StrAppend(std::string* buf, T... ts) {
-  [&](std::initializer_list<std::string_view> ss) {
-    size_t total = 0;
-    for (auto& s : ss) total += s.size();
-    buf->reserve(std::max(buf->size() * 2, buf->size() + total));
-    for (auto& s : ss) buf->append(s.data(), s.size());
-  }({internal_strings::Alphanumeric(ts).piece()...});
-}
-
 class StringBuffer {
  public:
   StringBuffer(char* buf, size_t size) : buf_(buf), size_(size) {
@@ -130,10 +99,8 @@ class StringBuffer {
   }
 
   template <typename... T>
-  StringBuffer& Append(T... ts) {
-    [&](std::initializer_list<std::string_view> ss) {
-      for (auto& s : ss) AppendStr(s);
-    }({internal_strings::Alphanumeric(ts).piece()...});
+  StringBuffer& Append(const T&... ts) {
+    (AppendOne(ts), ...);
     buf_[pos_] = '\0';
     return *this;
   }
@@ -159,9 +126,9 @@ class StringBuffer {
   }
 
   template <typename... T>
-  StringBuffer& Set(T... ts) {
+  StringBuffer& Set(const T&... ts) {
     pos_ = 0;
-    return Append(std::forward<T>(ts)...);
+    return Append(ts...);
   }
 
   StringBuffer& SetF(const char* fmt, ...) {
@@ -185,6 +152,15 @@ class StringBuffer {
   bool empty() const { return pos_ == 0; }
 
  private:
+  template <typename T>
+  void AppendOne(const T& t) {
+    if constexpr (internal_strings::HasAppendString<T>::value) {
+      AppendToString(t, *this);
+    } else {
+      AppendStr(internal_strings::Alphanumeric(t).piece());
+    }
+  }
+
   void VAppendF(const char* fmt, va_list l) {
     int needed = vsnprintf(&buf_[pos_], size_ - pos_, fmt, l);
     pos_ = std::min(size_, pos_ + needed);
