@@ -76,10 +76,6 @@ class Alphanumeric {
       : piece_(reinterpret_cast<const char*>(c)) {}
   Alphanumeric(std::string_view c) : piece_(c) {}
 
-  template <typename T,
-            typename = typename std::enable_if_t<HasAppendString<T>::value>>
-  Alphanumeric(const T& t);
-
   Alphanumeric(char c) {
     buf_[0] = c;
     piece_ = std::string_view(buf_);
@@ -90,7 +86,7 @@ class Alphanumeric {
   std::string_view piece() const { return piece_; }
 
  private:
-  char buf_[128] = {0};
+  char buf_[32] = {0};
   std::string_view piece_;
 };
 
@@ -103,10 +99,8 @@ class StringBuffer {
   }
 
   template <typename... T>
-  StringBuffer& Append(T... ts) {
-    [&](std::initializer_list<std::string_view> ss) {
-      for (auto& s : ss) AppendStr(s);
-    }({internal_strings::Alphanumeric(ts).piece()...});
+  StringBuffer& Append(const T&... ts) {
+    (AppendOne(ts), ...);
     buf_[pos_] = '\0';
     return *this;
   }
@@ -132,9 +126,9 @@ class StringBuffer {
   }
 
   template <typename... T>
-  StringBuffer& Set(T... ts) {
+  StringBuffer& Set(const T&... ts) {
     pos_ = 0;
-    return Append(std::forward<T>(ts)...);
+    return Append(ts...);
   }
 
   StringBuffer& SetF(const char* fmt, ...) {
@@ -158,6 +152,15 @@ class StringBuffer {
   bool empty() const { return pos_ == 0; }
 
  private:
+  template <typename T>
+  void AppendOne(const T& t) {
+    if constexpr (internal_strings::HasAppendString<T>::value) {
+      AppendToString(t, *this);
+    } else {
+      AppendStr(internal_strings::Alphanumeric(t).piece());
+    }
+  }
+
   void VAppendF(const char* fmt, va_list l) {
     int needed = vsnprintf(&buf_[pos_], size_ - pos_, fmt, l);
     pos_ = std::min(size_, pos_ + needed);
@@ -189,13 +192,6 @@ class FixedStringBuffer final : public StringBuffer {
  private:
   char buf_[N + 1];
 };
-
-template <typename T, typename>
-internal_strings::Alphanumeric::Alphanumeric(const T& t) {
-  StringBuffer sb(buf_, sizeof(buf_));
-  AppendToString(t, sb);
-  piece_ = std::string_view(buf_, sb.size());
-}
 
 bool HasSuffix(std::string_view str, std::string_view suffix);
 bool ConsumeSuffix(std::string_view* str, std::string_view suffix);

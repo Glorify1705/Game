@@ -103,7 +103,7 @@ struct FVec2 {
   FVec2 Normalized() const { return *this * (1.0 / Length()); }
 
   friend void AppendToString(const FVec2& v, StringBuffer& sink) {
-    sink.AppendF("{ %.3f, %.3f }", v.x, v.y);
+    sink.AppendF("{ %.2f, %.2f }", v.x, v.y);
   }
 };
 
@@ -235,7 +235,7 @@ struct FVec3 {
   }
 
   friend void AppendToString(const FVec3& v, StringBuffer& sink) {
-    sink.AppendF("{ %.3f, %.3f, %.3f }", v.x, v.y, v.z);
+    sink.AppendF("{ %.2f, %.2f, %.2f }", v.x, v.y, v.z);
   }
 };
 
@@ -375,7 +375,7 @@ struct FVec4 {
   FVec4 Normalized() const { return *this * (1.0 / Length()); }
 
   friend void AppendToString(const FVec4& v, StringBuffer& sink) {
-    sink.AppendF("{ %.3f, %.3f, %.3f, %.3f }", v.x, v.y, v.z, v.w);
+    sink.AppendF("{ %.2f, %.2f, %.2f, %.2f }", v.x, v.y, v.z, v.w);
   }
 };
 
@@ -489,7 +489,7 @@ struct DVec2 {
   DVec2 Normalized() const { return *this * (1.0 / Length()); }
 
   friend void AppendToString(const DVec2& v, StringBuffer& sink) {
-    sink.AppendF("{ %.3lf, %.3lf }", v.x, v.y);
+    sink.AppendF("{ %.2lf, %.2lf }", v.x, v.y);
   }
 };
 
@@ -621,7 +621,7 @@ struct DVec3 {
   }
 
   friend void AppendToString(const DVec3& v, StringBuffer& sink) {
-    sink.AppendF("{ %.3lf, %.3lf, %.3lf }", v.x, v.y, v.z);
+    sink.AppendF("{ %.2lf, %.2lf, %.2lf }", v.x, v.y, v.z);
   }
 };
 
@@ -761,7 +761,7 @@ struct DVec4 {
   DVec4 Normalized() const { return *this * (1.0 / Length()); }
 
   friend void AppendToString(const DVec4& v, StringBuffer& sink) {
-    sink.AppendF("{ %.3lf, %.3lf, %.3lf, %.3lf }", v.x, v.y, v.z, v.w);
+    sink.AppendF("{ %.2lf, %.2lf, %.2lf, %.2lf }", v.x, v.y, v.z, v.w);
   }
 };
 

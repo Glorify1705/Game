@@ -8,7 +8,7 @@ Custom types (vectors, matrices, stats) have **three parallel string-formatting 
 |-----|-----------|---------------|---------|
 | `operator<<(std::ostream&, const T&)` | `std::ostream&` | vec.h, mat.h | Nothing in the engine |
 | `DebugString(StringBuffer&)` | `StringBuffer&` | vec.h only | `lua_math.cc` (3 callsites) |
-| `AppendToString(const T&, std::string&)` | `std::string&` | vec.h, mat.h, stats.h/cc | `Alphanumeric` -> `LOG()`, `StrCat()`, `StringBuffer::Append()` |
+| `AppendToString(const T&, std::string&)` | `std::string&` | vec.h, mat.h, stats.h/cc | `Alphanumeric` -> `LOG()`, `StringBuffer::Append()` |
 
 This is bad for three reasons:
 
@@ -166,7 +166,7 @@ StringBuffer (line 126)
   → Append() template creates Alphanumeric objects
 ```
 
-The constructor must be defined after `StringBuffer` but before any code that instantiates it. Since `Alphanumeric` is only instantiated through `StrCat`, `StrAppend`, and `StringBuffer::Append` (all template functions that are instantiated at call sites in other TUs), defining it anywhere after `StringBuffer` in the header works.
+The constructor must be defined after `StringBuffer` but before any code that instantiates it. Since `Alphanumeric` is only instantiated through `StringBuffer::Append` (a template function instantiated at call sites in other TUs), defining it anywhere after `StringBuffer` in the header works.
 
 **Why 128 bytes?** The current `buf_[32]` handles numeric types (longest is a pointer: `0x00007fff12345678` = 18 chars). Custom types need more:
 
@@ -354,13 +354,14 @@ After removing `operator<<` and `std::string&` from `AppendToString`:
 | `src/stats.h` | `#include <string>` | Add `class StringBuffer;` forward decl |
 | `src/stats.cc` | | Add `#include "stringlib.h"` |
 
-## What this does NOT change
+## Deleted: `StrCat`, `StrAppend`, and `Alphanumeric(const std::string&)`
 
-- **`StrCat` and `StrAppend`** still return/modify `std::string`. These are useful utility functions for building strings that need dynamic sizing (e.g., file paths, error messages). They don't use the `AppendToString` sink directly — they go through `Alphanumeric`, which now uses `StringBuffer` internally.
+These had zero callers in the codebase and were removed:
 
-- **`Alphanumeric(const std::string&)` and `Alphanumeric(std::string_view)`** constructors are unchanged. These handle passing `std::string` values to `LOG()` or `StrCat()`, which is fine — they just store a `string_view` into the existing string, no allocation.
+- **`StrCat`** and **`StrAppend`** — string-building utilities that returned/modified `std::string`. All callsites already use `StringBuffer` or `LOG()` directly.
+- **`Alphanumeric(const std::string&)`** — constructor overload for `std::string`. Only needed to support passing `std::string` values to `StrCat`/`StrAppend`.
 
-- **`StringBuffer::Append` template** is unchanged. It already creates `Alphanumeric` temporaries and concatenates their `piece()` views.
+This allowed removing `#include <string>` from `stringlib.h`.
 
 ## File changes summary
 
@@ -388,9 +389,8 @@ struct MyThing {
 };
 
 // Now works everywhere:
-LOG("got ", thing);                         // via Alphanumeric -> HasAppendString
-FixedStringBuffer<64> buf(thing);           // via StringBuffer::Append
-std::string s = StrCat("result: ", thing);  // via Alphanumeric -> HasAppendString
+LOG("got ", thing);                         // via StringBuffer::Append -> AppendToString
+FixedStringBuffer<64> buf(thing);           // via StringBuffer::Append -> AppendToString
 ```
 
 No additional includes needed beyond `stringlib.h`. No `operator<<`, no `<ostream>`, no `std::string` sink.

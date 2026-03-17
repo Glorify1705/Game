@@ -5,9 +5,9 @@
 #include <array>
 #include <cmath>
 
-namespace G {
+#include "stringlib.h"
 
-class StringBuffer;
+namespace G {
 
 class Stats {
  public:
