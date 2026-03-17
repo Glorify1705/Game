@@ -91,6 +91,46 @@ constexpr std::string_view kPostPassFragmentShader = R"(
   }
 )";
 
+// SDF fragment shader for distance-field text rendering.
+//
+// Samples the distance value from the SDF atlas and reconstructs a crisp glyph
+// edge using smoothstep. The key idea: dFdx/dFdy measure how fast the distance
+// changes across adjacent screen pixels (the screen-space gradient). This tells
+// us how "zoomed in" we are on the distance field, which lets us adapt the
+// anti-aliasing width so edges are always ~1px soft regardless of render size.
+//
+// - `dist`:      sampled distance from the SDF texture (0 = outside, 1 = inside,
+//                0.5 = on the glyph edge)
+// - `grad`:      screen-space gradient magnitude — large when text is small on
+//                screen (each pixel spans many texels), small when text is large
+// - `w`:         half-width of the smoothstep transition band, capped at 0.065
+//                to keep edges crisp at large sizes where grad approaches zero
+// - `threshold`: shifted inward (below 0.5) at small sizes so thin strokes
+//                don't vanish — compensates for the gradient averaging away
+//                narrow features
+constexpr std::string_view kSDFFragmentShader = R"(
+    #version 460 core
+    out vec4 frag_color;
+
+    in vec2 tex_coord;
+    in vec4 out_color;
+
+    uniform sampler2D tex;
+
+    void main() {
+        float dist = texture(tex, tex_coord).r;
+        float grad = length(vec2(dFdx(dist), dFdy(dist)));
+        // Cap transition width so large text keeps sharp edges. The 0.065 value
+        // was empirically tuned: small enough for crisp rendering at 100px+,
+        // large enough to avoid aliasing at moderate sizes.
+        float w = min(0.5 * grad, 0.065);
+        // Shift threshold inward at small sizes to keep thin strokes opaque.
+        float threshold = 0.5 - 0.15 * grad;
+        float alpha = smoothstep(threshold - w, threshold + w, dist);
+        frag_color = vec4(out_color.rgb, out_color.a * alpha);
+    }
+  )";
+
 constexpr std::string_view kFragmentShaderPreamble = R"(
   #version 460 core
   #line 1
@@ -143,6 +183,10 @@ Shaders::Shaders(Allocator* allocator)
         LastError());
   CHECK(Link("pre_pass", "pre_pass.vert", "pre_pass.frag", kUseCache),
         LastError());
+  CHECK(Compile(DbAssets::ShaderType::kFragment, "sdf.frag",
+                kSDFFragmentShader, kUseCache),
+        LastError());
+  CHECK(Link("sdf", "pre_pass.vert", "sdf.frag", kUseCache), LastError());
   CHECK(Compile(DbAssets::ShaderType::kVertex, "post_pass.vert",
                 kPostPassVertexShader, kUseCache),
         LastError());
