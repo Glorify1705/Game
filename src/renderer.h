@@ -16,6 +16,8 @@
 #include "transformations.h"
 #include "vec.h"
 
+struct sqlite3;
+
 namespace G {
 
 
@@ -211,7 +213,7 @@ class BatchRenderer {
 class Renderer {
  public:
   Renderer(const DbAssets& assets, BatchRenderer* renderer,
-           Allocator* allocator);
+           sqlite3* db, Allocator* allocator);
 
   void ClearForFrame();
   void FlushFrame() { renderer_->Finish(); }
@@ -320,6 +322,13 @@ class Renderer {
                                        const stbrp_rect* rects, int atlas_dim,
                                        ArenaAllocator* scratch);
 
+  static bool LoadSDFFromCache(sqlite3* db, std::string_view font_name,
+                               uint64_t font_hash, FontInfo* font,
+                               uint8_t** atlas_out, ArenaAllocator* scratch);
+  static void SaveSDFToCache(sqlite3* db, std::string_view font_name,
+                             uint64_t font_hash, const FontInfo& font,
+                             const uint8_t* atlas_bitmap);
+
   void ApplyTransform(const FMat4x4& mat) {
     transform_stack_.back() = mat * transform_stack_.back();
     renderer_->SetActiveTransform(transform_stack_.back());
@@ -330,6 +339,7 @@ class Renderer {
 
   Allocator* allocator_;
   BatchRenderer* renderer_;
+  sqlite3* db_;
 
   FixedArray<FMat4x4> transform_stack_;
 

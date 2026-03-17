@@ -6,9 +6,12 @@
 
 #include "clock.h"
 #include "console.h"
+#include "defer.h"
 #include "filesystem.h"
 #include "image.h"
+#include "libraries/rapidhash.h"
 #include "libraries/stb_rect_pack.h"
+#include "libraries/sqlite3.h"
 #include "stringlib.h"
 #include "transformations.h"
 #include "units.h"
@@ -37,6 +40,8 @@ constexpr int kNumChars = kLastChar - kFirstChar + 1;
 // Spacing between packed glyphs to prevent texture bleeding during
 // bilinear sampling.
 constexpr int kAtlasGutter = 2;
+// Bump this when SDF generation parameters change to invalidate cached atlases.
+constexpr uint64_t kSDFCacheVersion = 1;
 
 }  // namespace
 
@@ -603,9 +608,10 @@ BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
 }
 
 Renderer::Renderer(const DbAssets& assets, BatchRenderer* renderer,
-                   Allocator* allocator)
+                   sqlite3* db, Allocator* allocator)
     : allocator_(allocator),
       renderer_(renderer),
+      db_(db),
       transform_stack_(128, allocator),
       textures_table_(allocator),
       textures_(256, allocator),
@@ -848,6 +854,73 @@ uint8_t* Renderer::BlitGlyphsIntoAtlas(FontInfo& font,
   return atlas;
 }
 
+bool Renderer::LoadSDFFromCache(sqlite3* db, std::string_view font_name,
+                                uint64_t font_hash, FontInfo* font,
+                                uint8_t** atlas_out, ArenaAllocator* scratch) {
+  FixedStringBuffer<256> sql(R"(
+    SELECT atlas_width, atlas_height, glyph_metrics, atlas_bitmap
+    FROM sdf_cache WHERE font_name = ? AND font_hash = ?)");
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    LOG("SDF cache query failed: ", sqlite3_errmsg(db));
+    return false;
+  }
+  DEFER([&] { sqlite3_finalize(stmt); });
+  sqlite3_bind_text(stmt, 1, font_name.data(), font_name.size(), SQLITE_STATIC);
+  sqlite3_bind_int64(stmt, 2, static_cast<int64_t>(font_hash));
+  if (sqlite3_step(stmt) != SQLITE_ROW) return false;
+
+  font->atlas_width = sqlite3_column_int(stmt, 0);
+  font->atlas_height = sqlite3_column_int(stmt, 1);
+
+  const void* metrics_blob = sqlite3_column_blob(stmt, 2);
+  const int metrics_size = sqlite3_column_bytes(stmt, 2);
+  const int expected_size = kNumChars * sizeof(SDFGlyph);
+  if (metrics_size != expected_size) {
+    LOG("SDF cache metrics size mismatch for ", font_name,
+        ": got ", metrics_size, " expected ", expected_size);
+    return false;
+  }
+  std::memcpy(&font->glyphs[kFirstChar], metrics_blob, expected_size);
+
+  const void* atlas_blob = sqlite3_column_blob(stmt, 3);
+  const int atlas_size = sqlite3_column_bytes(stmt, 3);
+  const int expected_atlas = font->atlas_width * font->atlas_height;
+  if (atlas_size != expected_atlas) {
+    LOG("SDF cache atlas size mismatch for ", font_name);
+    return false;
+  }
+  *atlas_out = scratch->NewArray<uint8_t>(atlas_size);
+  std::memcpy(*atlas_out, atlas_blob, atlas_size);
+  return true;
+}
+
+void Renderer::SaveSDFToCache(sqlite3* db, std::string_view font_name,
+                              uint64_t font_hash, const FontInfo& font,
+                              const uint8_t* atlas_bitmap) {
+  FixedStringBuffer<256> sql(R"(
+    INSERT OR REPLACE INTO sdf_cache
+      (font_name, font_hash, atlas_width, atlas_height, glyph_metrics, atlas_bitmap)
+    VALUES (?, ?, ?, ?, ?, ?))");
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    LOG("SDF cache insert failed: ", sqlite3_errmsg(db));
+    return;
+  }
+  DEFER([&] { sqlite3_finalize(stmt); });
+  sqlite3_bind_text(stmt, 1, font_name.data(), font_name.size(), SQLITE_STATIC);
+  sqlite3_bind_int64(stmt, 2, static_cast<int64_t>(font_hash));
+  sqlite3_bind_int(stmt, 3, font.atlas_width);
+  sqlite3_bind_int(stmt, 4, font.atlas_height);
+  sqlite3_bind_blob(stmt, 5, &font.glyphs[kFirstChar],
+                    kNumChars * sizeof(SDFGlyph), SQLITE_STATIC);
+  sqlite3_bind_blob(stmt, 6, atlas_bitmap,
+                    font.atlas_width * font.atlas_height, SQLITE_STATIC);
+  if (sqlite3_step(stmt) != SQLITE_DONE) {
+    LOG("SDF cache write failed for ", font_name, ": ", sqlite3_errmsg(db));
+  }
+}
+
 void Renderer::LoadFont(const DbAssets::Font& asset) {
   FontInfo font;
   std::memset(&font, 0, sizeof(font));
@@ -859,22 +932,31 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
   stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
                         &font.line_gap);
 
-  // Allocate scratch space for glyph bitmaps, packing rects, and the atlas.
-  // Worst-case atlas is 2048x2048 = 4MB; bitmaps and rects are small but we
-  // keep them in the arena for consistency.
+  const uint64_t font_hash = rapidhash(asset.contents, asset.size) ^
+                              kSDFCacheVersion;
+
   ArenaAllocator scratch(allocator_, 2048 * 2048 + kNumChars * 64);
-  auto* bitmaps = scratch.NewArray<GlyphBitmap>(kNumChars);
-  auto* rects = scratch.NewArray<stbrp_rect>(kNumChars);
+  uint8_t* atlas = nullptr;
 
-  GenerateSDFBitmaps(font, bitmaps, rects, asset.name);
-  const int atlas_dim = PackGlyphRects(rects, asset.name);
-  uint8_t* atlas = BlitGlyphsIntoAtlas(font, bitmaps, rects, atlas_dim,
-                                        &scratch);
+  if (LoadSDFFromCache(db_, asset.name, font_hash, &font, &atlas, &scratch)) {
+    LOG("SDF cache hit for ", asset.name);
+  } else {
+    auto* bitmaps = scratch.NewArray<GlyphBitmap>(kNumChars);
+    auto* rects = scratch.NewArray<stbrp_rect>(kNumChars);
 
-  font.atlas_width = atlas_dim;
-  font.atlas_height = atlas_dim;
-  font.texture = renderer_->LoadFontTexture(atlas, atlas_dim, atlas_dim);
-  LOG("SDF atlas for ", asset.name, ": ", atlas_dim, "x", atlas_dim);
+    GenerateSDFBitmaps(font, bitmaps, rects, asset.name);
+    const int atlas_dim = PackGlyphRects(rects, asset.name);
+    atlas = BlitGlyphsIntoAtlas(font, bitmaps, rects, atlas_dim, &scratch);
+
+    font.atlas_width = atlas_dim;
+    font.atlas_height = atlas_dim;
+    SaveSDFToCache(db_, asset.name, font_hash, font, atlas);
+  }
+
+  font.texture = renderer_->LoadFontTexture(atlas, font.atlas_width,
+                                            font.atlas_height);
+  LOG("SDF atlas for ", asset.name, ": ", font.atlas_width, "x",
+      font.atlas_height);
   fonts_.Push(font);
   font_table_.Insert(asset.name, &fonts_.back());
 }

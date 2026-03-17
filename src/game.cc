@@ -176,7 +176,7 @@ struct EngineModules {
         text_files_table_(allocator),
         text_files_(256, allocator),
         sound(spec, allocator),
-        renderer(*db_assets, &batch_renderer, allocator),
+        renderer(*db_assets, &batch_renderer, db, allocator),
         lua_allocator(allocator->Alloc(Megabytes(64), kMaxAlign),
                       Megabytes(64)),
         lua(args, db, db_assets, &lua_allocator),
