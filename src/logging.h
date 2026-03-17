@@ -3,7 +3,6 @@
 #define _GAME_LOGGING_H
 
 #include <cstdlib>
-#include <sstream>
 #include <string_view>
 
 #include "constants.h"

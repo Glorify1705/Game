@@ -626,6 +626,23 @@ type information. Compile with `-fno-rtti`.
 Do not use `new` or `delete` (the global operators). All allocation goes
 through `Allocator*`. Placement `::new` is fine and expected.
 
+**Exception — intentionally-leaked singletons:** Following Google style, use
+`static T* p = new T(...)` for singletons that must survive until process
+exit. This avoids the
+[static destruction order fiasco](https://isocpp.org/wiki/faq/ctors#static-init-order-on-first-use)
+where a `static T t;` would have its destructor run at exit, potentially after
+other statics it depends on are already destroyed. The leaked `new` is
+intentional — the OS reclaims the memory on exit:
+
+```cpp
+// Good: intentionally leaked, survives past other statics.
+static ColorTable* table = new ColorTable;
+
+// Bad: destructor runs at exit in unpredictable order.
+static ColorTable table;  // Only safe if ColorTable has a trivial destructor
+                          // and no dependencies on other statics.
+```
+
 ### Smart Pointers
 
 Do not use `std::unique_ptr`, `std::shared_ptr`, or `std::weak_ptr`. Lifetime

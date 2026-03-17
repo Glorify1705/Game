@@ -2,8 +2,6 @@
 #ifndef _GAME_RENDERER_H
 #define _GAME_RENDERER_H
 
-#include <vector>
-
 #include "array.h"
 #include "assets.h"
 #include "color.h"

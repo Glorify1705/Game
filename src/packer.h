@@ -10,7 +10,6 @@
 #include <cstring>
 #include <iostream>
 #include <type_traits>
-#include <vector>
 
 #include "allocators.h"
 #include "assets.h"
