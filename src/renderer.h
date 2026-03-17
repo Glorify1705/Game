@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "array.h"
+#include "allocators.h"
 #include "assets.h"
 #include "color.h"
 #include "dictionary.h"
@@ -17,7 +18,6 @@
 
 namespace G {
 
-class ArenaAllocator;
 
 class BatchRenderer {
  public:

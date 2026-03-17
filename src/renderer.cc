@@ -867,7 +867,7 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
   auto* rects = scratch.NewArray<stbrp_rect>(kNumChars);
 
   GenerateSDFBitmaps(font, bitmaps, rects, asset.name);
-  int atlas_dim = PackGlyphRects(rects, asset.name);
+  const int atlas_dim = PackGlyphRects(rects, asset.name);
   uint8_t* atlas = BlitGlyphsIntoAtlas(font, bitmaps, rects, atlas_dim,
                                         &scratch);
 
