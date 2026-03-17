@@ -6,7 +6,8 @@
 
 namespace G {
 
-bool Sound::AddSource(std::string_view name, Source* source, bool auto_free) {
+bool Sound::AddSource(std::string_view name, Source* source,
+                      Ownership ownership) {
   DbAssets::Sound sound;
   if (!sounds_.Lookup(name, &sound)) {
     LOG("Unknown sound ", name);
@@ -43,8 +44,7 @@ bool Sound::AddSource(std::string_view name, Source* source, bool auto_free) {
     LOG("Unsupported sound format: ", sound.name);
     return false;
   }
-  if (auto_free) streams_[slot].SetAutoFree();
-  else streams_[slot].SetManaged();
+  streams_[slot].SetOwnership(ownership);
   *source = slot;
   if (slot == stream_) stream_++;
   return true;

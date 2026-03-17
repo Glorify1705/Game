@@ -48,7 +48,7 @@ static const LuaApiFunction kGraphicsLib[] = {
        desc.width = screenshot.width;
        desc.height = screenshot.height;
        desc.channels = 4;
-       desc.colorspace = 0;
+       desc.colorspace = QoiColorspace::kSrgb;
 
        void* bytebuf = PushBufferIntoLua(state, MemoryNeededToEncode(&desc));
 
