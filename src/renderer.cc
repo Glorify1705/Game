@@ -826,7 +826,7 @@ uint8_t* Renderer::BlitGlyphsIntoAtlas(FontInfo& font,
                                        const GlyphBitmap* bitmaps,
                                        const stbrp_rect* rects, int atlas_dim,
                                        ArenaAllocator* scratch) {
-  const size_t atlas_bytes = atlas_dim * atlas_dim;
+  const size_t atlas_bytes = static_cast<size_t>(atlas_dim) * atlas_dim;
   uint8_t* atlas = scratch->NewArray<uint8_t>(atlas_bytes);
   std::memset(atlas, 0, atlas_bytes);
 
@@ -837,7 +837,8 @@ uint8_t* Renderer::BlitGlyphsIntoAtlas(FontInfo& font,
     const int dy = rects[i].y;
     for (int row = 0; row < bitmaps[i].h; ++row) {
       std::memcpy(&atlas[(dy + row) * atlas_dim + dx],
-                  &bitmaps[i].data[row * bitmaps[i].w], bitmaps[i].w);
+                  &bitmaps[i].data[static_cast<size_t>(row) * bitmaps[i].w],
+                  bitmaps[i].w);
     }
     font.glyphs[cp].s0 = (float)dx / atlas_dim;
     font.glyphs[cp].t0 = (float)dy / atlas_dim;
@@ -1022,7 +1023,7 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
   FVec2 p = position;
   const float pixel_scale = size / info->pixel_height;
   auto handle_char = [&](size_t i, char c) {
-    const SDFGlyph& g = info->glyphs[(int)c];
+    const SDFGlyph& g = info->glyphs[static_cast<unsigned char>(c)];
     if (g.width == 0 || g.height == 0) {
       // Space or unprintable — advance only.
       p.x += g.advance * pixel_scale;
@@ -1096,7 +1097,8 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
       continue;
     }
     if (c == '\t') {
-      px += info->glyphs[(int)' '].advance * pixel_scale * 4;
+      px += info->glyphs[static_cast<unsigned char>(' ')].advance *
+            pixel_scale * 4;
       continue;
     }
     if (c == '\n') {
@@ -1104,7 +1106,7 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
       px = 0;
       py += line_height;
     } else {
-      px += info->glyphs[(int)c].advance * pixel_scale;
+      px += info->glyphs[static_cast<unsigned char>(c)].advance * pixel_scale;
       if ((i + 1) < str.size()) {
         px +=
             pixel_scale * info->scale *

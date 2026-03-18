@@ -82,7 +82,7 @@ class Allocator {
 
   template <typename T>
   void DeallocArray(T* ptr, size_t n) {
-    Dealloc(ptr, n * sizeof(T));
+    Dealloc(static_cast<void*>(ptr), n * sizeof(T));
   }
 
   template <typename T>
@@ -90,7 +90,7 @@ class Allocator {
     if constexpr (!std::is_trivially_destructible_v<T>) {
       ptr->~T();
     }
-    Dealloc(ptr, sizeof(T));
+    Dealloc(static_cast<void*>(ptr), sizeof(T));
   }
 };
 

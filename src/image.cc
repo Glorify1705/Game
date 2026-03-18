@@ -19,7 +19,7 @@ namespace G {
 #define QOI_MASK_2 0xc0 /* 11000000 */
 
 #define QOI_COLOR_HASH(C) \
-  (C.rgba.r * 3 + C.rgba.g * 5 + C.rgba.b * 7 + C.rgba.a * 11)
+  ((C).rgba.r * 3 + (C).rgba.g * 5 + (C).rgba.b * 7 + (C).rgba.a * 11)
 #define QOI_MAGIC                                          \
   (((unsigned int)'q') << 24 | ((unsigned int)'o') << 16 | \
    ((unsigned int)'i') << 8 | ((unsigned int)'f'))

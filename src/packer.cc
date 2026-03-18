@@ -66,7 +66,7 @@ class DbPacker {
   AssetInfo InsertQoi(std::string_view filename, const uint8_t* buf,
                       size_t size) {
     QoiDesc desc;
-    QoiDecode(buf, size, &desc, /*components=*/4, allocator_);
+    QoiDecode(buf, size, &desc, /*channels=*/4, allocator_);
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(R"(
           INSERT OR REPLACE INTO images (name, width, height, components, contents)
@@ -163,7 +163,7 @@ class DbPacker {
     DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, spritesheet.data(), spritesheet.size(),
                       SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, image.data(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, image.data(), image.size(), SQLITE_STATIC);
     sqlite3_bind_int(stmt, 3, width);
     sqlite3_bind_int(stmt, 4, height);
     sqlite3_bind_int(stmt, 5, sprite_count);

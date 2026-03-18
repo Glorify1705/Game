@@ -89,12 +89,17 @@
   scripts."game-tidy" = {
     exec = ''
       cmake -G Ninja -S . -B build
-      EXTRA_ARGS=""
-      for p in $(${pkgs.clang}/bin/clang++ -v -x c++ /dev/null -fsyntax-only 2>&1 | grep -oP '(?<=-cxx-isystem )\S+'); do
+      CLANG_INFO=$(${pkgs.clang}/bin/clang++ -v -x c++ /dev/null -fsyntax-only 2>&1)
+      RESOURCE_DIR=$(echo "$CLANG_INFO" | grep -oP '(?<=-resource-dir )\S+')
+      EXTRA_ARGS="-extra-arg=-resource-dir=$RESOURCE_DIR"
+      for p in $(echo "$CLANG_INFO" | grep -oP '(?<=-cxx-isystem )\S+'); do
+        EXTRA_ARGS="$EXTRA_ARGS -extra-arg=-cxx-isystem -extra-arg=$p"
+      done
+      for p in $(echo "$CLANG_INFO" | grep -oP '(?<=-isystem )\S+' | sort -u); do
         EXTRA_ARGS="$EXTRA_ARGS -extra-arg=-isystem$p"
       done
-      for p in $(${pkgs.clang}/bin/clang++ -v -x c++ /dev/null -fsyntax-only 2>&1 | grep -oP '(?<=-idirafter )\S+'); do
-        EXTRA_ARGS="$EXTRA_ARGS -extra-arg=-isystem$p"
+      for p in $(echo "$CLANG_INFO" | grep -oP '(?<=-idirafter )\S+'); do
+        EXTRA_ARGS="$EXTRA_ARGS -extra-arg=-idirafter -extra-arg=$p"
       done
       run-clang-tidy -p build -quiet $EXTRA_ARGS '/src/[^/]+\.cc$'
     '';
