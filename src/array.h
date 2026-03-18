@@ -215,7 +215,7 @@ class DynArray {
       capacity_ = 16;
       buffer_ = allocator_->NewArray<T>(capacity_);
     } else if (elems_ == capacity_) {
-      const size_t new_capacity = capacity_ * 2;
+      const size_t new_capacity = capacity_ + (capacity_ >> 1);
       buffer_ = static_cast<T*>(
           allocator_->Realloc(buffer_, capacity_ * sizeof(T),
                               new_capacity * sizeof(T), alignof(T)));
