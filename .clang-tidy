@@ -1,0 +1,16 @@
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  readability-container-size-empty,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-reserved-identifier,
+  -bugprone-infinite-loop,
+  -performance-enum-size,
+  -performance-noexcept-move-constructor,
+  -performance-noexcept-swap,
+  -performance-no-int-to-ptr,
+
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*/src/.*'

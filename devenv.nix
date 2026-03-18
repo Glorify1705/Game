@@ -14,6 +14,7 @@
     gdb
     gf
     gperftools
+    include-what-you-use
     libGL
     libGLU
     libllvm
@@ -85,6 +86,33 @@
     '';
   };
 
+  scripts."game-tidy" = {
+    exec = ''
+      cmake -G Ninja -S . -B build
+      EXTRA_ARGS=""
+      for p in $(${pkgs.clang}/bin/clang++ -v -x c++ /dev/null -fsyntax-only 2>&1 | grep -oP '(?<=-cxx-isystem )\S+'); do
+        EXTRA_ARGS="$EXTRA_ARGS -extra-arg=-isystem$p"
+      done
+      for p in $(${pkgs.clang}/bin/clang++ -v -x c++ /dev/null -fsyntax-only 2>&1 | grep -oP '(?<=-idirafter )\S+'); do
+        EXTRA_ARGS="$EXTRA_ARGS -extra-arg=-isystem$p"
+      done
+      run-clang-tidy -p build -quiet $EXTRA_ARGS '/src/[^/]+\.cc$'
+    '';
+  };
+
+  scripts."game-iwyu" = {
+    exec = ''
+      cmake -G Ninja -S . -B build
+      ${pkgs.python3}/bin/python3 ${pkgs.include-what-you-use}/bin/iwyu_tool.py -p build src/ -- -Xiwyu --mapping_file=iwyu.imp
+    '';
+  };
+
+  scripts."game-sanitize" = {
+    exec = ''
+      cmake -DENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug -G Ninja -S . -B build && cmake --build build --target Game
+    '';
+  };
+
   git-hooks.hooks = {
     clang-format.enable = true;
 
@@ -94,6 +122,22 @@
 			name = "DONOTSUBMIT checker";
 
 			entry = "scripts/donotsubmit.sh";
+		};
+
+		clang-tidy-hook = {
+			enable = true;
+
+			name = "clang-tidy";
+
+			entry = "scripts/run-clang-tidy.sh";
+		};
+
+		iwyu-hook = {
+			enable = true;
+
+			name = "include-what-you-use";
+
+			entry = "scripts/run-iwyu.sh";
 		};
   };
 }

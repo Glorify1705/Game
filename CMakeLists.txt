@@ -6,6 +6,8 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS True)
 
+option(ENABLE_SANITIZERS "Build with ASan+UBSan" OFF)
+
 project(
   Game
   VERSION 0.1
@@ -138,6 +140,13 @@ set_source_files_properties(${ENGINE_SRCS} PROPERTIES
     COMPILE_OPTIONS "$<${IS_GCC_LIKE}:-fno-exceptions;-fno-rtti>"
 )
 
+if(ENABLE_SANITIZERS)
+  target_compile_options(Game PRIVATE
+      $<${IS_GCC_LIKE}:-fsanitize=address,undefined;-fno-sanitize=vptr>)
+  target_link_options(Game PRIVATE
+      $<${IS_GCC_LIKE}:-fsanitize=address,undefined>)
+endif()
+
 target_compile_definitions(Game PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
 )
@@ -183,7 +192,7 @@ target_compile_features(Tests PRIVATE cxx_std_17)
 target_compile_options(Tests PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
     $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
-    $<${IS_GCC_LIKE}:-fsanitize=address>
+    $<${IS_GCC_LIKE}:-fsanitize=address,undefined;-fno-sanitize=vptr>
 )
 
 target_compile_definitions(Tests PRIVATE
@@ -196,7 +205,7 @@ target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
 add_subdirectory(libraries/googletest)
 
 target_link_libraries(Tests GTest::gtest_main GTest::gmock double-conversion)
-target_link_options(Tests PRIVATE $<${IS_GCC_LIKE}:-fsanitize=address>)
+target_link_options(Tests PRIVATE $<${IS_GCC_LIKE}:-fsanitize=address,undefined>)
 
 include(GoogleTest)
 gtest_discover_tests(Tests)
