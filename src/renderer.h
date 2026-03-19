@@ -2,11 +2,12 @@
 #ifndef _GAME_RENDERER_H
 #define _GAME_RENDERER_H
 
-#include "array.h"
 #include "allocators.h"
+#include "array.h"
 #include "assets.h"
 #include "color.h"
 #include "dictionary.h"
+#include "libraries/sqlite3.h"
 #include "libraries/stb_rect_pack.h"
 #include "libraries/stb_truetype.h"
 #include "mat.h"
@@ -14,10 +15,7 @@
 #include "transformations.h"
 #include "vec.h"
 
-struct sqlite3;
-
 namespace G {
-
 
 class BatchRenderer {
  public:
@@ -210,8 +208,8 @@ class BatchRenderer {
 
 class Renderer {
  public:
-  Renderer(const DbAssets& assets, BatchRenderer* renderer,
-           sqlite3* db, Allocator* allocator);
+  Renderer(const DbAssets& assets, BatchRenderer* renderer, sqlite3* db,
+           Allocator* allocator);
 
   void ClearForFrame();
   void FlushFrame() { renderer_->Finish(); }
@@ -283,7 +281,7 @@ class Renderer {
   // glyph's location in the atlas texture and its positioning metrics.
   // All spatial values are in SDF pixel units and scaled at render time.
   struct SDFGlyph {
-    float s0, t0, s1, t1;  // Atlas UV coordinates (normalized 0-1)
+    float s0, t0, s1, t1;      // Atlas UV coordinates (normalized 0-1)
     float x_offset, y_offset;  // Top-left offset from pen position (SDF pixels)
     float width, height;       // Glyph quad size (SDF pixels)
     float advance;             // Horizontal advance (SDF pixels)
@@ -291,17 +289,17 @@ class Renderer {
 
   struct FontInfo {
     GLuint texture;
-    float scale = 0;           // stbtt scale factor for the SDF reference height
-    float pixel_height = 0;    // SDF reference rasterization height in pixels
-    int ascent;                // Distance from baseline to top of tallest glyph
-                               // (unscaled font units; multiply by `scale`)
-    int descent;               // Distance from baseline downward (negative,
-                               // unscaled font units)
-    int line_gap;              // Extra spacing between lines (unscaled font units)
+    float scale = 0;         // stbtt scale factor for the SDF reference height
+    float pixel_height = 0;  // SDF reference rasterization height in pixels
+    int ascent;              // Distance from baseline to top of tallest glyph
+                             // (unscaled font units; multiply by `scale`)
+    int descent;             // Distance from baseline downward (negative,
+                             // unscaled font units)
+    int line_gap;  // Extra spacing between lines (unscaled font units)
     stbtt_fontinfo font_info;
     // TODO: For Unicode support, replace this fixed array with a hash map
     // (codepoint -> SDFGlyph) to handle arbitrary codepoint ranges.
-    SDFGlyph glyphs[128];     // Indexed by codepoint (only 32-126 used)
+    SDFGlyph glyphs[128];  // Indexed by codepoint (only 32-126 used)
     int atlas_width, atlas_height;
   };
 
@@ -316,13 +314,13 @@ class Renderer {
                                  stbrp_rect* rects, std::string_view name);
   static int PackGlyphRects(stbrp_rect* rects, std::string_view name);
   static uint8_t* BlitGlyphsIntoAtlas(FontInfo& font,
-                                       const GlyphBitmap* bitmaps,
-                                       const stbrp_rect* rects, int atlas_dim,
-                                       ArenaAllocator* scratch);
+                                      const GlyphBitmap* bitmaps,
+                                      const stbrp_rect* rects, int atlas_dim,
+                                      ArenaAllocator* scratch);
 
-  static bool LoadSDFFromCache(sqlite3* db, std::string_view font_name,
-                               uint64_t font_hash, FontInfo* font,
-                               uint8_t** atlas_out, ArenaAllocator* scratch);
+  bool LoadSDFFromCache(sqlite3* db, std::string_view font_name,
+                        uint64_t font_hash, FontInfo* font);
+
   static void SaveSDFToCache(sqlite3* db, std::string_view font_name,
                              uint64_t font_hash, const FontInfo& font,
                              const uint8_t* atlas_bitmap);
