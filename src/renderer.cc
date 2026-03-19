@@ -6,10 +6,12 @@
 
 #include "clock.h"
 #include "console.h"
+#include "defer.h"
 #include "filesystem.h"
 #include "image.h"
+#include "libraries/rapidhash.h"
+#include "libraries/sqlite3.h"
 #include "libraries/stb_rect_pack.h"
-#include "stringlib.h"
 #include "transformations.h"
 #include "units.h"
 
@@ -37,6 +39,8 @@ constexpr int kNumChars = kLastChar - kFirstChar + 1;
 // Spacing between packed glyphs to prevent texture bleeding during
 // bilinear sampling.
 constexpr int kAtlasGutter = 2;
+// Bump this when SDF generation parameters change to invalidate cached atlases.
+constexpr uint64_t kSDFCacheVersion = 1;
 
 }  // namespace
 
@@ -312,8 +316,7 @@ size_t BatchRenderer::LoadFontTexture(const void* data, size_t width,
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
   OPENGL_CALL(
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-  OPENGL_CALL(
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED));
@@ -602,10 +605,11 @@ BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
   return result;
 }
 
-Renderer::Renderer(const DbAssets& assets, BatchRenderer* renderer,
+Renderer::Renderer(const DbAssets& assets, BatchRenderer* renderer, sqlite3* db,
                    Allocator* allocator)
     : allocator_(allocator),
       renderer_(renderer),
+      db_(db),
       transform_stack_(128, allocator),
       textures_table_(allocator),
       textures_(256, allocator),
@@ -810,8 +814,8 @@ int Renderer::PackGlyphRects(stbrp_rect* rects, std::string_view name) {
     packed = stbrp_pack_rects(&pack_ctx, rects, kNumChars) == 1;
     if (!packed) atlas_dim *= 2;
   }
-  CHECK(packed, "Could not pack SDF atlas for ", name,
-        " even at ", atlas_dim, "x", atlas_dim);
+  CHECK(packed, "Could not pack SDF atlas for ", name, " even at ", atlas_dim,
+        "x", atlas_dim);
   return atlas_dim;
 }
 
@@ -819,9 +823,9 @@ int Renderer::PackGlyphRects(stbrp_rect* rects, std::string_view name) {
 // UV coordinates + positioning metrics into the glyph array.
 // Returns a pointer to the atlas pixel data (allocated from `scratch`).
 uint8_t* Renderer::BlitGlyphsIntoAtlas(FontInfo& font,
-                                        const GlyphBitmap* bitmaps,
-                                        const stbrp_rect* rects, int atlas_dim,
-                                        ArenaAllocator* scratch) {
+                                       const GlyphBitmap* bitmaps,
+                                       const stbrp_rect* rects, int atlas_dim,
+                                       ArenaAllocator* scratch) {
   const size_t atlas_bytes = atlas_dim * atlas_dim;
   uint8_t* atlas = scratch->NewArray<uint8_t>(atlas_bytes);
   std::memset(atlas, 0, atlas_bytes);
@@ -848,6 +852,105 @@ uint8_t* Renderer::BlitGlyphsIntoAtlas(FontInfo& font,
   return atlas;
 }
 
+bool Renderer::LoadSDFFromCache(sqlite3* db, std::string_view font_name,
+                                uint64_t font_hash, FontInfo* font) {
+  constexpr std::string_view sql = R"(
+    SELECT atlas_width, atlas_height, glyph_metrics, atlas_bitmap
+    FROM sdf_cache WHERE font_name = ? AND font_hash = ?)";
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db, sql.data(), sql.size(), &stmt, nullptr) !=
+      SQLITE_OK) {
+    LOG("SDF cache query failed: ", sqlite3_errmsg(db));
+    return false;
+  }
+  DEFER([&] { sqlite3_finalize(stmt); });
+  sqlite3_bind_text(stmt, 1, font_name.data(), font_name.size(), SQLITE_STATIC);
+  sqlite3_bind_int64(stmt, 2, static_cast<int64_t>(font_hash));
+  if (sqlite3_step(stmt) != SQLITE_ROW) return false;
+
+  font->atlas_width = sqlite3_column_int(stmt, 0);
+  font->atlas_height = sqlite3_column_int(stmt, 1);
+
+  const auto* metrics =
+      static_cast<const uint8_t*>(sqlite3_column_blob(stmt, 2));
+  const int metrics_size = sqlite3_column_bytes(stmt, 2);
+  constexpr int kGlyphFields = 9;
+  const int expected_size = kNumChars * kGlyphFields * sizeof(float);
+  if (metrics_size != expected_size) {
+    LOG("SDF cache metrics size mismatch for ", font_name, ": got ",
+        metrics_size, " expected ", expected_size);
+    return false;
+  }
+  // Deserialize field-by-field via memcpy to avoid alignment issues with
+  // the SQLite blob pointer on strict-alignment architectures.
+  for (int i = 0; i < kNumChars; i++) {
+    const uint8_t* src = metrics + i * kGlyphFields * sizeof(float);
+    SDFGlyph& g = font->glyphs[kFirstChar + i];
+    std::memcpy(&g.s0, src, 4);
+    std::memcpy(&g.t0, src + 4, 4);
+    std::memcpy(&g.s1, src + 8, 4);
+    std::memcpy(&g.t1, src + 12, 4);
+    std::memcpy(&g.x_offset, src + 16, 4);
+    std::memcpy(&g.y_offset, src + 20, 4);
+    std::memcpy(&g.width, src + 24, 4);
+    std::memcpy(&g.height, src + 28, 4);
+    std::memcpy(&g.advance, src + 32, 4);
+  }
+
+  const void* atlas_blob = sqlite3_column_blob(stmt, 3);
+  const int atlas_size = sqlite3_column_bytes(stmt, 3);
+  const int expected_atlas = font->atlas_width * font->atlas_height;
+  if (atlas_size != expected_atlas) {
+    LOG("SDF cache atlas size mismatch for ", font_name);
+    return false;
+  }
+  font->texture = renderer_->LoadFontTexture(atlas_blob, font->atlas_width,
+                                             font->atlas_height);
+  return true;
+}
+
+void Renderer::SaveSDFToCache(sqlite3* db, std::string_view font_name,
+                              uint64_t font_hash, const FontInfo& font,
+                              const uint8_t* atlas_bitmap) {
+  constexpr std::string_view sql = R"(
+    INSERT OR REPLACE INTO sdf_cache
+      (font_name, font_hash, atlas_width, atlas_height, glyph_metrics, atlas_bitmap)
+    VALUES (?, ?, ?, ?, ?, ?))";
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db, sql.data(), sql.size(), &stmt, nullptr) !=
+      SQLITE_OK) {
+    LOG("SDF cache insert failed: ", sqlite3_errmsg(db));
+    return;
+  }
+  DEFER([&] { sqlite3_finalize(stmt); });
+  sqlite3_bind_text(stmt, 1, font_name.data(), font_name.size(), SQLITE_STATIC);
+  sqlite3_bind_int64(stmt, 2, static_cast<int64_t>(font_hash));
+  sqlite3_bind_int(stmt, 3, font.atlas_width);
+  sqlite3_bind_int(stmt, 4, font.atlas_height);
+
+  constexpr int kGlyphFields = 9;
+  float metrics[kNumChars * kGlyphFields];
+  for (int i = 0; i < kNumChars; i++) {
+    const SDFGlyph& g = font.glyphs[kFirstChar + i];
+    float* f = &metrics[i * kGlyphFields];
+    f[0] = g.s0;
+    f[1] = g.t0;
+    f[2] = g.s1;
+    f[3] = g.t1;
+    f[4] = g.x_offset;
+    f[5] = g.y_offset;
+    f[6] = g.width;
+    f[7] = g.height;
+    f[8] = g.advance;
+  }
+  sqlite3_bind_blob(stmt, 5, metrics, sizeof(metrics), SQLITE_TRANSIENT);
+  sqlite3_bind_blob(stmt, 6, atlas_bitmap, font.atlas_width * font.atlas_height,
+                    SQLITE_STATIC);
+  if (sqlite3_step(stmt) != SQLITE_DONE) {
+    LOG("SDF cache write failed for ", font_name, ": ", sqlite3_errmsg(db));
+  }
+}
+
 void Renderer::LoadFont(const DbAssets::Font& asset) {
   FontInfo font;
   std::memset(&font, 0, sizeof(font));
@@ -859,22 +962,29 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
   stbtt_GetFontVMetrics(&font.font_info, &font.ascent, &font.descent,
                         &font.line_gap);
 
-  // Allocate scratch space for glyph bitmaps, packing rects, and the atlas.
-  // Worst-case atlas is 2048x2048 = 4MB; bitmaps and rects are small but we
-  // keep them in the arena for consistency.
-  ArenaAllocator scratch(allocator_, 2048 * 2048 + kNumChars * 64);
-  auto* bitmaps = scratch.NewArray<GlyphBitmap>(kNumChars);
-  auto* rects = scratch.NewArray<stbrp_rect>(kNumChars);
+  const uint64_t font_hash =
+      rapidhash(asset.contents, asset.size) ^ kSDFCacheVersion;
 
-  GenerateSDFBitmaps(font, bitmaps, rects, asset.name);
-  const int atlas_dim = PackGlyphRects(rects, asset.name);
-  uint8_t* atlas = BlitGlyphsIntoAtlas(font, bitmaps, rects, atlas_dim,
-                                        &scratch);
+  if (LoadSDFFromCache(db_, asset.name, font_hash, &font)) {
+    LOG("SDF cache hit for ", asset.name);
+  } else {
+    ArenaAllocator scratch(allocator_, 2048 * 2048 + kNumChars * 64);
+    auto* bitmaps = scratch.NewArray<GlyphBitmap>(kNumChars);
+    auto* rects = scratch.NewArray<stbrp_rect>(kNumChars);
 
-  font.atlas_width = atlas_dim;
-  font.atlas_height = atlas_dim;
-  font.texture = renderer_->LoadFontTexture(atlas, atlas_dim, atlas_dim);
-  LOG("SDF atlas for ", asset.name, ": ", atlas_dim, "x", atlas_dim);
+    GenerateSDFBitmaps(font, bitmaps, rects, asset.name);
+    const int atlas_dim = PackGlyphRects(rects, asset.name);
+    uint8_t* atlas =
+        BlitGlyphsIntoAtlas(font, bitmaps, rects, atlas_dim, &scratch);
+
+    font.atlas_width = atlas_dim;
+    font.atlas_height = atlas_dim;
+    SaveSDFToCache(db_, asset.name, font_hash, font, atlas);
+    font.texture =
+        renderer_->LoadFontTexture(atlas, font.atlas_width, font.atlas_height);
+  }
+  LOG("SDF atlas for ", asset.name, ": ", font.atlas_width, "x",
+      font.atlas_height);
   fonts_.Push(font);
   font_table_.Insert(asset.name, &fonts_.back());
 }
@@ -917,9 +1027,9 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
       // Space or unprintable — advance only.
       p.x += g.advance * pixel_scale;
       if ((i + 1) < str.size()) {
-        p.x += pixel_scale * info->scale *
-               stbtt_GetCodepointKernAdvance(&info->font_info, str[i],
-                                             str[i + 1]);
+        p.x +=
+            pixel_scale * info->scale *
+            stbtt_GetCodepointKernAdvance(&info->font_info, str[i], str[i + 1]);
       }
       return;
     }
@@ -932,9 +1042,9 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
                         /*angle=*/0);
     p.x += g.advance * pixel_scale;
     if ((i + 1) < str.size()) {
-      p.x += pixel_scale * info->scale *
-             stbtt_GetCodepointKernAdvance(&info->font_info, str[i],
-                                           str[i + 1]);
+      p.x +=
+          pixel_scale * info->scale *
+          stbtt_GetCodepointKernAdvance(&info->font_info, str[i], str[i + 1]);
     }
   };
   for (size_t i = 0; i < str.size();) {
@@ -975,9 +1085,8 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
     return IVec2();
   }
   const float pixel_scale = size / info->pixel_height;
-  const float line_height =
-      pixel_scale * info->scale *
-      (info->ascent - info->descent + info->line_gap);
+  const float line_height = pixel_scale * info->scale *
+                            (info->ascent - info->descent + info->line_gap);
   float px = 0, max_x = 0;
   float py = line_height;
   for (size_t i = 0; i < str.size(); ++i) {
@@ -997,9 +1106,9 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
     } else {
       px += info->glyphs[(int)c].advance * pixel_scale;
       if ((i + 1) < str.size()) {
-        px += pixel_scale * info->scale *
-              stbtt_GetCodepointKernAdvance(&info->font_info, str[i],
-                                            str[i + 1]);
+        px +=
+            pixel_scale * info->scale *
+            stbtt_GetCodepointKernAdvance(&info->font_info, str[i], str[i + 1]);
       }
     }
   }

@@ -68,6 +68,15 @@ CREATE INDEX IF NOT EXISTS idx_compilation_cache ON
 
 CREATE INDEX IF NOT EXISTS idx_asset_metadata ON asset_metadata(name);
 
+CREATE TABLE IF NOT EXISTS
+sdf_cache(id INTEGER PRIMARY KEY AUTOINCREMENT,
+          font_name VARCHAR(255) UNIQUE NOT NULL,
+          font_hash INTEGER NOT NULL,
+          atlas_width INTEGER NOT NULL,
+          atlas_height INTEGER NOT NULL,
+          glyph_metrics BLOB NOT NULL,
+          atlas_bitmap BLOB NOT NULL);
+
 CREATE TABLE IF NOT EXISTS trace_span(id INTEGER PRIMARY KEY AUTOINCREMENT,
                                       parent INTEGER,
                                       name VARCHAR(255) NOT NULL,
