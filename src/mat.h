@@ -4,9 +4,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <iostream>
-#include <ostream>
-
 #include "stringlib.h"
 #include "vec.h"
 
@@ -132,32 +129,18 @@ struct FMat2x2 {
 
   bool operator!=(const FMat2x2& rhs) const { return !(*this == rhs); }
 
-  friend std::ostream& operator<<(std::ostream& os, const FMat2x2& v) {
-    os << "{ ";
+  friend void AppendToString(const FMat2x2& m, StringBuffer& sink) {
+    sink.Append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
-      os << "{ ";
+      sink.Append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        os << v.v[row * kDimension + col];
-        if (col + 1 < kDimension) os << ", ";
+        sink.Append(m.v[row * kDimension + col]);
+        if (col + 1 < kDimension) sink.Append(", ");
       }
-      os << " }";
-      if (row + 1 < kDimension) os << ", ";
+      sink.Append(" }");
+      if (row + 1 < kDimension) sink.Append(", ");
     }
-    return os << " }";
-  }
-
-  friend void AppendToString(const FMat2x2& m, std::string& sink) {
-    sink.append("{ ");
-    for (size_t row = 0; row < kDimension; ++row) {
-      sink.append("{ ");
-      for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, m.v[row * kDimension + col]);
-        if (col + 1 < kDimension) sink.append(", ");
-      }
-      sink.append(" }");
-      if (row + 1 < kDimension) sink.append(", ");
-    }
-    sink.append(" }");
+    sink.Append(" }");
   }
 };
 
@@ -281,32 +264,18 @@ struct FMat3x3 {
 
   bool operator!=(const FMat3x3& rhs) const { return !(*this == rhs); }
 
-  friend std::ostream& operator<<(std::ostream& os, const FMat3x3& v) {
-    os << "{ ";
+  friend void AppendToString(const FMat3x3& m, StringBuffer& sink) {
+    sink.Append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
-      os << "{ ";
+      sink.Append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        os << v.v[row * kDimension + col];
-        if (col + 1 < kDimension) os << ", ";
+        sink.Append(m.v[row * kDimension + col]);
+        if (col + 1 < kDimension) sink.Append(", ");
       }
-      os << " }";
-      if (row + 1 < kDimension) os << ", ";
+      sink.Append(" }");
+      if (row + 1 < kDimension) sink.Append(", ");
     }
-    return os << " }";
-  }
-
-  friend void AppendToString(const FMat3x3& m, std::string& sink) {
-    sink.append("{ ");
-    for (size_t row = 0; row < kDimension; ++row) {
-      sink.append("{ ");
-      for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, m.v[row * kDimension + col]);
-        if (col + 1 < kDimension) sink.append(", ");
-      }
-      sink.append(" }");
-      if (row + 1 < kDimension) sink.append(", ");
-    }
-    sink.append(" }");
+    sink.Append(" }");
   }
 };
 
@@ -430,32 +399,18 @@ struct FMat4x4 {
 
   bool operator!=(const FMat4x4& rhs) const { return !(*this == rhs); }
 
-  friend std::ostream& operator<<(std::ostream& os, const FMat4x4& v) {
-    os << "{ ";
+  friend void AppendToString(const FMat4x4& m, StringBuffer& sink) {
+    sink.Append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
-      os << "{ ";
+      sink.Append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        os << v.v[row * kDimension + col];
-        if (col + 1 < kDimension) os << ", ";
+        sink.Append(m.v[row * kDimension + col]);
+        if (col + 1 < kDimension) sink.Append(", ");
       }
-      os << " }";
-      if (row + 1 < kDimension) os << ", ";
+      sink.Append(" }");
+      if (row + 1 < kDimension) sink.Append(", ");
     }
-    return os << " }";
-  }
-
-  friend void AppendToString(const FMat4x4& m, std::string& sink) {
-    sink.append("{ ");
-    for (size_t row = 0; row < kDimension; ++row) {
-      sink.append("{ ");
-      for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, m.v[row * kDimension + col]);
-        if (col + 1 < kDimension) sink.append(", ");
-      }
-      sink.append(" }");
-      if (row + 1 < kDimension) sink.append(", ");
-    }
-    sink.append(" }");
+    sink.Append(" }");
   }
 };
 
@@ -579,32 +534,18 @@ struct DMat2x2 {
 
   bool operator!=(const DMat2x2& rhs) const { return !(*this == rhs); }
 
-  friend std::ostream& operator<<(std::ostream& os, const DMat2x2& v) {
-    os << "{ ";
+  friend void AppendToString(const DMat2x2& m, StringBuffer& sink) {
+    sink.Append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
-      os << "{ ";
+      sink.Append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        os << v.v[row * kDimension + col];
-        if (col + 1 < kDimension) os << ", ";
+        sink.Append(m.v[row * kDimension + col]);
+        if (col + 1 < kDimension) sink.Append(", ");
       }
-      os << " }";
-      if (row + 1 < kDimension) os << ", ";
+      sink.Append(" }");
+      if (row + 1 < kDimension) sink.Append(", ");
     }
-    return os << " }";
-  }
-
-  void AppendToString(std::string& sink) const {
-    sink.append("{ ");
-    for (size_t row = 0; row < kDimension; ++row) {
-      sink.append("{ ");
-      for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, v[row * kDimension + col]);
-        if (col + 1 < kDimension) sink.append(", ");
-      }
-      sink.append(" }");
-      if (row + 1 < kDimension) sink.append(", ");
-    }
-    sink.append(" }");
+    sink.Append(" }");
   }
 };
 
@@ -728,32 +669,18 @@ struct DMat3x3 {
 
   bool operator!=(const DMat3x3& rhs) const { return !(*this == rhs); }
 
-  friend std::ostream& operator<<(std::ostream& os, const DMat3x3& v) {
-    os << "{ ";
+  friend void AppendToString(const DMat3x3& m, StringBuffer& sink) {
+    sink.Append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
-      os << "{ ";
+      sink.Append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        os << v.v[row * kDimension + col];
-        if (col + 1 < kDimension) os << ", ";
+        sink.Append(m.v[row * kDimension + col]);
+        if (col + 1 < kDimension) sink.Append(", ");
       }
-      os << " }";
-      if (row + 1 < kDimension) os << ", ";
+      sink.Append(" }");
+      if (row + 1 < kDimension) sink.Append(", ");
     }
-    return os << " }";
-  }
-
-  void AppendToString(std::string& sink) const {
-    sink.append("{ ");
-    for (size_t row = 0; row < kDimension; ++row) {
-      sink.append("{ ");
-      for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, v[row * kDimension + col]);
-        if (col + 1 < kDimension) sink.append(", ");
-      }
-      sink.append(" }");
-      if (row + 1 < kDimension) sink.append(", ");
-    }
-    sink.append(" }");
+    sink.Append(" }");
   }
 };
 
@@ -877,32 +804,18 @@ struct DMat4x4 {
 
   bool operator!=(const DMat4x4& rhs) const { return !(*this == rhs); }
 
-  friend std::ostream& operator<<(std::ostream& os, const DMat4x4& v) {
-    os << "{ ";
+  friend void AppendToString(const DMat4x4& m, StringBuffer& sink) {
+    sink.Append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
-      os << "{ ";
+      sink.Append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        os << v.v[row * kDimension + col];
-        if (col + 1 < kDimension) os << ", ";
+        sink.Append(m.v[row * kDimension + col]);
+        if (col + 1 < kDimension) sink.Append(", ");
       }
-      os << " }";
-      if (row + 1 < kDimension) os << ", ";
+      sink.Append(" }");
+      if (row + 1 < kDimension) sink.Append(", ");
     }
-    return os << " }";
-  }
-
-  void AppendToString(std::string& sink) const {
-    sink.append("{ ");
-    for (size_t row = 0; row < kDimension; ++row) {
-      sink.append("{ ");
-      for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, v[row * kDimension + col]);
-        if (col + 1 < kDimension) sink.append(", ");
-      }
-      sink.append(" }");
-      if (row + 1 < kDimension) sink.append(", ");
-    }
-    sink.append(" }");
+    sink.Append(" }");
   }
 };
 
@@ -1026,32 +939,18 @@ struct IMat2x2 {
 
   bool operator!=(const IMat2x2& rhs) const { return !(*this == rhs); }
 
-  friend std::ostream& operator<<(std::ostream& os, const IMat2x2& v) {
-    os << "{ ";
+  friend void AppendToString(const IMat2x2& m, StringBuffer& sink) {
+    sink.Append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
-      os << "{ ";
+      sink.Append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        os << v.v[row * kDimension + col];
-        if (col + 1 < kDimension) os << ", ";
+        sink.Append(m.v[row * kDimension + col]);
+        if (col + 1 < kDimension) sink.Append(", ");
       }
-      os << " }";
-      if (row + 1 < kDimension) os << ", ";
+      sink.Append(" }");
+      if (row + 1 < kDimension) sink.Append(", ");
     }
-    return os << " }";
-  }
-
-  void AppendToString(std::string& sink) const {
-    sink.append("{ ");
-    for (size_t row = 0; row < kDimension; ++row) {
-      sink.append("{ ");
-      for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, v[row * kDimension + col]);
-        if (col + 1 < kDimension) sink.append(", ");
-      }
-      sink.append(" }");
-      if (row + 1 < kDimension) sink.append(", ");
-    }
-    sink.append(" }");
+    sink.Append(" }");
   }
 };
 
@@ -1175,32 +1074,18 @@ struct IMat3x3 {
 
   bool operator!=(const IMat3x3& rhs) const { return !(*this == rhs); }
 
-  friend std::ostream& operator<<(std::ostream& os, const IMat3x3& v) {
-    os << "{ ";
+  friend void AppendToString(const IMat3x3& m, StringBuffer& sink) {
+    sink.Append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
-      os << "{ ";
+      sink.Append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        os << v.v[row * kDimension + col];
-        if (col + 1 < kDimension) os << ", ";
+        sink.Append(m.v[row * kDimension + col]);
+        if (col + 1 < kDimension) sink.Append(", ");
       }
-      os << " }";
-      if (row + 1 < kDimension) os << ", ";
+      sink.Append(" }");
+      if (row + 1 < kDimension) sink.Append(", ");
     }
-    return os << " }";
-  }
-
-  void AppendToString(std::string& sink) const {
-    sink.append("{ ");
-    for (size_t row = 0; row < kDimension; ++row) {
-      sink.append("{ ");
-      for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, v[row * kDimension + col]);
-        if (col + 1 < kDimension) sink.append(", ");
-      }
-      sink.append(" }");
-      if (row + 1 < kDimension) sink.append(", ");
-    }
-    sink.append(" }");
+    sink.Append(" }");
   }
 };
 
@@ -1324,32 +1209,18 @@ struct IMat4x4 {
 
   bool operator!=(const IMat4x4& rhs) const { return !(*this == rhs); }
 
-  friend std::ostream& operator<<(std::ostream& os, const IMat4x4& v) {
-    os << "{ ";
+  friend void AppendToString(const IMat4x4& m, StringBuffer& sink) {
+    sink.Append("{ ");
     for (size_t row = 0; row < kDimension; ++row) {
-      os << "{ ";
+      sink.Append("{ ");
       for (size_t col = 0; col < kDimension; ++col) {
-        os << v.v[row * kDimension + col];
-        if (col + 1 < kDimension) os << ", ";
+        sink.Append(m.v[row * kDimension + col]);
+        if (col + 1 < kDimension) sink.Append(", ");
       }
-      os << " }";
-      if (row + 1 < kDimension) os << ", ";
+      sink.Append(" }");
+      if (row + 1 < kDimension) sink.Append(", ");
     }
-    return os << " }";
-  }
-
-  void AppendToString(std::string& sink) const {
-    sink.append("{ ");
-    for (size_t row = 0; row < kDimension; ++row) {
-      sink.append("{ ");
-      for (size_t col = 0; col < kDimension; ++col) {
-        StrAppend(&sink, v[row * kDimension + col]);
-        if (col + 1 < kDimension) sink.append(", ");
-      }
-      sink.append(" }");
-      if (row + 1 < kDimension) sink.append(", ");
-    }
-    sink.append(" }");
+    sink.Append(" }");
   }
 };
 

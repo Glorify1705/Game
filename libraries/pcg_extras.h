@@ -571,6 +571,7 @@ struct printable_typename {};
 
 template <typename T>
 std::ostream& operator<<(std::ostream& out, printable_typename<T>) {
+#if __has_feature(cxx_rtti) || defined(__GXX_RTTI) || defined(_CPPRTTI)
   const char* implementation_typename = typeid(T).name();
 #ifdef __GNUC__
   int status;
@@ -581,6 +582,9 @@ std::ostream& operator<<(std::ostream& out, printable_typename<T>) {
   if (status == 0) return out;
 #endif
   out << implementation_typename;
+#else
+  out << __PRETTY_FUNCTION__;
+#endif
   return out;
 }
 

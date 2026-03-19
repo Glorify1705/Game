@@ -10,14 +10,13 @@
 
 namespace G {
 
-#define QOI_SRGB 0
-#define QOI_LINEAR 1
+enum class QoiColorspace : uint8_t { kSrgb = 0, kLinear = 1 };
 
 struct QoiDesc {
   uint64_t width;
   uint64_t height;
   uint8_t channels;
-  uint8_t colorspace;
+  QoiColorspace colorspace;
 };
 
 size_t MemoryNeededToEncode(const QoiDesc *desc);

@@ -60,7 +60,7 @@ void *QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
                 Allocator *allocator) {
   if (data == nullptr || out_len == nullptr || desc == nullptr ||
       desc->width == 0 || desc->height == 0 || desc->channels < 3 ||
-      desc->channels > 4 || desc->colorspace > 1 ||
+      desc->channels > 4 || static_cast<uint8_t>(desc->colorspace) > 1 ||
       desc->height >= QOI_PIXELS_MAX / desc->width) {
     LOG("Invalid QOI data: width = ", desc->width, " height = ", desc->height,
         " channels = ", desc->channels);
@@ -85,7 +85,7 @@ void QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
 
   if (data == nullptr || out_len == nullptr || desc == nullptr ||
       desc->width == 0 || desc->height == 0 || desc->channels < 3 ||
-      desc->channels > 4 || desc->colorspace > 1 ||
+      desc->channels > 4 || static_cast<uint8_t>(desc->colorspace) > 1 ||
       desc->height >= QOI_PIXELS_MAX / desc->width) {
     LOG("Invalid QOI data: width = ", desc->width, " height = ", desc->height,
         " channels = ", desc->channels);
@@ -103,7 +103,7 @@ void QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
   QoiWrite32(bytes, &p, desc->width);
   QoiWrite32(bytes, &p, desc->height);
   bytes[p++] = desc->channels;
-  bytes[p++] = desc->colorspace;
+  bytes[p++] = static_cast<uint8_t>(desc->colorspace);
 
   pixels = (const unsigned char *)data;
 
@@ -212,10 +212,10 @@ void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
   desc->width = QoiRead32(bytes, &p);
   desc->height = QoiRead32(bytes, &p);
   desc->channels = bytes[p++];
-  desc->colorspace = bytes[p++];
+  desc->colorspace = static_cast<QoiColorspace>(bytes[p++]);
 
   if (desc->width == 0 || desc->height == 0 || desc->channels < 3 ||
-      desc->channels > 4 || desc->colorspace > 1 || header_magic != QOI_MAGIC ||
+      desc->channels > 4 || static_cast<uint8_t>(desc->colorspace) > 1 || header_magic != QOI_MAGIC ||
       desc->height >= QOI_PIXELS_MAX / desc->width) {
     return nullptr;
   }
@@ -291,7 +291,7 @@ bool WritePixelsToImage(const char *filename, uint8_t *data, size_t width,
   desc.width = width;
   desc.height = height;
   desc.channels = 4;
-  desc.colorspace = 1;
+  desc.colorspace = QoiColorspace::kLinear;
   int size;
   auto *encoded =
       reinterpret_cast<char *>(QoiEncode(data, &desc, &size, allocator));

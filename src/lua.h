@@ -54,12 +54,7 @@ class LuaStackCheck {
 
 template <typename T>
 constexpr const char* Typename() {
-  return typeid(T).name();
-}
-
-template <>
-constexpr const char* Typename<SDL_Window>() {
-  return "SDL_Window";
+  return __PRETTY_FUNCTION__;
 }
 
 template <typename T>

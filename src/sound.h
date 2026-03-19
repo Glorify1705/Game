@@ -35,8 +35,14 @@ class Sound {
 
   using Source = uint32_t;
 
+  // Whether a sound source is managed by Lua (replayable) or fire-and-forget.
+  enum class Ownership : uint8_t {
+    kManaged,   // Held by Lua via add_source(), can be replayed.
+    kAutoFree,  // Created by play(), slot reclaimable once playback finishes.
+  };
+
   bool AddSource(std::string_view name, Source* source,
-                 bool auto_free = false);
+                 Ownership ownership = Ownership::kManaged);
 
   bool SetSourceGain(Source source, float gain);
 
@@ -268,12 +274,8 @@ class Sound {
 
     void Gain(float f) { gain_ = f; }
 
-    // A managed stream is held by Lua (via add_source) and can be replayed.
-    // A non-managed (fire-and-forget) stream was created by play() and its
-    // slot is reclaimable once playback finishes.
-    void SetManaged() { auto_free_ = false; }
-    void SetAutoFree() { auto_free_ = true; }
-    bool IsManaged() const { return !auto_free_; }
+    void SetOwnership(Ownership ownership) { ownership_ = ownership; }
+    bool IsManaged() const { return ownership_ == Ownership::kManaged; }
 
    private:
     const size_t kBufferSizeInSamples = sizeof(samples_) / sizeof(samples_[0]);
@@ -281,7 +283,7 @@ class Sound {
     uint32_t handle_;
     Callbacks cb_;
     bool playing_ = false;
-    bool auto_free_ = false;
+    Ownership ownership_ = Ownership::kManaged;
     float gain_ = 1.0;
     float samples_[2048];
     size_t pos_;

@@ -2,9 +2,6 @@
 #ifndef _GAME_CONSOLE_H
 #define _GAME_CONSOLE_H
 
-#include <deque>
-#include <string>
-
 #include "SDL.h"
 #include "allocators.h"
 #include "array.h"
