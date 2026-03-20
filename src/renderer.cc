@@ -876,7 +876,8 @@ bool Renderer::LoadSDFFromCache(sqlite3* db, std::string_view font_name,
       static_cast<const uint8_t*>(sqlite3_column_blob(stmt, 2));
   const int metrics_size = sqlite3_column_bytes(stmt, 2);
   constexpr int kGlyphFields = 9;
-  const int expected_size = kNumChars * kGlyphFields * sizeof(float);
+  const size_t expected_size =
+      static_cast<size_t>(kNumChars) * kGlyphFields * sizeof(float);
   if (metrics_size != expected_size) {
     LOG("SDF cache metrics size mismatch for ", font_name, ": got ",
         metrics_size, " expected ", expected_size);
@@ -885,7 +886,8 @@ bool Renderer::LoadSDFFromCache(sqlite3* db, std::string_view font_name,
   // Deserialize field-by-field via memcpy to avoid alignment issues with
   // the SQLite blob pointer on strict-alignment architectures.
   for (int i = 0; i < kNumChars; i++) {
-    const uint8_t* src = metrics + i * kGlyphFields * sizeof(float);
+    const uint8_t* src =
+        metrics + static_cast<size_t>(i) * kGlyphFields * sizeof(float);
     SDFGlyph& g = font->glyphs[kFirstChar + i];
     std::memcpy(&g.s0, src, 4);
     std::memcpy(&g.t0, src + 4, 4);
@@ -933,7 +935,7 @@ void Renderer::SaveSDFToCache(sqlite3* db, std::string_view font_name,
   float metrics[kNumChars * kGlyphFields];
   for (int i = 0; i < kNumChars; i++) {
     const SDFGlyph& g = font.glyphs[kFirstChar + i];
-    float* f = &metrics[i * kGlyphFields];
+    float* f = &metrics[static_cast<size_t>(i) * kGlyphFields];
     f[0] = g.s0;
     f[1] = g.t0;
     f[2] = g.s1;
@@ -993,16 +995,16 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
 Color ParseColor(std::string_view color) {
   // TODO: Support ANSI escape codes properly.
   for (char c : color) {
-    Color color;
+    Color result;
     if (c == '[') continue;
     if (c == ';') continue;
     if (c == '7') {
-      ColorFromTable("lightred", &color);
-      return color;
+      ColorFromTable("lightred", &result);
+      return result;
     }
     if (c == '3') {
-      ColorFromTable("blueblue", &color);
-      return color;
+      ColorFromTable("blueblue", &result);
+      return result;
     }
     if (c == '0') return Color::White();
   }

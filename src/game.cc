@@ -588,8 +588,8 @@ class Game {
     // Draw FPS counter in debug mode.
     if (debug_ && stats_.samples() > 0) {
       FixedStringBuffer<kMaxLogLineLength> log(
-          "FPS: ", (1000.0f / stats_.avg()), " Stats = ", stats_,
-          "\nLua memory usage: ", (e_->lua.MemoryUsage() / 1024.0));
+          "FPS: ", (1000.0 / stats_.avg()), " Stats = ", stats_,
+          "\nLua memory usage: ", (e_->lua.MemoryUsage() / 1024.0f));
       const IVec2 dims =
           e_->renderer.TextDimensions("debug_font.ttf", 16, log.str());
       const IVec2 viewport = e_->batch_renderer.GetViewport();
@@ -703,6 +703,9 @@ class Game {
           "Could not set Core profile", SDL_GetError());
     CHECK(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1) == 0,
           "Could not set double buffering version", SDL_GetError());
+#ifdef GAME_WITH_ASSERTS
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
+#endif
     uint32_t flags = SDL_WINDOW_OPENGL;
     if (config.resizable) flags |= SDL_WINDOW_RESIZABLE;
     if (config.borderless) flags |= SDL_WINDOW_BORDERLESS;

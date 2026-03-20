@@ -1,8 +1,41 @@
 { pkgs, lib, config, inputs, ... }:
 
+let
+  # Nix clang wrapper injects include paths that standalone tools (clang-tidy,
+  # IWYU) don't see. Extract these paths and pass them explicitly.
+  #
+  # The script runs clang++ -v to discover the wrapper-injected paths at
+  # configure time (via find_program), so store paths update automatically.
+  nixClangExtraArgs = pkgs.writeText "nix-clang-extra-args" (
+    let
+      gccPkg = pkgs.gcc.cc;
+      gccVer = gccPkg.version;
+      gccInstallDir = "${gccPkg}/lib/gcc/x86_64-unknown-linux-gnu/${gccVer}";
+    in ''--gcc-install-dir=${gccInstallDir}
+-idirafter
+${pkgs.glibc.dev}/include''
+  );
+
+  wrappedClangTidy = pkgs.writeShellScriptBin "clang-tidy" ''
+    EXTRA_ARGS=()
+    while IFS= read -r line; do
+      EXTRA_ARGS+=(--extra-arg="$line")
+    done < ${nixClangExtraArgs}
+    exec ${pkgs.clang-tools}/bin/clang-tidy "''${EXTRA_ARGS[@]}" "$@"
+  '';
+
+  wrappedIWYU = pkgs.writeShellScriptBin "include-what-you-use" ''
+    EXTRA_ARGS=()
+    while IFS= read -r line; do
+      EXTRA_ARGS+=("$line")
+    done < ${nixClangExtraArgs}
+    exec ${pkgs.include-what-you-use}/bin/include-what-you-use "''${EXTRA_ARGS[@]}" "$@"
+  '';
+in
+
 {
 
-  packages = with pkgs; [ 
+  packages = with pkgs; [
     SDL2
     SDL2_mixer
     ccls
@@ -30,6 +63,8 @@
     sqlitebrowser
     stylua
     valgrind
+    wrappedClangTidy
+    wrappedIWYU
     xorg.libXcursor
     xorg.libXinerama
     xorg.libXrandr
@@ -88,27 +123,13 @@
 
   scripts."game-tidy" = {
     exec = ''
-      cmake -G Ninja -S . -B build
-      CLANG_INFO=$(${pkgs.clang}/bin/clang++ -v -x c++ /dev/null -fsyntax-only 2>&1)
-      RESOURCE_DIR=$(echo "$CLANG_INFO" | grep -oP '(?<=-resource-dir )\S+')
-      EXTRA_ARGS="-extra-arg=-resource-dir=$RESOURCE_DIR"
-      for p in $(echo "$CLANG_INFO" | grep -oP '(?<=-cxx-isystem )\S+'); do
-        EXTRA_ARGS="$EXTRA_ARGS -extra-arg=-cxx-isystem -extra-arg=$p"
-      done
-      for p in $(echo "$CLANG_INFO" | grep -oP '(?<=-isystem )\S+' | sort -u); do
-        EXTRA_ARGS="$EXTRA_ARGS -extra-arg=-isystem$p"
-      done
-      for p in $(echo "$CLANG_INFO" | grep -oP '(?<=-idirafter )\S+'); do
-        EXTRA_ARGS="$EXTRA_ARGS -extra-arg=-idirafter -extra-arg=$p"
-      done
-      run-clang-tidy -p build -quiet $EXTRA_ARGS '/src/[^/]+\.cc$'
+      cmake -DENABLE_CLANG_TIDY=ON -G Ninja -S . -B build && cmake --build build --target Game
     '';
   };
 
   scripts."game-iwyu" = {
     exec = ''
-      cmake -G Ninja -S . -B build
-      ${pkgs.python3}/bin/python3 ${pkgs.include-what-you-use}/bin/iwyu_tool.py -p build src/ -- -Xiwyu --mapping_file=iwyu.imp
+      cmake -DENABLE_IWYU=ON -G Ninja -S . -B build && cmake --build build --target Game 2>&1
     '';
   };
 

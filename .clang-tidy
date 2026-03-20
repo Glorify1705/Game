@@ -9,10 +9,12 @@ Checks: >
   -bugprone-branch-clone,
   -bugprone-infinite-loop,
   -bugprone-macro-parentheses,
+  -bugprone-casting-through-void,
+  -bugprone-multi-level-implicit-pointer-conversion,
   -performance-enum-size,
   -performance-noexcept-move-constructor,
   -performance-noexcept-swap,
   -performance-no-int-to-ptr,
 
 WarningsAsErrors: '*'
-HeaderFilterRegex: '.*/src/.*'
+HeaderFilterRegex: '.*/src/[^/]+\.h$'

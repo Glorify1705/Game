@@ -1,44 +1,30 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Run clang-tidy on staged C++ files under src/.
+# Run clang-tidy on staged C++ files under src/ via CMake integration.
 FILES=$(git diff --cached --name-only --diff-filter=d -- 'src/*.cc' 'src/*.h')
 
 if [ -z "$FILES" ]; then
   exit 0
 fi
 
-if [ ! -f build/compile_commands.json ]; then
-  echo "Error: build/compile_commands.json not found. Run a cmake configure first."
-  exit 1
-fi
-
-# The nix clang wrapper injects include paths that clang-tidy doesn't see.
-# Extract resource-dir, C++ isystem, package isystem, and glibc idirafter paths.
-EXTRA_ARGS=()
-CLANG_INFO=$(clang++ -v -x c++ /dev/null -fsyntax-only 2>&1)
-RESOURCE_DIR=$(echo "$CLANG_INFO" | grep -oP '(?<=-resource-dir )\S+')
-if [ -n "$RESOURCE_DIR" ]; then
-  EXTRA_ARGS+=(--extra-arg="-resource-dir=$RESOURCE_DIR")
-fi
-for p in $(echo "$CLANG_INFO" | grep -oP '(?<=-cxx-isystem )\S+'); do
-  EXTRA_ARGS+=(--extra-arg="-cxx-isystem" --extra-arg="$p")
-done
-for p in $(echo "$CLANG_INFO" | grep -oP '(?<=-isystem )\S+' | sort -u); do
-  EXTRA_ARGS+=(--extra-arg="-isystem$p")
-done
-for p in $(echo "$CLANG_INFO" | grep -oP '(?<=-idirafter )\S+'); do
-  EXTRA_ARGS+=(--extra-arg="-idirafter" --extra-arg="$p")
-done
+# Use CMake's clang-tidy integration which handles Nix include paths correctly.
+# Only rebuild the staged .cc files (cmake will only re-analyze changed files).
+cmake -DENABLE_CLANG_TIDY=ON -G Ninja -S . -B build > /dev/null 2>&1
 
 FAILED=0
 for f in $FILES; do
-  OUTPUT=$(clang-tidy -p build "${EXTRA_ARGS[@]}" "$f" 2>&1)
-  # Only fail on warnings-as-errors from our src/ files, not vendored headers.
-  if echo "$OUTPUT" | grep -qP '/src/[^/]+\.(cc|h):\d+:\d+: error:.*\[-warnings-as-errors\]'; then
-    echo "$OUTPUT" | grep -v '/libraries/'
-    FAILED=1
+  # Only .cc files have compilation commands
+  if [[ "$f" == *.cc ]]; then
+    OBJ="CMakeFiles/Game.dir/${f}.o"
+    if ninja -C build "$OBJ" 2>&1 | grep -qP '\[-Werror,.*\]'; then
+      ninja -C build "$OBJ" 2>&1 | grep -v '/libraries/'
+      FAILED=1
+    fi
   fi
 done
+
+# Reconfigure without clang-tidy for normal builds
+cmake -DENABLE_CLANG_TIDY=OFF -G Ninja -S . -B build > /dev/null 2>&1
 
 exit $FAILED

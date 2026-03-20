@@ -975,8 +975,8 @@ void Lua::Update(float t, float dt) {
   lua_getglobal(state_, "_Game");
   lua_getfield(state_, -1, "update");
   lua_insert(state_, -2);
-  lua_pushnumber(state_, t);
-  lua_pushnumber(state_, dt);
+  lua_pushnumber(state_, static_cast<double>(t));
+  lua_pushnumber(state_, static_cast<double>(dt));
   if (lua_pcall(state_, 3, 0, traceback_handler_)) {
     lua_error(state_);
     return;
@@ -1111,10 +1111,10 @@ void Lua::HandleMouseMoved(FVec2 pos, FVec2 delta) {
     return;
   }
   lua_insert(state_, -2);
-  lua_pushnumber(state_, pos.x);
-  lua_pushnumber(state_, pos.y);
-  lua_pushnumber(state_, delta.x);
-  lua_pushnumber(state_, delta.y);
+  lua_pushnumber(state_, static_cast<double>(pos.x));
+  lua_pushnumber(state_, static_cast<double>(pos.y));
+  lua_pushnumber(state_, static_cast<double>(delta.x));
+  lua_pushnumber(state_, static_cast<double>(delta.y));
   if (lua_pcall(state_, 5, 0, traceback_handler_)) {
     lua_error(state_);
     return;
