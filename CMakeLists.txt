@@ -31,7 +31,9 @@ endif()
 if(ENABLE_IWYU)
     find_program(IWYU_EXE NAMES include-what-you-use REQUIRED)
     set(IWYU_CMD "${IWYU_EXE}"
-        "-Xiwyu" "--mapping_file=${CMAKE_SOURCE_DIR}/iwyu.imp")
+        "-Xiwyu" "--mapping_file=${CMAKE_SOURCE_DIR}/iwyu.imp"
+        "-Xiwyu" "--no_fwd_decls"
+        "-Xiwyu" "--quoted_includes_first")
     foreach(dir IN LISTS CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES)
         list(APPEND IWYU_CMD "-isystem${dir}")
     endforeach()

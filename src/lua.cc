@@ -1,14 +1,10 @@
 #include "lua.h"
 
-#include <algorithm>
 #include <cstdio>
 
 #include "SDL.h"
 #include "clock.h"
-#include "console.h"
 #include "defer.h"
-#include "filesystem.h"
-#include "units.h"
 
 namespace G {
 namespace {

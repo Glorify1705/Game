@@ -1,10 +1,5 @@
 #include "physics.h"
 
-#include "console.h"
-#include "lua.h"
-#include "mat.h"
-#include "transformations.h"
-
 namespace G {
 namespace {
 

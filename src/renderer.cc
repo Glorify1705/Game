@@ -2,12 +2,9 @@
 
 #include <cmath>
 #include <cstring>
-#include <vector>
 
 #include "clock.h"
-#include "console.h"
 #include "defer.h"
-#include "filesystem.h"
 #include "image.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"

@@ -1,7 +1,5 @@
 #include "sound.h"
 
-#include <algorithm>
-
 #include "assets.h"
 
 namespace G {
@@ -83,7 +81,7 @@ void Sound::LoadSound(const DbAssets::Sound& sound) {
 }
 
 void Sound::SoundCallback(float* result, size_t samples_per_channel,
-                           size_t channels) {
+                          size_t channels) {
   LockMutex l(mu_);
   const size_t samples = samples_per_channel * channels;
   std::memset(result, 0, samples * sizeof(float));

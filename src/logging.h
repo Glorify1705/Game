@@ -2,7 +2,6 @@
 #ifndef _GAME_LOGGING_H
 #define _GAME_LOGGING_H
 
-#include <cstdlib>
 #include <string_view>
 
 #include "constants.h"

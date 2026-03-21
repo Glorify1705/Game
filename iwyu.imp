@@ -35,5 +35,22 @@
 
   # glad: map KHR header
   { "include": ["\"KHR/khrplatform.h\"", "private", "\"libraries/glad.h\"", "public"] },
-  { "include": ["<KHR/khrplatform.h>", "private", "\"libraries/glad.h\"", "public"] }
+  { "include": ["<KHR/khrplatform.h>", "private", "\"libraries/glad.h\"", "public"] },
+
+  # sqlite3: map system header to vendored copy
+  { "include": ["<sqlite3.h>", "public", "\"libraries/sqlite3.h\"", "public"] },
+
+  # box2d: map private headers to the public umbrella header
+  { "include": ["\"box2d/b2_body.h\"", "private", "\"box2d/box2d.h\"", "public"] },
+  { "include": ["\"box2d/b2_circle_shape.h\"", "private", "\"box2d/box2d.h\"", "public"] },
+  { "include": ["\"box2d/b2_contact.h\"", "private", "\"box2d/box2d.h\"", "public"] },
+  { "include": ["\"box2d/b2_edge_shape.h\"", "private", "\"box2d/box2d.h\"", "public"] },
+  { "include": ["\"box2d/b2_fixture.h\"", "private", "\"box2d/box2d.h\"", "public"] },
+  { "include": ["\"box2d/b2_friction_joint.h\"", "private", "\"box2d/box2d.h\"", "public"] },
+  { "include": ["\"box2d/b2_math.h\"", "private", "\"box2d/box2d.h\"", "public"] },
+  { "include": ["\"box2d/b2_polygon_shape.h\"", "private", "\"box2d/box2d.h\"", "public"] },
+  { "include": ["\"box2d/b2_settings.h\"", "private", "\"box2d/box2d.h\"", "public"] },
+  { "include": ["\"box2d/b2_world.h\"", "private", "\"box2d/box2d.h\"", "public"] },
+  { "include": ["\"box2d/b2_world_callbacks.h\"", "private", "\"box2d/box2d.h\"", "public"] },
+  { "include": ["\"b2_settings.h\"", "private", "\"box2d/box2d.h\"", "public"] }
 ]
