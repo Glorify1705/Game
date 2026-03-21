@@ -59,32 +59,30 @@ struct QoaDesc {
 };
 
 // Decode entire QOA buffer to interleaved int16_t samples.
-// Returns allocated buffer (caller owns via allocator), nullptr on error.
-// Populates desc with format info.
-int16_t* QoaDecode(const void* data, size_t size, QoaDesc* desc,
-                   Allocator* allocator);
+// Returns allocated FixedArray. Populates desc with format info.
+FixedArray<int16_t> QoaDecode(ByteSlice data, QoaDesc* desc,
+                              Allocator* allocator);
 
 // Encode interleaved int16_t samples to QOA.
-// Returns allocated buffer, sets out_len. nullptr on error.
-void* QoaEncode(const int16_t* samples, const QoaDesc* desc,
-                size_t* out_len, Allocator* allocator);
+// Returns allocated FixedArray with the encoded bytes.
+FixedArray<uint8_t> QoaEncode(Slice<int16_t> samples, const QoaDesc* desc,
+                              Allocator* allocator);
 
 // Streaming decoder: decodes one frame at a time from a QOA buffer.
 class QoaStreamDecoder {
  public:
-  // Initialize with a QOA buffer. Does not copy the data.
-  bool Init(const void* data, size_t size, QoaDesc* desc);
+  // Initialize with a QOA buffer (non-owning view).
+  bool Init(ByteSlice data, QoaDesc* desc);
 
   // Decode next frame into output buffer (interleaved int16_t).
   // Returns number of samples decoded (per channel), 0 at EOF.
-  size_t DecodeFrame(int16_t* output, size_t max_samples);
+  size_t DecodeFrame(Slice<int16_t>* output);
 
   // Seek back to beginning.
   void Rewind();
 
  private:
-  const uint8_t* data_;
-  size_t size_;
+  ByteSlice data_;
   size_t pos_;             // current byte position
   QoaDesc desc_;
   // LMS state per channel, updated across frames
@@ -131,7 +129,7 @@ class QoaSampler {
 
  private:
   QoaStreamDecoder decoder_;
-  const DbAssets::Sound* sound_;  // reference to asset data
+  const DbAssets::Sound* sound_;  // reference to asset data (non-owning)
   int16_t frame_buffer_[QOA_FRAME_LEN * QOA_MAX_CHANNELS];
   size_t frame_pos_;
   size_t frame_samples_;
@@ -143,14 +141,14 @@ For effects (upfront decode), add a new sampler that plays from a pre-decoded bu
 ```cpp
 class PcmSampler {
  public:
-  bool Init(const int16_t* samples, size_t total_samples, size_t channels);
+  // Takes a non-owning view into a shared decoded buffer.
+  bool Init(Slice<int16_t> samples, size_t channels);
   size_t Load(float* output, size_t samples_per_channel, size_t channels);
   bool Rewind();
   bool Deinit();
 
  private:
-  const int16_t* samples_;   // points into shared decoded buffer
-  size_t total_samples_;
+  Slice<int16_t> samples_;   // non-owning view into shared decoded buffer
   size_t channels_;
   size_t pos_;
 };
@@ -221,8 +219,9 @@ struct Sound {
 4. **QoaSampler**: Implement the streaming sampler using `QoaStreamDecoder`. Drop `WavSampler`
    and `VorbisSampler` from `sound.h`.
 
-5. **PcmSampler + effect cache**: Implement upfront-decode path. Add a `Dictionary` in `Sound`
-   that caches decoded PCM buffers keyed by asset name.
+5. **PcmSampler + effect cache**: Implement upfront-decode path. Add a `Dictionary<FixedArray<int16_t>>`
+   in `Sound` that caches decoded PCM buffers keyed by asset name. `PcmSampler` holds a
+   `Slice<int16_t>` view into the cached buffer.
 
 6. **Lua API**: Add `add_effect` / `play_effect`. Keep existing API working.
 
