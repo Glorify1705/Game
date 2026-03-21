@@ -107,6 +107,47 @@ bool Sound::Stop(Source source) {
   return true;
 }
 
+bool Sound::Pause(Source source) {
+  LockMutex l(mu_);
+  if (source >= stream_) return false;
+  streams_[source].Pause();
+  return true;
+}
+
+bool Sound::Resume(Source source) {
+  LockMutex l(mu_);
+  if (source >= stream_) return false;
+  streams_[source].Resume();
+  return true;
+}
+
+bool Sound::IsPlaying(Source source) const {
+  LockMutex l(mu_);
+  if (source >= stream_) return false;
+  return streams_[source].IsPlaying();
+}
+
+bool Sound::SetLoop(Source source, bool loop) {
+  LockMutex l(mu_);
+  if (source >= stream_) return false;
+  streams_[source].SetLoop(loop);
+  return true;
+}
+
+bool Sound::SetPitch(Source source, float pitch) {
+  LockMutex l(mu_);
+  if (source >= stream_) return false;
+  streams_[source].SetPitch(pitch);
+  return true;
+}
+
+bool Sound::SetPan(Source source, float pan) {
+  LockMutex l(mu_);
+  if (source >= stream_) return false;
+  streams_[source].SetPan(pan);
+  return true;
+}
+
 void Sound::LoadSound(const DbAssets::Sound& sound) {
   LockMutex l(mu_);
   TIMER("Loading sound ", sound.name);

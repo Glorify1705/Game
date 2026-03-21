@@ -124,6 +124,83 @@ const struct LuaApiFunction kSoundLib[] = {
          LUA_ERROR(state, "Could not play effect");
        }
        return 0;
+     }},
+    {"set_loop",
+     "Enables or disables looping for a source.",
+     {{"source", "source id to modify", "integer"},
+      {"loop", "true to enable looping, false to disable", "boolean"}},
+     {},
+     [](lua_State* state) {
+       auto* sound = Registry<Sound>::Retrieve(state);
+       const auto source = luaL_checkinteger(state, 1);
+       const bool loop = lua_toboolean(state, 2);
+       if (!sound->SetLoop(source, loop)) {
+         LUA_ERROR(state, "Could not set loop for source");
+       }
+       return 0;
+     }},
+    {"pause",
+     "Pauses a source without rewinding it.",
+     {{"source", "source id to pause", "integer"}},
+     {},
+     [](lua_State* state) {
+       auto* sound = Registry<Sound>::Retrieve(state);
+       const auto source = luaL_checkinteger(state, 1);
+       if (!sound->Pause(source)) {
+         LUA_ERROR(state, "Could not pause source");
+       }
+       return 0;
+     }},
+    {"resume",
+     "Resumes a paused source from where it stopped.",
+     {{"source", "source id to resume", "integer"}},
+     {},
+     [](lua_State* state) {
+       auto* sound = Registry<Sound>::Retrieve(state);
+       const auto source = luaL_checkinteger(state, 1);
+       if (!sound->Resume(source)) {
+         LUA_ERROR(state, "Could not resume source");
+       }
+       return 0;
+     }},
+    {"is_playing",
+     "Returns whether a source is currently playing.",
+     {{"source", "source id to query", "integer"}},
+     {{"playing", "true if the source is playing", "boolean"}},
+     [](lua_State* state) {
+       auto* sound = Registry<Sound>::Retrieve(state);
+       const auto source = luaL_checkinteger(state, 1);
+       lua_pushboolean(state, sound->IsPlaying(source));
+       return 1;
+     }},
+    {"set_pitch",
+     "Sets the playback pitch/speed for a source.",
+     {{"source", "source id to modify", "integer"},
+      {"pitch", "pitch multiplier (0.25 to 4.0, 1.0 = normal)", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* sound = Registry<Sound>::Retrieve(state);
+       const auto source = luaL_checkinteger(state, 1);
+       const float pitch = luaL_checknumber(state, 2);
+       if (!sound->SetPitch(source, pitch)) {
+         LUA_ERROR(state, "Could not set pitch for source");
+       }
+       return 0;
+     }},
+    {"set_pan",
+     "Sets the stereo panning for a source.",
+     {{"source", "source id to modify", "integer"},
+      {"pan", "pan position (-1.0 = left, 0.0 = center, 1.0 = right)",
+       "number"}},
+     {},
+     [](lua_State* state) {
+       auto* sound = Registry<Sound>::Retrieve(state);
+       const auto source = luaL_checkinteger(state, 1);
+       const float pan = luaL_checknumber(state, 2);
+       if (!sound->SetPan(source, pan)) {
+         LUA_ERROR(state, "Could not set pan for source");
+       }
+       return 0;
      }}};
 
 }  // namespace
