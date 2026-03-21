@@ -138,22 +138,22 @@ This document compares our engine against three reference 2D game engines — **
 
 ### 7. Input
 
-| Feature | Ours | Love2D | high_impact | Anchor |
-|---|---|---|---|---|
-| Keyboard press/hold/release | Yes | Yes | Yes | Yes |
-| Mouse position | Yes | Yes | Yes | Yes |
-| Mouse buttons | Yes | Yes | Yes | Yes |
-| Mouse wheel | Yes | Yes | No | Yes |
-| Gamepad buttons | Yes | Yes | Yes | Yes |
-| Gamepad analog axes | Yes | Yes | Yes | Yes |
-| Action binding (abstract) | No | No | Yes | Yes |
-| Text input | Yes | Yes | Yes (capture) | No |
-| Touch input | No | Yes | No | No |
-| Input chords / sequences | No | No | No | Yes |
-| Hold duration detection | No | No | No | Yes |
-| Mouse grab / relative mode | No | Yes | No | Yes |
-| Custom cursor | No | Yes | No | No |
-| Mouse world position (camera-aware) | No | No | No | Yes |
+| Feature                             | Ours | Love2D | high_impact   | Anchor |
+| ----------------------------------- | ---- | ------ | ------------- | ------ |
+| Keyboard press/hold/release         | Yes  | Yes    | Yes           | Yes    |
+| Mouse position                      | Yes  | Yes    | Yes           | Yes    |
+| Mouse buttons                       | Yes  | Yes    | Yes           | Yes    |
+| Mouse wheel                         | Yes  | Yes    | No            | Yes    |
+| Gamepad buttons                     | Yes  | Yes    | Yes           | Yes    |
+| Gamepad analog axes                 | Yes  | Yes    | Yes           | Yes    |
+| Action binding (abstract)           | No   | No     | Yes           | Yes    |
+| Text input                          | Yes  | Yes    | Yes (capture) | No     |
+| Touch input                         | No   | Yes    | No            | No     |
+| Input chords / sequences            | No   | No     | No            | Yes    |
+| Hold duration detection             | No   | No     | No            | Yes    |
+| Mouse grab / relative mode          | No   | Yes    | No            | Yes    |
+| Custom cursor                       | No   | Yes    | No            | No     |
+| Mouse world position (camera-aware) | No   | No     | No            | Yes    |
 
 **Gaps to fill**: Action binding is the key missing feature — it abstracts physical buttons into game actions ("jump", "shoot") allowing easy rebinding and multi-device support. Mouse world position (accounting for camera transform) is a must-have for any game with a camera.
 
