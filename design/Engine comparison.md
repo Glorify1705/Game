@@ -36,19 +36,39 @@ This document compares our engine against three reference 2D game engines — **
 | Points | No | Yes | No | No |
 | Gradient fills | No | No | No | Yes (H/V gradients) |
 | Custom shaders | Yes (GLSL) | Yes (GLSL dialect) | Yes (GLSL) | Yes (fragment only) |
-| Post-processing effects | No | Yes (via Canvas + Shader) | Yes (CRT effect built-in) | Yes (per-layer shaders) |
-| Canvas / off-screen render | No | Yes (Canvas, MRT) | No | Yes (FBO layers) |
-| Blend modes | No | Yes (8+ modes) | Yes (Normal, Additive) | Yes (Alpha, Additive) |
+| Post-processing effects | Yes (Canvas + Shader) | Yes (via Canvas + Shader) | Yes (CRT effect built-in) | Yes (per-layer shaders) |
+| Canvas / off-screen render | Yes (non-MSAA FBO) | Yes (Canvas, MRT) | No | Yes (FBO layers) |
+| Blend modes | Yes (alpha/add/multiply/replace) | Yes (8+ modes) | Yes (Normal, Additive) | Yes (Alpha, Additive) |
 | Stencil masking | No | Yes | No | Yes |
 | MSAA | Yes | Yes | No | No |
 | Mesh / custom geometry | No | Yes (Mesh object) | No | No |
-| Pixel-perfect scaling | No | No | Yes (discrete scaling) | Yes (rough filter mode) |
+| Pixel-perfect scaling | Yes (canvas + nearest filter) | No | Yes (discrete scaling) | Yes (rough filter mode) |
 | Color tinting per draw | Yes | Yes | Yes | Yes |
 | Screenshots | Yes (PNG) | Yes (async) | No | No |
 | HiDPI support | No | Yes | No | No |
 | Mipmaps | No | Yes | Yes (optional) | No |
 
-**Gaps to fill**: Canvas/off-screen rendering is the biggest gap — it's the foundation for post-processing, minimaps, UI layers, and split-screen. Blend modes are essential for particle effects and lighting. Stencil masking enables fog-of-war and UI clipping. Outline drawing modes for circles/rectangles are useful for debugging and UI.
+**Status**: Canvas, blend modes, and pixel-perfect scaling are now implemented. Our canvas handles premultiplied alpha automatically (avoiding Love2D's biggest footgun) and Y-flip transparently (avoiding Raylib's annoyance). Remaining gaps: stencil masking for fog-of-war/UI clipping, outlined shape drawing modes, and more blend modes (Love2D has 8+, we have 4).
+
+**Detailed canvas comparison**:
+
+| Capability | Ours | Love2D | Anchor | Notes |
+|---|---|---|---|---|
+| Create render target | `new_canvas(w,h)` | `newCanvas(w,h,{...})` | `an:layer(name)` | Love2D has most options (format, MSAA) |
+| Redirect drawing | `set_canvas(c)` / `set_canvas()` | `setCanvas(c)` / `setCanvas()` | Implicit per-layer | Same API shape as Love2D |
+| Draw as texture | `draw_canvas(c,x,y)` | `draw(canvas,x,y)` | Layer compositing | We have dedicated function; Love2D uses generic `draw` |
+| Y-flip handling | Automatic (UV inversion) | Automatic | Automatic | Raylib requires manual flip — we avoid this |
+| Premultiplied alpha | Automatic | Manual (footgun!) | Automatic | Our biggest UX win vs Love2D |
+| Filter modes | nearest / linear | nearest / linear + aniso | N/A | Parity with Love2D basics |
+| Pixel formats | RGBA8 only | 20+ including HDR | RGBA8 | Love2D far ahead; RGBA8 sufficient for 2D |
+| MRT (multi-target) | No | Yes (up to 4) | No | Needed for deferred lighting, not common in 2D |
+| Per-canvas MSAA | No (non-MSAA only) | Yes | No | By design: pixel art and post-FX don't want MSAA |
+| Scoped helper | Not yet | `renderTo(fn)` | N/A | Easy to add in Lua |
+| Draw with scaling | Yes (w,h params) | Via transform | Via transform | Convenience over push/scale/pop |
+| Blend modes | 4 (alpha/add/multiply/replace) | 8+ (+ premultiplied variants) | 2 (alpha/additive) | We match Anchor; Love2D has darken/lighten/screen extras |
+| Clear with color | Yes `clear(r,g,b,a)` | Yes `clear(r,g,b,a)` | N/A | Parity with Love2D |
+| Stencil on canvas | Not yet | Yes | Yes | Future work |
+| Nesting | Yes (reset to screen) | Yes (reset to screen) | N/A | Same behavior as Love2D |
 
 ### 2. Animation
 
@@ -300,7 +320,7 @@ Based on what's needed to ship complete games, grouped by impact:
 1. **Camera system** — Follow target, smooth interpolation, bounds, shake, world/screen conversion
 2. **Animation system** — Spritesheet frame sequences, loop/once/bounce, flip, timing
 3. **Timer / tween / easing** — Delayed callbacks, repeating timers, tweens, easing curves, springs
-4. **Canvas / off-screen rendering** — Framebuffers as render targets, compositing, post-processing foundation
+4. ~~**Canvas / off-screen rendering**~~ — DONE. `new_canvas`, `set_canvas`, `draw_canvas` with auto premultiplied alpha and Y-flip.
 5. **Audio improvements** — Looping, pitch, pan, pause/resume per source
 
 ### Tier 2 — Important (needed for specific genres or polish)
@@ -309,7 +329,7 @@ Based on what's needed to ship complete games, grouped by impact:
 7. **Physics expansion** — Sensors, raycasting, spatial queries, kinematic bodies, more shapes
 8. **Input action binding** — Map physical buttons to game actions, support rebinding
 9. **Scene / state management** — Init/update/draw/cleanup, switching, resource cleanup
-10. **Blend modes** — At least alpha, additive, multiply
+10. ~~**Blend modes**~~ — DONE. Alpha, additive, multiply, replace.
 11. **Time scale** — Global slow-motion / pause, separate game vs real time
 
 ### Tier 3 — Nice to have (quality of life and polish)
