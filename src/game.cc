@@ -579,6 +579,7 @@ class Game {
   }
 
   void Render() {
+    e_->renderer.ClearForFrame();
     e_->lua.Draw();
     // Draw FPS counter in debug mode.
     if (debug_ && stats_.samples() > 0) {

@@ -24,17 +24,16 @@ static const LuaApiFunction kGraphicsLib[] = {
       {"a?", "alpha component (0-1)", "number"}},
      {},
      [](lua_State* state) {
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
        const int params = lua_gettop(state);
        if (params >= 4) {
-         auto* batch = Registry<BatchRenderer>::Retrieve(state);
          float r = luaL_checknumber(state, 1);
          float g = luaL_checknumber(state, 2);
          float b = luaL_checknumber(state, 3);
          float a = luaL_checknumber(state, 4);
          batch->ClearWithColor(r, g, b, a);
        } else {
-         auto* renderer = Registry<Renderer>::Retrieve(state);
-         renderer->ClearForFrame();
+         batch->ClearWithColor(0, 0, 0, 0);
        }
        return 0;
      }},
@@ -730,29 +729,24 @@ static const LuaApiFunction kWindowLib[] = {
      }}};
 
 constexpr luaL_Reg kCanvasMethods[] = {
-    {"__index",
+    {"dimensions",
      [](lua_State* state) {
-       std::string_view key = GetLuaString(state, 2);
-       if (key == "dimensions") {
-         lua_pushcfunction(state, [](lua_State* s) {
-           auto* c = AsUserdata<Canvas>(s, 1);
-           lua_pushinteger(s, c->width);
-           lua_pushinteger(s, c->height);
-           return 2;
-         });
-         return 1;
-       }
-       if (key == "width") {
-         auto* c = AsUserdata<Canvas>(state, 1);
-         lua_pushinteger(state, c->width);
-         return 1;
-       }
-       if (key == "height") {
-         auto* c = AsUserdata<Canvas>(state, 1);
-         lua_pushinteger(state, c->height);
-         return 1;
-       }
-       return 0;
+       auto* c = AsUserdata<Canvas>(state, 1);
+       lua_pushinteger(state, c->width);
+       lua_pushinteger(state, c->height);
+       return 2;
+     }},
+    {"width",
+     [](lua_State* state) {
+       auto* c = AsUserdata<Canvas>(state, 1);
+       lua_pushinteger(state, c->width);
+       return 1;
+     }},
+    {"height",
+     [](lua_State* state) {
+       auto* c = AsUserdata<Canvas>(state, 1);
+       lua_pushinteger(state, c->height);
+       return 1;
      }},
     {"__tostring", [](lua_State* state) {
        auto* c = AsUserdata<Canvas>(state, 1);
