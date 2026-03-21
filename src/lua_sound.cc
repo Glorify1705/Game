@@ -117,7 +117,7 @@ const struct LuaApiFunction kSoundLib[] = {
        auto* sound = Registry<Sound>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
        Sound::Source source;
-       if (!sound->AddEffect(name, &source, Sound::Ownership::kAutoFree)) {
+       if (!sound->AddEffect(name, &source)) {
          LUA_ERROR(state, "Could not add sound effect ", name);
        }
        if (!sound->StartChannel(source)) {

@@ -9,18 +9,25 @@
 
 namespace G {
 
+// QOA (Quite OK Audio) codec implementation.
+// Spec: https://qoaformat.org/qoa-specification.pdf
+
 inline constexpr uint32_t kQoaSliceLen = 20;
 inline constexpr uint32_t kQoaSlicesPerFrame = 256;
 inline constexpr uint32_t kQoaFrameLen = kQoaSlicesPerFrame * kQoaSliceLen;
 inline constexpr uint32_t kQoaLmsLen = 4;
 inline constexpr uint32_t kQoaMaxChannels = 8;
 
+// Audio format descriptor: channel count, sample rate, and total sample count.
 struct QoaDesc {
   uint32_t channels;
   uint32_t samplerate;
   uint32_t samples;
 };
 
+// Per-channel LMS (Least Mean Squares) filter state used during
+// encode/decode. Maintains a 4-tap history and weight vector for
+// adaptive prediction.
 struct QoaLms {
   int history[kQoaLmsLen];
   int weights[kQoaLmsLen];

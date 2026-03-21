@@ -42,12 +42,12 @@ bool Sound::AddSource(std::string_view name, Source* source,
 
 bool Sound::AddEffect(std::string_view name, Source* source,
                       Ownership ownership) {
+  LockMutex l(mu_);
   DbAssets::Sound sound;
   if (!sounds_.Lookup(name, &sound)) {
     LOG("Unknown sound ", name);
     return false;
   }
-  LockMutex l(mu_);
   size_t slot = FindStreamSlot();
   if (slot >= kMaxStreams) {
     LOG("Maximum number of streams exceeded");
@@ -57,22 +57,27 @@ bool Sound::AddEffect(std::string_view name, Source* source,
   // Check if we already have this effect decoded.
   DecodedEffect* cached = nullptr;
   if (!effect_cache_.Lookup(name, &cached)) {
-    // Decode the full QOA upfront.
+    // Decode the full QOA and convert to float upfront.
     TIMER("Decoding effect ", name);
     ByteSlice data(sound.contents, sound.size);
     QoaDesc desc;
     FixedArray<int16_t> pcm = QoaDecode(data, &desc, qoa_alloc_.allocator());
-    if (pcm.size() == 0) {
+    if (pcm.empty()) {
       LOG("Failed to decode QOA for effect ", name);
       return false;
     }
-    cached = qoa_alloc_.allocator()->New<DecodedEffect>(std::move(pcm),
+    FixedArray<float> floats(pcm.size(), qoa_alloc_.allocator());
+    floats.Resize(pcm.size());
+    for (size_t i = 0; i < pcm.size(); ++i) {
+      floats[i] = static_cast<float>(pcm[i]) / 32768.0f;
+    }
+    cached = qoa_alloc_.allocator()->New<DecodedEffect>(std::move(floats),
                                                         desc.channels);
     effect_cache_.Insert(name, cached);
   }
 
   auto* sampler = pcm_alloc_.Alloc();
-  Slice<int16_t> samples(cached->pcm.cdata(), cached->pcm.size());
+  Slice<float> samples(cached->pcm.cdata(), cached->pcm.size());
   sampler->Init(samples, cached->channels);
   streams_[slot].InitFromStream(&sound, sampler);
   streams_[slot].SetOwnership(ownership);
@@ -112,9 +117,14 @@ void Sound::LoadSound(const DbAssets::Sound& sound) {
     ByteSlice data(sound.contents, sound.size);
     QoaDesc desc;
     FixedArray<int16_t> pcm = QoaDecode(data, &desc, qoa_alloc_.allocator());
-    if (pcm.size() > 0) {
+    if (!pcm.empty()) {
+      FixedArray<float> floats(pcm.size(), qoa_alloc_.allocator());
+      floats.Resize(pcm.size());
+      for (size_t i = 0; i < pcm.size(); ++i) {
+        floats[i] = static_cast<float>(pcm[i]) / 32768.0f;
+      }
       auto* new_cached = qoa_alloc_.allocator()->New<DecodedEffect>(
-          std::move(pcm), desc.channels);
+          std::move(floats), desc.channels);
       effect_cache_.Insert(sound.name, new_cached);
     }
   }

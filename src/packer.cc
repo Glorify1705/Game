@@ -134,10 +134,11 @@ class DbPacker {
     return InsertAudioBlob(filename, buf, size, desc);
   }
 
+  // TODO: Use Slice instead of buf + size in the packer.
   AssetInfo InsertWav(std::string_view filename, const uint8_t* buf,
                       size_t size) {
     drwav wav;
-    if (!drwav_init_memory(&wav, buf, size, nullptr)) {
+    if (!drwav_init_memory(&wav, buf, size, /*pAllocationCallbacks=*/nullptr)) {
       DIE("Failed to decode WAV file ", filename);
     }
     DEFER([&] { drwav_uninit(&wav); });
@@ -165,7 +166,7 @@ class DbPacker {
   AssetInfo InsertOgg(std::string_view filename, const uint8_t* buf,
                       size_t size) {
     int channels = 0, samplerate = 0;
-    short* pcm = nullptr;
+    int16_t* pcm = nullptr;
     int total_frames =
         stb_vorbis_decode_memory(buf, size, &channels, &samplerate, &pcm);
     if (total_frames < 0 || pcm == nullptr) {

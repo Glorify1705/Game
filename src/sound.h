@@ -89,17 +89,19 @@ class Sound {
 
       while (written < total_needed) {
         // Drain buffered frame data first.
-        while (frame_pos_ < frame_samples_ * channels_ &&
-               written < total_needed) {
-          output[written++] =
-              static_cast<float>(frame_buffer_[frame_pos_++]) / 32768.0f;
+        while (frame_pos_ < frame_len_ && written < total_needed) {
+          output[written++] = frame_buffer_[frame_pos_++];
         }
         if (written >= total_needed) break;
 
-        // Decode next frame.
-        frame_samples_ = decoder_.DecodeFrame(frame_buffer_, kQoaFrameLen);
+        // Decode next frame and convert to float up front.
+        int16_t raw[kQoaFrameLen * kQoaMaxChannels];
+        frame_len_ = decoder_.DecodeFrame(raw, kQoaFrameLen) * channels_;
         frame_pos_ = 0;
-        if (frame_samples_ == 0) return written / channels;  // EOF
+        if (frame_len_ == 0) return written / channels;  // EOF
+        for (size_t i = 0; i < frame_len_; ++i) {
+          frame_buffer_[i] = static_cast<float>(raw[i]) / 32768.0f;
+        }
       }
       return samples_per_channel;
     }
@@ -107,7 +109,7 @@ class Sound {
     bool Rewind() {
       decoder_.Rewind();
       frame_pos_ = 0;
-      frame_samples_ = 0;
+      frame_len_ = 0;
       return true;
     }
 
@@ -116,15 +118,15 @@ class Sound {
    private:
     QoaStreamDecoder decoder_;
     uint32_t channels_ = 0;
-    int16_t frame_buffer_[kQoaFrameLen * kQoaMaxChannels];
+    float frame_buffer_[kQoaFrameLen * kQoaMaxChannels];
     size_t frame_pos_ = 0;
-    size_t frame_samples_ = 0;
+    size_t frame_len_ = 0;
   };
 
-  // PCM sampler: plays from a pre-decoded int16_t buffer (for effects).
+  // PCM sampler: plays from a pre-decoded float buffer (for effects).
   class PcmSampler {
    public:
-    bool Init(Slice<int16_t> samples, uint32_t channels) {
+    bool Init(Slice<float> samples, uint32_t channels) {
       samples_ = samples;
       channels_ = channels;
       pos_ = 0;
@@ -135,7 +137,7 @@ class Sound {
       size_t total_needed = samples_per_channel * channels;
       size_t written = 0;
       while (written < total_needed && pos_ < samples_.size()) {
-        output[written++] = static_cast<float>(samples_[pos_++]) / 32768.0f;
+        output[written++] = samples_[pos_++];
       }
       return written / channels;
     }
@@ -148,7 +150,7 @@ class Sound {
     bool Deinit() { return true; }
 
    private:
-    Slice<int16_t> samples_;
+    Slice<float> samples_;
     uint32_t channels_ = 0;
     size_t pos_ = 0;
   };
@@ -268,12 +270,13 @@ class Sound {
   // Find or allocate a stream slot.
   size_t FindStreamSlot();
 
-  // Cached decoded PCM data for effects, keyed by asset name.
+  // Cached decoded PCM data for effects (pre-converted to float), keyed by
+  // asset name.
   struct DecodedEffect {
-    FixedArray<int16_t> pcm;
+    FixedArray<float> pcm;
     uint32_t channels;
 
-    DecodedEffect(FixedArray<int16_t>&& p, uint32_t c)
+    DecodedEffect(FixedArray<float>&& p, uint32_t c)
         : pcm(std::move(p)), channels(c) {}
   };
 
