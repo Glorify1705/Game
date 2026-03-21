@@ -66,11 +66,11 @@
   (G.graphics.clear 0.05 0.05 0.05 1)
   (G.graphics.set_blend_mode :add)
   ;; Overlapping circles that add together.
-  (G.graphics.set_color 0.6 0.1 0.1 1)
+  (G.graphics.set_color 150 25 25 255)
   (G.graphics.draw_circle 80 100 50)
-  (G.graphics.set_color 0.1 0.6 0.1 1)
+  (G.graphics.set_color 25 150 25 255)
   (G.graphics.draw_circle 120 100 50)
-  (G.graphics.set_color 0.1 0.1 0.6 1)
+  (G.graphics.set_color 25 25 150 255)
   (G.graphics.draw_circle 100 70 50)
   ;; Restore blend mode.
   (G.graphics.set_blend_mode :alpha)
@@ -86,15 +86,15 @@
     ;; Now draw everything to the screen.
     (G.graphics.clear 0.15 0.15 0.15 1)
     ;; Labels.
-    (G.graphics.draw_text :terminus.ttf 16 "Pixel canvas (64x64 -> 256x256, nearest)" 10 10)
-    (G.graphics.draw_canvas g.pixel-canvas 10 30 0 256 256)
-    (G.graphics.draw_text :terminus.ttf 16 "Scene canvas (400x300)" 300 10)
-    (G.graphics.draw_canvas g.scene-canvas 300 30)
-    (G.graphics.draw_text :terminus.ttf 16 "Additive blend (RGB circles)" 10 320)
-    (G.graphics.draw_canvas g.blend-canvas 10 340)
+    (G.graphics.draw_text :terminus.ttf 16 "Pixel canvas (64x64 -> 256x256, nearest)" 10 20)
+    (G.graphics.draw_canvas g.pixel-canvas 10 40 0 256 256)
+    (G.graphics.draw_text :terminus.ttf 16 "Scene canvas (400x300)" 300 20)
+    (G.graphics.draw_canvas g.scene-canvas 300 40)
+    (G.graphics.draw_text :terminus.ttf 16 "Additive blend (RGB circles)" 10 330)
+    (G.graphics.draw_canvas g.blend-canvas 10 350)
     ;; Draw the scene canvas again at half size to test scaling.
-    (G.graphics.draw_text :terminus.ttf 16 "Scene canvas (half size)" 300 350)
-    (G.graphics.draw_canvas g.scene-canvas 300 370 0 200 150)
+    (G.graphics.draw_text :terminus.ttf 16 "Scene canvas (half size)" 300 360)
+    (G.graphics.draw_canvas g.scene-canvas 300 380 0 200 150)
     ;; Canvas info.
     (let [(w h) (g.scene-canvas:dimensions)]
       (G.graphics.draw_text :terminus.ttf 16

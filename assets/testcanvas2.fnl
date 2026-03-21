@@ -44,7 +44,7 @@
     ;; Pass 2: draw pass1 into pass2 with a color tint.
     (G.graphics.set_canvas g.pass2)
     (G.graphics.clear 0 0 0 0)
-    (G.graphics.set_color 0.7 0.8 1.0 1)
+    (G.graphics.set_color 180 200 255 255)
     (G.graphics.draw_canvas g.pass1 0 0)
     (G.graphics.set_color :white)
     ;; Draw some overlay text into pass2.
@@ -55,9 +55,9 @@
     (G.graphics.set_canvas g.alpha-canvas)
     (G.graphics.clear 0 0 0 0)
     ;; Draw semi-transparent overlapping rects.
-    (G.graphics.set_color 1 0 0 0.5)
+    (G.graphics.set_color 255 0 0 128)
     (G.graphics.draw_rect 20 20 120 120)
-    (G.graphics.set_color 0 0 1 0.5)
+    (G.graphics.set_color 0 0 255 128)
     (G.graphics.draw_rect 60 60 160 160)
     (G.graphics.set_color :white)
     (G.graphics.set_canvas)
@@ -66,16 +66,16 @@
     (G.graphics.clear 0.2 0.2 0.25 1)
 
     ;; Pass 1 result.
-    (G.graphics.draw_text :terminus.ttf 16 "Pass 1 (shapes)" 10 10)
-    (G.graphics.draw_canvas g.pass1 10 30)
+    (G.graphics.draw_text :terminus.ttf 16 "Pass 1 (shapes)" 10 20)
+    (G.graphics.draw_canvas g.pass1 10 40)
 
     ;; Pass 2 result (pass1 composited with tint).
-    (G.graphics.draw_text :terminus.ttf 16 "Pass 2 (tinted + text overlay)" 320 10)
-    (G.graphics.draw_canvas g.pass2 320 30)
+    (G.graphics.draw_text :terminus.ttf 16 "Pass 2 (tinted + text overlay)" 320 20)
+    (G.graphics.draw_canvas g.pass2 320 40)
 
     ;; Alpha canvas.
-    (G.graphics.draw_text :terminus.ttf 16 "Semi-transparent rects" 10 350)
-    (G.graphics.draw_canvas g.alpha-canvas 10 370)
+    (G.graphics.draw_text :terminus.ttf 16 "Semi-transparent rects" 10 360)
+    (G.graphics.draw_canvas g.alpha-canvas 10 380)
 
     ;; Blend mode info.
     (let [mode (or g.blend :alpha)]
