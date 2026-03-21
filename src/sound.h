@@ -19,7 +19,7 @@ namespace G {
 class Sound {
  public:
   explicit Sound(const SDL_AudioSpec& spec, Allocator* allocator)
-      : buffer_(spec.channels * spec.samples, allocator),
+      : buffer_(static_cast<size_t>(spec.channels) * spec.samples, allocator),
         sounds_(allocator),
         vorbis_(256, allocator),
         wavs_(256, allocator),

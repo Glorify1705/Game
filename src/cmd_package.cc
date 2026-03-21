@@ -4,6 +4,7 @@
 
 #include "cli.h"
 #include "config.h"
+#include "filesystem.h"
 #include "libraries/sqlite3.h"
 #include "logging.h"
 #include "packer.h"

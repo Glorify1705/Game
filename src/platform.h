@@ -28,7 +28,10 @@ template <typename... Args>
 bool WriteFileF(const char* path, const char* fmt, Args... args) {
   FILE* f = fopen(path, "w");
   if (f == nullptr) return false;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
   fprintf(f, fmt, args...);
+#pragma clang diagnostic pop
   fclose(f);
   return true;
 }

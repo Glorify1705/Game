@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <cstdint>
+
 #include "stringlib.h"
 
 namespace G {
@@ -100,10 +101,11 @@ struct FVec2 {
   float Length2() const { return Dot(*this); }
 
   float Length() const { return std::sqrt(Length2()); }
-  FVec2 Normalized() const { return *this * (1.0 / Length()); }
+  FVec2 Normalized() const { return *this * (1.0f / Length()); }
 
   friend void AppendToString(const FVec2& v, StringBuffer& sink) {
-    sink.AppendF("{ %.2f, %.2f }", v.x, v.y);
+    sink.AppendF("{ %.2f, %.2f }", static_cast<double>(v.x),
+                 static_cast<double>(v.y));
   }
 };
 
@@ -226,7 +228,7 @@ struct FVec3 {
   float Length2() const { return Dot(*this); }
 
   float Length() const { return std::sqrt(Length2()); }
-  FVec3 Normalized() const { return *this * (1.0 / Length()); }
+  FVec3 Normalized() const { return *this * (1.0f / Length()); }
 
   FVec3 Cross(const FVec3& b) const {
     const auto& a = *this;
@@ -235,7 +237,8 @@ struct FVec3 {
   }
 
   friend void AppendToString(const FVec3& v, StringBuffer& sink) {
-    sink.AppendF("{ %.2f, %.2f, %.2f }", v.x, v.y, v.z);
+    sink.AppendF("{ %.2f, %.2f, %.2f }", static_cast<double>(v.x),
+                 static_cast<double>(v.y), static_cast<double>(v.z));
   }
 };
 
@@ -372,10 +375,12 @@ struct FVec4 {
   float Length2() const { return Dot(*this); }
 
   float Length() const { return std::sqrt(Length2()); }
-  FVec4 Normalized() const { return *this * (1.0 / Length()); }
+  FVec4 Normalized() const { return *this * (1.0f / Length()); }
 
   friend void AppendToString(const FVec4& v, StringBuffer& sink) {
-    sink.AppendF("{ %.2f, %.2f, %.2f, %.2f }", v.x, v.y, v.z, v.w);
+    sink.AppendF("{ %.2f, %.2f, %.2f, %.2f }", static_cast<double>(v.x),
+                 static_cast<double>(v.y), static_cast<double>(v.z),
+                 static_cast<double>(v.w));
   }
 };
 

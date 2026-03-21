@@ -19,7 +19,7 @@ class DeferCall {
 
 template <typename F>
 DeferCall<F> MakeDefer(F&& f) {
-  return DeferCall(std::move(f));
+  return DeferCall(std::forward<F>(f));
 }
 
 #define DEFER_1(X, Y) X##Y

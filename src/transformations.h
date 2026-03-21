@@ -3,7 +3,6 @@
 #define _GAME_TRANSFORMATIONS_H
 
 #include "mat.h"
-#include "vec.h"
 
 namespace G {
 

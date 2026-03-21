@@ -10,7 +10,8 @@ namespace G {
 
 class MimallocAllocator final : public Allocator {
  public:
-  static constexpr size_t kSliceSize = 64 * 1024;  // MI_ARENA_SLICE_SIZE
+  static constexpr size_t kSliceSize =
+      size_t{64} * 1024;  // MI_ARENA_SLICE_SIZE
 
   MimallocAllocator(void* buffer, size_t size) {
     // mimalloc requires 64 KiB slice alignment.

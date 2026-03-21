@@ -23,7 +23,7 @@ const struct LuaApiFunction kFilesystemLib[] = {
      {{"result", "nil on success, a string if there were any errors",
        "string"}},
      [](lua_State* state) {
-       return LuaWriteToFile(state, 2, /*name=*/GetLuaString(state, 1));
+       return LuaWriteToFile(state, 2, /*filename=*/GetLuaString(state, 1));
      }},
     {"slurp",
      "Reads a whole file into a string",

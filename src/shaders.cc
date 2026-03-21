@@ -1,6 +1,5 @@
 #include "shaders.h"
 
-#include "clock.h"
 #include "units.h"
 
 namespace G {
@@ -99,10 +98,12 @@ constexpr std::string_view kPostPassFragmentShader = R"(
 // us how "zoomed in" we are on the distance field, which lets us adapt the
 // anti-aliasing width so edges are always ~1px soft regardless of render size.
 //
-// - `dist`:      sampled distance from the SDF texture (0 = outside, 1 = inside,
+// - `dist`:      sampled distance from the SDF texture (0 = outside, 1 =
+// inside,
 //                0.5 = on the glyph edge)
 // - `grad`:      screen-space gradient magnitude — large when text is small on
-//                screen (each pixel spans many texels), small when text is large
+//                screen (each pixel spans many texels), small when text is
+//                large
 // - `w`:         half-width of the smoothstep transition band, capped at 0.065
 //                to keep edges crisp at large sizes where grad approaches zero
 // - `threshold`: shifted inward (below 0.5) at small sizes so thin strokes
@@ -183,8 +184,8 @@ Shaders::Shaders(Allocator* allocator)
         LastError());
   CHECK(Link("pre_pass", "pre_pass.vert", "pre_pass.frag", kUseCache),
         LastError());
-  CHECK(Compile(DbAssets::ShaderType::kFragment, "sdf.frag",
-                kSDFFragmentShader, kUseCache),
+  CHECK(Compile(DbAssets::ShaderType::kFragment, "sdf.frag", kSDFFragmentShader,
+                kUseCache),
         LastError());
   CHECK(Link("sdf", "pre_pass.vert", "sdf.frag", kUseCache), LastError());
   CHECK(Compile(DbAssets::ShaderType::kVertex, "post_pass.vert",

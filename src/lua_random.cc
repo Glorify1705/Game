@@ -59,6 +59,8 @@ const struct LuaApiFunction kRandomLib[] = {
                           start + (randnum / kRandomRange) * (end - start));
            break;
          }
+         default:
+           break;
        }
        return 1;
      }},

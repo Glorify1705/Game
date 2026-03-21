@@ -2,12 +2,9 @@
 
 #include <cmath>
 #include <cstring>
-#include <vector>
 
 #include "clock.h"
-#include "console.h"
 #include "defer.h"
-#include "filesystem.h"
 #include "image.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
@@ -826,7 +823,7 @@ uint8_t* Renderer::BlitGlyphsIntoAtlas(FontInfo& font,
                                        const GlyphBitmap* bitmaps,
                                        const stbrp_rect* rects, int atlas_dim,
                                        ArenaAllocator* scratch) {
-  const size_t atlas_bytes = atlas_dim * atlas_dim;
+  const size_t atlas_bytes = static_cast<size_t>(atlas_dim) * atlas_dim;
   uint8_t* atlas = scratch->NewArray<uint8_t>(atlas_bytes);
   std::memset(atlas, 0, atlas_bytes);
 
@@ -837,7 +834,8 @@ uint8_t* Renderer::BlitGlyphsIntoAtlas(FontInfo& font,
     const int dy = rects[i].y;
     for (int row = 0; row < bitmaps[i].h; ++row) {
       std::memcpy(&atlas[(dy + row) * atlas_dim + dx],
-                  &bitmaps[i].data[row * bitmaps[i].w], bitmaps[i].w);
+                  &bitmaps[i].data[static_cast<size_t>(row) * bitmaps[i].w],
+                  bitmaps[i].w);
     }
     font.glyphs[cp].s0 = (float)dx / atlas_dim;
     font.glyphs[cp].t0 = (float)dy / atlas_dim;
@@ -875,7 +873,8 @@ bool Renderer::LoadSDFFromCache(sqlite3* db, std::string_view font_name,
       static_cast<const uint8_t*>(sqlite3_column_blob(stmt, 2));
   const int metrics_size = sqlite3_column_bytes(stmt, 2);
   constexpr int kGlyphFields = 9;
-  const int expected_size = kNumChars * kGlyphFields * sizeof(float);
+  const size_t expected_size =
+      static_cast<size_t>(kNumChars) * kGlyphFields * sizeof(float);
   if (metrics_size != expected_size) {
     LOG("SDF cache metrics size mismatch for ", font_name, ": got ",
         metrics_size, " expected ", expected_size);
@@ -884,7 +883,8 @@ bool Renderer::LoadSDFFromCache(sqlite3* db, std::string_view font_name,
   // Deserialize field-by-field via memcpy to avoid alignment issues with
   // the SQLite blob pointer on strict-alignment architectures.
   for (int i = 0; i < kNumChars; i++) {
-    const uint8_t* src = metrics + i * kGlyphFields * sizeof(float);
+    const uint8_t* src =
+        metrics + static_cast<size_t>(i) * kGlyphFields * sizeof(float);
     SDFGlyph& g = font->glyphs[kFirstChar + i];
     std::memcpy(&g.s0, src, 4);
     std::memcpy(&g.t0, src + 4, 4);
@@ -932,7 +932,7 @@ void Renderer::SaveSDFToCache(sqlite3* db, std::string_view font_name,
   float metrics[kNumChars * kGlyphFields];
   for (int i = 0; i < kNumChars; i++) {
     const SDFGlyph& g = font.glyphs[kFirstChar + i];
-    float* f = &metrics[i * kGlyphFields];
+    float* f = &metrics[static_cast<size_t>(i) * kGlyphFields];
     f[0] = g.s0;
     f[1] = g.t0;
     f[2] = g.s1;
@@ -992,16 +992,16 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
 Color ParseColor(std::string_view color) {
   // TODO: Support ANSI escape codes properly.
   for (char c : color) {
-    Color color;
+    Color result;
     if (c == '[') continue;
     if (c == ';') continue;
     if (c == '7') {
-      ColorFromTable("lightred", &color);
-      return color;
+      ColorFromTable("lightred", &result);
+      return result;
     }
     if (c == '3') {
-      ColorFromTable("blueblue", &color);
-      return color;
+      ColorFromTable("blueblue", &result);
+      return result;
     }
     if (c == '0') return Color::White();
   }
@@ -1022,7 +1022,7 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
   FVec2 p = position;
   const float pixel_scale = size / info->pixel_height;
   auto handle_char = [&](size_t i, char c) {
-    const SDFGlyph& g = info->glyphs[(int)c];
+    const SDFGlyph& g = info->glyphs[static_cast<unsigned char>(c)];
     if (g.width == 0 || g.height == 0) {
       // Space or unprintable — advance only.
       p.x += g.advance * pixel_scale;
@@ -1096,7 +1096,8 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
       continue;
     }
     if (c == '\t') {
-      px += info->glyphs[(int)' '].advance * pixel_scale * 4;
+      px += info->glyphs[static_cast<unsigned char>(' ')].advance *
+            pixel_scale * 4;
       continue;
     }
     if (c == '\n') {
@@ -1104,7 +1105,7 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
       px = 0;
       py += line_height;
     } else {
-      px += info->glyphs[(int)c].advance * pixel_scale;
+      px += info->glyphs[static_cast<unsigned char>(c)].advance * pixel_scale;
       if ((i + 1) < str.size()) {
         px +=
             pixel_scale * info->scale *

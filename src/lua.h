@@ -11,7 +11,6 @@ extern "C" {
 #include "lualib.h"
 }
 
-#include "SDL.h"
 #include "array.h"
 #include "assets.h"
 #include "clock.h"

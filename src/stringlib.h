@@ -29,7 +29,7 @@ struct HasAppendString<
 class Alphanumeric {
  public:
   Alphanumeric(float f) {
-    PrintDouble(f, buf_, sizeof(buf_));
+    PrintDouble(static_cast<double>(f), buf_, sizeof(buf_));
     piece_ = std::string_view(buf_);
   }
   Alphanumeric(int i) {
@@ -117,7 +117,8 @@ class StringBuffer {
     return *this;
   }
 
-  StringBuffer& AppendF(const char* fmt, ...) {
+  __attribute__((format(printf, 2, 3))) StringBuffer& AppendF(const char* fmt,
+                                                              ...) {
     va_list l;
     va_start(l, fmt);
     VAppendF(fmt, l);
@@ -131,7 +132,8 @@ class StringBuffer {
     return Append(ts...);
   }
 
-  StringBuffer& SetF(const char* fmt, ...) {
+  __attribute__((format(printf, 2, 3))) StringBuffer& SetF(const char* fmt,
+                                                           ...) {
     pos_ = 0;
     va_list l;
     va_start(l, fmt);
@@ -162,7 +164,12 @@ class StringBuffer {
   }
 
   void VAppendF(const char* fmt, va_list l) {
+    // Format string is validated by __attribute__((format)) on callers.
+    // NOLINTNEXTLINE(clang-diagnostic-format-nonliteral)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
     int needed = vsnprintf(&buf_[pos_], size_ - pos_, fmt, l);
+#pragma clang diagnostic pop
     pos_ = std::min(size_, pos_ + needed);
   }
 

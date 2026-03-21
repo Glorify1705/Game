@@ -359,6 +359,34 @@ cmake --build build
 
 Box2D, Lua 5.1, PhysFS, mimalloc, glad, stb_truetype, stb_rect_pack, stb_vorbis, dr_wav, pugixml, sqlite3, double-conversion.
 
+## Static analysis
+
+These tools require the [devenv](https://devenv.sh/) development environment, which provides wrapped versions of clang-tidy and clang-include-cleaner with the correct Nix include paths.
+
+### clang-tidy
+
+```bash
+game-tidy
+```
+
+Builds the project with clang-tidy enabled. Findings are treated as errors. Configuration lives in `.clang-tidy`.
+
+### Unused include detection
+
+```bash
+game-include-cleaner
+```
+
+Runs `clang-include-cleaner` on all engine sources, reporting only unused `#include` directives (insertions are disabled). Requires a compile database in `build/` (generated automatically).
+
+### Sanitizers (ASan + UBSan)
+
+```bash
+game-sanitize
+```
+
+Builds a Debug binary with AddressSanitizer and UndefinedBehaviorSanitizer enabled. The test binary always has sanitizers on.
+
 ## Asset credits
 
 - `music.ogg` - "Cyber City Detectives" by Eric Matyas ([soundimage.org](https://www.soundimage.org))

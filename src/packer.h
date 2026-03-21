@@ -4,17 +4,9 @@
 
 #include <stddef.h>
 
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
-#include <type_traits>
-
 #include "allocators.h"
 #include "assets.h"
-#include "image.h"
 #include "libraries/sqlite3.h"
-#include "logging.h"
-#include "units.h"
 
 namespace G {
 
