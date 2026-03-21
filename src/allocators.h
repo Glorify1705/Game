@@ -220,6 +220,8 @@ class FreeList {
     free_ = p;
   }
 
+  Allocator* allocator() { return allocator_; }
+
  private:
   union Block {
     Block* next;

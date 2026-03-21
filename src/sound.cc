@@ -4,6 +4,17 @@
 
 namespace G {
 
+size_t Sound::FindStreamSlot() {
+  size_t slot = stream_;
+  for (size_t i = 0; i < stream_; ++i) {
+    if (!streams_[i].IsManaged() && !streams_[i].IsPlaying()) {
+      slot = i;
+      break;
+    }
+  }
+  return slot;
+}
+
 bool Sound::AddSource(std::string_view name, Source* source,
                       Ownership ownership) {
   DbAssets::Sound sound;
@@ -12,36 +23,58 @@ bool Sound::AddSource(std::string_view name, Source* source,
     return false;
   }
   LockMutex l(mu_);
-  // Reuse a finished fire-and-forget slot, or allocate a new one.
-  size_t slot = stream_;
-  for (size_t i = 0; i < stream_; ++i) {
-    if (!streams_[i].IsManaged() && !streams_[i].IsPlaying()) {
-      slot = i;
-      break;
-    }
-  }
+  size_t slot = FindStreamSlot();
   if (slot >= kMaxStreams) {
     LOG("Maximum number of streams exceeded");
     return false;
   }
-  if (HasSuffix(sound.name, ".ogg")) {
-    LOG("Loading vorbis source ", sound.name);
-    auto* vorbis = vorbis_alloc_.Alloc();
-    if (!vorbis->Init(&sound)) {
-      return false;
-    }
-    streams_[slot].InitFromStream(&sound, vorbis);
-  } else if (HasSuffix(sound.name, ".wav")) {
-    LOG("Loading WAV source ", sound.name);
-    auto* wav = wavs_alloc_.New();
-    if (!wav->Init(&sound)) {
-      return false;
-    }
-    streams_[slot].InitFromStream(&sound, wav);
-  } else {
-    LOG("Unsupported sound format: ", sound.name);
+
+  auto* sampler = qoa_alloc_.Alloc();
+  if (!sampler->Init(&sound)) {
     return false;
   }
+  streams_[slot].InitFromStream(&sound, sampler);
+  streams_[slot].SetOwnership(ownership);
+  *source = slot;
+  if (slot == stream_) stream_++;
+  return true;
+}
+
+bool Sound::AddEffect(std::string_view name, Source* source,
+                      Ownership ownership) {
+  DbAssets::Sound sound;
+  if (!sounds_.Lookup(name, &sound)) {
+    LOG("Unknown sound ", name);
+    return false;
+  }
+  LockMutex l(mu_);
+  size_t slot = FindStreamSlot();
+  if (slot >= kMaxStreams) {
+    LOG("Maximum number of streams exceeded");
+    return false;
+  }
+
+  // Check if we already have this effect decoded.
+  DecodedEffect* cached = nullptr;
+  if (!effect_cache_.Lookup(name, &cached)) {
+    // Decode the full QOA upfront.
+    TIMER("Decoding effect ", name);
+    ByteSlice data(sound.contents, sound.size);
+    QoaDesc desc;
+    FixedArray<int16_t> pcm = QoaDecode(data, &desc, qoa_alloc_.allocator());
+    if (pcm.size() == 0) {
+      LOG("Failed to decode QOA for effect ", name);
+      return false;
+    }
+    cached = qoa_alloc_.allocator()->New<DecodedEffect>(std::move(pcm),
+                                                        desc.channels);
+    effect_cache_.Insert(name, cached);
+  }
+
+  auto* sampler = pcm_alloc_.Alloc();
+  Slice<int16_t> samples(cached->pcm.cdata(), cached->pcm.size());
+  sampler->Init(samples, cached->channels);
+  streams_[slot].InitFromStream(&sound, sampler);
   streams_[slot].SetOwnership(ownership);
   *source = slot;
   if (slot == stream_) stream_++;
@@ -73,6 +106,18 @@ void Sound::LoadSound(const DbAssets::Sound& sound) {
   LockMutex l(mu_);
   TIMER("Loading sound ", sound.name);
   sounds_.Insert(sound.name, sound);
+  // Re-decode cached effect if the asset was reloaded.
+  DecodedEffect* cached = nullptr;
+  if (effect_cache_.Lookup(sound.name, &cached)) {
+    ByteSlice data(sound.contents, sound.size);
+    QoaDesc desc;
+    FixedArray<int16_t> pcm = QoaDecode(data, &desc, qoa_alloc_.allocator());
+    if (pcm.size() > 0) {
+      auto* new_cached = qoa_alloc_.allocator()->New<DecodedEffect>(
+          std::move(pcm), desc.channels);
+      effect_cache_.Insert(sound.name, new_cached);
+    }
+  }
   for (size_t i = 0; i < stream_; ++i) {
     if (!streams_[i].OnReload(&sound)) {
       return;

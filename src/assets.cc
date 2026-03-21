@@ -52,21 +52,25 @@ void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer, size_t size,
 
 void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
                          size_t size, ChecksumType checksum) {
-  FixedStringBuffer<256> sql("SELECT contents FROM audios WHERE name = ?");
+  FixedStringBuffer<256> sql(
+      "SELECT contents, channels, samplerate, samples FROM audios WHERE name "
+      "= ?");
   sqlite3_stmt* stmt;
   if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
   DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No audio ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   std::memcpy(buffer, contents, size);
-  buffer[size] = '\0';
   Sound sound;
   sound.name = filename;
   sound.contents = buffer;
   sound.size = size;
+  sound.channels = sqlite3_column_int(stmt, 1);
+  sound.samplerate = sqlite3_column_int(stmt, 2);
+  sound.samples = sqlite3_column_int(stmt, 3);
   sound.checksum = checksum;
   sound_loader_.Load(&sound);
 }

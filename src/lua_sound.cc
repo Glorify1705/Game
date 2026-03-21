@@ -94,6 +94,36 @@ const struct LuaApiFunction kSoundLib[] = {
          LUA_ERROR(state, "Could not stop source");
        }
        return 0;
+     }},
+    {"add_effect",
+     "Adds a sound effect (fully decoded upfront for low-latency playback).",
+     {{"name", "name of the sound asset.", "string"}},
+     {{"source", "a handle for the source", "integer"}},
+     [](lua_State* state) {
+       auto* sound = Registry<Sound>::Retrieve(state);
+       std::string_view name = GetLuaString(state, 1);
+       Sound::Source source;
+       if (!sound->AddEffect(name, &source)) {
+         LUA_ERROR(state, "Could not add sound effect ", name);
+       }
+       lua_pushnumber(state, source);
+       return 1;
+     }},
+    {"play_effect",
+     "Loads, decodes, and immediately plays a sound effect.",
+     {{"name", "name of the sound asset.", "string"}},
+     {},
+     [](lua_State* state) {
+       auto* sound = Registry<Sound>::Retrieve(state);
+       std::string_view name = GetLuaString(state, 1);
+       Sound::Source source;
+       if (!sound->AddEffect(name, &source, Sound::Ownership::kAutoFree)) {
+         LUA_ERROR(state, "Could not add sound effect ", name);
+       }
+       if (!sound->StartChannel(source)) {
+         LUA_ERROR(state, "Could not play effect");
+       }
+       return 0;
      }}};
 
 }  // namespace

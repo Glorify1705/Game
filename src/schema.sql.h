@@ -32,6 +32,9 @@ CREATE INDEX IF NOT EXISTS idx_sprites_spritesheet ON sprites(spritesheet);
 
 CREATE TABLE IF NOT EXISTS audios(id INTEGER PRIMARY KEY AUTOINCREMENT,
                                   name VARCHAR(255) UNIQUE NOT NULL,
+                                  channels INT NOT NULL DEFAULT 0,
+                                  samplerate INT NOT NULL DEFAULT 0,
+                                  samples INT NOT NULL DEFAULT 0,
                                   contents BLOB NOT NULL);
 
 CREATE TABLE IF NOT EXISTS scripts(id INTEGER PRIMARY KEY AUTOINCREMENT,

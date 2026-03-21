@@ -54,6 +54,9 @@ class DbAssets {
   struct Sound {
     std::string_view name;
     size_t size;
+    uint32_t channels;
+    uint32_t samplerate;
+    uint32_t samples;
     uint8_t* contents;
     ChecksumType checksum;
   };
