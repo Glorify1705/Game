@@ -2,7 +2,7 @@
 
 let
   # Nix clang wrapper injects include paths that standalone tools (clang-tidy,
-  # IWYU) don't see. Extract these paths and pass them explicitly.
+  # clang-include-cleaner) don't see. Extract these paths and pass them explicitly.
   #
   # The script runs clang++ -v to discover the wrapper-injected paths at
   # configure time (via find_program), so store paths update automatically.
@@ -24,12 +24,12 @@ ${pkgs.glibc.dev}/include''
     exec ${pkgs.clang-tools}/bin/clang-tidy "''${EXTRA_ARGS[@]}" "$@"
   '';
 
-  wrappedIWYU = pkgs.writeShellScriptBin "include-what-you-use" ''
+  wrappedIncludeCleaner = pkgs.writeShellScriptBin "clang-include-cleaner" ''
     EXTRA_ARGS=()
     while IFS= read -r line; do
-      EXTRA_ARGS+=("$line")
+      EXTRA_ARGS+=(--extra-arg="$line")
     done < ${nixClangExtraArgs}
-    exec ${pkgs.include-what-you-use}/bin/include-what-you-use "''${EXTRA_ARGS[@]}" "$@"
+    exec ${pkgs.clang-tools}/bin/clang-include-cleaner "''${EXTRA_ARGS[@]}" "$@"
   '';
 in
 
@@ -47,7 +47,6 @@ in
     gdb
     gf
     gperftools
-    include-what-you-use
     libGL
     libGLU
     libllvm
@@ -64,7 +63,7 @@ in
     stylua
     valgrind
     wrappedClangTidy
-    wrappedIWYU
+    wrappedIncludeCleaner
     xorg.libXcursor
     xorg.libXinerama
     xorg.libXrandr
@@ -127,9 +126,16 @@ in
     '';
   };
 
-  scripts."game-iwyu" = {
+  scripts."game-include-cleaner" = {
     exec = ''
-      cmake -DENABLE_IWYU=ON -G Ninja -S . -B build && cmake --build build --target Game 2>&1
+      cmake -G Ninja -S . -B build > /dev/null 2>&1
+      EXTRA_ARGS=()
+      while IFS= read -r dir; do
+        [ -n "$dir" ] && EXTRA_ARGS+=(--extra-arg="-isystem$dir")
+      done < build/implicit_include_dirs.txt
+      for f in src/*.cc; do
+        clang-include-cleaner --print=changes --disable-insert -p build "''${EXTRA_ARGS[@]}" "$f" 2>/dev/null
+      done
     '';
   };
 
@@ -162,12 +168,5 @@ in
 			entry = "scripts/run-clang-tidy.sh";
 		};
 
-		iwyu-hook = {
-			enable = true;
-
-			name = "include-what-you-use";
-
-			entry = "scripts/run-iwyu.sh";
-		};
   };
 }

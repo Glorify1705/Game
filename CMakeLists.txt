@@ -8,7 +8,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS True)
 
 option(ENABLE_SANITIZERS "Build with ASan+UBSan" OFF)
 option(ENABLE_CLANG_TIDY "Run clang-tidy during build" OFF)
-option(ENABLE_IWYU "Run include-what-you-use during build" OFF)
 
 project(
   Game
@@ -25,17 +24,6 @@ if(ENABLE_CLANG_TIDY)
     set(CLANG_TIDY_CMD "${CLANG_TIDY_EXE}")
     foreach(dir IN LISTS CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES)
         list(APPEND CLANG_TIDY_CMD "--extra-arg=-isystem${dir}")
-    endforeach()
-endif()
-
-if(ENABLE_IWYU)
-    find_program(IWYU_EXE NAMES include-what-you-use REQUIRED)
-    set(IWYU_CMD "${IWYU_EXE}"
-        "-Xiwyu" "--mapping_file=${CMAKE_SOURCE_DIR}/iwyu.imp"
-        "-Xiwyu" "--no_fwd_decls"
-        "-Xiwyu" "--quoted_includes_first")
-    foreach(dir IN LISTS CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES)
-        list(APPEND IWYU_CMD "-isystem${dir}")
     endforeach()
 endif()
 
@@ -62,6 +50,11 @@ set(PHYSFS_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 
 find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
+
+# Write Nix-implicit include dirs for standalone tools (clang-include-cleaner).
+# CMake strips these from compile_commands.json, so tools need them explicitly.
+string(REPLACE ";" "\n" _implicit_dirs "${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}")
+file(WRITE "${CMAKE_BINARY_DIR}/implicit_include_dirs.txt" "${_implicit_dirs}\n")
 
 find_path(VALGRIND_INCLUDE_DIR valgrind/memcheck.h)
 
@@ -138,10 +131,6 @@ set_target_properties(Game PROPERTIES OUTPUT_NAME "game")
 
 if(ENABLE_CLANG_TIDY)
     set_target_properties(Game PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_CMD}")
-endif()
-
-if(ENABLE_IWYU)
-    set_target_properties(Game PROPERTIES CXX_INCLUDE_WHAT_YOU_USE "${IWYU_CMD}")
 endif()
 
 target_compile_features(Game PRIVATE cxx_std_17)
