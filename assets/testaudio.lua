@@ -118,7 +118,7 @@ function Game:draw()
     local bar_y = y + 30
     local bar_w = 300
 
-    G.graphics.set_color("gray")
+    G.graphics.set_color("grey")
     G.graphics.draw_rect(cx - bar_w / 2, bar_y, cx + bar_w / 2, bar_y + 10, 0)
 
     G.graphics.set_color("green")
@@ -127,7 +127,7 @@ function Game:draw()
 
     -- Draw pitch bar.
     local pitch_y = bar_y + 40
-    G.graphics.set_color("gray")
+    G.graphics.set_color("grey")
     G.graphics.draw_rect(cx - bar_w / 2, pitch_y, cx + bar_w / 2, pitch_y + 10, 0)
 
     G.graphics.set_color("yellow")

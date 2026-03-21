@@ -335,7 +335,10 @@ class Sound {
       if (source_channels_ == 1) {
         while (written + 1 < total_output) {
           size_t i = static_cast<size_t>(fractional_pos_);
-          if (i + 1 >= buf_len_) break;
+          if (i + 1 >= buf_len_) {
+            pos_ = buf_len_;  // Force refill.
+            return;
+          }
           float frac = fractional_pos_ - static_cast<float>(i);
           float s = samples_[i] * (1.0f - frac) + samples_[i + 1] * frac;
           WriteStereoOutput(output, written, s, s);
@@ -345,7 +348,10 @@ class Sound {
       } else {
         while (written + 1 < total_output) {
           size_t i = static_cast<size_t>(fractional_pos_) * 2;
-          if (i + 3 >= buf_len_) break;
+          if (i + 3 >= buf_len_) {
+            pos_ = buf_len_;  // Force refill.
+            return;
+          }
           float frac = fractional_pos_ -
                        static_cast<float>(static_cast<size_t>(fractional_pos_));
           float l = samples_[i] * (1.0f - frac) + samples_[i + 2] * frac;

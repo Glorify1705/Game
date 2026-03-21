@@ -62,8 +62,8 @@ void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
   DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No audio ", filename);
-  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-  std::memcpy(buffer, contents, size);
+  auto contents = reinterpret_cast<const char*>(sqlite3_column_blob(stmt, 0));
+  std::memmove(buffer, contents, size);
   Sound sound;
   sound.name = filename;
   sound.contents = buffer;
@@ -182,8 +182,8 @@ void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
   DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
   CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No image ", filename);
-  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-  std::memcpy(buffer, contents, size);
+  auto contents = reinterpret_cast<const char*>(sqlite3_column_blob(stmt, 0));
+  std::memmove(buffer, contents, size);
   buffer[size] = '\0';
   const size_t width = sqlite3_column_int(stmt, 1);
   const size_t height = sqlite3_column_int(stmt, 2);

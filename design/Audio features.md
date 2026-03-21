@@ -1,5 +1,7 @@
 # Audio Features: Looping, Pause/Resume, Pitch, and Panning
 
+**Status**: Implemented in PR #22.
+
 ## Motivation
 
 The engine comparison (Engine comparison.md, §8) identified several missing audio features.
@@ -101,11 +103,6 @@ bool Sound::SetLoop(Source source, bool loop) {
 sound.set_loop(source, loop)  -- enable/disable looping for a source
 ```
 
-Also add an optional `loop` parameter to `play` and `play_source`:
-```lua
-sound.play(name, loop)            -- fire-and-forget with optional loop
-sound.play_source(source, loop)   -- play with optional loop
-```
 
 ### Interaction with effects
 
@@ -188,33 +185,32 @@ float fractional_pos_ = 0.0f;  // Sub-sample position for interpolation.
 void SetPitch(float pitch) { pitch_ = pitch; }
 ```
 
-Modify `Stream::Load` to consume source samples at `pitch_` rate. Instead of copying
-samples 1:1 from the internal buffer, advance through the source buffer at `pitch_`
-steps, linearly interpolating between adjacent samples:
+The implementation splits `Stream::Load` into two copy paths:
+
+- **`CopyDirect`** (pitch == 1.0f): copies samples 1:1 with gain, panning, and mono
+  upmix. This is the common case and avoids the overhead of interpolation.
+- **`CopyPitched`** (pitch != 1.0f): advances `fractional_pos_` by `pitch_` per output
+  frame, linearly interpolating between adjacent source samples.
 
 ```cpp
-// In the copy loop, instead of:
-//   output[read++] = gain_ * samples_[pos_++];
-// Do:
-while (read < samples) {
-  size_t int_pos = static_cast<size_t>(fractional_pos_);
-  float frac = fractional_pos_ - static_cast<float>(int_pos);
-
-  if (int_pos + 1 >= kBufferSizeInSamples) {
-    // Need to refill internal buffer.
-    break;
+// CopyPitched, mono case:
+while (written + 1 < total_output) {
+  size_t i = static_cast<size_t>(fractional_pos_);
+  if (i + 1 >= buf_len_) {
+    pos_ = buf_len_;  // Force refill.
+    return;
   }
-
-  float sample = samples_[int_pos] * (1.0f - frac) +
-                 samples_[int_pos + 1] * frac;
-  output[read++] = gain_ * sample;
+  float frac = fractional_pos_ - float(i);
+  float s = samples_[i] * (1.0f - frac) + samples_[i + 1] * frac;
+  WriteStereoOutput(output, written, s, s);
   fractional_pos_ += pitch_;
 }
 ```
 
-This requires the internal buffer refill logic to account for the fractional position
-carry-over between refills. When refilling, shift the unconsumed tail of the buffer
-to the front and decode new samples after it.
+When `CopyPitched` exhausts the buffer for interpolation (not enough samples remain for
+a two-point interpolation), it sets `pos_ = buf_len_` to force a refill on the next
+iteration. This is critical — without it, `pos_` can end up less than `buf_len_` while
+`fractional_pos_` is too far advanced to interpolate, causing an infinite loop.
 
 **Pitch range**: Clamp to `[0.25, 4.0]` to avoid extreme artifacts. This matches
 Love2D's practical range.
@@ -318,12 +314,12 @@ sound.set_pan(source, pan)  -- -1.0 (left) to 1.0 (right), 0 = center
 
 ## Implementation order
 
-Each feature is independent and can be shipped incrementally:
+All four features were implemented together in a single pass:
 
-1. **Looping** — smallest change, highest impact. Unblocks music and ambient sounds.
-2. **Pause/resume** — mostly exposing existing `Pause()`. Needed for pause menus.
-3. **Pitch** — more involved (resampling in the stream copy loop). Needed for variety.
-4. **Panning** — requires tracking source channel count. Important for game feel.
+1. **Looping** — with automatic crossfade at loop boundaries.
+2. **Pause/resume** — exposes existing `Pause()` and adds `Resume()`.
+3. **Pitch** — dual-path CopyDirect/CopyPitched with linear interpolation.
+4. **Panning** — constant-power law with mono upmix in the stream.
 
 ## Lua API summary
 
@@ -431,57 +427,57 @@ Output:              tail * cos(θ) + head * sin(θ)
 ```cpp
 static constexpr size_t kCrossfadeSamples = 882;  // ~20ms at 44100 Hz
 
-float loop_head_[kCrossfadeSamples * 2];  // Pre-decoded start (stereo)
-size_t crossfade_pos_ = 0;                // Position within crossfade blend
-bool crossfading_ = false;
+float loop_head_[kCrossfadeSamples * 2];  // Pre-decoded start (stereo max)
+size_t loop_head_len_ = 0;                // Actual samples in loop_head_
+bool loop_head_ready_ = false;            // Whether loop_head_ has been filled
 
 void PrepareLoopHead();  // Pre-decode first kCrossfadeSamples from source
 ```
 
-`PrepareLoopHead()` decodes the first `kCrossfadeSamples` from the sampler into
-`loop_head_`, then rewinds the sampler back to the start. Called once when looping
-is enabled on a source.
+`PrepareLoopHead()` saves the current buffer state, rewinds the sampler, decodes the
+first `kCrossfadeSamples` into `loop_head_`, rewinds again, and restores the buffer.
+Called once when `SetLoop(true)` is called.
 
-Modified `Stream::Load` crossfade path (when sampler returns 0 and `loop_` is true):
+**Implementation**: Rather than a streaming crossfade state machine, the implementation
+uses a simpler **retroactive overlap-add** approach. When the sampler returns 0 (EOF)
+and `loop_` is true, `HandleLoopCrossfade()` walks backwards through the already-written
+output and blends in the pre-decoded loop head:
 
 ```cpp
-if (samples_read == 0) {
-  if (!loop_) { Stop(); return read; }
-  if (crossfade_len_ > 0) {
-    // Blend remaining tail with pre-decoded head.
-    crossfading_ = true;
-    // ... apply constant-power crossfade ...
-    cb_.Rewind();
-    // Skip past the samples we already crossfaded in.
-    cb_.Load(discard_buf, crossfade_len_ / channels, channels);
-    crossfading_ = false;
-  } else {
-    cb_.Rewind();
-  }
-  continue;
+// In Stream::Load, when sampler returns 0 and loop_ is true:
+HandleLoopCrossfade(output, written, total_output);
+cb_.Rewind();
+// Skip past the samples we already crossfaded in.
+if (loop_head_ready_) {
+  cb_.Load(samples_, loop_head_len_ / source_channels_, source_channels_);
 }
 ```
 
-**Handling partial tail**: The tricky case is when the sampler returns *some* samples
-but not a full buffer — we're near EOF but not exactly at it. We need to detect that
-we're within `crossfade_len` samples of the end and start blending. This requires knowing
-the total sample count, which is available from `QoaDesc::samples` (stored in the
-`DbAssets::Sound` metadata).
+`HandleLoopCrossfade` applies constant-power crossfade (cos/sin) between the tail
+of the output buffer and the loop head, respecting source channel count and panning:
 
-Approach: compute `samples_remaining = total_samples - current_position`. When
-`samples_remaining <= crossfade_len`, enter crossfade mode. For `QoaSampler` this
-means tracking the total samples decoded so far. For `PcmSampler` this is trivial
-since `pos_` is already the current position and `samples_.size()` is the total.
+```cpp
+for (size_t i = 0; i < xfade_pairs; ++i) {
+  float t = float(i) / float(xfade_pairs);
+  float fade_out = cos(t * π/2);
+  float fade_in  = sin(t * π/2);
+  output[j]     = fade_out * output[j]     + fade_in * gain * left_gain  * head_l;
+  output[j + 1] = fade_out * output[j + 1] + fade_in * gain * right_gain * head_r;
+}
+```
+
+This is simpler than a streaming crossfade because it avoids tracking crossfade state
+across buffer boundaries — the entire blend happens in one pass over the output that's
+already been written.
 
 **Interaction with pitch**: When pitch != 1.0, the effective crossfade duration in
 wall-clock time changes (faster pitch = shorter crossfade). This is acceptable — the
 crossfade is still the same number of output samples, which is what matters for
 click elimination.
 
-**Opt-in vs default**: Crossfade looping should be **on by default** when looping is
-enabled. It adds minimal CPU cost (one trig table lookup per crossfade, amortized over
-the full loop) and eliminates an entire class of audio bugs. Sources that are known to
-have clean loop points won't be audibly affected by a 20ms crossfade.
+**Opt-in vs default**: Crossfade is **on by default** when looping is enabled. It adds
+minimal CPU cost and eliminates an entire class of audio bugs. Sources with clean loop
+points won't be audibly affected by a 20ms crossfade.
 
 ### Lua API
 
