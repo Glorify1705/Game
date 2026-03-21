@@ -547,9 +547,12 @@ static const LuaApiFunction kGraphicsLib[] = {
          batch->SetActiveBlendMode(BLEND_MULTIPLY);
        } else if (mode == "replace") {
          batch->SetActiveBlendMode(BLEND_REPLACE);
+       } else if (mode == "premultiplied") {
+         batch->SetActiveBlendMode(BLEND_PREMULTIPLIED);
        } else {
          LUA_ERROR(state, "Unknown blend mode '", mode,
-                   "'. Expected 'alpha', 'add', 'multiply', or 'replace'");
+                   "'. Expected 'alpha', 'add', 'multiply', 'replace', "
+                   "or 'premultiplied'");
        }
        return 0;
      }},
@@ -596,8 +599,10 @@ static const LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"draw_canvas",
-     "Draw a canvas as a textured quad. Automatically handles Y-flip and "
-     "premultiplied alpha blending.",
+     "Draw a canvas as a textured quad. Handles Y-flip automatically. "
+     "Uses the current blend mode (set via set_blend_mode). For canvases "
+     "with semi-transparent content, use set_blend_mode('premultiplied') "
+     "before drawing to avoid alpha darkening artifacts.",
      {{"canvas", "The canvas to draw", "canvas"},
       {"x", "X position to draw at", "number"},
       {"y", "Y position to draw at", "number"},
@@ -619,8 +624,6 @@ static const LuaApiFunction kGraphicsLib[] = {
          h = luaL_checknumber(state, 6);
        }
        auto* batch = Registry<BatchRenderer>::Retrieve(state);
-       // Use premultiplied alpha to avoid double-darkening.
-       batch->SetActiveBlendMode(BLEND_PREMULTIPLIED);
        batch->SetActiveTexture(c->texture_unit);
        // Y-flip the UVs: canvas textures have bottom-up origin.
        FVec2 p0 = FVec(x, y);
@@ -629,8 +632,6 @@ static const LuaApiFunction kGraphicsLib[] = {
        FVec2 q1 = FVec(1.f, 0.f);  // bottom-right UV (flipped)
        FVec2 origin = FVec(x + w / 2.f, y + h / 2.f);
        batch->PushQuad(p0, p1, q0, q1, origin, angle);
-       // Restore normal alpha blending.
-       batch->SetActiveBlendMode(BLEND_ALPHA);
        return 0;
      }}};
 

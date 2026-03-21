@@ -44,6 +44,12 @@
     (for [i 1 NUM-PARTICLES]
       (table.insert self.particles (make-particle)))
     (set self.particle-timer 0)
+    ;; Bloom canvases (half resolution for wider blur + cheaper shader).
+    (let [hw (math.floor (/ w 2))
+          hh (math.floor (/ h 2))]
+      (set self.bloom-bright (G.graphics.new_canvas hw hh))
+      (set self.bloom-blur-h (G.graphics.new_canvas hw hh))
+      (set self.bloom-blur-v (G.graphics.new_canvas hw hh)))
     ;; Effect state.
     (set self.effect :none)
     (set self.time 0)
@@ -114,6 +120,7 @@
   (when (G.input.is_key_pressed :2) (set self.effect :crt))
   (when (G.input.is_key_pressed :3) (set self.effect :pixelate))
   (when (G.input.is_key_pressed :4) (set self.effect :vignette))
+  (when (G.input.is_key_pressed :5) (set self.effect :bloom))
   ;; Update game.
   (update-stars self.stars dt self.w)
   (update-ship self.ship dt)
@@ -209,6 +216,43 @@
         (G.graphics.draw_canvas self.scene 0 0)
         (G.graphics.attach_shader))
 
+      (= self.effect :bloom)
+      (do
+        (let [(bw bh) (self.bloom-bright:dimensions)]
+          ;; Pass 1: extract bright areas into half-res canvas.
+          (G.graphics.set_canvas self.bloom-bright)
+          (G.graphics.clear 0 0 0 0)
+          (G.graphics.attach_shader :threshold.frag)
+          (G.graphics.send_uniform :threshold 0.35)
+          (G.graphics.draw_canvas self.scene 0 0 0 bw bh)
+          (G.graphics.attach_shader)
+          (G.graphics.set_canvas)
+          ;; Pass 2: horizontal blur.
+          (G.graphics.set_canvas self.bloom-blur-h)
+          (G.graphics.clear 0 0 0 0)
+          (G.graphics.attach_shader :blur.frag)
+          (G.graphics.send_uniform :direction (G.math.v2 1 0))
+          (G.graphics.send_uniform :texel_size
+                                   (G.math.v2 (/ 1 bw) (/ 1 bh)))
+          (G.graphics.draw_canvas self.bloom-bright 0 0)
+          (G.graphics.attach_shader)
+          (G.graphics.set_canvas)
+          ;; Pass 3: vertical blur.
+          (G.graphics.set_canvas self.bloom-blur-v)
+          (G.graphics.clear 0 0 0 0)
+          (G.graphics.attach_shader :blur.frag)
+          (G.graphics.send_uniform :direction (G.math.v2 0 1))
+          (G.graphics.send_uniform :texel_size
+                                   (G.math.v2 (/ 1 bw) (/ 1 bh)))
+          (G.graphics.draw_canvas self.bloom-blur-h 0 0)
+          (G.graphics.attach_shader)
+          (G.graphics.set_canvas)
+          ;; Composite: draw scene, then add bloom on top.
+          (G.graphics.draw_canvas self.scene 0 0)
+          (G.graphics.set_blend_mode :add)
+          (G.graphics.draw_canvas self.bloom-blur-v 0 0 0 self.w self.h)
+          (G.graphics.set_blend_mode :alpha)))
+
       ;; No effect — draw directly.
       (G.graphics.draw_canvas self.scene 0 0)))
 
@@ -222,7 +266,7 @@
   (G.graphics.set_color :white)
   (G.graphics.draw_text :terminus.ttf 16
                         (.. "Effect: " self.effect
-                            "  |  1=none  2=CRT  3=pixelate  4=vignette")
+                            "  |  1=none  2=CRT  3=pixelate  4=vignette  5=bloom")
                         10 (- self.h 40))
   (G.graphics.draw_text :terminus.ttf 16
                         "WASD to fly  |  Q to quit" 10 (- self.h 20)))
