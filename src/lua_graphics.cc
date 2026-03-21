@@ -16,12 +16,26 @@ namespace {
 
 static const LuaApiFunction kGraphicsLib[] = {
     {"clear",
-     "Clear the screen to black",
-     {},
+     "Clear the current render target. With no arguments clears to transparent "
+     "black. With arguments clears to the given RGBA color.",
+     {{"r?", "red component (0-1)", "number"},
+      {"g?", "green component (0-1)", "number"},
+      {"b?", "blue component (0-1)", "number"},
+      {"a?", "alpha component (0-1)", "number"}},
      {},
      [](lua_State* state) {
-       auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->ClearForFrame();
+       const int params = lua_gettop(state);
+       if (params >= 4) {
+         auto* batch = Registry<BatchRenderer>::Retrieve(state);
+         float r = luaL_checknumber(state, 1);
+         float g = luaL_checknumber(state, 2);
+         float b = luaL_checknumber(state, 3);
+         float a = luaL_checknumber(state, 4);
+         batch->ClearWithColor(r, g, b, a);
+       } else {
+         auto* renderer = Registry<Renderer>::Retrieve(state);
+         renderer->ClearForFrame();
+       }
        return 0;
      }},
     {"take_screenshot",
@@ -516,24 +530,108 @@ static const LuaApiFunction kGraphicsLib[] = {
        }
        return 0;
      }},
-    {"new_canvas",
-     "Unimplemented.",
-     {},
+    {"set_blend_mode",
+     "Set the blend mode for subsequent drawing operations",
+     {{"mode",
+       "Blend mode: 'alpha' (default), 'add' (additive), 'multiply', or "
+       "'replace'",
+       "string"}},
      {},
      [](lua_State* state) {
-       LUA_ERROR(state, "Unimplemented");
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       std::string_view mode = GetLuaString(state, 1);
+       if (mode == "alpha") {
+         batch->SetActiveBlendMode(BLEND_ALPHA);
+       } else if (mode == "add") {
+         batch->SetActiveBlendMode(BLEND_ADD);
+       } else if (mode == "multiply") {
+         batch->SetActiveBlendMode(BLEND_MULTIPLY);
+       } else if (mode == "replace") {
+         batch->SetActiveBlendMode(BLEND_REPLACE);
+       } else {
+         LUA_ERROR(state, "Unknown blend mode '", mode,
+                   "'. Expected 'alpha', 'add', 'multiply', or 'replace'");
+       }
        return 0;
+     }},
+    {"new_canvas",
+     "Create an off-screen canvas for rendering. Returns a canvas object.",
+     {{"width", "Canvas width in pixels", "integer"},
+      {"height", "Canvas height in pixels", "integer"},
+      {"options?",
+       "Optional table with 'filter' key: 'nearest' for pixel art or "
+       "'linear' (default)",
+       "table"}},
+     {{"canvas", "A canvas object", "canvas"}},
+     [](lua_State* state) {
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       int width = luaL_checkinteger(state, 1);
+       int height = luaL_checkinteger(state, 2);
+       bool nearest = false;
+       if (lua_gettop(state) >= 3 && lua_istable(state, 3)) {
+         lua_getfield(state, 3, "filter");
+         if (lua_isstring(state, -1)) {
+           std::string_view filter = GetLuaString(state, -1);
+           nearest = (filter == "nearest");
+         }
+         lua_pop(state, 1);
+       }
+       Canvas c = batch->CreateCanvas(width, height, nearest);
+       NewUserdata<Canvas>(state, c);
+       return 1;
      }},
     {"set_canvas",
-     "Unimplemented.",
-     {},
+     "Redirect all subsequent drawing to a canvas. Call with no arguments to "
+     "reset to the screen.",
+     {{"canvas?", "Canvas to draw to, or nil/nothing to reset to screen",
+       "canvas"}},
      {},
      [](lua_State* state) {
-       LUA_ERROR(state, "Unimplemented");
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       if (lua_gettop(state) == 0 || lua_isnil(state, 1)) {
+         batch->ResetCanvas();
+       } else {
+         auto* c = AsUserdata<Canvas>(state, 1);
+         batch->SetActiveCanvas(c->fbo, c->width, c->height);
+       }
        return 0;
      }},
-    {"draw_canvas", "Unimplemented.", {}, {}, [](lua_State* state) {
-       LUA_ERROR(state, "Unimplemented");
+    {"draw_canvas",
+     "Draw a canvas as a textured quad. Automatically handles Y-flip and "
+     "premultiplied alpha blending.",
+     {{"canvas", "The canvas to draw", "canvas"},
+      {"x", "X position to draw at", "number"},
+      {"y", "Y position to draw at", "number"},
+      {"angle?", "Rotation angle in radians", "number"},
+      {"w?", "Width to draw at (default: canvas width)", "number"},
+      {"h?", "Height to draw at (default: canvas height)", "number"}},
+     {},
+     [](lua_State* state) {
+       const int params = lua_gettop(state);
+       auto* c = AsUserdata<Canvas>(state, 1);
+       const float x = luaL_checknumber(state, 2);
+       const float y = luaL_checknumber(state, 3);
+       float angle = 0;
+       if (params >= 4) angle = luaL_checknumber(state, 4);
+       float w = static_cast<float>(c->width);
+       float h = static_cast<float>(c->height);
+       if (params >= 6) {
+         w = luaL_checknumber(state, 5);
+         h = luaL_checknumber(state, 6);
+       }
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       // Use premultiplied alpha to avoid double-darkening.
+       batch->SetActiveBlendMode(BLEND_PREMULTIPLIED);
+       batch->SetActiveTexture(c->texture_unit);
+       // Y-flip the UVs: canvas textures have bottom-up origin.
+       FVec2 p0 = FVec(x, y);
+       FVec2 p1 = FVec(x + w, y + h);
+       FVec2 q0 = FVec(0.f, 1.f);  // top-left UV (flipped)
+       FVec2 q1 = FVec(1.f, 0.f);  // bottom-right UV (flipped)
+       FVec2 origin = FVec(x + w / 2.f, y + h / 2.f);
+       batch->PushQuad(p0, p1, q0, q1, origin, angle);
+       // Restore normal alpha blending.
+       batch->SetActiveBlendMode(BLEND_ALPHA);
        return 0;
      }}};
 
@@ -631,9 +729,41 @@ static const LuaApiFunction kWindowLib[] = {
        return 1;
      }}};
 
+constexpr luaL_Reg kCanvasMethods[] = {
+    {"__index",
+     [](lua_State* state) {
+       std::string_view key = GetLuaString(state, 2);
+       if (key == "dimensions") {
+         lua_pushcfunction(state, [](lua_State* s) {
+           auto* c = AsUserdata<Canvas>(s, 1);
+           lua_pushinteger(s, c->width);
+           lua_pushinteger(s, c->height);
+           return 2;
+         });
+         return 1;
+       }
+       if (key == "width") {
+         auto* c = AsUserdata<Canvas>(state, 1);
+         lua_pushinteger(state, c->width);
+         return 1;
+       }
+       if (key == "height") {
+         auto* c = AsUserdata<Canvas>(state, 1);
+         lua_pushinteger(state, c->height);
+         return 1;
+       }
+       return 0;
+     }},
+    {"__tostring", [](lua_State* state) {
+       auto* c = AsUserdata<Canvas>(state, 1);
+       lua_pushfstring(state, "canvas(%dx%d)", c->width, c->height);
+       return 1;
+     }}};
+
 }  // namespace
 
 void AddGraphicsLibrary(Lua* lua) {
+  lua->LoadMetatable("canvas", kCanvasMethods);
   lua->AddLibrary("graphics", kGraphicsLib);
   lua->AddLibrary("window", kWindowLib);
 }
