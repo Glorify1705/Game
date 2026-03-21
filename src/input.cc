@@ -2,7 +2,6 @@
 
 #include <algorithm>
 
-#include "clock.h"
 #include "controllerdb.h"
 
 namespace G {

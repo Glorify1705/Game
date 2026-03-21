@@ -5,7 +5,6 @@
 #include <stddef.h>
 
 #include <cstdint>
-#include <cstdlib>
 #include <string_view>
 
 #include "array.h"

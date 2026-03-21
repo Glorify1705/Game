@@ -2,12 +2,10 @@
 #ifndef _GAME_TEMPLATES_H
 #define _GAME_TEMPLATES_H
 
-#include <string_view>
-
 namespace G {
 namespace templates {
 
-constexpr std::string_view kConfJson = R"({
+constexpr const char* kConfJson = R"({
   "width": 800,
   "height": 600,
   "title": "%s",
@@ -16,10 +14,10 @@ constexpr std::string_view kConfJson = R"({
   "version": "0.1"
 })";
 
-constexpr std::string_view kMainLua = R"(return require("game")
+constexpr const char* kMainLua = R"(return require("game")
 )";
 
-constexpr std::string_view kGameLua = R"(local Game = {}
+constexpr const char* kGameLua = R"(local Game = {}
 
 function Game:init()
 end
@@ -45,7 +43,7 @@ end
 return Game
 )";
 
-constexpr std::string_view kLuarcJson = R"({
+constexpr const char* kLuarcJson = R"({
   "workspace.library": ["definitions"],
   "runtime.version": "Lua 5.1",
   "diagnostics.globals": ["G"]

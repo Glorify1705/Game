@@ -1,5 +1,3 @@
-#include <algorithm>
-#include <array>
 #include <cstdint>
 #include <cstring>
 #include <string_view>
@@ -9,14 +7,12 @@
 #include "SDL_hints.h"
 #include "allocators.h"
 #include "assets.h"
-#include "circular_buffer.h"
 #include "cli.h"
 #include "clock.h"
 #include "config.h"
 #include "console.h"
 #include "filesystem.h"
 #include "game.h"
-#include "image.h"
 #include "input.h"
 #include "libraries/glad.h"
 #include "logging.h"
@@ -31,8 +27,6 @@
 #include "lua_random.h"
 #include "lua_sound.h"
 #include "lua_system.h"
-#include "mat.h"
-#include "math.h"
 #include "mimalloc_allocator.h"
 #include "packer.h"
 #include "physics.h"
@@ -48,10 +42,11 @@
 #include "version.h"
 
 #ifndef _WIN32
-#include <fcntl.h>
 #include <sys/inotify.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include <cerrno>
 #endif
 
 namespace G {
@@ -588,8 +583,8 @@ class Game {
     // Draw FPS counter in debug mode.
     if (debug_ && stats_.samples() > 0) {
       FixedStringBuffer<kMaxLogLineLength> log(
-          "FPS: ", (1000.0f / stats_.avg()), " Stats = ", stats_,
-          "\nLua memory usage: ", (e_->lua.MemoryUsage() / 1024.0));
+          "FPS: ", (1000.0 / stats_.avg()), " Stats = ", stats_,
+          "\nLua memory usage: ", (e_->lua.MemoryUsage() / 1024.0f));
       const IVec2 dims =
           e_->renderer.TextDimensions("debug_font.ttf", 16, log.str());
       const IVec2 viewport = e_->batch_renderer.GetViewport();
@@ -703,6 +698,9 @@ class Game {
           "Could not set Core profile", SDL_GetError());
     CHECK(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1) == 0,
           "Could not set double buffering version", SDL_GetError());
+#ifdef GAME_WITH_ASSERTS
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
+#endif
     uint32_t flags = SDL_WINDOW_OPENGL;
     if (config.resizable) flags |= SDL_WINDOW_RESIZABLE;
     if (config.borderless) flags |= SDL_WINDOW_BORDERLESS;

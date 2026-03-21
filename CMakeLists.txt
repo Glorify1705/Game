@@ -6,6 +6,10 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS True)
 
+option(ENABLE_SANITIZERS "Build with ASan+UBSan" OFF)
+option(ENABLE_CLANG_TIDY "Run clang-tidy during build" OFF)
+option(ENABLE_IWYU "Run include-what-you-use during build" OFF)
+
 project(
   Game
   VERSION 0.1
@@ -13,6 +17,27 @@ project(
   LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+
+if(ENABLE_CLANG_TIDY)
+    find_program(CLANG_TIDY_EXE NAMES clang-tidy REQUIRED)
+    # Nix wraps clang with implicit -isystem paths that CMake detects and strips
+    # from compile commands. clang-tidy doesn't use the Nix wrapper, so re-add them.
+    set(CLANG_TIDY_CMD "${CLANG_TIDY_EXE}")
+    foreach(dir IN LISTS CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES)
+        list(APPEND CLANG_TIDY_CMD "--extra-arg=-isystem${dir}")
+    endforeach()
+endif()
+
+if(ENABLE_IWYU)
+    find_program(IWYU_EXE NAMES include-what-you-use REQUIRED)
+    set(IWYU_CMD "${IWYU_EXE}"
+        "-Xiwyu" "--mapping_file=${CMAKE_SOURCE_DIR}/iwyu.imp"
+        "-Xiwyu" "--no_fwd_decls"
+        "-Xiwyu" "--quoted_includes_first")
+    foreach(dir IN LISTS CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES)
+        list(APPEND IWYU_CMD "-isystem${dir}")
+    endforeach()
+endif()
 
 set(BOX2D_BUILD_TESTBED OFF CACHE BOOL "" FORCE)
 set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
@@ -37,6 +62,8 @@ set(PHYSFS_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 
 find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
+
+find_path(VALGRIND_INCLUDE_DIR valgrind/memcheck.h)
 
 add_library(double-conversion STATIC
     libraries/double-conversion/bignum.cc
@@ -100,6 +127,8 @@ set(ENGINE_SRCS
     "src/cmd_version.cc"
     "src/platform.cc")
 
+set_source_files_properties(${VENDORED_SRCS} PROPERTIES SKIP_LINTING ON)
+
 set(GAME_SRCS ${VENDORED_SRCS} ${ENGINE_SRCS})
 
 configure_file(src/version.h.in version.h)
@@ -107,11 +136,23 @@ configure_file(src/version.h.in version.h)
 add_executable(Game "${GAME_SRCS}")
 set_target_properties(Game PROPERTIES OUTPUT_NAME "game")
 
+if(ENABLE_CLANG_TIDY)
+    set_target_properties(Game PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_CMD}")
+endif()
+
+if(ENABLE_IWYU)
+    set_target_properties(Game PROPERTIES CXX_INCLUDE_WHAT_YOU_USE "${IWYU_CMD}")
+endif()
+
 target_compile_features(Game PRIVATE cxx_std_17)
 
 target_include_directories(
   Game PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}"
                "${PROJECT_SOURCE_DIR}/libraries/lua/src")
+
+if(VALGRIND_INCLUDE_DIR)
+    target_include_directories(Game SYSTEM PRIVATE "${VALGRIND_INCLUDE_DIR}")
+endif()
 
 set(IS_GCC_LIKE
     $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>
@@ -132,11 +173,18 @@ target_compile_options(Game PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
 )
 
-# Engine code compiles with no exceptions and no RTTI.
+# Engine code compiles with no exceptions, no RTTI, and extra warnings.
 # Vendored libraries are exempt since some (e.g. pugixml) use exceptions.
 set_source_files_properties(${ENGINE_SRCS} PROPERTIES
-    COMPILE_OPTIONS "$<${IS_GCC_LIKE}:-fno-exceptions;-fno-rtti>"
+    COMPILE_OPTIONS "$<${IS_GCC_LIKE}:-fno-exceptions;-fno-rtti;-Wshadow;-Wformat=2;-Wimplicit-fallthrough>"
 )
+
+if(ENABLE_SANITIZERS)
+  target_compile_options(Game PRIVATE
+      $<${IS_GCC_LIKE}:-fsanitize=address,undefined;-fno-sanitize=vptr>)
+  target_link_options(Game PRIVATE
+      $<${IS_GCC_LIKE}:-fsanitize=address,undefined>)
+endif()
 
 target_compile_definitions(Game PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
@@ -183,7 +231,7 @@ target_compile_features(Tests PRIVATE cxx_std_17)
 target_compile_options(Tests PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
     $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
-    $<${IS_GCC_LIKE}:-fsanitize=address>
+    $<${IS_GCC_LIKE}:-fsanitize=address,undefined;-fno-sanitize=vptr>
 )
 
 target_compile_definitions(Tests PRIVATE
@@ -196,7 +244,7 @@ target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
 add_subdirectory(libraries/googletest)
 
 target_link_libraries(Tests GTest::gtest_main GTest::gmock double-conversion)
-target_link_options(Tests PRIVATE $<${IS_GCC_LIKE}:-fsanitize=address>)
+target_link_options(Tests PRIVATE $<${IS_GCC_LIKE}:-fsanitize=address,undefined>)
 
 include(GoogleTest)
 gtest_discover_tests(Tests)

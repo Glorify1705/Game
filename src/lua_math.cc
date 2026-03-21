@@ -218,9 +218,9 @@ constexpr luaL_Reg kV2Methods[] = {
      }},
     {"send_as_uniform", [](lua_State* state) {
        auto* v = AsUserdata<FVec2>(state, 1);
-       auto name = GetLuaString(state, 2);
+       const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name.data(), *v);
+       bool result = shaders->SetUniform(name, *v);
        lua_pushboolean(state, result);
        return 1;
      }}};
@@ -282,9 +282,9 @@ constexpr luaL_Reg kV3Methods[] = {
      }},
     {"send_as_uniform", [](lua_State* state) {
        auto* v = AsUserdata<FVec3>(state, 1);
-       auto name = GetLuaString(state, 2);
+       const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name.data(), *v);
+       bool result = shaders->SetUniform(name, *v);
        lua_pushboolean(state, result);
        return 1;
      }}};
@@ -346,9 +346,9 @@ constexpr luaL_Reg kV4Methods[] = {
      }},
     {"send_as_uniform", [](lua_State* state) {
        auto* v = AsUserdata<FVec4>(state, 1);
-       auto name = GetLuaString(state, 2);
+       const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name.data(), *v);
+       bool result = shaders->SetUniform(name, *v);
        lua_pushboolean(state, result);
        return 1;
      }}};
@@ -356,9 +356,9 @@ constexpr luaL_Reg kV4Methods[] = {
 constexpr luaL_Reg kM2x2Methods[] = {
     {"send_as_uniform", [](lua_State* state) {
        auto* v = AsUserdata<FMat2x2>(state, 1);
-       auto name = GetLuaString(state, 2);
+       const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name.data(), *v);
+       bool result = shaders->SetUniform(name, *v);
        lua_pushboolean(state, result);
        return 1;
      }}};
@@ -366,9 +366,9 @@ constexpr luaL_Reg kM2x2Methods[] = {
 constexpr luaL_Reg kM3x3Methods[] = {
     {"send_as_uniform", [](lua_State* state) {
        auto* v = AsUserdata<FMat3x3>(state, 1);
-       auto name = GetLuaString(state, 2);
+       const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name.data(), *v);
+       bool result = shaders->SetUniform(name, *v);
        lua_pushboolean(state, result);
        return 1;
      }}};
@@ -376,9 +376,9 @@ constexpr luaL_Reg kM3x3Methods[] = {
 constexpr luaL_Reg kM4x4Methods[] = {
     {"send_as_uniform", [](lua_State* state) {
        auto* v = AsUserdata<FMat4x4>(state, 1);
-       auto name = GetLuaString(state, 2);
+       const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name.data(), *v);
+       bool result = shaders->SetUniform(name, *v);
        lua_pushboolean(state, result);
        return 1;
      }}};

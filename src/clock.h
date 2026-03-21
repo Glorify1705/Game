@@ -2,9 +2,6 @@
 #ifndef _GAME_CLOCK_H
 #define _GAME_CLOCK_H
 
-#include <cstdint>
-#include <limits>
-
 #include "logging.h"
 #include "stringlib.h"
 

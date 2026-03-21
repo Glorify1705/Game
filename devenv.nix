@@ -1,8 +1,41 @@
 { pkgs, lib, config, inputs, ... }:
 
+let
+  # Nix clang wrapper injects include paths that standalone tools (clang-tidy,
+  # IWYU) don't see. Extract these paths and pass them explicitly.
+  #
+  # The script runs clang++ -v to discover the wrapper-injected paths at
+  # configure time (via find_program), so store paths update automatically.
+  nixClangExtraArgs = pkgs.writeText "nix-clang-extra-args" (
+    let
+      gccPkg = pkgs.gcc.cc;
+      gccVer = gccPkg.version;
+      gccInstallDir = "${gccPkg}/lib/gcc/x86_64-unknown-linux-gnu/${gccVer}";
+    in ''--gcc-install-dir=${gccInstallDir}
+-idirafter
+${pkgs.glibc.dev}/include''
+  );
+
+  wrappedClangTidy = pkgs.writeShellScriptBin "clang-tidy" ''
+    EXTRA_ARGS=()
+    while IFS= read -r line; do
+      EXTRA_ARGS+=(--extra-arg="$line")
+    done < ${nixClangExtraArgs}
+    exec ${pkgs.clang-tools}/bin/clang-tidy "''${EXTRA_ARGS[@]}" "$@"
+  '';
+
+  wrappedIWYU = pkgs.writeShellScriptBin "include-what-you-use" ''
+    EXTRA_ARGS=()
+    while IFS= read -r line; do
+      EXTRA_ARGS+=("$line")
+    done < ${nixClangExtraArgs}
+    exec ${pkgs.include-what-you-use}/bin/include-what-you-use "''${EXTRA_ARGS[@]}" "$@"
+  '';
+in
+
 {
 
-  packages = with pkgs; [ 
+  packages = with pkgs; [
     SDL2
     SDL2_mixer
     ccls
@@ -14,6 +47,7 @@
     gdb
     gf
     gperftools
+    include-what-you-use
     libGL
     libGLU
     libllvm
@@ -29,6 +63,8 @@
     sqlitebrowser
     stylua
     valgrind
+    wrappedClangTidy
+    wrappedIWYU
     xorg.libXcursor
     xorg.libXinerama
     xorg.libXrandr
@@ -85,6 +121,28 @@
     '';
   };
 
+  scripts."game-tidy" = {
+    exec = ''
+      cmake -DENABLE_CLANG_TIDY=ON -G Ninja -S . -B build && cmake --build build --target Game
+    '';
+  };
+
+  scripts."game-iwyu" = {
+    exec = ''
+      cmake -DENABLE_IWYU=ON -G Ninja -S . -B build && cmake --build build --target Game 2>&1
+    '';
+  };
+
+  # TODO: Also run the game after building. Currently ASan's dlopen interceptor
+  # can't find libSDL3.so.0 that sdl2-compat loads at runtime (the RPATH
+  # embedded in sdl2-compat isn't followed). Needs LD_LIBRARY_PATH pointing
+  # to the SDL3 Nix store path.
+  scripts."game-sanitize" = {
+    exec = ''
+      cmake -DENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug -G Ninja -S . -B build && cmake --build build --target Game
+    '';
+  };
+
   git-hooks.hooks = {
     clang-format.enable = true;
 
@@ -94,6 +152,22 @@
 			name = "DONOTSUBMIT checker";
 
 			entry = "scripts/donotsubmit.sh";
+		};
+
+		clang-tidy-hook = {
+			enable = true;
+
+			name = "clang-tidy";
+
+			entry = "scripts/run-clang-tidy.sh";
+		};
+
+		iwyu-hook = {
+			enable = true;
+
+			name = "include-what-you-use";
+
+			entry = "scripts/run-iwyu.sh";
 		};
   };
 }

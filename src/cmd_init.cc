@@ -48,7 +48,7 @@ int CmdInit(Slice<const char*> args, Allocator* allocator) {
   FixedStringBuffer<256> name_buf(project_name);
 
   LOG("Writing ", conf_path.str());
-  if (!WriteFileF(conf_path.str(), templates::kConfJson.data(), name_buf.str(),
+  if (!WriteFileF(conf_path.str(), templates::kConfJson, name_buf.str(),
                   name_buf.str())) {
     fprintf(stderr, "Error: could not write %s\n", conf_path.str());
     return 1;
@@ -56,15 +56,15 @@ int CmdInit(Slice<const char*> args, Allocator* allocator) {
 
   FixedStringBuffer<1024> main_path(dir, "/main.lua");
   LOG("Writing ", main_path.str());
-  WriteFile(main_path.str(), templates::kMainLua.data());
+  WriteFile(main_path.str(), templates::kMainLua);
 
   FixedStringBuffer<1024> game_path(dir, "/game.lua");
   LOG("Writing ", game_path.str());
-  WriteFile(game_path.str(), templates::kGameLua.data());
+  WriteFile(game_path.str(), templates::kGameLua);
 
   FixedStringBuffer<1024> luarc_path(dir, "/.luarc.json");
   LOG("Writing ", luarc_path.str());
-  WriteFile(luarc_path.str(), templates::kLuarcJson.data());
+  WriteFile(luarc_path.str(), templates::kLuarcJson);
 
   // Create definitions directory and generate stubs.
   FixedStringBuffer<1024> defs_dir(dir, "/definitions");
