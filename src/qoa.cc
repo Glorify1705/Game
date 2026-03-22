@@ -316,7 +316,8 @@ FixedArray<uint8_t> QoaEncode(Slice<int16_t> samples, const QoaDesc* desc,
                               Allocator* allocator) {
   if (desc->channels == 0 || desc->channels > kQoaMaxChannels ||
       desc->samples == 0 || desc->samplerate == 0) {
-    LOG("QOA: invalid desc for encoding");
+    LOG("QOA: invalid desc for encoding: channels=", desc->channels,
+        " samples=", desc->samples, " samplerate=", desc->samplerate);
     return FixedArray<uint8_t>(0, allocator);
   }
 

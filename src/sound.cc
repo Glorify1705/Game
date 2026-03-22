@@ -1,18 +1,241 @@
 #include "sound.h"
 
+#include <cmath>
+
 #include "assets.h"
 
 namespace G {
 
-size_t Sound::FindStreamSlot() {
-  size_t slot = stream_;
-  for (size_t i = 0; i < stream_; ++i) {
-    if (!streams_[i].IsManaged() && !streams_[i].IsPlaying()) {
-      slot = i;
-      break;
+// -- QoaSampler ---------------------------------------------------------------
+
+bool Sound::QoaSampler::Init(const DbAssets::Sound* sound) {
+  TIMER("Initializing QOA stream ", sound->name);
+  ByteSlice data(sound->contents, sound->size);
+  QoaDesc desc;
+  if (!decoder_.Init(data, &desc)) {
+    LOG("Failed to init QOA stream for ", sound->name);
+    return false;
+  }
+  channels_ = desc.channels;
+  LOG("QOA stream ", sound->name, ", channels = ", desc.channels,
+      ", sample rate = ", desc.samplerate, ", samples = ", desc.samples);
+  return true;
+}
+
+size_t Sound::QoaSampler::Load(float* output, size_t samples_per_channel,
+                               size_t channels) {
+  size_t total_needed = samples_per_channel * channels;
+  size_t written = 0;
+
+  while (written < total_needed) {
+    // Drain buffered frame data first.
+    while (frame_pos_ < frame_len_ && written < total_needed) {
+      output[written++] = frame_buffer_[frame_pos_++];
+    }
+    if (written >= total_needed) break;
+
+    // Decode next frame and convert to float up front.
+    int16_t raw[kQoaFrameLen * kQoaMaxChannels];
+    frame_len_ = decoder_.DecodeFrame(raw, kQoaFrameLen) * channels_;
+    frame_pos_ = 0;
+    if (frame_len_ == 0) return written / channels;  // EOF
+    for (size_t i = 0; i < frame_len_; ++i) {
+      frame_buffer_[i] = static_cast<float>(raw[i]) / 32768.0f;
     }
   }
-  return slot;
+  return samples_per_channel;
+}
+
+// -- PcmSampler ---------------------------------------------------------------
+
+size_t Sound::PcmSampler::Load(float* output, size_t samples_per_channel,
+                               size_t channels) {
+  size_t total_needed = samples_per_channel * channels;
+  size_t written = 0;
+  while (written < total_needed && pos_ < samples_.size()) {
+    output[written++] = samples_[pos_++];
+  }
+  return written / channels;
+}
+
+// -- Stream -------------------------------------------------------------------
+
+size_t Sound::Stream::Load(float* output, size_t samples_per_channel,
+                           size_t channels) {
+  if (!playing_) return 0;
+
+  const size_t total_output = samples_per_channel * channels;
+  size_t written = 0;
+
+  while (written < total_output) {
+    // Refill internal buffer from sampler when exhausted.
+    if (pos_ >= buf_len_) {
+      const size_t frames_read = cb_.Load(
+          samples_, kBufferSizeInSamples / source_channels_, source_channels_);
+      if (frames_read == 0) {
+        if (loop_) {
+          HandleLoopCrossfade(output, written, total_output);
+          cb_.Rewind();
+          // Skip past the samples we already crossfaded in.
+          if (loop_head_ready_) {
+            cb_.Load(samples_, loop_head_len_ / source_channels_,
+                     source_channels_);
+          }
+          pos_ = kBufferSizeInSamples;  // Force refill on next iteration.
+          buf_len_ = kBufferSizeInSamples;
+          fractional_pos_ = 0.0f;
+          continue;
+        }
+        Stop();
+        return written;
+      }
+      buf_len_ = frames_read * source_channels_;
+      pos_ = 0;
+      fractional_pos_ = 0.0f;
+    }
+
+    // Copy samples from internal buffer to output with gain, pitch,
+    // panning, and mono upmix.
+    if (pitch_ == 1.0f) {
+      CopyDirect(output, written, total_output);
+    } else {
+      CopyPitched(output, written, total_output);
+    }
+  }
+  return written;
+}
+
+bool Sound::Stream::OnReload(const DbAssets::Sound* sound) {
+  if (StringIntern(sound->name) != handle_) return true;
+  cb_.Rewind();
+  loop_head_ready_ = false;
+  return true;
+}
+
+void Sound::Stream::SetLoop(bool loop) {
+  loop_ = loop;
+  if (loop && !loop_head_ready_) PrepareLoopHead();
+}
+
+void Sound::Stream::SetPan(float pan) {
+  pan_ = std::clamp(pan, -1.0f, 1.0f);
+  float angle = (pan_ + 1.0f) * (static_cast<float>(M_PI) / 4.0f);
+  left_gain_ = std::cos(angle);
+  right_gain_ = std::sin(angle);
+}
+
+void Sound::Stream::CopyDirect(float* output, size_t& written,
+                               size_t total_output) {
+  if (source_channels_ == 1) {
+    while (written + 1 < total_output && pos_ < buf_len_) {
+      float s = samples_[pos_++];
+      WriteStereoOutput(output, written, s, s);
+    }
+  } else {
+    while (written + 1 < total_output && pos_ + 1 < buf_len_) {
+      float l = samples_[pos_];
+      float r = samples_[pos_ + 1];
+      pos_ += 2;
+      WriteStereoOutput(output, written, l, r);
+    }
+  }
+}
+
+void Sound::Stream::CopyPitched(float* output, size_t& written,
+                                size_t total_output) {
+  if (source_channels_ == 1) {
+    while (written + 1 < total_output) {
+      size_t i = static_cast<size_t>(fractional_pos_);
+      if (i + 1 >= buf_len_) {
+        pos_ = buf_len_;  // Force refill.
+        return;
+      }
+      float frac = fractional_pos_ - static_cast<float>(i);
+      float s = samples_[i] * (1.0f - frac) + samples_[i + 1] * frac;
+      WriteStereoOutput(output, written, s, s);
+      fractional_pos_ += pitch_;
+    }
+    pos_ = static_cast<size_t>(fractional_pos_);
+  } else {
+    while (written + 1 < total_output) {
+      size_t i = static_cast<size_t>(fractional_pos_) * 2;
+      if (i + 3 >= buf_len_) {
+        pos_ = buf_len_;  // Force refill.
+        return;
+      }
+      float frac = fractional_pos_ -
+                   static_cast<float>(static_cast<size_t>(fractional_pos_));
+      float l = samples_[i] * (1.0f - frac) + samples_[i + 2] * frac;
+      float r = samples_[i + 1] * (1.0f - frac) + samples_[i + 3] * frac;
+      WriteStereoOutput(output, written, l, r);
+      fractional_pos_ += pitch_;
+    }
+    pos_ = static_cast<size_t>(fractional_pos_) * 2;
+  }
+}
+
+void Sound::Stream::PrepareLoopHead() {
+  float saved_samples[kBufferSizeInSamples];
+  std::memcpy(saved_samples, samples_, sizeof(samples_));
+  size_t saved_pos = pos_;
+  size_t saved_buf_len = buf_len_;
+
+  cb_.Rewind();
+  size_t frames = cb_.Load(loop_head_, kCrossfadeSamples, source_channels_);
+  loop_head_len_ = frames * source_channels_;
+  loop_head_ready_ = loop_head_len_ > 0;
+  cb_.Rewind();
+
+  std::memcpy(samples_, saved_samples, sizeof(samples_));
+  pos_ = saved_pos;
+  buf_len_ = saved_buf_len;
+}
+
+void Sound::Stream::HandleLoopCrossfade(float* output, size_t written,
+                                        size_t total_output) {
+  if (!loop_head_ready_ || loop_head_len_ == 0) return;
+
+  // Determine how many stereo output samples to crossfade.
+  size_t xfade_pairs = loop_head_len_ / source_channels_;
+  // Don't crossfade more than what we've already written.
+  size_t written_pairs = written / 2;
+  if (xfade_pairs > written_pairs) xfade_pairs = written_pairs;
+
+  // Walk backwards from the end of what we've written.
+  size_t out_start = written - xfade_pairs * 2;
+  for (size_t i = 0; i < xfade_pairs; ++i) {
+    float t = static_cast<float>(i) / static_cast<float>(xfade_pairs);
+    float angle = t * (static_cast<float>(M_PI) / 2.0f);
+    float fade_out = std::cos(angle);
+    float fade_in = std::sin(angle);
+
+    size_t out_idx = out_start + i * 2;
+    if (source_channels_ == 1) {
+      float head = loop_head_[i];
+      output[out_idx] =
+          fade_out * output[out_idx] + fade_in * gain_ * left_gain_ * head;
+      output[out_idx + 1] =
+          fade_out * output[out_idx + 1] + fade_in * gain_ * right_gain_ * head;
+    } else {
+      float head_l = loop_head_[i * 2];
+      float head_r = loop_head_[i * 2 + 1];
+      output[out_idx] =
+          fade_out * output[out_idx] + fade_in * gain_ * left_gain_ * head_l;
+      output[out_idx + 1] = fade_out * output[out_idx + 1] +
+                            fade_in * gain_ * right_gain_ * head_r;
+    }
+  }
+}
+
+// -- Sound --------------------------------------------------------------------
+
+size_t Sound::FindStreamSlot() {
+  for (size_t i = 0; i < stream_; ++i) {
+    if (!streams_[i].IsManaged() && !streams_[i].IsPlaying()) {
+      return i;
+    }
+  }
+  return stream_;
 }
 
 bool Sound::AddSource(std::string_view name, Source* source,
