@@ -13,11 +13,12 @@ const struct LuaApiFunction kSoundLib[] = {
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
-       Sound::Source source;
-       if (!sound->AddSource(name, &source)) {
-         LUA_ERROR(state, "Could not add sound source ", name);
+       auto result = sound->AddSource(name);
+       if (result.is_error()) {
+         LUA_ERROR(state, "Could not add sound source ", name, ": ",
+                   result.error().message());
        }
-       lua_pushnumber(state, source);
+       lua_pushnumber(state, result.value());
        return 1;
      }},
     {"play_source",
@@ -27,8 +28,9 @@ const struct LuaApiFunction kSoundLib[] = {
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        const auto source = luaL_checkinteger(state, 1);
-       if (!sound->StartChannel(source)) {
-         LUA_ERROR(state, "Could not play source");
+       auto result = sound->StartChannel(source);
+       if (result.is_error()) {
+         LUA_ERROR(state, "Could not play source: ", result.error().message());
        }
        return 0;
      }},
@@ -39,12 +41,15 @@ const struct LuaApiFunction kSoundLib[] = {
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
-       Sound::Source source;
-       if (!sound->AddSource(name, &source, Sound::Ownership::kAutoFree)) {
-         LUA_ERROR(state, "Could not add sound source ", name);
+       auto add_result = sound->AddSource(name, Sound::Ownership::kAutoFree);
+       if (add_result.is_error()) {
+         LUA_ERROR(state, "Could not add sound source ", name, ": ",
+                   add_result.error().message());
        }
-       if (!sound->StartChannel(source)) {
-         LUA_ERROR(state, "Could not play source");
+       auto play_result = sound->StartChannel(add_result.value());
+       if (play_result.is_error()) {
+         LUA_ERROR(state,
+                   "Could not play source: ", play_result.error().message());
        }
        return 0;
      }},
@@ -61,8 +66,10 @@ const struct LuaApiFunction kSoundLib[] = {
        if (gain < 0) {
          LUA_ERROR(state, "Invalid gain setting ", gain, " - must be positive");
        }
-       if (!sound->SetSourceGain(source, gain)) {
-         LUA_ERROR(state, "Could not set volume for source");
+       auto result = sound->SetSourceGain(source, gain);
+       if (result.is_error()) {
+         LUA_ERROR(state, "Could not set volume for source: ",
+                   result.error().message());
        }
        return 0;
      }},
@@ -90,8 +97,9 @@ const struct LuaApiFunction kSoundLib[] = {
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        const auto source = luaL_checkinteger(state, 1);
-       if (!sound->Stop(source)) {
-         LUA_ERROR(state, "Could not stop source");
+       auto result = sound->Stop(source);
+       if (result.is_error()) {
+         LUA_ERROR(state, "Could not stop source: ", result.error().message());
        }
        return 0;
      }},
@@ -102,11 +110,11 @@ const struct LuaApiFunction kSoundLib[] = {
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
-       Sound::Source source;
-       if (!sound->AddEffect(name, &source)) {
+       auto result = sound->AddEffect(name);
+       if (result.is_error()) {
          LUA_ERROR(state, "Could not add sound effect ", name);
        }
-       lua_pushnumber(state, source);
+       lua_pushnumber(state, result.value());
        return 1;
      }},
     {"play_effect",
@@ -116,11 +124,12 @@ const struct LuaApiFunction kSoundLib[] = {
      [](lua_State* state) {
        auto* sound = Registry<Sound>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
-       Sound::Source source;
-       if (!sound->AddEffect(name, &source)) {
+       auto result = sound->AddEffect(name, Sound::Ownership::kAutoFree);
+       if (result.is_error()) {
          LUA_ERROR(state, "Could not add sound effect ", name);
        }
-       if (!sound->StartChannel(source)) {
+       auto start = sound->StartChannel(result.value());
+       if (start.is_error()) {
          LUA_ERROR(state, "Could not play effect");
        }
        return 0;
