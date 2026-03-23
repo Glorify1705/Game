@@ -83,6 +83,7 @@ class Registry {
 
 // Forward declare for the userdata name.
 struct ByteBuffer;
+struct Canvas;
 
 template <typename T>
 struct UserdataName;
@@ -101,6 +102,7 @@ USERDATA_ENTRY(FMat3x3, "fmat3x3");
 USERDATA_ENTRY(FMat4x4, "fmat4x4");
 USERDATA_ENTRY(DbAssets::Sprite, "asset_sprite_ptr");
 USERDATA_ENTRY(ByteBuffer, "byte_buffer");
+USERDATA_ENTRY(Canvas, "canvas");
 
 #undef USERDATA_ENTRY
 

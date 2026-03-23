@@ -17,6 +17,22 @@
 
 namespace G {
 
+enum BlendMode : uint8_t {
+  BLEND_ALPHA = 0,      // GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA (default)
+  BLEND_ADD,            // GL_SRC_ALPHA, GL_ONE
+  BLEND_MULTIPLY,       // GL_DST_COLOR, GL_ZERO
+  BLEND_REPLACE,        // GL_ONE, GL_ZERO
+  BLEND_PREMULTIPLIED,  // GL_ONE, GL_ONE_MINUS_SRC_ALPHA (internal)
+};
+
+// Off-screen render target backed by an OpenGL framebuffer object.
+struct Canvas {
+  GLuint fbo;           // Framebuffer object for off-screen rendering.
+  GLuint texture;       // Color texture attached to the FBO.
+  size_t texture_unit;  // Texture unit index used when sampling this canvas.
+  int width, height;    // Dimensions of the canvas in pixels.
+};
+
 class BatchRenderer {
  public:
   BatchRenderer(IVec2 viewport, Shaders* shaders, Allocator* allocator);
@@ -28,6 +44,10 @@ class BatchRenderer {
   size_t LoadTexture(const void* data, size_t width, size_t height);
 
   size_t LoadFontTexture(const void* data, size_t width, size_t height);
+
+  size_t RegisterTexture(GLuint tex);
+
+  Canvas CreateCanvas(int width, int height, bool nearest_filter);
 
   void SetActiveTexture(size_t texture_unit) {
     AddCommand(kSetTexture, SetTexture{texture_unit});
@@ -41,6 +61,22 @@ class BatchRenderer {
 
   void SetActiveTransform(const FMat4x4& transform) {
     AddCommand(kSetTransform, SetTransform{transform});
+  }
+
+  void SetActiveCanvas(GLuint fbo, int width, int height) {
+    AddCommand(kSetCanvas, SetCanvas{fbo, width, height});
+  }
+
+  void ResetCanvas() {
+    AddCommand(kSetCanvas, SetCanvas{render_target_, viewport_.x, viewport_.y});
+  }
+
+  void SetActiveBlendMode(BlendMode mode) {
+    AddCommand(kSetBlendMode, SetBlendMode{mode});
+  }
+
+  void ClearWithColor(float r, float g, float b, float a) {
+    AddCommand(kClearColor, ClearColor{r, g, b, a});
   }
 
   void PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1, FVec2 origin,
@@ -80,6 +116,8 @@ class BatchRenderer {
 
   IVec2 GetViewport() const { return viewport_; }
 
+  GLuint GetRenderTarget() const { return render_target_; }
+
   void Render(Allocator* scratch);
 
   struct Screenshot {
@@ -101,6 +139,9 @@ class BatchRenderer {
     kSetTransform,
     kSetShader,
     kSetLineWidth,
+    kSetCanvas,
+    kSetBlendMode,
+    kClearColor,
     kDone
   };
 
@@ -143,6 +184,19 @@ class BatchRenderer {
     float width;
   };
 
+  struct SetCanvas {
+    GLuint fbo;
+    int width, height;
+  };
+
+  struct SetBlendMode {
+    BlendMode mode;
+  };
+
+  struct ClearColor {
+    float r, g, b, a;
+  };
+
   inline static constexpr uint32_t kMaxCount = 1 << 20;
 
   struct QueueEntry {
@@ -161,6 +215,9 @@ class BatchRenderer {
     SetTransform set_transform;
     SetLineWidth set_line_width;
     SetShader set_shader;
+    SetCanvas set_canvas;
+    SetBlendMode set_blend_mode;
+    ClearColor clear_color;
   };
 
   static_assert(std::is_trivially_copyable_v<Command>);

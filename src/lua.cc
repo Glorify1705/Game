@@ -690,17 +690,17 @@ void Lua::FlushCompilationCache() {
 }
 
 int ForwardIndexToMetatable(lua_State* state) {
-  LUA_CHECK_STACK(state);
   lua_getmetatable(state, 1);
   lua_pushvalue(state, 2);
   lua_gettable(state, -2);
   if (!lua_iscfunction(state, -1)) {
-    lua_getmetatable(state, 1);
-    lua_getfield(state, -1, "__name");
+    lua_getfield(state, -2, "__name");
     LUA_ERROR(state, GetLuaString(state, 2), " is not a valid method for ",
               GetLuaString(state, -1));
     return 0;
   }
+  // Remove the metatable, leaving only the found function on top.
+  lua_remove(state, -2);
   return 1;
 }
 

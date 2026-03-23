@@ -65,6 +65,12 @@ constexpr size_t BatchRenderer::SizeOfCommand(CommandType t) {
       return sizeof(SetShader);
     case kSetLineWidth:
       return sizeof(SetLineWidth);
+    case kSetCanvas:
+      return sizeof(SetCanvas);
+    case kSetBlendMode:
+      return sizeof(SetBlendMode);
+    case kClearColor:
+      return sizeof(ClearColor);
     case kDone:
       return 0;
   }
@@ -93,6 +99,12 @@ constexpr std::string_view BatchRenderer::CommandName(CommandType t) {
       return "SET_SHADER";
     case kSetLineWidth:
       return "SET_LINE_WIDTH";
+    case kSetCanvas:
+      return "SET_CANVAS";
+    case kSetBlendMode:
+      return "SET_BLEND_MODE";
+    case kClearColor:
+      return "CLEAR_COLOR";
     case kDone:
       return "DONE";
   }
@@ -325,6 +337,55 @@ size_t BatchRenderer::LoadFontTexture(const void* data, size_t width,
   return index;
 }
 
+size_t BatchRenderer::RegisterTexture(GLuint tex) {
+  const size_t index = tex_.size();
+  OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + index));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex));
+  tex_.Push(tex);
+  return index;
+}
+
+Canvas BatchRenderer::CreateCanvas(int width, int height, bool nearest_filter) {
+  Canvas c;
+  c.width = width;
+  c.height = height;
+
+  // Create a framebuffer object to serve as the off-screen render target.
+  OPENGL_CALL(glGenFramebuffers(1, &c.fbo));
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, c.fbo));
+
+  // Allocate a color texture and configure filtering/wrapping.
+  OPENGL_CALL(glGenTextures(1, &c.texture));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, c.texture));
+  OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
+                           GL_UNSIGNED_BYTE, nullptr));
+  const GLint filter = nearest_filter ? GL_NEAREST : GL_LINEAR;
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter));
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+  OPENGL_CALL(
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+
+  // Attach the texture to the FBO as its color output and verify completeness.
+  OPENGL_CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                     GL_TEXTURE_2D, c.texture, 0));
+  CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
+        "Canvas framebuffer incomplete: ",
+        glCheckFramebufferStatus(GL_FRAMEBUFFER));
+
+  // Clear the canvas to transparent.
+  OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
+  OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+
+  // Restore the main render target.
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
+
+  // Register the texture so it can be sampled during rendering.
+  c.texture_unit = RegisterTexture(c.texture);
+  return c;
+}
+
 void BatchRenderer::Render(Allocator* scratch) {
   // Setup OpenGL state.
   OPENGL_CALL(glEnable(GL_MULTISAMPLE));
@@ -490,13 +551,17 @@ void BatchRenderer::Render(Allocator* scratch) {
   FMat4x4 transform = FMat4x4::Identity();
   GLint primitives = GL_TRIANGLES;
   float line_width = 2.5;
+  GLuint current_fbo = render_target_;
+  int current_viewport_w = viewport_.x;
+  int current_viewport_h = viewport_.y;
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
     auto flush = [&] {
       if (indices_start == indices_end) return;
       glLineWidth(line_width);
       glActiveTexture(GL_TEXTURE0 + texture_unit);
       shaders_->SetUniform("tex", texture_unit);
-      shaders_->SetUniform("projection", Ortho(0, viewport_.x, 0, viewport_.y));
+      shaders_->SetUniform("projection",
+                           Ortho(0, current_viewport_w, 0, current_viewport_h));
       shaders_->SetUniform("transform", transform);
       OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
       OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex_[texture_unit]));
@@ -546,6 +611,40 @@ void BatchRenderer::Render(Allocator* scratch) {
         flush();
         line_width = c.set_line_width.width;
         break;
+      case kSetCanvas:
+        flush();
+        OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, c.set_canvas.fbo));
+        OPENGL_CALL(glViewport(0, 0, c.set_canvas.width, c.set_canvas.height));
+        current_fbo = c.set_canvas.fbo;
+        current_viewport_w = c.set_canvas.width;
+        current_viewport_h = c.set_canvas.height;
+        break;
+      case kSetBlendMode:
+        flush();
+        switch (c.set_blend_mode.mode) {
+          case BLEND_ALPHA:
+            OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+            break;
+          case BLEND_ADD:
+            OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE));
+            break;
+          case BLEND_MULTIPLY:
+            OPENGL_CALL(glBlendFunc(GL_DST_COLOR, GL_ZERO));
+            break;
+          case BLEND_REPLACE:
+            OPENGL_CALL(glBlendFunc(GL_ONE, GL_ZERO));
+            break;
+          case BLEND_PREMULTIPLIED:
+            OPENGL_CALL(glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+            break;
+        }
+        break;
+      case kClearColor:
+        flush();
+        OPENGL_CALL(glClearColor(c.clear_color.r, c.clear_color.g,
+                                 c.clear_color.b, c.clear_color.a));
+        OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+        break;
       case kSetColor:
         color = c.set_color.color;
         break;
@@ -554,6 +653,11 @@ void BatchRenderer::Render(Allocator* scratch) {
         flush();
         break;
     }
+  }
+  // Ensure we're back on the main render target before MSAA resolve.
+  if (current_fbo != render_target_) {
+    OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
+    OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   }
   // Downsample framebuffer.
   OPENGL_CALL(glActiveTexture(GL_TEXTURE0));
@@ -584,8 +688,11 @@ BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
   size_t bytes = viewport.x;
   bytes *= viewport.y * sizeof(Color);
   auto* buffer = allocator->Alloc(bytes, /*align=*/4);
+  // Read from the resolved (non-MSAA) framebuffer.
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, downsampled_target_));
   glReadnPixels(0, 0, viewport.x, viewport.y, GL_RGBA, GL_UNSIGNED_BYTE, bytes,
                 buffer);
+  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   // Flip the rows.
   ArenaAllocator scratch(allocator, Megabytes(1));
   const size_t row_size = viewport.x * sizeof(Color);
