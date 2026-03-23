@@ -350,9 +350,11 @@ Canvas BatchRenderer::CreateCanvas(int width, int height, bool nearest_filter) {
   c.width = width;
   c.height = height;
 
+  // Create a framebuffer object to serve as the off-screen render target.
   OPENGL_CALL(glGenFramebuffers(1, &c.fbo));
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, c.fbo));
 
+  // Allocate a color texture and configure filtering/wrapping.
   OPENGL_CALL(glGenTextures(1, &c.texture));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, c.texture));
   OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
@@ -364,6 +366,8 @@ Canvas BatchRenderer::CreateCanvas(int width, int height, bool nearest_filter) {
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
   OPENGL_CALL(
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+
+  // Attach the texture to the FBO as its color output and verify completeness.
   OPENGL_CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                      GL_TEXTURE_2D, c.texture, 0));
   CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
@@ -377,6 +381,7 @@ Canvas BatchRenderer::CreateCanvas(int width, int height, bool nearest_filter) {
   // Restore the main render target.
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
 
+  // Register the texture so it can be sampled during rendering.
   c.texture_unit = RegisterTexture(c.texture);
   return c;
 }
