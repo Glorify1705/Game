@@ -305,9 +305,11 @@ bool WritePixelsToImage(const char *filename, uint8_t *data, size_t width,
     return false;
   }
 
-  if (!filesystem->WriteToFile(filename, std::string_view(encoded, size),
-                               err)) {
+  auto result =
+      filesystem->WriteToFile(filename, std::string_view(encoded, size));
+  if (result.is_error()) {
     allocator->Dealloc(encoded, size);
+    err->Set(result.error().message());
     return false;
   }
   return true;

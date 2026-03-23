@@ -81,14 +81,15 @@ const struct LuaApiFunction kFilesystemLib[] = {
 }  // namespace
 
 int LuaWriteToFile(lua_State* state, int index, std::string_view filename) {
-  FixedStringBuffer<kMaxLogLineLength> err;
   auto* filesystem = Registry<Filesystem>::Retrieve(state);
   auto write_to_fs = [&](std::string_view data) {
     LOG("Writing to ", filename);
-    if (filesystem->WriteToFile(filename, data, &err)) {
-      lua_pushnil(state);
+    auto result = filesystem->WriteToFile(filename, data);
+    if (result.is_error()) {
+      auto msg = result.error().message();
+      lua_pushlstring(state, msg.data(), msg.size());
     } else {
-      lua_pushlstring(state, err.str(), err.size());
+      lua_pushnil(state);
     }
   };
   if (lua_type(state, index) == LUA_TSTRING) {
@@ -105,24 +106,27 @@ int LuaWriteToFile(lua_State* state, int index, std::string_view filename) {
 
 int LuaLoadFileIntoBuffer(lua_State* state, std::string_view filename) {
   auto* filesystem = Registry<Filesystem>::Retrieve(state);
-  FixedStringBuffer<kMaxLogLineLength> err;
-  size_t size = 0;
-  if (!filesystem->Size(filename, &size, &err)) {
+  auto size_result = filesystem->Size(filename);
+  if (size_result.is_error()) {
     lua_pushnil(state);
-    lua_pushlstring(state, err.str(), err.size());
+    auto msg = size_result.error().message();
+    lua_pushlstring(state, msg.data(), msg.size());
     return 2;
   }
+  size_t size = size_result.release_value();
   auto* buf = static_cast<ByteBuffer*>(
       lua_newuserdata(state, sizeof(ByteBuffer) + size));
   buf->size = size;
   luaL_getmetatable(state, "byte_buffer");
   lua_setmetatable(state, -2);
-  if (filesystem->ReadFile(filename, buf->contents, buf->size, &err)) {
-    lua_pushnil(state);
-  } else {
+  auto read_result = filesystem->ReadFile(filename, buf->contents, buf->size);
+  if (read_result.is_error()) {
     lua_pop(state, 1);  // Pop the userdata, it will be GCed.
     lua_pushnil(state);
-    lua_pushlstring(state, err.str(), err.size());
+    auto msg = read_result.error().message();
+    lua_pushlstring(state, msg.data(), msg.size());
+  } else {
+    lua_pushnil(state);
   }
   return 2;
 }
