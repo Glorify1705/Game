@@ -10,6 +10,8 @@ namespace G {
 
 bool Sound::QoaSampler::Init(const DbAssets::Sound* sound) {
   TIMER("Initializing QOA stream ", sound->name);
+  frame_pos_ = 0;
+  frame_len_ = 0;
   ByteSlice data(sound->contents, sound->size);
   QoaDesc desc;
   if (!decoder_.Init(data, &desc)) {
@@ -35,12 +37,11 @@ size_t Sound::QoaSampler::Load(float* output, size_t samples_per_channel,
     if (written >= total_needed) break;
 
     // Decode next frame and convert to float up front.
-    int16_t raw[kQoaFrameLen * kQoaMaxChannels];
-    frame_len_ = decoder_.DecodeFrame(raw, kQoaFrameLen) * channels_;
+    frame_len_ = decoder_.DecodeFrame(raw_, kQoaFrameLen) * channels_;
     frame_pos_ = 0;
     if (frame_len_ == 0) return written / channels;  // EOF
     for (size_t i = 0; i < frame_len_; ++i) {
-      frame_buffer_[i] = static_cast<float>(raw[i]) / 32768.0f;
+      frame_buffer_[i] = static_cast<float>(raw_[i]) / 32768.0f;
     }
   }
   return samples_per_channel;

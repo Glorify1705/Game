@@ -51,6 +51,7 @@ function G1:init()
 	end)
 	local source = G.sound.add_source("music.ogg")
 	G.sound.set_volume(source, 0.4)
+	G.sound.set_loop(source, true)
 	G.sound.play_source(source)
 	self.rnd = Random()
 end

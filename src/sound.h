@@ -90,6 +90,7 @@ class Sound {
    private:
     QoaStreamDecoder decoder_;
     uint32_t channels_ = 0;
+    int16_t raw_[kQoaFrameLen * kQoaMaxChannels];
     float frame_buffer_[kQoaFrameLen * kQoaMaxChannels];
     size_t frame_pos_ = 0;
     size_t frame_len_ = 0;
