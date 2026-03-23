@@ -540,7 +540,7 @@ void BatchRenderer::Render(Allocator* scratch) {
           reinterpret_cast<void*>(offsetof(VertexData, color))));
       OPENGL_CALL(glEnableVertexAttribArray(color_attribute));
     }
-    shaders_->SetUniform("global_color", color.ToFloat());
+    MUST(shaders_->SetUniform("global_color", color.ToFloat()));
   };
   set_program_state("pre_pass");
   // Render batches by finding changes to the OpenGL context.
@@ -559,10 +559,10 @@ void BatchRenderer::Render(Allocator* scratch) {
       if (indices_start == indices_end) return;
       glLineWidth(line_width);
       glActiveTexture(GL_TEXTURE0 + texture_unit);
-      shaders_->SetUniform("tex", texture_unit);
-      shaders_->SetUniform("projection",
-                           Ortho(0, current_viewport_w, 0, current_viewport_h));
-      shaders_->SetUniform("transform", transform);
+      MUST(shaders_->SetUniform("tex", texture_unit));
+      MUST(shaders_->SetUniform("projection",
+                                Ortho(0, current_viewport_w, 0, current_viewport_h)));
+      MUST(shaders_->SetUniform("transform", transform));
       OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
       OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex_[texture_unit]));
       const auto indices_start_ptr =
@@ -672,8 +672,8 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
   shaders_->UseProgram("post_pass");
   glActiveTexture(GL_TEXTURE1);
-  shaders_->SetUniform("screen_texture", 1);
-  shaders_->SetUniform("color", color.ToFloat());
+  MUST(shaders_->SetUniform("screen_texture", 1));
+  MUST(shaders_->SetUniform("color", color.ToFloat()));
   OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));

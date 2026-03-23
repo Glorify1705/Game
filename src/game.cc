@@ -271,9 +271,11 @@ struct EngineModules {
     assets->RegisterShaderLoad(
         [](DbAssets::Shader* shader, StringBuffer* /*err*/, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
-          Shaders::Error error;
-          if (!self->shaders.Load(*shader, &error)) {
-            self->lua.SetError(error.file.str(), error.line, error.error.str());
+          auto result = self->shaders.Load(*shader);
+          if (result.is_error()) {
+            LOG("Shader load failed: ", result.error().message());
+            self->lua.SetError(result.error().file(), result.error().line(),
+                               result.error().message());
             return;
           }
         },

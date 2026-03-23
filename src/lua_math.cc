@@ -220,8 +220,8 @@ constexpr luaL_Reg kV2Methods[] = {
        auto* v = AsUserdata<FVec2>(state, 1);
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, result);
+       auto result = shaders->SetUniform(name, *v);
+       lua_pushboolean(state, !result.is_error());
        return 1;
      }}};
 
@@ -284,8 +284,8 @@ constexpr luaL_Reg kV3Methods[] = {
        auto* v = AsUserdata<FVec3>(state, 1);
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, result);
+       auto result = shaders->SetUniform(name, *v);
+       lua_pushboolean(state, !result.is_error());
        return 1;
      }}};
 
@@ -348,8 +348,8 @@ constexpr luaL_Reg kV4Methods[] = {
        auto* v = AsUserdata<FVec4>(state, 1);
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, result);
+       auto result = shaders->SetUniform(name, *v);
+       lua_pushboolean(state, !result.is_error());
        return 1;
      }}};
 
@@ -358,8 +358,8 @@ constexpr luaL_Reg kM2x2Methods[] = {
        auto* v = AsUserdata<FMat2x2>(state, 1);
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, result);
+       auto result = shaders->SetUniform(name, *v);
+       lua_pushboolean(state, !result.is_error());
        return 1;
      }}};
 
@@ -368,8 +368,8 @@ constexpr luaL_Reg kM3x3Methods[] = {
        auto* v = AsUserdata<FMat3x3>(state, 1);
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, result);
+       auto result = shaders->SetUniform(name, *v);
+       lua_pushboolean(state, !result.is_error());
        return 1;
      }}};
 
@@ -378,8 +378,8 @@ constexpr luaL_Reg kM4x4Methods[] = {
        auto* v = AsUserdata<FMat4x4>(state, 1);
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
-       bool result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, result);
+       auto result = shaders->SetUniform(name, *v);
+       lua_pushboolean(state, !result.is_error());
        return 1;
      }}};
 

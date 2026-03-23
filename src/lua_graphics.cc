@@ -454,13 +454,13 @@ static const LuaApiFunction kGraphicsLib[] = {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        std::string_view name = GetLuaString(state, 1);
        std::string_view code = GetLuaString(state, 2);
-       const bool compiles = shaders->Compile(
-           HasSuffix(name, ".vert") ? DbAssets::ShaderType::kVertex
-                                    : DbAssets::ShaderType::kFragment,
-           name, code, Shaders::kUseCache);
-       if (!compiles) {
+       auto result = shaders->Compile(HasSuffix(name, ".vert")
+                                          ? DbAssets::ShaderType::kVertex
+                                          : DbAssets::ShaderType::kFragment,
+                                      name, code, Shaders::kUseCache);
+       if (result.is_error()) {
          LUA_ERROR(state, "Could not compile shader ", name, ": ",
-                   shaders->LastError());
+                   result.error().message());
        }
        return 0;
      }},
@@ -489,10 +489,11 @@ static const LuaApiFunction kGraphicsLib[] = {
                    program_name);
          return 0;
        }
-       if (!shaders->Link(program_name, "pre_pass.vert", fragment_shader,
-                          Shaders::kUseCache)) {
+       auto link_result = shaders->Link(program_name, "pre_pass.vert",
+                                        fragment_shader, Shaders::kUseCache);
+       if (link_result.is_error()) {
          LUA_ERROR(state, "Could not switch shader ", program_name, ": ",
-                   shaders->LastError());
+                   link_result.error().message());
          return 0;
        }
        renderer->SetShaderProgram(program_name);
@@ -511,9 +512,11 @@ static const LuaApiFunction kGraphicsLib[] = {
        auto* shaders = Registry<Shaders>::Retrieve(state);
        const char* name = luaL_checkstring(state, 1);
        if (lua_isnumber(state, 2)) {
-         if (!shaders->SetUniformF(name, luaL_checknumber(state, 2))) {
+         auto uniform_result =
+             shaders->SetUniformF(name, luaL_checknumber(state, 2));
+         if (uniform_result.is_error()) {
            LUA_ERROR(state, "Could not set uniform ", name, ": ",
-                     shaders->LastError());
+                     uniform_result.error().message());
          }
        } else {
          if (!lua_getmetatable(state, 2)) {
