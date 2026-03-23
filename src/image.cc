@@ -4,6 +4,7 @@
 
 #include <cstring>
 
+#include "error.h"
 #include "logging.h"
 
 namespace G {
@@ -71,14 +72,13 @@ void *QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
   }
 
   auto *buffer = allocator->Alloc(MemoryNeededToEncode(desc), /*align=*/4);
-  bool error = false;
-  QoiEncode(data, desc, out_len, buffer, &error);
-  if (error) return nullptr;
+  auto result = QoiEncode(data, desc, out_len, buffer);
+  if (result.is_error()) return nullptr;
   return buffer;
 }
 
-void QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
-               void *buffer, bool *error) {
+ErrorOr<void> QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
+                        void *buffer) {
   int p, run;
   int px_len, px_end, px_pos, channels;
   unsigned char *bytes;
@@ -98,8 +98,7 @@ void QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
   bytes = static_cast<unsigned char *>(buffer);
 
   if (!bytes) {
-    *error = true;
-    return;
+    return Error::Message("QoiEncode: buffer is null");
   }
 
   QoiWrite32(bytes, &p, kQoiMagic);
@@ -190,7 +189,7 @@ void QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
   }
 
   *out_len = p;
-  *error = false;
+  return {};
 }
 
 void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
@@ -287,9 +286,9 @@ void *QoiDecode(const void *data, int size, QoiDesc *desc, int channels,
   return pixels;
 }
 
-bool WritePixelsToImage(const char *filename, uint8_t *data, size_t width,
-                        size_t height, Filesystem *filesystem,
-                        StringBuffer *err, Allocator *allocator) {
+ErrorOr<void> WritePixelsToImage(const char *filename, uint8_t *data,
+                                 size_t width, size_t height,
+                                 Filesystem *filesystem, Allocator *allocator) {
   CHECK(HasSuffix(filename, ".qoi"), "invalid filename ", filename);
   QoiDesc desc;
   desc.width = width;
@@ -301,18 +300,11 @@ bool WritePixelsToImage(const char *filename, uint8_t *data, size_t width,
       reinterpret_cast<char *>(QoiEncode(data, &desc, &size, allocator));
   if (encoded == nullptr) {
     allocator->Dealloc(encoded, size);
-    err->Set("Failed to encode data to QOI");
-    return false;
+    return Error::Message("Failed to encode data to QOI");
   }
 
-  auto result =
-      filesystem->WriteToFile(filename, std::string_view(encoded, size));
-  if (result.is_error()) {
-    allocator->Dealloc(encoded, size);
-    err->Set(result.error().message());
-    return false;
-  }
-  return true;
+  TRY(filesystem->WriteToFile(filename, std::string_view(encoded, size)));
+  return {};
 }
 
 }  // namespace G

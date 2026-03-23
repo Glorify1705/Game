@@ -66,10 +66,9 @@ static const LuaApiFunction kGraphicsLib[] = {
        void* bytebuf = PushBufferIntoLua(state, MemoryNeededToEncode(&desc));
 
        int size;
-       bool error;
-       QoiEncode(screenshot.buffer, &desc, &size, bytebuf, &error);
+       auto encode_result = QoiEncode(screenshot.buffer, &desc, &size, bytebuf);
 
-       if (error) {
+       if (encode_result.is_error()) {
          LUA_ERROR(state, "Failed to encode screenshot");
          return 0;
        }
