@@ -3,6 +3,7 @@
 #include <string_view>
 
 #include "cli.h"
+#include "error.h"
 #include "lua.h"
 #include "lua_assets.h"
 #include "lua_bytebuffer.h"
@@ -34,7 +35,7 @@ int CmdStubs(Slice<const char*> args, Allocator* allocator) {
     size_t len = slash - output;
     memcpy(parent, output, len);
     parent[len] = '\0';
-    MakeDirs(parent);
+    MUST(MakeDirs(parent));
   }
 
   // TODO: Decouple stub generation from the Lua class.  The type and library

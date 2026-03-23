@@ -1,5 +1,6 @@
 #include "platform.h"
 
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 
@@ -8,7 +9,6 @@
 // Windows CopyFile macro conflicts with our function name.
 #undef CopyFile
 #else
-#include <errno.h>
 #include <limits.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -40,16 +40,22 @@ bool DirectoryExists(const char* path) {
 #endif
 }
 
-bool MakeDir(const char* path) {
+ErrorOr<void> MakeDir(const char* path) {
 #ifdef _WIN32
-  return CreateDirectoryA(path, nullptr) ||
-         GetLastError() == ERROR_ALREADY_EXISTS;
+  if (!CreateDirectoryA(path, nullptr) &&
+      GetLastError() != ERROR_ALREADY_EXISTS) {
+    return Error::Message("CreateDirectoryA failed");
+  }
+  return {};
 #else
-  return mkdir(path, 0755) == 0 || errno == EEXIST;
+  if (mkdir(path, 0755) != 0 && errno != EEXIST) {
+    return Error::Errno(errno);
+  }
+  return {};
 #endif
 }
 
-bool MakeDirs(const char* path) {
+ErrorOr<void> MakeDirs(const char* path) {
 #ifdef _WIN32
   char tmp[MAX_PATH];
   snprintf(tmp, sizeof(tmp), "%s", path);
@@ -60,8 +66,11 @@ bool MakeDirs(const char* path) {
       *p = '/';
     }
   }
-  return CreateDirectoryA(tmp, nullptr) ||
-         GetLastError() == ERROR_ALREADY_EXISTS;
+  if (!CreateDirectoryA(tmp, nullptr) &&
+      GetLastError() != ERROR_ALREADY_EXISTS) {
+    return Error::Message("CreateDirectoryA failed");
+  }
+  return {};
 #else
   char tmp[PATH_MAX];
   snprintf(tmp, sizeof(tmp), "%s", path);
@@ -72,7 +81,10 @@ bool MakeDirs(const char* path) {
       *p = '/';
     }
   }
-  return mkdir(tmp, 0755) == 0 || errno == EEXIST;
+  if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
+    return Error::Errno(errno);
+  }
+  return {};
 #endif
 }
 
@@ -88,21 +100,22 @@ const char* AbsolutePath(const char* path) {
 #endif
 }
 
-bool WriteFile(const char* path, const char* contents) {
+ErrorOr<void> WriteFile(const char* path, const char* contents) {
   FILE* f = fopen(path, "w");
-  if (f == nullptr) return false;
+  if (f == nullptr) return Error::Errno(errno);
   fputs(contents, f);
   fclose(f);
-  return true;
+  return {};
 }
 
-bool CopyFile(const char* src, const char* dst) {
+ErrorOr<void> CopyFile(const char* src, const char* dst) {
   FILE* in = fopen(src, "rb");
-  if (in == nullptr) return false;
+  if (in == nullptr) return Error::Errno(errno);
   FILE* out = fopen(dst, "wb");
   if (out == nullptr) {
+    int saved_errno = errno;
     fclose(in);
-    return false;
+    return Error::Errno(saved_errno);
   }
   char buf[8192];
   size_t n;
@@ -111,50 +124,62 @@ bool CopyFile(const char* src, const char* dst) {
   }
   fclose(in);
   fclose(out);
-  return true;
+  return {};
 }
 
-bool MakeExecutable(const char* path) {
+ErrorOr<void> MakeExecutable(const char* path) {
 #ifdef _WIN32
   (void)path;
-  return true;
+  return {};
 #else
-  return chmod(path, 0755) == 0;
+  if (chmod(path, 0755) != 0) return Error::Errno(errno);
+  return {};
 #endif
 }
 
-bool GetExePath(char* out, size_t out_size) {
+ErrorOr<void> GetExePath(char* out, size_t out_size) {
 #ifdef _WIN32
   DWORD len = GetModuleFileNameA(nullptr, out, (DWORD)out_size);
-  return len > 0 && len < (DWORD)out_size;
+  if (len == 0 || len >= (DWORD)out_size) {
+    return Error::Message("GetModuleFileNameA failed");
+  }
+  return {};
 #elif defined(__APPLE__)
   uint32_t size = (uint32_t)out_size;
-  return _NSGetExecutablePath(out, &size) == 0;
+  if (_NSGetExecutablePath(out, &size) != 0) {
+    return Error::Message("_NSGetExecutablePath failed");
+  }
+  return {};
 #else
   ssize_t len = readlink("/proc/self/exe", out, out_size - 1);
-  if (len <= 0) return false;
+  if (len <= 0) return Error::Errno(errno);
   out[len] = '\0';
-  return true;
+  return {};
 #endif
 }
 
-bool GetExeDir(char* out, size_t out_size) {
-  if (!GetExePath(out, out_size)) return false;
+ErrorOr<void> GetExeDir(char* out, size_t out_size) {
+  TRY(GetExePath(out, out_size));
   char* last_slash = strrchr(out, '/');
 #ifdef _WIN32
   char* last_bslash = strrchr(out, '\\');
   if (last_bslash > last_slash) last_slash = last_bslash;
 #endif
-  if (last_slash == nullptr) return false;
+  if (last_slash == nullptr)
+    return Error::Message("no directory separator in exe path");
   last_slash[1] = '\0';
-  return true;
+  return {};
 }
 
-bool GetCwd(char* out, size_t out_size) {
+ErrorOr<void> GetCwd(char* out, size_t out_size) {
 #ifdef _WIN32
-  return GetCurrentDirectoryA((DWORD)out_size, out) > 0;
+  if (GetCurrentDirectoryA((DWORD)out_size, out) == 0) {
+    return Error::Message("GetCurrentDirectoryA failed");
+  }
+  return {};
 #else
-  return getcwd(out, out_size) != nullptr;
+  if (getcwd(out, out_size) == nullptr) return Error::Errno(errno);
+  return {};
 #endif
 }
 

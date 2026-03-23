@@ -2,6 +2,7 @@
 #include <string_view>
 
 #include "cli.h"
+#include "error.h"
 #include "logging.h"
 #include "platform.h"
 #include "stringlib.h"
@@ -27,14 +28,14 @@ int CmdInit(Slice<const char*> args, Allocator* allocator) {
   if (project_name.empty() || project_name == "." || project_name == "/") {
     // Use current working directory name.
     char cwd[1024];
-    if (GetCwd(cwd, sizeof(cwd))) {
+    if (!GetCwd(cwd, sizeof(cwd)).is_error()) {
       project_name = Basename(std::string_view(cwd));
     }
     if (project_name.empty()) project_name = "my-game";
   }
 
   // Create directory if needed.
-  MakeDir(dir);
+  MUST(MakeDir(dir));
 
   // Check if project already exists.
   FixedStringBuffer<1024> conf_path(dir, "/conf.json");
@@ -48,27 +49,28 @@ int CmdInit(Slice<const char*> args, Allocator* allocator) {
   FixedStringBuffer<256> name_buf(project_name);
 
   LOG("Writing ", conf_path.str());
-  if (!WriteFileF(conf_path.str(), templates::kConfJson, name_buf.str(),
-                  name_buf.str())) {
+  if (WriteFileF(conf_path.str(), templates::kConfJson, name_buf.str(),
+                 name_buf.str())
+          .is_error()) {
     fprintf(stderr, "Error: could not write %s\n", conf_path.str());
     return 1;
   }
 
   FixedStringBuffer<1024> main_path(dir, "/main.lua");
   LOG("Writing ", main_path.str());
-  WriteFile(main_path.str(), templates::kMainLua);
+  MUST(WriteFile(main_path.str(), templates::kMainLua));
 
   FixedStringBuffer<1024> game_path(dir, "/game.lua");
   LOG("Writing ", game_path.str());
-  WriteFile(game_path.str(), templates::kGameLua);
+  MUST(WriteFile(game_path.str(), templates::kGameLua));
 
   FixedStringBuffer<1024> luarc_path(dir, "/.luarc.json");
   LOG("Writing ", luarc_path.str());
-  WriteFile(luarc_path.str(), templates::kLuarcJson);
+  MUST(WriteFile(luarc_path.str(), templates::kLuarcJson));
 
   // Create definitions directory and generate stubs.
   FixedStringBuffer<1024> defs_dir(dir, "/definitions");
-  MakeDir(defs_dir.str());
+  MUST(MakeDir(defs_dir.str()));
 
   FixedStringBuffer<1024> stubs_output(defs_dir.str(), "/game.lua");
   const char* stubs_argv[] = {"stubs", "--output", stubs_output.str()};

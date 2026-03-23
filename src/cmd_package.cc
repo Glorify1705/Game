@@ -4,6 +4,7 @@
 
 #include "cli.h"
 #include "config.h"
+#include "error.h"
 #include "filesystem.h"
 #include "libraries/sqlite3.h"
 #include "logging.h"
@@ -69,7 +70,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
 
   // Create output directory.
   LOG("Creating output directory: ", output_dir);
-  MakeDirs(output_dir);
+  MUST(MakeDirs(output_dir));
 
   // Pack assets into the database.
   FixedStringBuffer<1024> db_path(output_dir, "/assets.sqlite3");
@@ -89,7 +90,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
 
   // Copy the engine binary.
   char self_path[1024];
-  if (!GetExePath(self_path, sizeof(self_path))) {
+  if (GetExePath(self_path, sizeof(self_path)).is_error()) {
     fprintf(stderr, "Error: could not determine engine binary path.\n");
     return 1;
   }
@@ -97,13 +98,13 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   FixedStringBuffer<1024> binary_path(output_dir, "/", binary_name,
                                       kExeExtension);
   LOG("Copying engine binary to ", binary_path.str());
-  if (!CopyFile(self_path, binary_path.str())) {
+  if (CopyFile(self_path, binary_path.str()).is_error()) {
     fprintf(stderr, "Error: could not copy binary to '%s'.\n",
             binary_path.str());
     return 1;
   }
 
-  MakeExecutable(binary_path.str());
+  MUST(MakeExecutable(binary_path.str()));
 
   // Optionally strip.
   if (strip) {
