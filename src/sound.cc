@@ -19,8 +19,6 @@ bool Sound::QoaSampler::Init(const DbAssets::Sound* sound) {
     return false;
   }
   channels_ = desc.channels;
-  LOG("QOA stream ", sound->name, ", channels = ", desc.channels,
-      ", sample rate = ", desc.samplerate, ", samples = ", desc.samples);
   return true;
 }
 

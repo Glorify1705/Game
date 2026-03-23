@@ -119,7 +119,7 @@
         (tset g :reticule :st t)
         (tset g :reticule :en (+ t 0.3)))
       (when (G.input.is_mouse_pressed 0)
-        (G.sound.play :gunshot.ogg)
+        (G.sound.play_effect :gunshot.ogg)
         (tset g :reticule :state :moving)
         (tset g :reticule :st t)
         (tset g :reticule :en (+ t 0.1))
