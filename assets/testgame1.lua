@@ -51,6 +51,7 @@ function G1:init()
 	end)
 	local source = G.sound.add_source("music.ogg")
 	G.sound.set_volume(source, 0.4)
+	G.sound.set_loop(source, true)
 	G.sound.play_source(source)
 	self.rnd = Random()
 end
@@ -73,7 +74,7 @@ function G1:update(t, dt)
 		end
 	end
 	if G.input.is_mouse_pressed(0) then
-		G.sound.play("laser.wav")
+		G.sound.play_effect("laser.wav")
 	end
 	if G.input.is_key_pressed("r") then
 		G.hotload()

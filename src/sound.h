@@ -10,8 +10,7 @@
 #include "assets.h"
 #include "clock.h"
 #include "dictionary.h"
-#include "libraries/dr_wav.h"
-#include "libraries/stb_vorbis.h"
+#include "qoa.h"
 #include "thread.h"
 
 namespace G {
@@ -21,10 +20,11 @@ class Sound {
   explicit Sound(const SDL_AudioSpec& spec, Allocator* allocator)
       : buffer_(static_cast<size_t>(spec.channels) * spec.samples, allocator),
         sounds_(allocator),
-        vorbis_(256, allocator),
-        wavs_(256, allocator),
-        vorbis_alloc_(allocator),
-        wavs_alloc_(allocator) {
+        qoa_samplers_(256, allocator),
+        pcm_samplers_(256, allocator),
+        qoa_alloc_(allocator),
+        pcm_alloc_(allocator),
+        effect_cache_(allocator) {
     buffer_.Resize(buffer_.capacity());
     mu_ = SDL_CreateMutex();
   }
@@ -44,13 +44,22 @@ class Sound {
   bool AddSource(std::string_view name, Source* source,
                  Ownership ownership = Ownership::kManaged);
 
+  bool AddEffect(std::string_view name, Source* source,
+                 Ownership ownership = Ownership::kManaged);
+
   bool SetSourceGain(Source source, float gain);
+  bool SetLoop(Source source, bool loop);
+  bool SetPitch(Source source, float pitch);
+  bool SetPan(Source source, float pan);
 
   void SetGlobalGain(float gain) { global_gain_ = gain; }
 
   bool StartChannel(Source source);
 
   bool Stop(Source source);
+  bool Pause(Source source);
+  bool Resume(Source source);
+  bool IsPlaying(Source source) const;
 
   void StopAll() {
     LockMutex l(mu_);
@@ -63,113 +72,53 @@ class Sound {
                      size_t channels);
 
  private:
-  class WavSampler {
+  // Streaming QOA sampler: decodes one frame at a time.
+  class QoaSampler {
    public:
-    WavSampler() : allocator_(decode_buffer_, sizeof(decode_buffer_)) {
-      callbacks_.pUserData = this;
-      callbacks_.onMalloc = Alloc;
-      callbacks_.onFree = Free;
-      callbacks_.onRealloc = nullptr;
-    }
-
-    bool Init(const DbAssets::Sound* sound) {
-      TIMER("Initializing sound ", sound->name);
-      std::memset(&wav_, 0, sizeof(wav_));
-      if (!drwav_init_memory(&wav_, sound->contents, sound->size,
-                             &callbacks_)) {
-        return false;
-      }
-      const auto& fmt = wav_.fmt;
-      LOG("Sound ", sound->name, "Channels = ", fmt.channels,
-          "Sample rate = ", fmt.sampleRate);
-      return true;
-    }
-
-    size_t Load(float* output, size_t samples_per_channel, size_t channels) {
-      DCHECK(channels == 2);
-      return drwav_read_pcm_frames_f32(&wav_, samples_per_channel, output);
-    }
+    bool Init(const DbAssets::Sound* sound);
+    size_t Load(float* output, size_t samples_per_channel, size_t channels);
 
     bool Rewind() {
-      drwav_seek_to_pcm_frame(&wav_, 0);
+      decoder_.Rewind();
+      frame_pos_ = 0;
+      frame_len_ = 0;
       return true;
     }
 
-    bool Deinit() {
-      drwav_uninit(&wav_);
-      return true;
-    }
+    bool Deinit() { return true; }
 
    private:
-    inline static constexpr size_t kDecoderMemorySize = Kilobytes(256);
-
-    static void* Alloc(size_t size, void* ud) {
-      auto* stream = reinterpret_cast<WavSampler*>(ud);
-      return stream->allocator_.Alloc(size, /*align=*/1);
-    }
-
-    static void Free(void* ptr, void* ud) { (void)ptr, (void)ud; }
-
-    uint8_t decode_buffer_[kDecoderMemorySize];
-    ArenaAllocator allocator_;
-    drwav_allocation_callbacks callbacks_;
-    drwav wav_;
+    QoaStreamDecoder decoder_;
+    uint32_t channels_ = 0;
+    int16_t raw_[kQoaFrameLen * kQoaMaxChannels];
+    float frame_buffer_[kQoaFrameLen * kQoaMaxChannels];
+    size_t frame_pos_ = 0;
+    size_t frame_len_ = 0;
   };
 
-  class VorbisSampler {
+  // PCM sampler: plays from a pre-decoded float buffer (for effects).
+  class PcmSampler {
    public:
-    bool Init(const DbAssets::Sound* sound) {
-      TIMER("Initializing sound ", sound->name);
-      int error = 0;
-      vorbis_alloc_.alloc_buffer = vorbis_memory_;
-      vorbis_alloc_.alloc_buffer_length_in_bytes = kDecoderMemorySize;
-      vorbis_ = stb_vorbis_open_memory(sound->contents, sound->size, &error,
-                                       &vorbis_alloc_);
-      if (vorbis_ == nullptr) {
-        const char* errormsg = nullptr;
-
-        switch (error) {
-          case VORBIS_outofmem:
-            errormsg = "not enough memory";
-            break;
-          default:
-            errormsg = "unknown error";
-        }
-
-        LOG("Failed to open ", sound->name, ": ", errormsg, "(", error, ")");
-        return false;
-      }
-      stb_vorbis_info info = stb_vorbis_get_info(vorbis_);
-      LOG("Opened file ", sound->name, ", channels = ", info.channels,
-          ", sample rate = ", info.sample_rate);
-      LOG("Memory required = ", info.temp_memory_required,
-          ", setup memory = ", info.setup_memory_required,
-          ", setup temp memory = ", info.setup_temp_memory_required);
+    bool Init(Slice<float> samples, uint32_t channels) {
+      samples_ = samples;
+      channels_ = channels;
+      pos_ = 0;
       return true;
     }
 
-    size_t Load(float* output, size_t samples_per_channel, size_t channels) {
-      DCHECK(channels == 2, "Expected 2 channels got ", channels);
-      return stb_vorbis_get_samples_float_interleaved(
-          vorbis_, channels, output, samples_per_channel * channels);
-    }
+    size_t Load(float* output, size_t samples_per_channel, size_t channels);
 
     bool Rewind() {
-      stb_vorbis_seek(vorbis_, 0);
+      pos_ = 0;
       return true;
     }
 
-    bool Deinit() {
-      stb_vorbis_close(vorbis_);
-      return true;
-    }
+    bool Deinit() { return true; }
 
    private:
-    inline static constexpr size_t kDecoderMemorySize = Kilobytes(256);
-
-    char vorbis_memory_[kDecoderMemorySize];
-    stb_vorbis_alloc vorbis_alloc_;
-    stb_vorbis* vorbis_;
+    Slice<float> samples_;
+    uint32_t channels_ = 0;
+    size_t pos_ = 0;
   };
 
   class Stream {
@@ -178,7 +127,6 @@ class Sound {
       size_t (*load)(float*, size_t, size_t, void*);
       void (*rewind)(void*);
       void (*deinit)(void*);
-      bool (*reload)(void*);
       void* ud;
 
       size_t Load(float* a, size_t b, size_t c) { return load(a, b, c, ud); }
@@ -186,8 +134,6 @@ class Sound {
       void Rewind() { rewind(ud); }
 
       void Deinit() { deinit(ud); }
-
-      bool Reload(const DbAssets::Sound* sound) { return reload(ud); }
     };
 
     template <typename T>
@@ -212,10 +158,6 @@ class Sound {
       static void Rewind(void* ud) { reinterpret_cast<T*>(ud)->Rewind(); }
 
       static void Deinit(void* ud) { reinterpret_cast<T*>(ud)->Deinit(); }
-
-      static bool Reload(const DbAssets::Sound* sound, void* ud) {
-        return reinterpret_cast<T*>(ud)->Reload(sound);
-      }
     };
 
     template <typename T>
@@ -225,68 +167,97 @@ class Sound {
       gain_ = 1.0;
       pos_ = 0;
       playing_ = false;
+      source_channels_ = sound->channels;
+      loop_head_ready_ = false;
     }
 
-    size_t Load(float* output, size_t samples_per_channel, size_t channels) {
-      if (!playing_) return 0;
-
-      size_t samples = samples_per_channel * channels;
-
-      size_t read = 0;
-
-      for (; read < samples;) {
-        if (pos_ >= kBufferSizeInSamples) {
-          const size_t samples_read =
-              cb_.Load(samples_, kBufferSizeInSamples / channels, channels);
-          // EOF.
-          if (samples_read == 0) {
-            Stop();
-            return read;
-          }
-          pos_ = 0;
-        }
-        size_t to_copy = std::min(samples - read, kBufferSizeInSamples - pos_);
-        while (to_copy-- > 0) {
-          output[read++] = gain_ * samples_[pos_++];
-        }
-      }
-      return read;
-    }
+    size_t Load(float* output, size_t samples_per_channel, size_t channels);
 
     void Start() {
       playing_ = true;
       pos_ = 0;
+      buf_len_ = 0;
+      fractional_pos_ = 0.0f;
     }
 
     void Stop() {
       playing_ = false;
       cb_.Rewind();
+      pos_ = 0;
+      buf_len_ = 0;
+      fractional_pos_ = 0.0f;
     }
 
     void Pause() { playing_ = false; }
-
+    void Resume() { playing_ = true; }
     bool IsPlaying() const { return playing_; }
 
-    bool OnReload(const DbAssets::Sound* sound) {
-      if (StringIntern(sound->name) != handle_) return true;
-      return cb_.Reload(sound);
-    }
+    bool OnReload(const DbAssets::Sound* sound);
 
     void Gain(float f) { gain_ = f; }
+    void SetLoop(bool loop);
+    void SetPitch(float pitch) { pitch_ = std::clamp(pitch, 0.25f, 4.0f); }
+    void SetPan(float pan);
 
     void SetOwnership(Ownership ownership) { ownership_ = ownership; }
     bool IsManaged() const { return ownership_ == Ownership::kManaged; }
 
    private:
-    const size_t kBufferSizeInSamples = sizeof(samples_) / sizeof(samples_[0]);
+    void WriteStereoOutput(float* output, size_t& written, float s_left,
+                           float s_right) {
+      output[written++] = gain_ * left_gain_ * s_left;
+      output[written++] = gain_ * right_gain_ * s_right;
+    }
+
+    void CopyDirect(float* output, size_t& written, size_t total_output);
+    void CopyPitched(float* output, size_t& written, size_t total_output);
+    void PrepareLoopHead();
+    void HandleLoopCrossfade(float* output, size_t written,
+                             size_t total_output);
+
+    static constexpr size_t kBufferSizeInSamples = 2048;
+    // ~20ms at 44100 Hz, for crossfade looping.
+    static constexpr size_t kCrossfadeSamples = 882;
 
     uint32_t handle_;
     Callbacks cb_;
     bool playing_ = false;
     Ownership ownership_ = Ownership::kManaged;
-    float gain_ = 1.0;
-    float samples_[2048];
-    size_t pos_;
+    float gain_ = 1.0f;
+    float samples_[kBufferSizeInSamples];
+    size_t pos_ = 0;
+    size_t buf_len_ = 0;
+
+    // Looping.
+    bool loop_ = false;
+    float loop_head_[kCrossfadeSamples * 2];  // Stereo max.
+    size_t loop_head_len_ = 0;
+    bool loop_head_ready_ = false;
+
+    // Pitch.
+    float pitch_ = 1.0f;
+    float fractional_pos_ = 0.0f;
+
+    // Panning.
+    float pan_ = 0.0f;
+    float left_gain_ = 1.0f;
+    float right_gain_ = 1.0f;
+
+    // Source info.
+    uint32_t source_channels_ = 2;
+  };
+
+  // Find or allocate a stream slot.
+  size_t FindStreamSlot();
+
+  // Cached decoded PCM data for effects (pre-converted to float), keyed by
+  // asset name.
+  struct DecodedEffect {
+    FixedArray<float> pcm;
+    uint32_t channels;
+
+    DecodedEffect(FixedArray<float>&& p, uint32_t c)
+        : pcm(std::move(p)), channels(c) {}
   };
 
   FixedArray<float> buffer_;
@@ -295,10 +266,11 @@ class Sound {
   static constexpr size_t kMaxStreams = 128;
   Stream streams_[kMaxStreams];
   size_t stream_ = 0;
-  FixedArray<VorbisSampler*> vorbis_;
-  FixedArray<WavSampler*> wavs_;
-  FreeList<VorbisSampler> vorbis_alloc_;
-  FreeList<WavSampler> wavs_alloc_;
+  FixedArray<QoaSampler*> qoa_samplers_;
+  FixedArray<PcmSampler*> pcm_samplers_;
+  FreeList<QoaSampler> qoa_alloc_;
+  FreeList<PcmSampler> pcm_alloc_;
+  Dictionary<DecodedEffect*> effect_cache_;
   float global_gain_ = 1.0;
 };
 

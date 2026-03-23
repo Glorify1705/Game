@@ -103,6 +103,7 @@ set(ENGINE_SRCS
     "src/lua_system.cc"
     "src/lua_math.cc"
     "src/physics.cc"
+    "src/qoa.cc"
     "src/renderer.cc"
     "src/shaders.cc"
     "src/sound.cc"

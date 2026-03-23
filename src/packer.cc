@@ -4,11 +4,14 @@
 #include "defer.h"
 #include "filesystem.h"
 #include "image.h"
+#include "libraries/dr_wav.h"
 #include "libraries/json.h"
 #include "libraries/pugixml.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
+#include "libraries/stb_vorbis.h"
 #include "physfs.h"
+#include "qoa.h"
 #include "schema.sql.h"
 #include "src/allocators.h"
 #include "src/stringlib.h"
@@ -120,9 +123,88 @@ class DbPacker {
     return AssetInfo{.size = static_cast<size_t>(out_len)};
   }
 
-  AssetInfo InsertAudio(std::string_view filename, const uint8_t* buf,
-                        size_t size) {
-    return InsertIntoTable("audios", filename, buf, size);
+  AssetInfo InsertQoa(std::string_view filename, const uint8_t* buf,
+                      size_t size) {
+    QoaDesc desc;
+    ByteSlice data(buf, size);
+    FixedArray<int16_t> decoded = QoaDecode(data, &desc, allocator_);
+    if (decoded.size() == 0) {
+      DIE("Failed to decode QOA file ", filename);
+    }
+    return InsertAudioBlob(filename, buf, size, desc);
+  }
+
+  // TODO: Use Slice instead of buf + size in the packer.
+  AssetInfo InsertWav(std::string_view filename, const uint8_t* buf,
+                      size_t size) {
+    drwav wav;
+    if (!drwav_init_memory(&wav, buf, size, /*pAllocationCallbacks=*/nullptr)) {
+      DIE("Failed to decode WAV file ", filename);
+    }
+    DEFER([&] { drwav_uninit(&wav); });
+
+    size_t total_frames = wav.totalPCMFrameCount;
+    size_t channels = wav.channels;
+    size_t total_samples = total_frames * channels;
+
+    auto* pcm = static_cast<int16_t*>(
+        scratch_.Alloc(total_samples * sizeof(int16_t), alignof(int16_t)));
+    drwav_read_pcm_frames_s16(&wav, total_frames, pcm);
+
+    QoaDesc desc;
+    desc.channels = channels;
+    desc.samplerate = wav.sampleRate;
+    desc.samples = total_frames;
+
+    Slice<int16_t> samples(pcm, total_samples);
+    FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator_);
+    DCHECK(encoded.size() > 0, "Failed to encode ", filename, " to QOA");
+
+    return InsertAudioBlob(filename, encoded.cdata(), encoded.size(), desc);
+  }
+
+  AssetInfo InsertOgg(std::string_view filename, const uint8_t* buf,
+                      size_t size) {
+    int channels = 0, samplerate = 0;
+    int16_t* pcm = nullptr;
+    int total_frames =
+        stb_vorbis_decode_memory(buf, size, &channels, &samplerate, &pcm);
+    if (total_frames < 0 || pcm == nullptr) {
+      DIE("Failed to decode OGG file ", filename);
+    }
+    DEFER([&] { free(pcm); });
+
+    QoaDesc desc;
+    desc.channels = channels;
+    desc.samplerate = samplerate;
+    desc.samples = total_frames;
+
+    size_t total_samples = static_cast<size_t>(total_frames) * channels;
+    Slice<int16_t> samples(pcm, total_samples);
+    FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator_);
+    DCHECK(encoded.size() > 0, "Failed to encode ", filename, " to QOA");
+
+    return InsertAudioBlob(filename, encoded.cdata(), encoded.size(), desc);
+  }
+
+  AssetInfo InsertAudioBlob(std::string_view filename, const uint8_t* buf,
+                            size_t size, const QoaDesc& desc) {
+    sqlite3_stmt* stmt;
+    FixedStringBuffer<256> sql(R"(
+          INSERT OR REPLACE INTO audios (name, channels, samplerate, samples, contents)
+          VALUES (?, ?, ?, ?, ?);
+      )");
+    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
+          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
+    DEFER([&] { sqlite3_finalize(stmt); });
+    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, desc.channels);
+    sqlite3_bind_int(stmt, 3, desc.samplerate);
+    sqlite3_bind_int(stmt, 4, desc.samples);
+    sqlite3_bind_blob(stmt, 5, buf, size, SQLITE_STATIC);
+    CHECK(sqlite3_step(stmt) == SQLITE_DONE, "Could not insert data ",
+          sqlite3_errmsg(db_));
+    return AssetInfo{.size = size};
   }
 
   AssetInfo InsertTextFile(std::string_view filename, const uint8_t* buf,
@@ -358,9 +440,10 @@ class DbPacker {
         {".png", &DbPacker::InsertPng, "image"},
         {".sprites.json", &DbPacker::InsertSpritesheetJson, "spritesheet"},
         {".sprites.xml", &DbPacker::InsertSpritesheetXml, "spritesheet"},
-        {".ogg", &DbPacker::InsertAudio, "audio"},
+        {".qoa", &DbPacker::InsertQoa, "audio"},
+        {".ogg", &DbPacker::InsertOgg, "audio"},
         {".ttf", &DbPacker::InsertFont, "font"},
-        {".wav", &DbPacker::InsertAudio, "audio"},
+        {".wav", &DbPacker::InsertWav, "audio"},
         {".vert", &DbPacker::InsertShader, "shader"},
         {".frag", &DbPacker::InsertShader, "shader"},
         {".json", &DbPacker::InsertTextFile, "text"},
