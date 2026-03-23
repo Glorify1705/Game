@@ -476,9 +476,15 @@ The distinction: **`ErrorOr<T>` is for operations that can legitimately fail at 
 
 - **Error context**: Should `Error` carry more than a string literal? SerenityOS's `Error` is minimal (errno or string). For debugging, we could add file/line info to `Error`, but this increases its size. Alternative: log context before returning the error, keep `Error` small.
 
+	%% Adding file line seems fine, its a const string and a small number, we could probably pack them as an uin32_t offset in the binary and uin32_t line, right? %%
+
 - **Error type customization**: `ErrorOr<T, E>` is templated on the error type. Should we ever use a custom error type (e.g., `ErrorOr<Texture*, ParseError>` with structured error info)? Or is `Error` always sufficient?
 
+	%% ErrorOr sounds good. %%
+
 - **Naming**: `TRY` vs `TRY_UNWRAP` vs `UNWRAP_OR_RETURN`? `MUST` vs `UNWRAP_OR_DIE`? SerenityOS's names are clean and short. Zig uses `try` and `catch unreachable`. The shorter names are better for readability in practice.
+
+%% TRY and MUST sound good. %%
 
 - **Interaction with Lua boundary**: Functions called from Lua (`lua_*.cc`) currently push error strings to the Lua stack and return error codes. `ErrorOr<T>` doesn't change this — the Lua boundary functions would `TRY` internally and convert errors to Lua errors at the boundary. But the pattern should be documented.
 
