@@ -25,11 +25,12 @@ enum BlendMode : uint8_t {
   BLEND_PREMULTIPLIED,  // GL_ONE, GL_ONE_MINUS_SRC_ALPHA (internal)
 };
 
+// Off-screen render target backed by an OpenGL framebuffer object.
 struct Canvas {
-  GLuint fbo;
-  GLuint texture;
-  size_t texture_unit;
-  int width, height;
+  GLuint fbo;           // Framebuffer object for off-screen rendering.
+  GLuint texture;       // Color texture attached to the FBO.
+  size_t texture_unit;  // Texture unit index used when sampling this canvas.
+  int width, height;    // Dimensions of the canvas in pixels.
 };
 
 class BatchRenderer {
