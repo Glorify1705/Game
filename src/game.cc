@@ -212,9 +212,12 @@ struct EngineModules {
         continue;
       }
       hotload_allocator_.Reset();
-      const auto result =
-          WriteAssetsToDb(source_directory, db, &hotload_allocator_);
-      SDL_AtomicSet(&pending_changes_, result.written_files);
+      auto result = WriteAssetsToDb(source_directory, db, &hotload_allocator_);
+      if (result.is_error()) {
+        LOG("Hotload failed: ", result.error().message());
+        continue;
+      }
+      SDL_AtomicSet(&pending_changes_, result.release_value().written_files);
       SDL_Delay(10);
     }
   }
@@ -448,7 +451,7 @@ class Game {
     {
       TIMER("Getting assets");
       if (opts.source_directory != nullptr) {
-        WriteAssetsToDb(opts.source_directory, db_, allocator_);
+        MUST(WriteAssetsToDb(opts.source_directory, db_, allocator_));
       }
       db_assets_ = allocator_->New<DbAssets>(db_, allocator_);
     }

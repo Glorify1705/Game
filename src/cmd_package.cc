@@ -85,7 +85,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
 
   ArenaAllocator packer_arena(allocator, Megabytes(64));
   LOG("Packing assets from ", source_directory);
-  WriteAssetsToDb(source_directory, db, &packer_arena);
+  MUST(WriteAssetsToDb(source_directory, db, &packer_arena));
   sqlite3_close(db);
 
   // Copy the engine binary.
