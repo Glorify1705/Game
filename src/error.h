@@ -18,6 +18,8 @@ namespace G {
 // via __builtin_FILE()/__builtin_LINE() default arguments.
 class [[nodiscard]] Error {
  public:
+  constexpr Error() = default;
+
   constexpr static Error Errno(int code, const char* file = __builtin_FILE(),
                                uint32_t line = __builtin_LINE()) {
     DCHECK(code != 0);
@@ -41,15 +43,14 @@ class [[nodiscard]] Error {
 
   constexpr int code() const { return code_; }
   constexpr bool is_errno() const { return code_ != 0; }
+  constexpr bool ok() const { return code_ == 0 && message_.empty(); }
   constexpr std::string_view message() const { return message_; }
-  constexpr const char* file() const { return file_; }
+  constexpr std::string_view file() const { return file_; }
   constexpr uint32_t line() const { return line_; }
 
  private:
-  constexpr Error() = default;
-
   std::string_view message_;
-  const char* file_ = "";
+  std::string_view file_;
   int code_ = 0;
   uint32_t line_ = 0;
 };
@@ -128,50 +129,39 @@ class [[nodiscard]] ErrorOr {
 };
 
 // Specialization for void — functions that succeed or fail with no return
-// value. Returned as `return {};` on success.
-template <typename E>
-class [[nodiscard]] ErrorOr<void, E> {
+// value. Success is a default-constructed Error (ok() == true).
+// Returned as `return {};` on success.
+template <>
+class [[nodiscard]] ErrorOr<void, Error> {
  public:
   using ValueType = void;
-  using ErrorType = E;
+  using ErrorType = Error;
 
-  constexpr ErrorOr() : is_error_(false) {}
-  constexpr ErrorOr(E&& error) : error_(std::move(error)), is_error_(true) {}
-  constexpr ErrorOr(const E& error) : error_(error), is_error_(true) {}
+  constexpr ErrorOr() = default;
+  constexpr ErrorOr(Error error) : error_(error) {}
 
-  constexpr ErrorOr(ErrorOr&& other) : is_error_(other.is_error_) {
-    if (is_error_) {
-      ::new (&error_) E(std::move(other.error_));
-    }
-  }
+  constexpr ErrorOr(ErrorOr&&) = default;
   ErrorOr(const ErrorOr&) = delete;
   ErrorOr& operator=(const ErrorOr&) = delete;
   ErrorOr& operator=(ErrorOr&&) = delete;
 
-  constexpr bool is_error() const { return is_error_; }
+  constexpr bool is_error() const { return !error_.ok(); }
 
-  constexpr E& error() {
-    DCHECK(is_error_);
+  constexpr Error& error() {
+    DCHECK(is_error());
     return error_;
   }
 
-  constexpr const E& error() const {
-    DCHECK(is_error_);
+  constexpr const Error& error() const {
+    DCHECK(is_error());
     return error_;
   }
 
-  constexpr E release_error() { return std::move(error()); }
+  constexpr Error release_error() { return error(); }
   constexpr void release_value() {}
 
-  ~ErrorOr() {
-    if (is_error_) error_.~E();
-  }
-
  private:
-  union {
-    E error_;
-  };
-  bool is_error_;
+  Error error_;
 };
 
 // TRY evaluates an ErrorOr<T> expression. If it holds an error, returns
