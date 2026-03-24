@@ -104,7 +104,10 @@ static const LuaApiFunction kGraphicsLib[] = {
        float angle = 0;
        if (parameters == 4) angle = luaL_checknumber(state, 4);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->DrawSprite(sprite_name, FVec(x, y), angle);
+       auto result = renderer->DrawSprite(sprite_name, FVec(x, y), angle);
+       if (result.is_error()) {
+         LUA_ERROR(state, result.error().message());
+       }
        return 0;
      }},
     {"draw_image",
@@ -128,7 +131,10 @@ static const LuaApiFunction kGraphicsLib[] = {
        float angle = 0;
        if (parameters == 4) angle = luaL_checknumber(state, 4);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->DrawImage(image_name, FVec(x, y), angle);
+       auto result = renderer->DrawImage(image_name, FVec(x, y), angle);
+       if (result.is_error()) {
+         LUA_ERROR(state, result.error().message());
+       }
        return 0;
      }},
     {"draw_rect",

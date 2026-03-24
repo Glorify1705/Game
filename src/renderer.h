@@ -276,11 +276,15 @@ class Renderer {
   void LoadSpritesheet(const DbAssets::Spritesheet& sprite);
   void LoadFont(const DbAssets::Font& font);
 
-  bool DrawSprite(std::string_view sprite_name, FVec2 position, float angle);
-  bool DrawSprite(const DbAssets::Sprite& asset, FVec2 position, float angle);
+  ErrorOr<void> DrawSprite(std::string_view sprite_name, FVec2 position,
+                           float angle);
+  ErrorOr<void> DrawSprite(const DbAssets::Sprite& asset, FVec2 position,
+                           float angle);
 
-  bool DrawImage(std::string_view imagename, FVec2 position, float angle);
-  bool DrawImage(const DbAssets::Image& asset, FVec2 position, float angle);
+  ErrorOr<void> DrawImage(std::string_view imagename, FVec2 position,
+                          float angle);
+  ErrorOr<void> DrawImage(const DbAssets::Image& asset, FVec2 position,
+                          float angle);
 
   DbAssets::Sprite* GetSprite(std::string_view name) const {
     DbAssets::Sprite* result = nullptr;
@@ -375,8 +379,8 @@ class Renderer {
                                       const stbrp_rect* rects, int atlas_dim,
                                       ArenaAllocator* scratch);
 
-  bool LoadSDFFromCache(sqlite3* db, std::string_view font_name,
-                        uint64_t font_hash, FontInfo* font);
+  ErrorOr<FontInfo> LoadSDFFromCache(sqlite3* db, std::string_view font_name,
+                                     uint64_t font_hash);
 
   static void SaveSDFToCache(sqlite3* db, std::string_view font_name,
                              uint64_t font_hash, const FontInfo& font,
