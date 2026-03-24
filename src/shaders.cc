@@ -151,12 +151,6 @@ constexpr std::string_view kFragmentShaderPostamble = R"(
   }
 )";
 
-struct Error {
-  std::string_view file;
-  int line;
-  std::string_view error_msg;
-};
-
 int GetLineNumber(std::string_view err) {
   auto beg = err.find('(');
   auto end = err.find(')');
@@ -176,26 +170,19 @@ Shaders::Shaders(Allocator* allocator)
       gl_shader_handles_(128, allocator),
       gl_program_handles_(128, allocator) {
   // Ensure we have the basic shaders available.
-  CHECK(Compile(DbAssets::ShaderType::kVertex, "pre_pass.vert",
-                kPrePassVertexShader, kUseCache),
-        LastError());
-  CHECK(Compile(DbAssets::ShaderType::kFragment, "pre_pass.frag",
-                kPrePassFragmentShader, kUseCache),
-        LastError());
-  CHECK(Link("pre_pass", "pre_pass.vert", "pre_pass.frag", kUseCache),
-        LastError());
-  CHECK(Compile(DbAssets::ShaderType::kFragment, "sdf.frag", kSDFFragmentShader,
-                kUseCache),
-        LastError());
-  CHECK(Link("sdf", "pre_pass.vert", "sdf.frag", kUseCache), LastError());
-  CHECK(Compile(DbAssets::ShaderType::kVertex, "post_pass.vert",
-                kPostPassVertexShader, kUseCache),
-        LastError());
-  CHECK(Compile(DbAssets::ShaderType::kFragment, "post_pass.frag",
-                kPostPassFragmentShader, kUseCache),
-        LastError());
-  CHECK(Link("post_pass", "post_pass.vert", "post_pass.frag", kUseCache),
-        LastError());
+  MUST(Compile(DbAssets::ShaderType::kVertex, "pre_pass.vert",
+               kPrePassVertexShader, kUseCache));
+  MUST(Compile(DbAssets::ShaderType::kFragment, "pre_pass.frag",
+               kPrePassFragmentShader, kUseCache));
+  MUST(Link("pre_pass", "pre_pass.vert", "pre_pass.frag", kUseCache));
+  MUST(Compile(DbAssets::ShaderType::kFragment, "sdf.frag", kSDFFragmentShader,
+               kUseCache));
+  MUST(Link("sdf", "pre_pass.vert", "sdf.frag", kUseCache));
+  MUST(Compile(DbAssets::ShaderType::kVertex, "post_pass.vert",
+               kPostPassVertexShader, kUseCache));
+  MUST(Compile(DbAssets::ShaderType::kFragment, "post_pass.frag",
+               kPostPassFragmentShader, kUseCache));
+  MUST(Link("post_pass", "post_pass.vert", "post_pass.frag", kUseCache));
 }
 
 Shaders::~Shaders() {
@@ -207,13 +194,13 @@ Shaders::~Shaders() {
   }
 }
 
-bool Shaders::Compile(DbAssets::ShaderType type, std::string_view name,
-                      std::string_view glsl, UseCache use_cache) {
+ErrorOr<void> Shaders::Compile(DbAssets::ShaderType type, std::string_view name,
+                               std::string_view glsl, UseCache use_cache) {
   GLuint shader_idx;
   if (compiled_shaders_.Lookup(name, &shader_idx)) {
     if (use_cache == UseCache::kUseCache) {
       LOG("Ignoring already processed shader ", name);
-      return true;
+      return {};
     } else {
       glDeleteShader(shader_idx);
     }
@@ -233,17 +220,19 @@ bool Shaders::Compile(DbAssets::ShaderType type, std::string_view name,
   if (!success) {
     char info_log[512] = {0};
     glGetShaderInfoLog(shader, sizeof(info_log), nullptr, info_log);
-    return FillError(name, GetLineNumber(info_log), info_log);
+    LOG("Shader compilation failed for ", name, " at line ",
+        GetLineNumber(info_log), ": ", info_log);
+    return Error::Message("Shader compilation failed");
   }
   LOG("Compiled ",
       (type == DbAssets::ShaderType::kVertex ? "vertex" : "fragment"),
       " shader ", name, " with id ", shader);
   gl_shader_handles_.Push(shader);
   compiled_shaders_.Insert(name, shader);
-  return true;
+  return {};
 }
 
-bool Shaders::Load(const DbAssets::Shader& shader, Error* error) {
+ErrorOr<void> Shaders::Load(const DbAssets::Shader& shader) {
   ArenaAllocator scratch(allocator_, Kilobytes(64));
   const size_t total_size = kFragmentShaderPreamble.size() + shader.size +
                             kFragmentShaderPostamble.size() + 1;
@@ -252,26 +241,22 @@ bool Shaders::Load(const DbAssets::Shader& shader, Error* error) {
   code.Append(kFragmentShaderPreamble);
   code.AppendBuffer(shader.contents, shader.size);
   code.Append(kFragmentShaderPostamble);
-  if (!Compile(shader.type, shader.name, code.piece(), kForceCompile)) {
-    *error = last_error_;
-    return false;
-  }
+  TRY(Compile(shader.type, shader.name, code.piece(), kForceCompile));
   std::string_view program_name = shader.name;
   CHECK(ConsumeSuffix(&program_name, ".frag"),
         " cannot hot reload vertex shaders yet.");
-  if (!Link(program_name, "pre_pass.vert", shader.name, kForceCompile)) {
-    *error = last_error_;
-    return false;
-  }
-  return true;
+  TRY(Link(program_name, "pre_pass.vert", shader.name, kForceCompile));
+  return {};
 }
 
-bool Shaders::Link(std::string_view name, std::string_view vertex_shader,
-                   std::string_view fragment_shader, UseCache use_cache) {
+ErrorOr<void> Shaders::Link(std::string_view name,
+                            std::string_view vertex_shader,
+                            std::string_view fragment_shader,
+                            UseCache use_cache) {
   GLuint program_id;
   if (compiled_programs_.Lookup(name, &program_id)) {
     if (use_cache == UseCache::kUseCache) {
-      return true;
+      return {};
     } else {
       glDeleteProgram(program_id);
     }
@@ -279,12 +264,12 @@ bool Shaders::Link(std::string_view name, std::string_view vertex_shader,
   GLuint shader_program = glCreateProgram();
   GLuint vertex, fragment;
   if (!compiled_shaders_.Lookup(vertex_shader, &vertex)) {
-    return FillError(__FILE__, __LINE__, "Could not find vertex shader ",
-                     vertex_shader);
+    LOG("Could not find vertex shader ", vertex_shader);
+    return Error::Message("Could not find vertex shader");
   }
   if (!compiled_shaders_.Lookup(fragment_shader, &fragment)) {
-    return FillError(__FILE__, __LINE__, "Could not find fragment shader ",
-                     fragment_shader);
+    LOG("Could not find fragment shader ", fragment_shader);
+    return Error::Message("Could not find fragment shader");
   }
   CHECK(shader_program != 0, "Could not link shaders into ", name);
   OPENGL_CALL(glAttachShader(shader_program, vertex));
@@ -296,15 +281,15 @@ bool Shaders::Link(std::string_view name, std::string_view vertex_shader,
   if (!success) {
     char info_log[512] = {0};
     glGetProgramInfoLog(shader_program, sizeof(info_log), nullptr, info_log);
-    return FillError(__FILE__, __LINE__, "Could not link shaders into ", name,
-                     ": ", info_log);
+    LOG("Could not link shaders into ", name, ": ", info_log);
+    return Error::Message("Shader linking failed");
   }
   LOG("Linked program ", name, " with id ", shader_program,
       " from vertex shader ", vertex, " (", vertex_shader,
       ") and fragment shader ", fragment, " (", fragment_shader, ")");
   gl_program_handles_.Push(shader_program);
   compiled_programs_.Insert(name, shader_program);
-  return true;
+  return {};
 }
 
 void Shaders::UseProgram(std::string_view program) {

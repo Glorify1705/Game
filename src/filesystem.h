@@ -10,6 +10,7 @@
 #include "config.h"
 #include "constants.h"
 #include "dictionary.h"
+#include "error.h"
 #include "physfs.h"
 
 namespace G {
@@ -29,11 +30,11 @@ class Filesystem {
 
   void Initialize(const GameConfig& config);
 
-  bool WriteToFile(std::string_view filename, std::string_view contents,
-                   StringBuffer* err);
+  ErrorOr<void> WriteToFile(std::string_view filename,
+                            std::string_view contents);
 
-  bool ReadFile(std::string_view filename, uint8_t* buffer, size_t size,
-                StringBuffer* err);
+  ErrorOr<void> ReadFile(std::string_view filename, uint8_t* buffer,
+                         size_t size);
 
   struct StatInfo {
     size_t size;
@@ -44,9 +45,9 @@ class Filesystem {
     int64_t access_time_secs;
   };
 
-  bool Size(std::string_view filename, size_t* result, StringBuffer* err);
+  ErrorOr<size_t> Size(std::string_view filename);
 
-  bool Stat(std::string_view filename, StatInfo* info, StringBuffer* err);
+  ErrorOr<StatInfo> Stat(std::string_view filename);
 
   bool Exists(std::string_view filename);
 

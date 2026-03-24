@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <cerrno>
+
 #include "clock.h"
 #include "defer.h"
 #include "libraries/json.h"
@@ -77,10 +79,10 @@ void LoadConfigFromDatabase(sqlite3* db, GameConfig* config,
   LoadConfig(contents, config, allocator);
 }
 
-bool LoadConfigFromFile(const char* path, GameConfig* config,
-                        Allocator* allocator) {
+ErrorOr<void> LoadConfigFromFile(const char* path, GameConfig* config,
+                                 Allocator* allocator) {
   FILE* f = fopen(path, "rb");
-  if (f == nullptr) return false;
+  if (f == nullptr) return Error::Errno(errno);
   fseek(f, 0, SEEK_END);
   long size = ftell(f);
   fseek(f, 0, SEEK_SET);
@@ -91,7 +93,7 @@ bool LoadConfigFromFile(const char* path, GameConfig* config,
   fclose(f);
   LoadConfig(std::string_view(contents, size), config, allocator);
   allocator->Dealloc(contents, size + 1);
-  return true;
+  return {};
 }
 
 }  // namespace G

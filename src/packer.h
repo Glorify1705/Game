@@ -6,18 +6,20 @@
 
 #include "allocators.h"
 #include "assets.h"
+#include "error.h"
 #include "libraries/sqlite3.h"
 
 namespace G {
 
-DbAssets* ReadAssetsFromDb(sqlite3* db, Allocator* allocator);
+ErrorOr<DbAssets*> ReadAssetsFromDb(sqlite3* db, Allocator* allocator,
+                                    Allocator* asset_allocator);
 
 struct AssetWriteResult {
   size_t written_files = 0;
 };
 
-AssetWriteResult WriteAssetsToDb(const char* source_directory, sqlite3* db,
-                                 Allocator* allocator);
+ErrorOr<AssetWriteResult> WriteAssetsToDb(const char* source_directory,
+                                          sqlite3* db, Allocator* allocator);
 
 void InitializeAssetDb(sqlite3* db);
 

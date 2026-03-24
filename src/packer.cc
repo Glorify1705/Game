@@ -547,22 +547,24 @@ class DbPacker {
 
 }  // namespace
 
-DbAssets* ReadAssetsFromDb(sqlite3* db, Allocator* allocator,
-                           Allocator* asset_allocator) {
+ErrorOr<DbAssets*> ReadAssetsFromDb(sqlite3* db, Allocator* allocator,
+                                    Allocator* asset_allocator) {
   auto* result = allocator->New<DbAssets>(db, asset_allocator);
   result->Load();
   return result;
 }
 
-AssetWriteResult WriteAssetsToDb(const char* source_directory, sqlite3* db,
-                                 Allocator* allocator) {
-  AssetWriteResult result;
-  PHYSFS_CHECK(PHYSFS_mount(source_directory, "/assets", 1),
-               " while trying to mount directory ", source_directory);
+ErrorOr<AssetWriteResult> WriteAssetsToDb(const char* source_directory,
+                                          sqlite3* db, Allocator* allocator) {
+  if (!PHYSFS_mount(source_directory, "/assets", 1)) {
+    LOG("Failed to mount directory ", source_directory, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    return Error::Message("failed to mount asset directory");
+  }
   sqlite3_exec(db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
   DbPacker packer(db, allocator);
   packer.LoadChecksums();
-  result = packer.HandleFiles();
+  auto result = packer.HandleFiles();
   sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
   return result;
 }

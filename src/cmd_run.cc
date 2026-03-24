@@ -3,6 +3,7 @@
 #include <string_view>
 
 #include "cli.h"
+#include "error.h"
 #include "game.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
@@ -73,7 +74,7 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
   char cache_dir[1024];
   ComputeCacheDir(source_directory, cache_dir, sizeof(cache_dir));
   LOG("Cache directory: ", cache_dir);
-  MakeDirs(cache_dir);
+  MUST(MakeDirs(cache_dir));
 
   FixedStringBuffer<1024> db_path(cache_dir, "/assets.sqlite3");
 
@@ -112,7 +113,7 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
 int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
   // Find the directory containing the binary.
   char exe_dir[1024];
-  if (!GetExeDir(exe_dir, sizeof(exe_dir))) {
+  if (GetExeDir(exe_dir, sizeof(exe_dir)).is_error()) {
     fprintf(stderr, "Error: could not determine binary location.\n");
     return 1;
   }
@@ -154,7 +155,7 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
 
 bool PackagedGameExists(const char* argv0) {
   char exe_dir[1024];
-  if (!GetExeDir(exe_dir, sizeof(exe_dir))) return false;
+  if (GetExeDir(exe_dir, sizeof(exe_dir)).is_error()) return false;
   FixedStringBuffer<1024> asset_path(exe_dir, "assets.sqlite3");
   return FileExists(asset_path.str());
 }

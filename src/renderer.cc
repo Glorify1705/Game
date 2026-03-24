@@ -540,7 +540,7 @@ void BatchRenderer::Render(Allocator* scratch) {
           reinterpret_cast<void*>(offsetof(VertexData, color))));
       OPENGL_CALL(glEnableVertexAttribArray(color_attribute));
     }
-    shaders_->SetUniform("global_color", color.ToFloat());
+    MUST(shaders_->SetUniform("global_color", color.ToFloat()));
   };
   set_program_state("pre_pass");
   // Render batches by finding changes to the OpenGL context.
@@ -559,10 +559,10 @@ void BatchRenderer::Render(Allocator* scratch) {
       if (indices_start == indices_end) return;
       glLineWidth(line_width);
       glActiveTexture(GL_TEXTURE0 + texture_unit);
-      shaders_->SetUniform("tex", texture_unit);
-      shaders_->SetUniform("projection",
-                           Ortho(0, current_viewport_w, 0, current_viewport_h));
-      shaders_->SetUniform("transform", transform);
+      MUST(shaders_->SetUniform("tex", texture_unit));
+      MUST(shaders_->SetUniform("projection",
+                                Ortho(0, current_viewport_w, 0, current_viewport_h)));
+      MUST(shaders_->SetUniform("transform", transform));
       OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
       OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex_[texture_unit]));
       const auto indices_start_ptr =
@@ -672,8 +672,8 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
   shaders_->UseProgram("post_pass");
   glActiveTexture(GL_TEXTURE1);
-  shaders_->SetUniform("screen_texture", 1);
-  shaders_->SetUniform("color", color.ToFloat());
+  MUST(shaders_->SetUniform("screen_texture", 1));
+  MUST(shaders_->SetUniform("color", color.ToFloat()));
   OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
@@ -788,20 +788,20 @@ void Renderer::LoadSpritesheet(const DbAssets::Spritesheet& spritesheet) {
                                     &loaded_spritesheets_.back());
 }
 
-bool Renderer::DrawSprite(std::string_view sprite_name, FVec2 position,
-                          float angle) {
+ErrorOr<void> Renderer::DrawSprite(std::string_view sprite_name, FVec2 position,
+                                   float angle) {
   DbAssets::Sprite* sprite = nullptr;
   if (!loaded_sprites_table_.Lookup(sprite_name, &sprite)) {
-    return false;
+    return Error::Message("sprite not found");
   }
   return DrawSprite(*sprite, position, angle);
 }
 
-bool Renderer::DrawSprite(const DbAssets::Sprite& sprite, FVec2 position,
-                          float angle) {
+ErrorOr<void> Renderer::DrawSprite(const DbAssets::Sprite& sprite,
+                                   FVec2 position, float angle) {
   DbAssets::Spritesheet* spritesheet;
   if (!loaded_spritesheets_table_.Lookup(sprite.spritesheet, &spritesheet)) {
-    return false;
+    return Error::Message("spritesheet not found");
   }
   uint32_t texture_index;
   CHECK(textures_table_.Lookup(spritesheet->name, &texture_index),
@@ -816,20 +816,20 @@ bool Renderer::DrawSprite(const DbAssets::Sprite& sprite, FVec2 position,
   const FVec2 q1(1.0f * (x + w) / spritesheet->width,
                  1.0f * (y + h) / spritesheet->height);
   renderer_->PushQuad(p0, p1, q0, q1, position, angle);
-  return true;
+  return {};
 }
 
-bool Renderer::DrawImage(std::string_view image_name, FVec2 position,
-                         float angle) {
+ErrorOr<void> Renderer::DrawImage(std::string_view image_name, FVec2 position,
+                                  float angle) {
   DbAssets::Image* image = nullptr;
   if (!loaded_images_table_.Lookup(image_name, &image)) {
-    return false;
+    return Error::Message("image not found");
   }
   return DrawImage(*image, position, angle);
 }
 
-bool Renderer::DrawImage(const DbAssets::Image& image, FVec2 position,
-                         float angle) {
+ErrorOr<void> Renderer::DrawImage(const DbAssets::Image& image, FVec2 position,
+                                  float angle) {
   uint32_t texture_index;
   CHECK(textures_table_.Lookup(image.name, &texture_index),
         "No spritesheet texture for image ", image.name);
@@ -840,7 +840,7 @@ bool Renderer::DrawImage(const DbAssets::Image& image, FVec2 position,
   const FVec2 q0(0, 0);
   const FVec2 q1(1.0, 1.0);
   renderer_->PushQuad(p0, p1, q0, q1, position, angle);
-  return true;
+  return {};
 }
 
 void Renderer::DrawRect(FVec2 top_left, FVec2 bottom_right, float angle) {
@@ -957,8 +957,8 @@ uint8_t* Renderer::BlitGlyphsIntoAtlas(FontInfo& font,
   return atlas;
 }
 
-bool Renderer::LoadSDFFromCache(sqlite3* db, std::string_view font_name,
-                                uint64_t font_hash, FontInfo* font) {
+ErrorOr<Renderer::FontInfo> Renderer::LoadSDFFromCache(
+    sqlite3* db, std::string_view font_name, uint64_t font_hash) {
   constexpr std::string_view sql = R"(
     SELECT atlas_width, atlas_height, glyph_metrics, atlas_bitmap
     FROM sdf_cache WHERE font_name = ? AND font_hash = ?)";
@@ -966,15 +966,18 @@ bool Renderer::LoadSDFFromCache(sqlite3* db, std::string_view font_name,
   if (sqlite3_prepare_v2(db, sql.data(), sql.size(), &stmt, nullptr) !=
       SQLITE_OK) {
     LOG("SDF cache query failed: ", sqlite3_errmsg(db));
-    return false;
+    return Error::Message("SDF cache query failed");
   }
   DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, font_name.data(), font_name.size(), SQLITE_STATIC);
   sqlite3_bind_int64(stmt, 2, static_cast<int64_t>(font_hash));
-  if (sqlite3_step(stmt) != SQLITE_ROW) return false;
+  if (sqlite3_step(stmt) != SQLITE_ROW) {
+    return Error::Message("SDF cache miss");
+  }
 
-  font->atlas_width = sqlite3_column_int(stmt, 0);
-  font->atlas_height = sqlite3_column_int(stmt, 1);
+  FontInfo font;
+  font.atlas_width = sqlite3_column_int(stmt, 0);
+  font.atlas_height = sqlite3_column_int(stmt, 1);
 
   const auto* metrics =
       static_cast<const uint8_t*>(sqlite3_column_blob(stmt, 2));
@@ -985,14 +988,14 @@ bool Renderer::LoadSDFFromCache(sqlite3* db, std::string_view font_name,
   if (metrics_size != expected_size) {
     LOG("SDF cache metrics size mismatch for ", font_name, ": got ",
         metrics_size, " expected ", expected_size);
-    return false;
+    return Error::Message("SDF cache metrics corrupted");
   }
   // Deserialize field-by-field via memcpy to avoid alignment issues with
   // the SQLite blob pointer on strict-alignment architectures.
   for (int i = 0; i < kNumChars; i++) {
     const uint8_t* src =
         metrics + static_cast<size_t>(i) * kGlyphFields * sizeof(float);
-    SDFGlyph& g = font->glyphs[kFirstChar + i];
+    SDFGlyph& g = font.glyphs[kFirstChar + i];
     std::memcpy(&g.s0, src, 4);
     std::memcpy(&g.t0, src + 4, 4);
     std::memcpy(&g.s1, src + 8, 4);
@@ -1006,14 +1009,14 @@ bool Renderer::LoadSDFFromCache(sqlite3* db, std::string_view font_name,
 
   const void* atlas_blob = sqlite3_column_blob(stmt, 3);
   const int atlas_size = sqlite3_column_bytes(stmt, 3);
-  const int expected_atlas = font->atlas_width * font->atlas_height;
+  const int expected_atlas = font.atlas_width * font.atlas_height;
   if (atlas_size != expected_atlas) {
     LOG("SDF cache atlas size mismatch for ", font_name);
-    return false;
+    return Error::Message("SDF cache atlas corrupted");
   }
-  font->texture = renderer_->LoadFontTexture(atlas_blob, font->atlas_width,
-                                             font->atlas_height);
-  return true;
+  font.texture = renderer_->LoadFontTexture(atlas_blob, font.atlas_width,
+                                            font.atlas_height);
+  return font;
 }
 
 void Renderer::SaveSDFToCache(sqlite3* db, std::string_view font_name,
@@ -1072,7 +1075,13 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
   const uint64_t font_hash =
       rapidhash(asset.contents, asset.size) ^ kSDFCacheVersion;
 
-  if (LoadSDFFromCache(db_, asset.name, font_hash, &font)) {
+  auto cache_result = LoadSDFFromCache(db_, asset.name, font_hash);
+  if (!cache_result.is_error()) {
+    FontInfo cached = cache_result.release_value();
+    font.atlas_width = cached.atlas_width;
+    font.atlas_height = cached.atlas_height;
+    std::memcpy(font.glyphs, cached.glyphs, sizeof(font.glyphs));
+    font.texture = cached.texture;
     LOG("SDF cache hit for ", asset.name);
   } else {
     ArenaAllocator scratch(allocator_, 2048 * 2048 + kNumChars * 64);
@@ -1099,16 +1108,13 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
 Color ParseColor(std::string_view color) {
   // TODO: Support ANSI escape codes properly.
   for (char c : color) {
-    Color result;
     if (c == '[') continue;
     if (c == ';') continue;
     if (c == '7') {
-      ColorFromTable("lightred", &result);
-      return result;
+      return MUST(ColorFromTable("lightred"));
     }
     if (c == '3') {
-      ColorFromTable("blueblue", &result);
-      return result;
+      return MUST(ColorFromTable("blueblue"));
     }
     if (c == '0') return Color::White();
   }

@@ -237,43 +237,43 @@ size_t Sound::FindStreamSlot() {
   return stream_;
 }
 
-bool Sound::AddSource(std::string_view name, Source* source,
-                      Ownership ownership) {
+ErrorOr<Sound::Source> Sound::AddSource(std::string_view name,
+                                        Ownership ownership) {
   DbAssets::Sound sound;
   if (!sounds_.Lookup(name, &sound)) {
     LOG("Unknown sound ", name);
-    return false;
+    return Error::Message("unknown sound name");
   }
   LockMutex l(mu_);
   size_t slot = FindStreamSlot();
   if (slot >= kMaxStreams) {
     LOG("Maximum number of streams exceeded");
-    return false;
+    return Error::Message("maximum number of streams exceeded");
   }
 
   auto* sampler = qoa_alloc_.Alloc();
   if (!sampler->Init(&sound)) {
-    return false;
+    return Error::Message("qoa init failed");
   }
   streams_[slot].InitFromStream(&sound, sampler);
   streams_[slot].SetOwnership(ownership);
-  *source = slot;
+  Source source = slot;
   if (slot == stream_) stream_++;
-  return true;
+  return source;
 }
 
-bool Sound::AddEffect(std::string_view name, Source* source,
-                      Ownership ownership) {
+ErrorOr<Sound::Source> Sound::AddEffect(std::string_view name,
+                                        Ownership ownership) {
   LockMutex l(mu_);
   DbAssets::Sound sound;
   if (!sounds_.Lookup(name, &sound)) {
     LOG("Unknown sound ", name);
-    return false;
+    return Error::Message("unknown sound name");
   }
   size_t slot = FindStreamSlot();
   if (slot >= kMaxStreams) {
     LOG("Maximum number of streams exceeded");
-    return false;
+    return Error::Message("maximum number of streams exceeded");
   }
 
   // Check if we already have this effect decoded.
@@ -286,7 +286,7 @@ bool Sound::AddEffect(std::string_view name, Source* source,
     FixedArray<int16_t> pcm = QoaDecode(data, &desc, qoa_alloc_.allocator());
     if (pcm.empty()) {
       LOG("Failed to decode QOA for effect ", name);
-      return false;
+      return Error::Message("qoa decode failed");
     }
     FixedArray<float> floats(pcm.size(), qoa_alloc_.allocator());
     floats.Resize(pcm.size());
@@ -303,30 +303,39 @@ bool Sound::AddEffect(std::string_view name, Source* source,
   sampler->Init(samples, cached->channels);
   streams_[slot].InitFromStream(&sound, sampler);
   streams_[slot].SetOwnership(ownership);
-  *source = slot;
+  Source source = slot;
   if (slot == stream_) stream_++;
-  return true;
+  return source;
 }
 
-bool Sound::SetSourceGain(Source source, float gain) {
+ErrorOr<void> Sound::SetSourceGain(Source source, float gain) {
   LockMutex l(mu_);
-  if (source >= stream_) return false;
+  if (source >= stream_) {
+    LOG("Invalid source ", source);
+    return Error::Message("invalid source");
+  }
   streams_[source].Gain(gain);
-  return true;
+  return {};
 }
 
-bool Sound::StartChannel(Source source) {
+ErrorOr<void> Sound::StartChannel(Source source) {
   LockMutex l(mu_);
-  if (source >= stream_) return false;
+  if (source >= stream_) {
+    LOG("Invalid source ", source);
+    return Error::Message("invalid source");
+  }
   streams_[source].Start();
-  return true;
+  return {};
 }
 
-bool Sound::Stop(Source source) {
+ErrorOr<void> Sound::Stop(Source source) {
   LockMutex l(mu_);
-  if (source >= stream_) return false;
+  if (source >= stream_) {
+    LOG("Invalid source ", source);
+    return Error::Message("invalid source");
+  }
   streams_[source].Stop();
-  return true;
+  return {};
 }
 
 bool Sound::Pause(Source source) {

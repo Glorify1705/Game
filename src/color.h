@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string_view>
 
+#include "error.h"
 #include "vec.h"
 
 namespace G {
@@ -22,7 +23,7 @@ struct Color {
   static Color Zero() { return Color{0, 0, 0, 0}; }
 };
 
-bool ColorFromTable(std::string_view color, Color* result);
+ErrorOr<Color> ColorFromTable(std::string_view color);
 
 }  // namespace G
 

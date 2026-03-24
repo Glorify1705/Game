@@ -212,9 +212,12 @@ struct EngineModules {
         continue;
       }
       hotload_allocator_.Reset();
-      const auto result =
-          WriteAssetsToDb(source_directory, db, &hotload_allocator_);
-      SDL_AtomicSet(&pending_changes_, result.written_files);
+      auto result = WriteAssetsToDb(source_directory, db, &hotload_allocator_);
+      if (result.is_error()) {
+        LOG("Hotload failed: ", result.error().message());
+        continue;
+      }
+      SDL_AtomicSet(&pending_changes_, result.release_value().written_files);
       SDL_Delay(10);
     }
   }
@@ -271,9 +274,11 @@ struct EngineModules {
     assets->RegisterShaderLoad(
         [](DbAssets::Shader* shader, StringBuffer* /*err*/, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
-          Shaders::Error error;
-          if (!self->shaders.Load(*shader, &error)) {
-            self->lua.SetError(error.file.str(), error.line, error.error.str());
+          auto result = self->shaders.Load(*shader);
+          if (result.is_error()) {
+            LOG("Shader load failed: ", result.error().message());
+            self->lua.SetError(result.error().file(), result.error().line(),
+                               result.error().message());
             return;
           }
         },
@@ -446,7 +451,7 @@ class Game {
     {
       TIMER("Getting assets");
       if (opts.source_directory != nullptr) {
-        WriteAssetsToDb(opts.source_directory, db_, allocator_);
+        MUST(WriteAssetsToDb(opts.source_directory, db_, allocator_));
       }
       db_assets_ = allocator_->New<DbAssets>(db_, allocator_);
     }

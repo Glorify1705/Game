@@ -10,6 +10,7 @@
 #include "assets.h"
 #include "clock.h"
 #include "dictionary.h"
+#include "error.h"
 #include "qoa.h"
 #include "thread.h"
 
@@ -41,22 +42,22 @@ class Sound {
     kAutoFree,  // Created by play(), slot reclaimable once playback finishes.
   };
 
-  bool AddSource(std::string_view name, Source* source,
-                 Ownership ownership = Ownership::kManaged);
+  ErrorOr<Source> AddSource(std::string_view name,
+                            Ownership ownership = Ownership::kManaged);
 
-  bool AddEffect(std::string_view name, Source* source,
-                 Ownership ownership = Ownership::kManaged);
+  ErrorOr<Source> AddEffect(std::string_view name,
+                            Ownership ownership = Ownership::kManaged);
 
-  bool SetSourceGain(Source source, float gain);
+  ErrorOr<void> SetSourceGain(Source source, float gain);
   bool SetLoop(Source source, bool loop);
   bool SetPitch(Source source, float pitch);
   bool SetPan(Source source, float pan);
 
   void SetGlobalGain(float gain) { global_gain_ = gain; }
 
-  bool StartChannel(Source source);
+  ErrorOr<void> StartChannel(Source source);
 
-  bool Stop(Source source);
+  ErrorOr<void> Stop(Source source);
   bool Pause(Source source);
   bool Resume(Source source);
   bool IsPlaying(Source source) const;

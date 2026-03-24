@@ -966,14 +966,18 @@ struct ColorTable {
     table.Insert("purple", Color{126, 30, 156, 255});
   }
 
-  bool Get(std::string_view color, Color* result) {
-    return table.Lookup(color, result);
+  ErrorOr<Color> Get(std::string_view color) {
+    Color result;
+    if (!table.Lookup(color, &result)) {
+      return Error::Message("unknown color name");
+    }
+    return result;
   }
 };
 
-bool ColorFromTable(std::string_view color, Color* result) {
+ErrorOr<Color> ColorFromTable(std::string_view color) {
   static ColorTable* table = new ColorTable;
-  return table->Get(color, result);
+  return table->Get(color);
 }
 
 }  // namespace G

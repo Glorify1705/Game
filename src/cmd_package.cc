@@ -4,6 +4,7 @@
 
 #include "cli.h"
 #include "config.h"
+#include "error.h"
 #include "filesystem.h"
 #include "libraries/sqlite3.h"
 #include "logging.h"
@@ -55,7 +56,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   GameConfig config;
   ArenaAllocator config_arena(allocator, Megabytes(1));
   LOG("Loading config from ", conf_path.str());
-  if (LoadConfigFromFile(conf_path.str(), &config, &config_arena)) {
+  if (!LoadConfigFromFile(conf_path.str(), &config, &config_arena).is_error()) {
     if (config.app_name[0] != '\0') {
       binary_name = config.app_name;
     }
@@ -69,7 +70,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
 
   // Create output directory.
   LOG("Creating output directory: ", output_dir);
-  MakeDirs(output_dir);
+  MUST(MakeDirs(output_dir));
 
   // Pack assets into the database.
   FixedStringBuffer<1024> db_path(output_dir, "/assets.sqlite3");
@@ -84,12 +85,12 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
 
   ArenaAllocator packer_arena(allocator, Megabytes(64));
   LOG("Packing assets from ", source_directory);
-  WriteAssetsToDb(source_directory, db, &packer_arena);
+  MUST(WriteAssetsToDb(source_directory, db, &packer_arena));
   sqlite3_close(db);
 
   // Copy the engine binary.
   char self_path[1024];
-  if (!GetExePath(self_path, sizeof(self_path))) {
+  if (GetExePath(self_path, sizeof(self_path)).is_error()) {
     fprintf(stderr, "Error: could not determine engine binary path.\n");
     return 1;
   }
@@ -97,13 +98,13 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   FixedStringBuffer<1024> binary_path(output_dir, "/", binary_name,
                                       kExeExtension);
   LOG("Copying engine binary to ", binary_path.str());
-  if (!CopyFile(self_path, binary_path.str())) {
+  if (CopyFile(self_path, binary_path.str()).is_error()) {
     fprintf(stderr, "Error: could not copy binary to '%s'.\n",
             binary_path.str());
     return 1;
   }
 
-  MakeExecutable(binary_path.str());
+  MUST(MakeExecutable(binary_path.str()));
 
   // Optionally strip.
   if (strip) {
