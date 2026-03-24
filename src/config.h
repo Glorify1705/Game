@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "allocators.h"
+#include "error.h"
 #include "libraries/sqlite3.h"
 
 namespace G {
@@ -38,9 +39,8 @@ void LoadConfigFromDatabase(sqlite3* db, GameConfig* config,
                             Allocator* allocator);
 
 // Reads conf.json from disk and parses it into config.
-// Returns true if the file was found and parsed, false if not found.
-bool LoadConfigFromFile(const char* path, GameConfig* config,
-                        Allocator* allocator);
+ErrorOr<void> LoadConfigFromFile(const char* path, GameConfig* config,
+                                 Allocator* allocator);
 
 }  // namespace G
 

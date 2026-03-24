@@ -56,7 +56,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   GameConfig config;
   ArenaAllocator config_arena(allocator, Megabytes(1));
   LOG("Loading config from ", conf_path.str());
-  if (LoadConfigFromFile(conf_path.str(), &config, &config_arena)) {
+  if (!LoadConfigFromFile(conf_path.str(), &config, &config_arena).is_error()) {
     if (config.app_name[0] != '\0') {
       binary_name = config.app_name;
     }
