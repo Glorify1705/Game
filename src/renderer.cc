@@ -1108,16 +1108,13 @@ void Renderer::LoadFont(const DbAssets::Font& asset) {
 Color ParseColor(std::string_view color) {
   // TODO: Support ANSI escape codes properly.
   for (char c : color) {
-    Color result;
     if (c == '[') continue;
     if (c == ';') continue;
     if (c == '7') {
-      ColorFromTable("lightred", &result);
-      return result;
+      return MUST(ColorFromTable("lightred"));
     }
     if (c == '3') {
-      ColorFromTable("blueblue", &result);
-      return result;
+      return MUST(ColorFromTable("blueblue"));
     }
     if (c == '0') return Color::White();
   }

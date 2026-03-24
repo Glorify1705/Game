@@ -170,10 +170,12 @@ static const LuaApiFunction kGraphicsLib[] = {
        Color color = Color::Zero();
        if (lua_gettop(state) == 1) {
          std::string_view s = GetLuaString(state, 1);
-         if (!ColorFromTable(s, &color)) {
+         auto color_result = ColorFromTable(s);
+         if (color_result.is_error()) {
            LUA_ERROR(state, "Unknown color ", s);
            return 0;
          }
+         color = color_result.release_value();
        } else {
          auto clamp = [](float f) -> uint8_t {
            return std::clamp(f, 0.0f, 255.0f);
