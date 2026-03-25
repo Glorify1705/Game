@@ -19,6 +19,7 @@
 #include "lua.h"
 #include "lua_assets.h"
 #include "lua_bytebuffer.h"
+#include "lua_collision.h"
 #include "lua_filesystem.h"
 #include "lua_graphics.h"
 #include "lua_input.h"
@@ -253,6 +254,7 @@ struct EngineModules {
     AddSoundLibrary(&lua);
     AddSystemLibrary(&lua);
     AddAssetsLibrary(&lua);
+    AddCollisionLibrary(&lua);
     lua.BuildCompilationCache();
     RegisterLoaders();
     assets->Load();

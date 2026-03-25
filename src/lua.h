@@ -298,6 +298,7 @@ class Lua {
   friend void AddFilesystemLibrary(Lua* lua);
   friend void AddByteBufferLibrary(Lua* lua);
   friend void AddAssetsLibrary(Lua* lua);
+  friend void AddCollisionLibrary(Lua* lua);
 
  private:
   int LoadLuaAsset(std::string_view filename, std::string_view script_contents,
