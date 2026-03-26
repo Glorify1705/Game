@@ -815,6 +815,7 @@ int Main(int argc, const char* argv[]) {
     std::string_view cmd = argv[1];
     if (cmd == "init") return CmdInit(sub, &cli_arena);
     if (cmd == "run") return CmdRun(sub, &cli_arena);
+    if (cmd == "clean") return CmdClean(sub, &cli_arena);
     if (cmd == "package") return CmdPackage(sub, &cli_arena);
     if (cmd == "stubs") return CmdStubs(sub, &cli_arena);
     if (cmd == "version") return CmdVersion(argv[0]);

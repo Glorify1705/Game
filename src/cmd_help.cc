@@ -17,6 +17,7 @@ void PrintGeneralHelp(const char* prog) {
       "Commands:\n"
       "  init [dir]           Create a new game project\n"
       "  run [dir] [-- args]  Run a game with hot-reloading\n"
+      "  clean [dir]          Delete cached asset database\n"
       "  package [dir]        Package a game for distribution\n"
       "  stubs [--output]     Generate LuaLS type stubs\n"
       "  version              Print engine version\n"
@@ -39,6 +40,16 @@ void PrintInitHelp(const char* prog) {
       "  game.lua             Starter game module with init/update/draw\n"
       "  .luarc.json          LuaLS workspace config\n"
       "  definitions/game.lua LuaLS type stubs\n",
+      prog);
+}
+
+void PrintCleanHelp(const char* prog) {
+  printf(
+      "Usage: %s clean [directory]\n"
+      "\n"
+      "Deletes the cached asset database for the given project directory\n"
+      "(default: current directory). The cache is rebuilt automatically\n"
+      "on the next 'game run'.\n",
       prog);
 }
 
@@ -95,6 +106,8 @@ int CmdHelp(const char* argv0, const char* subcommand) {
   std::string_view cmd = subcommand;
   if (cmd == "init") {
     PrintInitHelp(argv0);
+  } else if (cmd == "clean") {
+    PrintCleanHelp(argv0);
   } else if (cmd == "run") {
     PrintRunHelp(argv0);
   } else if (cmd == "package") {

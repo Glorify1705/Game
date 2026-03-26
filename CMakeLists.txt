@@ -113,6 +113,7 @@ set(ENGINE_SRCS
     "src/thread_pool.cc"
     "src/transformations.cc"
     "src/packer.cc"
+    "src/cmd_clean.cc"
     "src/cmd_help.cc"
     "src/cmd_init.cc"
     "src/cmd_package.cc"

@@ -21,6 +21,9 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator);
 // [--strip]
 int CmdPackage(Slice<const char*> args, Allocator* allocator);
 
+// Delete the cached asset database for a project: game clean [dir]
+int CmdClean(Slice<const char*> args, Allocator* allocator);
+
 // Generate LuaLS type stubs without starting the engine: game stubs [--output
 // path]
 int CmdStubs(Slice<const char*> args, Allocator* allocator);
