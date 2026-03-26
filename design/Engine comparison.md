@@ -185,19 +185,19 @@ This document compares our engine against three reference 2D game engines — **
 | Music / streaming | Yes (streaming) | Yes (stream source) | Yes (QOA streaming) | Yes (multi-channel) |
 | Per-source volume | Yes | Yes | Yes | Yes |
 | Global volume | Yes | Yes | Yes | Yes |
-| Pitch control | No | Yes | Yes | Yes |
-| Panning (stereo) | No | Yes (3D position) | Yes (pan control) | No |
-| Looping | No | Yes | Yes | Yes |
+| Pitch control | Yes | Yes | Yes | Yes |
+| Panning (stereo) | Yes | Yes (3D position) | Yes (pan control) | No |
+| Looping | Yes | Yes | Yes | Yes |
 | 3D spatialized audio | No | Yes (OpenAL) | No | No |
 | Audio effects (reverb, etc.) | No | Yes (8 effect types) | No | No |
 | Procedural / synth audio | No | No | Yes (pl_synth) | No |
 | Microphone recording | No | Yes | No | No |
 | Playlist system | No | No | No | Yes (crossfade, shuffle) |
 | MP3 / FLAC / tracker formats | No | Yes | No | No |
-| Pause / resume individual | No | Yes | Yes | Yes |
+| Pause / resume individual | Yes | Yes | Yes | Yes |
 | Seek / tell | No | Yes | No | Yes |
 
-**Gaps to fill**: Pitch control, looping, and per-source pause/resume are basic missing features. Panning is important for game feel. A playlist system (like Anchor's) is nice-to-have for music.
+**Status**: Pitch, looping, panning, and per-source pause/resume are now implemented. Remaining gaps: playlist system (nice-to-have), seek/tell, 3D spatialized audio.
 
 ### 9. Timer / Tween / Easing
 
@@ -321,7 +321,7 @@ Based on what's needed to ship complete games, grouped by impact:
 2. **Animation system** — Spritesheet frame sequences, loop/once/bounce, flip, timing
 3. **Timer / tween / easing** — Delayed callbacks, repeating timers, tweens, easing curves, springs
 4. ~~**Canvas / off-screen rendering**~~ — DONE. `new_canvas`, `set_canvas`, `draw_canvas` with auto premultiplied alpha and Y-flip.
-5. **Audio improvements** — Looping, pitch, pan, pause/resume per source
+5. ~~**Audio improvements**~~ — DONE. Looping, pitch, pan, pause/resume per source.
 
 ### Tier 2 — Important (needed for specific genres or polish)
 
