@@ -16,24 +16,24 @@ struct Camera {
   FVec2 ToScreen(FVec2 world, FVec2 viewport) const;
 
   // Position.
-  FVec2 position;
+  FVec2 position = FVec2::Zero();
 
   // Zoom and rotation.
   float zoom = 1.0f;
   float rotation = 0.0f;
 
   // Follow.
-  FVec2 follow_target;
+  FVec2 follow_target = FVec2::Zero();
   bool following = false;
   FVec2 lerp = FVec2(1.0f, 1.0f);
 
   // Deadzone (fraction of viewport, 0-1).
-  FVec2 deadzone;
+  FVec2 deadzone = FVec2::Zero();
   bool deadzone_enabled = false;
 
   // Bounds.
-  FVec2 bounds_start;
-  FVec2 bounds_size;
+  FVec2 bounds_start = FVec2::Zero();
+  FVec2 bounds_size = FVec2::Zero();
   bool bounds_enabled = false;
 
   // Shake.
@@ -41,7 +41,7 @@ struct Camera {
   float shake_duration = 0.0f;
   float shake_timer = 0.0f;
   float shake_frequency = 8.0f;
-  FVec2 shake_offset;
+  FVec2 shake_offset = FVec2::Zero();
 };
 
 }  // namespace G

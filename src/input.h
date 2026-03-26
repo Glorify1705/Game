@@ -96,7 +96,10 @@ class Mouse {
     return FVec(x, y);
   }
 
-  void InitForFrame() { previous_pressed_ = pressed_; }
+  void InitForFrame() {
+    previous_pressed_ = pressed_;
+    mouse_wheel_ = FVec2::Zero();
+  }
 
   bool IsDown(int button) {
     return previous_pressed_[button] && pressed_[button];
