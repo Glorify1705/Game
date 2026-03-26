@@ -489,7 +489,7 @@ class DbPacker {
   AssetInfo InsertSpritesheetJson(std::string_view filename, const uint8_t* buf,
                                   size_t size) {
     std::string_view input(reinterpret_cast<const char*>(buf), size);
-    ArenaAllocator scratch(allocator_, Kilobytes(64));
+    ArenaAllocator scratch(allocator_, Megabytes(1));
     JsonValue* json = MUST(ParseJson(input, &scratch));
     CHECK(json->IsObject(),
           "invalid spritesheet format, must return a json object");
