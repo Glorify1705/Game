@@ -716,6 +716,10 @@ void Lua::LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
   lua_setfield(state_, -2, "__name");
   for (size_t i = 0; i < register_count; ++i) {
     const luaL_Reg& r = registers[i];
+    CHECK(r.name != nullptr, "Null entry in metatable '", metatable_name,
+          "' at index ", i,
+          " — remove {nullptr, nullptr} sentinel, LoadMetatable uses array "
+          "size directly");
     lua_pushstring(state_, r.name);
     lua_pushcfunction(state_, r.func);
     lua_settable(state_, -3);
