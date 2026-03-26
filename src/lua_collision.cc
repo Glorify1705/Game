@@ -579,18 +579,15 @@ static const luaL_Reg kCollisionWorldMethods[] = {
     {"update", collision_world_update},
     {"__gc", collision_world_gc},
     {"__tostring", collision_world_tostring},
-    {nullptr, nullptr},
 };
 
 static const luaL_Reg kCollisionHandleMethods[] = {
     {"__eq", collision_handle_eq},
     {"__tostring", collision_handle_tostring},
-    {nullptr, nullptr},
 };
 
 static const luaL_Reg kCollisionShapeMethods[] = {
     {"__tostring", collision_shape_tostring},
-    {nullptr, nullptr},
 };
 
 // --- Library functions (G.collision namespace) ---
