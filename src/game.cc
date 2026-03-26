@@ -814,8 +814,8 @@ void RunGame(const GameOptions& opts, sqlite3* db) {
 
 int Main(int argc, const char* argv[]) {
   // Top-level arena for CLI subcommand memory.
-  auto* cli_buf = static_cast<uint8_t*>(malloc(Gigabytes(2)));
-  ArenaAllocator cli_arena(cli_buf, Gigabytes(2));
+  auto* cli_buf = static_cast<uint8_t*>(malloc(Megabytes(512)));
+  ArenaAllocator cli_arena(cli_buf, Megabytes(512));
 
   if (argc >= 2) {
     std::string_view cmd = argv[1];

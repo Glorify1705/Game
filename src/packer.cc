@@ -31,6 +31,10 @@
 namespace G {
 namespace {
 
+// Thread-safe bump allocator for shared output memory across worker threads.
+// Uses atomic CAS on the position pointer so multiple threads can allocate
+// concurrently without a mutex.  Dealloc is a no-op; the entire buffer is
+// freed when the parent arena is released.
 class BumpAllocator : public Allocator {
  public:
   BumpAllocator(uint8_t* buffer, size_t size) {
@@ -762,7 +766,10 @@ class DbPacker {
   }
 
   void ProcessDeferredItems() {
-    if (deferred_.empty()) return;
+    if (deferred_.empty()) {
+      LOG("No deferred items to process");
+      return;
+    }
 
     int num_threads = SDL_GetCPUCount();
     if (num_threads < 1) num_threads = 1;
@@ -771,6 +778,7 @@ class DbPacker {
 
     auto* output_buf = allocator_->NewArray<uint8_t>(kOutputArenaSize);
     if (output_buf == nullptr) {
+      LOG("Could not allocate output buffer, falling back to sequential");
       ProcessDeferredItemsSequential();
       return;
     }
