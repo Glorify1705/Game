@@ -96,8 +96,16 @@ class BatchRenderer {
   }
 
   void SetShaderProgram(std::string_view program_name) {
-    AddCommand(kSetShader, SetShader{StringIntern(program_name)});
+    current_shader_ = StringIntern(program_name);
+    AddCommand(kSetShader, SetShader{current_shader_});
   }
+
+  void SetShaderByHandle(uint32_t handle) {
+    current_shader_ = handle;
+    AddCommand(kSetShader, SetShader{handle});
+  }
+
+  uint32_t GetCurrentShaderHandle() const { return current_shader_; }
 
   void SetActiveLineWidth(float width) {
     AddCommand(kSetLineWidth, SetLineWidth{width});
@@ -251,6 +259,7 @@ class BatchRenderer {
   Allocator* allocator_;
   uint8_t* command_buffer_ = nullptr;
   size_t pos_ = 0;
+  uint32_t current_shader_ = 0;
   FixedArray<QueueEntry> commands_;
   FixedArray<GLuint> tex_;
   Shaders* shaders_;

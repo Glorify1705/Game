@@ -1128,6 +1128,7 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
     return;
   }
   CHECK(info != nullptr, "No texture found for ", font_name, " size ", size);
+  const uint32_t prev_shader = renderer_->GetCurrentShaderHandle();
   renderer_->SetShaderProgram("sdf");
   renderer_->SetActiveTexture(info->texture);
   const Color color = color_;
@@ -1189,7 +1190,7 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
     i++;
   }
   renderer_->SetActiveColor(color);
-  renderer_->SetShaderProgram("pre_pass");
+  renderer_->SetShaderByHandle(prev_shader);
 }
 
 IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
