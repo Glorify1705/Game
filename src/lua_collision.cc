@@ -29,7 +29,7 @@ CollisionShape* CheckShape(lua_State* state, int index) {
       luaL_checkudata(state, index, "collision_shape"));
 }
 
-int collision_circle(lua_State* state) {
+int PushCollisionCircle(lua_State* state) {
   float radius = luaL_checknumber(state, 1);
   auto* shape = static_cast<CollisionShape*>(
       lua_newuserdata(state, sizeof(CollisionShape)));
@@ -39,7 +39,7 @@ int collision_circle(lua_State* state) {
   return 1;
 }
 
-int collision_aabb(lua_State* state) {
+int PushCollisionAABB(lua_State* state) {
   float w = luaL_checknumber(state, 1);
   float h = luaL_checknumber(state, 2);
   auto* shape = static_cast<CollisionShape*>(
@@ -50,7 +50,7 @@ int collision_aabb(lua_State* state) {
   return 1;
 }
 
-int collision_test(lua_State* state) {
+int CollisionTest(lua_State* state) {
   auto* shape_a = CheckShape(state, 1);
   float ax = luaL_checknumber(state, 2);
   float ay = luaL_checknumber(state, 3);
@@ -70,7 +70,7 @@ int collision_test(lua_State* state) {
   return 1;
 }
 
-int collision_new_world(lua_State* state) {
+int PushCollisionWorld(lua_State* state) {
   float cell_size = luaL_optnumber(state, 1, 64.0);
   auto* allocator = Registry<Lua>::Retrieve(state)->allocator();
 
@@ -83,7 +83,7 @@ int collision_new_world(lua_State* state) {
   return 1;
 }
 
-int collision_world_add(lua_State* state) {
+int CollisionWorldAdd(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   auto* shape = CheckShape(state, 2);
   float x = luaL_checknumber(state, 3);
@@ -120,7 +120,7 @@ int collision_world_add(lua_State* state) {
   return 1;
 }
 
-int collision_world_remove(lua_State* state) {
+int CollisionWorldRemove(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
 
@@ -139,7 +139,7 @@ int collision_world_remove(lua_State* state) {
   return 0;
 }
 
-int collision_world_set_position(lua_State* state) {
+int CollisionWorldSetPosition(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
   float x = luaL_checknumber(state, 3);
@@ -151,7 +151,7 @@ int collision_world_set_position(lua_State* state) {
   return 0;
 }
 
-int collision_world_get_position(lua_State* state) {
+int CollisionWorldGetPosition(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
   if (!world->IsValid(handle)) {
@@ -163,7 +163,7 @@ int collision_world_get_position(lua_State* state) {
   return 2;
 }
 
-int collision_world_set_shape(lua_State* state) {
+int CollisionWorldSetShape(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
   auto* shape = CheckShape(state, 3);
@@ -174,7 +174,7 @@ int collision_world_set_shape(lua_State* state) {
   return 0;
 }
 
-int collision_world_set_filter(lua_State* state) {
+int CollisionWorldSetFilter(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
   uint16_t category = luaL_checkinteger(state, 3);
@@ -186,7 +186,7 @@ int collision_world_set_filter(lua_State* state) {
   return 0;
 }
 
-int collision_world_get_userdata(lua_State* state) {
+int CollisionWorldGetUserdata(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
   if (!world->IsValid(handle)) {
@@ -226,7 +226,7 @@ void PushContacts(lua_State* state, const CollisionWorld::Contact* contacts,
   }
 }
 
-int collision_world_move_and_slide(lua_State* state) {
+int CollisionWorldMoveAndSlide(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
   float vx = luaL_checknumber(state, 3);
@@ -242,7 +242,7 @@ int collision_world_move_and_slide(lua_State* state) {
   return 3;
 }
 
-int collision_world_move_and_collide(lua_State* state) {
+int CollisionWorldMoveAndCollide(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
   float vx = luaL_checknumber(state, 3);
@@ -263,7 +263,7 @@ int collision_world_move_and_collide(lua_State* state) {
   return 3;
 }
 
-int collision_world_get_overlaps(lua_State* state) {
+int CollisionWorldGetOverlaps(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
   if (!world->IsValid(handle)) {
@@ -289,7 +289,7 @@ int collision_world_get_overlaps(lua_State* state) {
   return 1;
 }
 
-int collision_world_raycast(lua_State* state) {
+int CollisionWorldRaycast(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   float ox = luaL_checknumber(state, 2);
   float oy = luaL_checknumber(state, 3);
@@ -319,7 +319,7 @@ int collision_world_raycast(lua_State* state) {
   return 1;
 }
 
-int collision_world_raycast_all(lua_State* state) {
+int CollisionWorldRaycastAll(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   float ox = luaL_checknumber(state, 2);
   float oy = luaL_checknumber(state, 3);
@@ -352,7 +352,7 @@ int collision_world_raycast_all(lua_State* state) {
   return 1;
 }
 
-int collision_world_query_point(lua_State* state) {
+int CollisionWorldQueryPoint(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   float x = luaL_checknumber(state, 2);
   float y = luaL_checknumber(state, 3);
@@ -369,7 +369,7 @@ int collision_world_query_point(lua_State* state) {
   return 1;
 }
 
-int collision_world_query_rect(lua_State* state) {
+int CollisionWorldQueryRect(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   float x1 = luaL_checknumber(state, 2);
   float y1 = luaL_checknumber(state, 3);
@@ -389,7 +389,7 @@ int collision_world_query_rect(lua_State* state) {
   return 1;
 }
 
-int collision_world_query_circle(lua_State* state) {
+int CollisionWorldQueryCircle(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   float cx = luaL_checknumber(state, 2);
   float cy = luaL_checknumber(state, 3);
@@ -407,7 +407,7 @@ int collision_world_query_circle(lua_State* state) {
   return 1;
 }
 
-int collision_world_on_trigger_enter(lua_State* state) {
+int CollisionWorldOnTriggerEnter(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   luaL_checktype(state, 2, LUA_TFUNCTION);
   if (world->trigger_enter_ref != LUA_NOREF) {
@@ -418,7 +418,7 @@ int collision_world_on_trigger_enter(lua_State* state) {
   return 0;
 }
 
-int collision_world_on_trigger_exit(lua_State* state) {
+int CollisionWorldOnTriggerExit(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   luaL_checktype(state, 2, LUA_TFUNCTION);
   if (world->trigger_exit_ref != LUA_NOREF) {
@@ -429,7 +429,7 @@ int collision_world_on_trigger_exit(lua_State* state) {
   return 0;
 }
 
-int collision_world_update(lua_State* state) {
+int CollisionWorldUpdate(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   world->Update();
 
@@ -458,7 +458,7 @@ int collision_world_update(lua_State* state) {
   return 0;
 }
 
-int collision_world_gc(lua_State* state) {
+int CollisionWorldGc(lua_State* state) {
   auto* world = CheckWorld(state, 1);
 
   // Unref all active collider userdata values.
@@ -485,27 +485,27 @@ int collision_world_gc(lua_State* state) {
   return 0;
 }
 
-int collision_world_tostring(lua_State* state) {
+int CollisionWorldToString(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   lua_pushfstring(state, "collision_world(%d colliders)",
                   world->active_count());
   return 1;
 }
 
-int collision_handle_eq(lua_State* state) {
+int CollisionHandleEq(lua_State* state) {
   ColliderHandle a = CheckHandle(state, 1);
   ColliderHandle b = CheckHandle(state, 2);
   lua_pushboolean(state, a == b);
   return 1;
 }
 
-int collision_handle_tostring(lua_State* state) {
+int CollisionHandleToString(lua_State* state) {
   ColliderHandle h = CheckHandle(state, 1);
   lua_pushfstring(state, "collision_handle(%d:%d)", h.index, h.generation);
   return 1;
 }
 
-int collision_shape_tostring(lua_State* state) {
+int CollisionShapeToString(lua_State* state) {
   auto* shape = CheckShape(state, 1);
   switch (shape->type) {
     case CollisionShapeType::kCircle:
@@ -520,35 +520,35 @@ int collision_shape_tostring(lua_State* state) {
 }
 
 constexpr luaL_Reg kCollisionWorldMethods[] = {
-    {"add", collision_world_add},
-    {"remove", collision_world_remove},
-    {"set_position", collision_world_set_position},
-    {"get_position", collision_world_get_position},
-    {"set_shape", collision_world_set_shape},
-    {"set_filter", collision_world_set_filter},
-    {"get_userdata", collision_world_get_userdata},
-    {"move_and_slide", collision_world_move_and_slide},
-    {"move_and_collide", collision_world_move_and_collide},
-    {"get_overlaps", collision_world_get_overlaps},
-    {"raycast", collision_world_raycast},
-    {"raycast_all", collision_world_raycast_all},
-    {"query_point", collision_world_query_point},
-    {"query_rect", collision_world_query_rect},
-    {"query_circle", collision_world_query_circle},
-    {"on_trigger_enter", collision_world_on_trigger_enter},
-    {"on_trigger_exit", collision_world_on_trigger_exit},
-    {"update", collision_world_update},
-    {"__gc", collision_world_gc},
-    {"__tostring", collision_world_tostring},
+    {"add", CollisionWorldAdd},
+    {"remove", CollisionWorldRemove},
+    {"set_position", CollisionWorldSetPosition},
+    {"get_position", CollisionWorldGetPosition},
+    {"set_shape", CollisionWorldSetShape},
+    {"set_filter", CollisionWorldSetFilter},
+    {"get_userdata", CollisionWorldGetUserdata},
+    {"move_and_slide", CollisionWorldMoveAndSlide},
+    {"move_and_collide", CollisionWorldMoveAndCollide},
+    {"get_overlaps", CollisionWorldGetOverlaps},
+    {"raycast", CollisionWorldRaycast},
+    {"raycast_all", CollisionWorldRaycastAll},
+    {"query_point", CollisionWorldQueryPoint},
+    {"query_rect", CollisionWorldQueryRect},
+    {"query_circle", CollisionWorldQueryCircle},
+    {"on_trigger_enter", CollisionWorldOnTriggerEnter},
+    {"on_trigger_exit", CollisionWorldOnTriggerExit},
+    {"update", CollisionWorldUpdate},
+    {"__gc", CollisionWorldGc},
+    {"__tostring", CollisionWorldToString},
 };
 
 constexpr luaL_Reg kCollisionHandleMethods[] = {
-    {"__eq", collision_handle_eq},
-    {"__tostring", collision_handle_tostring},
+    {"__eq", CollisionHandleEq},
+    {"__tostring", CollisionHandleToString},
 };
 
 constexpr luaL_Reg kCollisionShapeMethods[] = {
-    {"__tostring", collision_shape_tostring},
+    {"__tostring", CollisionShapeToString},
 };
 
 const struct LuaApiFunction kCollisionLib[] = {
@@ -557,18 +557,18 @@ const struct LuaApiFunction kCollisionLib[] = {
      {{"cell_size", "Spatial hash cell size in pixels (default 64)",
        "number?"}},
      {{"world", "The collision world", "collision_world"}},
-     collision_new_world},
+     PushCollisionWorld},
     {"circle",
      "Creates a circle collision shape",
      {{"radius", "Circle radius in pixels", "number"}},
      {{"shape", "The collision shape", "collision_shape"}},
-     collision_circle},
+     PushCollisionCircle},
     {"aabb",
      "Creates an axis-aligned bounding box collision shape",
      {{"width", "Box width in pixels", "number"},
       {"height", "Box height in pixels", "number"}},
      {{"shape", "The collision shape", "collision_shape"}},
-     collision_aabb},
+     PushCollisionAABB},
     {"test",
      "Tests two shapes for collision without needing a world",
      {{"shape_a", "First shape", "collision_shape"},
@@ -581,7 +581,7 @@ const struct LuaApiFunction kCollisionLib[] = {
       {"nx", "Collision normal x (if hit)", "number?"},
       {"ny", "Collision normal y (if hit)", "number?"},
       {"depth", "Penetration depth (if hit)", "number?"}},
-     collision_test},
+     CollisionTest},
 };
 
 const LuaUserdataMethod kWorldMethods[] = {
