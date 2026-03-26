@@ -235,12 +235,12 @@ function Game:draw()
 	G.graphics.set_color("white")
 	local shape_name = player_is_circle and "Circle" or "AABB"
 	G.graphics.print(string.format("Shape: %s [1/2]  Pos: %.0f, %.0f", shape_name, px, py), 10, 10)
-	G.graphics.print("WASD: move  Space: raycast  Q: quit", 10, 26)
+	G.graphics.print("WASD: move  Space: raycast  Q: quit", 10, 38)
 
 	-- Trigger log
 	G.graphics.set_color(180, 220, 255, 200)
 	for i, msg in ipairs(trigger_log) do
-		G.graphics.print(msg, 10, H - 20 - (i - 1) * 14)
+		G.graphics.print(msg, 10, H - 30 - (i - 1) * 28)
 	end
 
 	G.graphics.set_color("white")

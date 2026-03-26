@@ -215,12 +215,12 @@ function Game:draw()
 	-- HUD
 	G.graphics.set_color("white")
 	G.graphics.print(string.format("Pos: %.0f, %.0f  Objects: %d", px, py, #spawned), 10, 10)
-	G.graphics.print("WASD: move  LMB: circle query  RMB: rect query", 10, 26)
-	G.graphics.print("Space: raycast_all  E: spawn  R: remove  Q: quit", 10, 42)
+	G.graphics.print("WASD: move  LMB: circle query  RMB: rect query", 10, 38)
+	G.graphics.print("Space: raycast_all  E: spawn  R: remove  Q: quit", 10, 66)
 
 	if #query_results > 0 then
 		G.graphics.set_color("yellow")
-		G.graphics.print(string.format("Query hits: %d", #query_results), 10, 62)
+		G.graphics.print(string.format("Query hits: %d", #query_results), 10, 94)
 	end
 
 	G.graphics.set_color("white")

@@ -82,15 +82,14 @@ function Game:init()
 		table.insert(coins, { handle = h, x = pos[1], y = pos[2], alive = true })
 	end
 
-	-- Trigger callback: collect coins
+	-- Trigger callback: collect coins (defer removal to avoid modifying world
+	-- during trigger iteration)
 	world:on_trigger_enter(function(a, b)
 		-- One of a/b is the player, the other is a coin
 		for _, coin in ipairs(coins) do
 			if coin.alive and (coin.handle == a or coin.handle == b) then
 				coin.alive = false
 				collected = collected + 1
-				-- Remove from world
-				world:remove(coin.handle)
 			end
 		end
 	end)
@@ -123,6 +122,14 @@ function Game:update(t, dt)
 
 	world:move_and_slide(player, vx * dt, vy * dt)
 	world:update()
+
+	-- Remove collected coins (deferred from trigger callback)
+	for _, coin in ipairs(coins) do
+		if not coin.alive and coin.handle then
+			world:remove(coin.handle)
+			coin.handle = nil
+		end
+	end
 
 	-- Standalone collision.test(): circle follows mouse, box is fixed
 	local W = G.window.dimensions()
@@ -194,16 +201,16 @@ function Game:draw()
 	-- HUD
 	G.graphics.set_color("white")
 	G.graphics.print(string.format("Coins: %d / %d", collected, #coins), 10, 10)
-	G.graphics.print("WASD: move  Q: quit", 10, 26)
-	G.graphics.print("Move mouse near top-right box for standalone test", 10, 42)
+	G.graphics.print("WASD: move  Q: quit", 10, 38)
+	G.graphics.print("Move mouse near top-right box for standalone test", 10, 66)
 
 	if test_result.hit then
 		G.graphics.set_color("red")
 		G.graphics.print(string.format("collision.test: HIT  depth=%.1f  n=(%.2f, %.2f)",
-			test_result.depth, test_result.nx, test_result.ny), 10, 58)
+			test_result.depth, test_result.nx, test_result.ny), 10, 94)
 	else
 		G.graphics.set_color(100, 100, 100, 255)
-		G.graphics.print("collision.test: no hit", 10, 58)
+		G.graphics.print("collision.test: no hit", 10, 94)
 	end
 
 	G.graphics.set_color("white")
