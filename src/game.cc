@@ -478,12 +478,14 @@ class Game {
   }
 
   ~Game() {
+    // Close the audio device first to stop the callback thread before
+    // destroying EngineModules (which owns the Sound mutex).
+    SDL_CloseAudioDevice(audio_device_);
     e_->Deinitialize();
     allocator_->Destroy(e_);
     if (SDL_WasInit(SDL_INIT_HAPTIC) != 0) {
       SDL_QuitSubSystem(SDL_INIT_HAPTIC);
     }
-    SDL_CloseAudioDevice(audio_device_);
     if (SDL_WasInit(SDL_INIT_JOYSTICK)) {
       SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
     }
@@ -575,19 +577,22 @@ class Game {
 
   // Update state given current time t and frame delta dt, both in ms.
   void Update(double t, double dt) {
-    FixedStringBuffer<1024> buf;
-    if (e_->lua.Error(&buf)) {
+    if (e_->lua.HasError()) {
       e_->sound.StopAll();
-      RenderCrashScreen(buf.str());
-    } else {
-      e_->physics.Update(dt);
-      e_->lua.Update(t, dt);
+      return;
     }
+    e_->physics.Update(dt);
+    e_->lua.Update(t, dt);
   }
 
   void Render() {
     e_->renderer.ClearForFrame();
-    e_->lua.Draw();
+    FixedStringBuffer<1024> buf;
+    if (e_->lua.Error(&buf)) {
+      RenderCrashScreen(buf.str());
+    } else {
+      e_->lua.Draw();
+    }
     // Draw FPS counter in debug mode.
     if (debug_ && stats_.samples() > 0) {
       FixedStringBuffer<kMaxLogLineLength> log(
