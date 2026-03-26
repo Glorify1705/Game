@@ -4,7 +4,7 @@
 
 #include "clock.h"
 #include "defer.h"
-#include "libraries/json.h"
+#include "json.h"
 #include "logging.h"
 
 namespace G {
@@ -24,40 +24,43 @@ void ParseVersionFromString(const char* str, GameConfig* config) {
 }  // namespace
 
 void LoadConfig(std::string_view json_configuration, GameConfig* config,
-                Allocator* /*allocator*/) {
+                Allocator* allocator) {
   TIMER("Loading configuration");
-  auto [status, json] = jt::Json::parse(json_configuration);
-  CHECK(status == jt::Json::success,
-        "failed to parse conf.json: ", jt::Json::StatusToString(status));
-  CHECK(json.isObject(), "config must be a json object");
-  for (auto& [key, value] : json.getObject()) {
+  ArenaAllocator scratch(allocator, Kilobytes(16));
+  JsonValue* json = MUST(ParseJson(json_configuration, &scratch));
+  CHECK(json->IsObject(), "config must be a json object");
+  json->ForEachMember([&](std::string_view key, const JsonValue& value) {
     if (key == "width") {
-      config->window_width = value.getLong();
+      config->window_width = value.GetLong();
     } else if (key == "height") {
-      config->window_height = value.getNumber();
+      config->window_height = value.GetNumber();
     } else if (key == "msaa_samples") {
-      config->msaa_samples = value.getNumber();
+      config->msaa_samples = value.GetNumber();
     } else if (key == "borderless") {
-      config->borderless = value.getBool();
+      config->borderless = value.GetBool();
     } else if (key == "centered") {
-      config->centered = value.getBool();
+      config->centered = value.GetBool();
     } else if (key == "fullscreen") {
-      config->fullscreen = value.getBool();
+      config->fullscreen = value.GetBool();
     } else if (key == "enable_joystick") {
-      config->enable_joystick = value.getBool();
+      config->enable_joystick = value.GetBool();
     } else if (key == "enable_debug_rendering") {
-      config->enable_debug_rendering = value.getBool();
+      config->enable_debug_rendering = value.GetBool();
     } else if (key == "title") {
-      CopyString(value.getString(), config->window_title,
+      CopyString(value.GetString(), config->window_title,
                  sizeof(config->window_title));
     } else if (key == "org_name") {
-      CopyString(value.getString(), config->org_name, sizeof(config->org_name));
+      CopyString(value.GetString(), config->org_name, sizeof(config->org_name));
     } else if (key == "app_name") {
-      CopyString(value.getString(), config->app_name, sizeof(config->app_name));
+      CopyString(value.GetString(), config->app_name, sizeof(config->app_name));
     } else if (key == "version") {
-      ParseVersionFromString(value.getString().c_str(), config);
+      // GetString() points into allocator memory and is null-terminated
+      // when escape processing occurs, but for safety copy to a local buffer.
+      char ver[32];
+      CopyString(value.GetString(), ver, sizeof(ver));
+      ParseVersionFromString(ver, config);
     }
-  }
+  });
 }
 
 void LoadConfigFromDatabase(sqlite3* db, GameConfig* config,
