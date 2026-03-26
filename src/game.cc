@@ -501,7 +501,7 @@ class Game {
     TIMER("Game Initialization");
     e_ = allocator_->New<EngineModules>(opts_.args, db_, db_assets_, config_,
                                         /*audio_channels=*/2,
-                                        /*audio_buffer_samples=*/256, window_,
+                                        /*audio_buffer_samples=*/8192, window_,
                                         allocator_, opts_.source_directory);
     e_->Initialize();
     e_->lua.Init();
@@ -616,9 +616,9 @@ class Game {
   }
 
   void InitializeSDL(const GameConfig& config) {
-    if (config.app_name[0] != '\0') {
-      SDL_SetAppMetadata(config.app_name, GAME_VERSION_STR, /*appid=*/nullptr);
-    }
+    SDL_SetAppMetadata(config.app_name[0] != '\0' ? config.app_name : "game",
+                       GAME_VERSION_STR,
+                       config.org_name[0] != '\0' ? config.org_name : nullptr);
     CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_EVENTS),
           "Could not initialize SDL: ", SDL_GetError());
     if (config.enable_joystick) {

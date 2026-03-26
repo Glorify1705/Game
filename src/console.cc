@@ -1,16 +1,18 @@
 #include "console.h"
 
+#include <cstdio>
+
 namespace G {
 namespace {
 
 constexpr const char* kPriorities[SDL_LOG_PRIORITY_COUNT] = {
-    nullptr, "VERBOSE", "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"};
+    nullptr, "TRACE", "VERBOSE", "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"};
 
 }
 
 void DebugConsole::Log(int category, SDL_LogPriority priority,
                        const char* message) {
-  log_fn_(log_fn_userdata_, category, priority, message);
+  fprintf(stderr, "%s: %s\n", kPriorities[priority], message);
   Log(kPriorities[priority], ": ", message);
 }
 

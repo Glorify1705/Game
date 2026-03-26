@@ -36,7 +36,7 @@ in
 {
 
   packages = with pkgs; [
-    SDL3
+    sdl3
     ccls
     clang
     clang-tools
