@@ -1,8 +1,9 @@
 #include "lua_graphics.h"
 
+#include <SDL3/SDL.h>
+
 #include <algorithm>
 
-#include "SDL.h"
 #include "allocators.h"
 #include "clock.h"
 #include "image.h"
@@ -678,7 +679,7 @@ static const LuaApiFunction kWindowLib[] = {
      {},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
-       SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
+       SDL_SetWindowFullscreen(window, true);
        return 0;
      }},
     {"set_borderless",
@@ -687,7 +688,7 @@ static const LuaApiFunction kWindowLib[] = {
      {},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
-       SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+       SDL_SetWindowFullscreen(window, true);
        return 0;
      }},
     {"set_windowed",
@@ -696,8 +697,7 @@ static const LuaApiFunction kWindowLib[] = {
      {},
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
-       // 0 means we use windowed mode.
-       SDL_SetWindowFullscreen(window, 0);
+       SDL_SetWindowFullscreen(window, false);
        return 0;
      }},
     {"set_title",

@@ -1,9 +1,9 @@
 #include "packer.h"
 
+#include <SDL3/SDL.h>
+
 #include <atomic>
 
-#include "SDL_cpuinfo.h"
-#include "SDL_thread.h"
 #include "clock.h"
 #include "debug_font.h"
 #include "defer.h"
@@ -770,7 +770,7 @@ class DbPacker {
   void ProcessDeferredItems() {
     if (deferred_.empty()) return;
 
-    int num_threads = SDL_GetCPUCount();
+    int num_threads = SDL_GetNumLogicalCPUCores();
     if (num_threads < 1) num_threads = 1;
     if (static_cast<size_t>(num_threads) > deferred_.size())
       num_threads = static_cast<int>(deferred_.size());

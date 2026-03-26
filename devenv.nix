@@ -36,8 +36,7 @@ in
 {
 
   packages = with pkgs; [
-    SDL2
-    SDL2_mixer
+    SDL3
     ccls
     clang
     clang-tools
@@ -139,10 +138,6 @@ in
     '';
   };
 
-  # TODO: Also run the game after building. Currently ASan's dlopen interceptor
-  # can't find libSDL3.so.0 that sdl2-compat loads at runtime (the RPATH
-  # embedded in sdl2-compat isn't followed). Needs LD_LIBRARY_PATH pointing
-  # to the SDL3 Nix store path.
   scripts."game-sanitize" = {
     exec = ''
       cmake -DENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug -G Ninja -S . -B build && cmake --build build --target Game

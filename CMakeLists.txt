@@ -15,7 +15,6 @@ project(
   DESCRIPTION "The game"
   LANGUAGES C CXX)
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 if(ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXE NAMES clang-tidy REQUIRED)
@@ -49,7 +48,7 @@ set(PHYSFS_BUILD_TEST OFF CACHE BOOL "" FORCE)
 set(PHYSFS_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 
 find_package(OpenGL REQUIRED)
-find_package(SDL2 REQUIRED)
+find_package(SDL3 REQUIRED CONFIG)
 
 # Write Nix-implicit include dirs for standalone tools (clang-include-cleaner).
 # CMake strips these from compile_commands.json, so tools need them explicitly.
@@ -195,7 +194,7 @@ add_custom_target(
 
 target_link_libraries(
   Game
-  PRIVATE SDL2::Main
+  PRIVATE SDL3::SDL3
           physfs-static
           box2d
           lua
@@ -209,7 +208,7 @@ if(WIN32)
     POST_BUILD
     COMMAND
       "${CMAKE_COMMAND}" -E copy_if_different
-      "$<TARGET_FILE_DIR:SDL2::Core>/../bin/SDL2.dll" "$<TARGET_FILE_DIR:Game>"
+      "$<TARGET_FILE_DIR:SDL3::SDL3>/../bin/SDL3.dll" "$<TARGET_FILE_DIR:Game>"
     VERBATIM)
 endif()
 

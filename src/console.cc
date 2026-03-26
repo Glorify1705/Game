@@ -3,7 +3,7 @@
 namespace G {
 namespace {
 
-constexpr const char* kPriorities[SDL_NUM_LOG_PRIORITIES] = {
+constexpr const char* kPriorities[SDL_LOG_PRIORITY_COUNT] = {
     nullptr, "VERBOSE", "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"};
 
 }

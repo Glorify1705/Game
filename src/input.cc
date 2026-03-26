@@ -21,7 +21,7 @@ void Keyboard::InitForFrame() {
 Keyboard::Keyboard(Allocator* allocator)
     : table_(allocator), events_(256, allocator) {
   char buf[256];
-  for (int i = SDL_SCANCODE_UNKNOWN; i < SDL_NUM_SCANCODES; ++i) {
+  for (int i = SDL_SCANCODE_UNKNOWN; i < SDL_SCANCODE_COUNT; ++i) {
     auto scancode = static_cast<SDL_Scancode>(i);
     const char* name = SDL_GetScancodeName(scancode);
     if (name == nullptr) continue;
@@ -58,36 +58,37 @@ Keyboard::Keyboard(Allocator* allocator)
   table_.Insert("f12", SDL_SCANCODE_F12);
   table_.Insert("escape", SDL_SCANCODE_ESCAPE);
   table_.Insert("esc", SDL_SCANCODE_ESCAPE);
-  table_.Insert("+", {SDL_SCANCODE_EQUALS, {KMOD_SHIFT}});
+  table_.Insert("+", {SDL_SCANCODE_EQUALS, {SDL_KMOD_SHIFT}});
 }
 
 void Keyboard::PushEvent(const SDL_Event& event) {
-  if (event.type == SDL_KEYDOWN) {
-    const SDL_Scancode c = event.key.keysym.scancode;
-    const auto mod = event.key.keysym.mod;
+  if (event.type == SDL_EVENT_KEY_DOWN) {
+    const SDL_Scancode c = event.key.scancode;
+    const auto mod = event.key.mod;
     pressed_[c] = true;
     mods_ = static_cast<SDL_Keymod>(mods_ | mod);
-  } else if (event.type == SDL_KEYUP) {
-    const SDL_Scancode c = event.key.keysym.scancode;
-    const auto mod = event.key.keysym.mod;
+  } else if (event.type == SDL_EVENT_KEY_UP) {
+    const SDL_Scancode c = event.key.scancode;
+    const auto mod = event.key.mod;
     pressed_[c] = false;
     mods_ = static_cast<SDL_Keymod>(mods_ & ~mod);
   }
 }
 
 void Mouse::PushEvent(const SDL_Event& event) {
-  if (event.type == SDL_MOUSEWHEEL) {
+  if (event.type == SDL_EVENT_MOUSE_WHEEL) {
     mouse_wheel_ += FVec(event.wheel.x, event.wheel.y) / 50;
     mouse_wheel_.x = std::clamp(0.0f, mouse_wheel_.x, 1.0f);
     mouse_wheel_.y = std::clamp(0.0f, mouse_wheel_.y, 1.0f);
   }
-  if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
+  if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
+      event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
     if (event.button.button == SDL_BUTTON_LEFT) {
-      pressed_[0] = event.type == SDL_MOUSEBUTTONDOWN;
+      pressed_[0] = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
     } else if (event.button.button == SDL_BUTTON_MIDDLE) {
-      pressed_[1] = event.type == SDL_MOUSEBUTTONDOWN;
+      pressed_[1] = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
     } else if (event.button.button == SDL_BUTTON_RIGHT) {
-      pressed_[2] = event.type == SDL_MOUSEBUTTONDOWN;
+      pressed_[2] = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
     }
   }
 }
@@ -95,31 +96,31 @@ void Mouse::PushEvent(const SDL_Event& event) {
 Controllers::Controllers(Allocator* allocator)
     : button_table_(allocator), axis_table_(allocator) {
   // Button table.
-  button_table_.Insert("a", SDL_CONTROLLER_BUTTON_A);
-  button_table_.Insert("b", SDL_CONTROLLER_BUTTON_B);
-  button_table_.Insert("x", SDL_CONTROLLER_BUTTON_X);
-  button_table_.Insert("y", SDL_CONTROLLER_BUTTON_Y);
-  button_table_.Insert("start", SDL_CONTROLLER_BUTTON_START);
-  button_table_.Insert("back", SDL_CONTROLLER_BUTTON_BACK);
-  button_table_.Insert("dpadl", SDL_CONTROLLER_BUTTON_DPAD_LEFT);
-  button_table_.Insert("dpadr", SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
-  button_table_.Insert("dpadu", SDL_CONTROLLER_BUTTON_DPAD_UP);
-  button_table_.Insert("dpadd", SDL_CONTROLLER_BUTTON_DPAD_DOWN);
+  button_table_.Insert("a", SDL_GAMEPAD_BUTTON_SOUTH);
+  button_table_.Insert("b", SDL_GAMEPAD_BUTTON_EAST);
+  button_table_.Insert("x", SDL_GAMEPAD_BUTTON_WEST);
+  button_table_.Insert("y", SDL_GAMEPAD_BUTTON_NORTH);
+  button_table_.Insert("start", SDL_GAMEPAD_BUTTON_START);
+  button_table_.Insert("back", SDL_GAMEPAD_BUTTON_BACK);
+  button_table_.Insert("dpadl", SDL_GAMEPAD_BUTTON_DPAD_LEFT);
+  button_table_.Insert("dpadr", SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
+  button_table_.Insert("dpadu", SDL_GAMEPAD_BUTTON_DPAD_UP);
+  button_table_.Insert("dpadd", SDL_GAMEPAD_BUTTON_DPAD_DOWN);
   // Axis table.
-  axis_table_.Insert("lanalogx", SDL_CONTROLLER_AXIS_LEFTX);
-  axis_table_.Insert("ranalogx", SDL_CONTROLLER_AXIS_RIGHTX);
-  axis_table_.Insert("lanalogy", SDL_CONTROLLER_AXIS_LEFTY);
-  axis_table_.Insert("ranalogy", SDL_CONTROLLER_AXIS_RIGHTY);
-  axis_table_.Insert("ltrigger", SDL_CONTROLLER_AXIS_TRIGGERLEFT);
-  axis_table_.Insert("rtrigger", SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+  axis_table_.Insert("lanalogx", SDL_GAMEPAD_AXIS_LEFTX);
+  axis_table_.Insert("ranalogx", SDL_GAMEPAD_AXIS_RIGHTX);
+  axis_table_.Insert("lanalogy", SDL_GAMEPAD_AXIS_LEFTY);
+  axis_table_.Insert("ranalogy", SDL_GAMEPAD_AXIS_RIGHTY);
+  axis_table_.Insert("ltrigger", SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
+  axis_table_.Insert("rtrigger", SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
 }
 
 namespace {
-SDL_RWops* RWOpsFromMemory(ByteSlice data) {
-  SDL_RWops* rwops = SDL_RWFromMem(const_cast<uint8_t*>(data.data()),
-                                   static_cast<int>(data.size()));
-  CHECK(rwops != nullptr);
-  return rwops;
+SDL_IOStream* IOStreamFromMemory(ByteSlice data) {
+  SDL_IOStream* io =
+      SDL_IOFromMem(const_cast<uint8_t*>(data.data()), data.size());
+  CHECK(io != nullptr);
+  return io;
 }
 }  // namespace
 
@@ -130,26 +131,23 @@ void Controllers::Initialize(ByteSlice db) {
   } else {
     LOG("Using custom controllers database");
   }
-  SDL_RWops* rwops = RWOpsFromMemory(db);
-  CHECK(SDL_GameControllerAddMappingsFromRW(rwops, /*freerw=*/true) > 0,
+  SDL_IOStream* io = IOStreamFromMemory(db);
+  CHECK(SDL_AddGamepadMappingsFromIO(io, /*closeio=*/true) > 0,
         "Could not add Joystick database: ", SDL_GetError());
   // Open controllers.
-  const int controllers = SDL_NumJoysticks();
-  CHECK(controllers >= 0, "Failed to get joysticks: ", SDL_GetError());
-  DCHECK(static_cast<size_t>(controllers) < controllers_.size());
-  if (controllers == 0) LOG("Found no joysticks");
-  for (int i = 0; i < controllers; ++i) {
-    if (!SDL_IsGameController(i)) {
-      LOG("Skipping controller ", i);
-      continue;
-    }
+  int count = 0;
+  SDL_JoystickID* ids = SDL_GetGamepads(&count);
+  DCHECK(static_cast<size_t>(count) < controllers_.size());
+  if (count == 0) LOG("Found no joysticks");
+  for (int i = 0; i < count; ++i) {
     Controller& controller = controllers_[i];
-    controller.ptr = SDL_GameControllerOpen(i);
+    controller.ptr = SDL_OpenGamepad(ids[i]);
     CHECK(controller.ptr, "Could not open controller ", i, ": ",
           SDL_GetError());
-    LOG("Opened joystick: ", SDL_GameControllerName(controller.ptr));
+    LOG("Opened joystick: ", SDL_GetGamepadName(controller.ptr));
     open_controllers_[i] = true;
   }
+  SDL_free(ids);
 }
 
 void Controllers::InitForFrame() {
@@ -161,30 +159,29 @@ void Controllers::InitForFrame() {
 }
 
 void Controllers::PushEvent(const SDL_Event& event) {
-  if (event.type == SDL_CONTROLLERDEVICEADDED) {
-    const size_t i = event.cdevice.which;
+  if (event.type == SDL_EVENT_GAMEPAD_ADDED) {
+    const size_t i = event.gdevice.which;
     DCHECK(i < controllers_.size());
     if (!open_controllers_[i]) {
-      controllers_[i].ptr = SDL_GameControllerOpen(i);
+      controllers_[i].ptr = SDL_OpenGamepad(event.gdevice.which);
       CHECK(controllers_[i].ptr, "Could not open joystick ", i, ": ",
             SDL_GetError());
       open_controllers_[i] = true;
-      LOG("Opened joystick: ", SDL_GameControllerName(controllers_[i].ptr));
+      LOG("Opened joystick: ", SDL_GetGamepadName(controllers_[i].ptr));
     }
   }
-  if (event.type == SDL_JOYDEVICEREMOVED) {
+  if (event.type == SDL_EVENT_JOYSTICK_REMOVED) {
     const size_t i = event.jdevice.which;
     DCHECK(i < controllers_.size());
     if (open_controllers_[i] &&
-        event.cdevice.which ==
-            SDL_JoystickInstanceID(
-                SDL_GameControllerGetJoystick(controllers_[i].ptr))) {
-      LOG("Closed joystick: ", SDL_GameControllerName(controllers_[i].ptr));
-      SDL_GameControllerClose(controllers_[i].ptr);
+        event.jdevice.which ==
+            SDL_GetJoystickID(SDL_GetGamepadJoystick(controllers_[i].ptr))) {
+      LOG("Closed joystick: ", SDL_GetGamepadName(controllers_[i].ptr));
+      SDL_CloseGamepad(controllers_[i].ptr);
       open_controllers_[i] = false;
     }
   }
-  if (event.type == SDL_JOYBUTTONDOWN) {
+  if (event.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN) {
     const size_t i = event.jbutton.which;
     DCHECK(i < controllers_.size());
     DCHECK(open_controllers_[i]);
@@ -192,7 +189,7 @@ void Controllers::PushEvent(const SDL_Event& event) {
     controllers_[i].pressed[event.jbutton.button] = true;
     active_controller_ = i;
   }
-  if (event.type == SDL_JOYBUTTONUP) {
+  if (event.type == SDL_EVENT_JOYSTICK_BUTTON_UP) {
     const size_t i = event.jbutton.which;
     DCHECK(i < controllers_.size());
     DCHECK(event.jbutton.button < controllers_[i].pressed.size());
@@ -204,7 +201,7 @@ void Controllers::PushEvent(const SDL_Event& event) {
 Controllers::~Controllers() {
   for (size_t i = 0; i < controllers_.size(); ++i) {
     if (open_controllers_[i]) {
-      SDL_GameControllerClose(controllers_[i].ptr);
+      SDL_CloseGamepad(controllers_[i].ptr);
     }
   }
 }

@@ -1,6 +1,6 @@
 #include "lua_system.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 namespace G {
 namespace {
@@ -29,7 +29,7 @@ const struct LuaApiFunction kSystemLib[] = {
      {},
      {{"count", "the number of CPUs", "integer"}},
      [](lua_State* state) {
-       lua_pushinteger(state, SDL_GetCPUCount());
+       lua_pushinteger(state, SDL_GetNumLogicalCPUCores());
        return 1;
      }},
     {"set_clipboard",
@@ -47,8 +47,8 @@ const struct LuaApiFunction kSystemLib[] = {
      {{"error", "nil on success, error message on failure", "string"}},
      [](lua_State* state) {
        const char* url = luaL_checkstring(state, 1);
-       const int result = SDL_OpenURL(url);
-       if (result == 0) {
+       const bool result = SDL_OpenURL(url);
+       if (result) {
          lua_pushnil(state);
        } else {
          FixedStringBuffer<kMaxLogLineLength> buf("Could not open ", url, ": ",
@@ -76,7 +76,7 @@ const struct LuaApiFunction kSystemLib[] = {
      {},
      {{"text", "the clipboard contents", "string"}},
      [](lua_State* state) {
-       char* result = SDL_GetClipboardText();
+       const char* result = SDL_GetClipboardText();
        const size_t length = strlen(result);
        if (length == 0) {
          LUA_ERROR(state, "Failed to get the clipboard: ", SDL_GetError());

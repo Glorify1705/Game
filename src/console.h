@@ -2,7 +2,8 @@
 #ifndef _GAME_CONSOLE_H
 #define _GAME_CONSOLE_H
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
+
 #include "allocators.h"
 #include "array.h"
 #include "circular_buffer.h"
@@ -17,12 +18,12 @@ class DebugConsole {
   DebugConsole(Allocator* allocator)
       : buffers_(allocator, kMaxLines), lines_(kMaxLines, allocator) {
     mu_ = SDL_CreateMutex();
-    SDL_LogGetOutputFunction(&log_fn_, &log_fn_userdata_);
-    SDL_LogSetOutputFunction(LogWithConsole, this);
+    SDL_GetLogOutputFunction(&log_fn_, &log_fn_userdata_);
+    SDL_SetLogOutputFunction(LogWithConsole, this);
   }
 
   ~DebugConsole() {
-    SDL_LogSetOutputFunction(log_fn_, log_fn_userdata_);
+    SDL_SetLogOutputFunction(log_fn_, log_fn_userdata_);
     SDL_DestroyMutex(mu_);
   }
 
@@ -56,7 +57,7 @@ class DebugConsole {
   SDL_LogOutputFunction log_fn_;
   void* log_fn_userdata_;
 
-  SDL_mutex* mu_ = nullptr;
+  SDL_Mutex* mu_ = nullptr;
 };
 
 }  // namespace G

@@ -2,12 +2,13 @@
 #ifndef _GAME_INPUT_H
 #define _GAME_INPUT_H
 
+#include <SDL3/SDL.h>
+
 #include <array>
 #include <bitset>
 #include <cstdint>
 #include <string_view>
 
-#include "SDL.h"
 #include "array.h"
 #include "circular_buffer.h"
 #include "dictionary.h"
@@ -21,13 +22,13 @@ class Keyboard {
     SDL_Scancode code;
     SDL_Keymod mods;
 
-    PressConditions(SDL_Scancode c) : code(c), mods(KMOD_NONE) {}
+    PressConditions(SDL_Scancode c) : code(c), mods(SDL_KMOD_NONE) {}
 
     PressConditions() : PressConditions(SDL_SCANCODE_UNKNOWN) {}
 
     template <SDL_Keymod... Mods>
     PressConditions(SDL_Scancode c, std::initializer_list<SDL_Keymod> ms)
-        : code(c), mods(KMOD_NONE) {
+        : code(c), mods(SDL_KMOD_NONE) {
       for (SDL_Keymod mod : ms) mods = static_cast<SDL_Keymod>(mods | mod);
     }
   };
@@ -67,7 +68,7 @@ class Keyboard {
 
  private:
   inline static constexpr size_t kQueueSize = 256;
-  inline static constexpr size_t kKeyboardTable = SDL_NUM_SCANCODES;
+  inline static constexpr size_t kKeyboardTable = SDL_SCANCODE_COUNT;
 
   struct Event {
     SDL_Scancode code;
@@ -90,7 +91,7 @@ class Mouse {
   }
   enum Button { kLeft = 0, kRight = 1, kMiddle = 2 };
   static FVec2 GetPosition() {
-    int x, y;
+    float x, y;
     SDL_GetMouseState(&x, &y);
     return FVec(x, y);
   }
@@ -152,28 +153,28 @@ class Controllers {
     return !controller.previously_pressed[button] && controller.pressed[button];
   }
 
-  SDL_GameControllerButton StrToButton(std::string_view key) const {
-    SDL_GameControllerButton result;
+  SDL_GamepadButton StrToButton(std::string_view key) const {
+    SDL_GamepadButton result;
     if (!button_table_.Lookup(key, &result)) {
-      return SDL_CONTROLLER_BUTTON_INVALID;
+      return SDL_GAMEPAD_BUTTON_INVALID;
     }
     return result;
   }
 
-  int AxisPositions(SDL_GameControllerAxis axis, int controller_id) const {
+  int AxisPositions(SDL_GamepadAxis axis, int controller_id) const {
     if (controller_id == -1) return 0;
-    return SDL_GameControllerGetAxis(controllers_[controller_id].ptr, axis);
+    return SDL_GetGamepadAxis(controllers_[controller_id].ptr, axis);
   }
 
-  int TriggerPositions(SDL_GameControllerAxis axis, int controller_id) const {
+  int TriggerPositions(SDL_GamepadAxis axis, int controller_id) const {
     if (controller_id == -1) return 0;
-    return SDL_GameControllerGetAxis(controllers_[controller_id].ptr, axis);
+    return SDL_GetGamepadAxis(controllers_[controller_id].ptr, axis);
   }
 
-  SDL_GameControllerAxis StrToAxisOrTrigger(std::string_view key) const {
-    SDL_GameControllerAxis result;
+  SDL_GamepadAxis StrToAxisOrTrigger(std::string_view key) const {
+    SDL_GamepadAxis result;
     if (!axis_table_.Lookup(key, &result)) {
-      return SDL_CONTROLLER_AXIS_INVALID;
+      return SDL_GAMEPAD_AXIS_INVALID;
     }
     return result;
   }
@@ -182,15 +183,15 @@ class Controllers {
 
  private:
   struct Controller {
-    SDL_GameController* ptr = nullptr;
+    SDL_Gamepad* ptr = nullptr;
     std::bitset<32> pressed;
     std::bitset<32> previously_pressed;
   };
   std::array<Controller, 64> controllers_;
   std::bitset<64> open_controllers_;
   int active_controller_ = -1;
-  Dictionary<SDL_GameControllerButton> button_table_;
-  Dictionary<SDL_GameControllerAxis> axis_table_;
+  Dictionary<SDL_GamepadButton> button_table_;
+  Dictionary<SDL_GamepadAxis> axis_table_;
 };
 
 }  // namespace G
