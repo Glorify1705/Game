@@ -560,8 +560,8 @@ void BatchRenderer::Render(Allocator* scratch) {
       glLineWidth(line_width);
       glActiveTexture(GL_TEXTURE0 + texture_unit);
       MUST(shaders_->SetUniform("tex", texture_unit));
-      MUST(shaders_->SetUniform("projection",
-                                Ortho(0, current_viewport_w, 0, current_viewport_h)));
+      MUST(shaders_->SetUniform(
+          "projection", Ortho(0, current_viewport_w, 0, current_viewport_h)));
       MUST(shaders_->SetUniform("transform", transform));
       OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
       OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex_[texture_unit]));
@@ -1134,6 +1134,9 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
   const Color color = color_;
   FVec2 p = position;
   const float pixel_scale = size / info->pixel_height;
+  // Shift baseline down by the ascent so the y parameter refers to the top of
+  // the text line rather than the baseline.
+  p.y += info->ascent * info->scale * pixel_scale;
   auto handle_char = [&](size_t i, char c) {
     const SDFGlyph& g = info->glyphs[static_cast<unsigned char>(c)];
     if (g.width == 0 || g.height == 0) {

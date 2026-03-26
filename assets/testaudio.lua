@@ -95,7 +95,7 @@ function Game:draw()
     local y = 40
     local function line(text)
         G.graphics.print(text, 40, y)
-        y = y + 24
+        y = y + 28
     end
 
     line("=== Audio Features Test ===")
