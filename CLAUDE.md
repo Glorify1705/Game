@@ -84,6 +84,15 @@ All engine code lives under `src/` in namespace `G`. Major subsystems:
 - Use **parameter comments** for non-obvious literals:
   `Init(/*table_size=*/1024)`.
 
+## Git Conventions
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) for all
+commit messages (e.g. `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`,
+`test:`).
+
+When using worktrees, name the branch `worktree-<worktree name>` (e.g.
+`worktree-sdl3-migration`).
+
 ## Tests
 
 Tests live in `tests/test.cc` using GoogleTest. They always compile with
