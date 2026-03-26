@@ -165,6 +165,10 @@
   (G.graphics.attach_shader :crt.frag)
   (let [{:width w :height h} g]
     (G.graphics.send_uniform :iResolution (G.math.v2 w h))
+    ;; Draw a full-screen dark green rect so the CRT vignette is visible.
+    (G.graphics.set_color 0 40 0 255)
+    (G.graphics.draw_rect 0 0 w h)
+    (G.graphics.set_color :white)
     (if (= g.state :finished)
         (let [winner-text (if (> g.left-score g.right-score) "Player 1 wins"
                               "Player 2 wins")]
