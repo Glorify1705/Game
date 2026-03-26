@@ -145,8 +145,10 @@ constexpr std::string_view kFragmentShaderPostamble = R"(
   in vec4 out_color;
 
   uniform sampler2D tex;
+  uniform vec2 screen_size;
+  uniform float time;
 
-  void main() { 
+  void main() {
       frag_color = effect(out_color, tex, tex_coord, screen_coord);
   }
 )";

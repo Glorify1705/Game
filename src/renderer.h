@@ -122,6 +122,8 @@ class BatchRenderer {
 
   void InitializeFramebuffers();
 
+  void SetFrameTime(float t) { frame_time_ = t; }
+
   IVec2 GetViewport() const { return viewport_; }
 
   GLuint GetRenderTarget() const { return render_target_; }
@@ -259,6 +261,7 @@ class BatchRenderer {
   Allocator* allocator_;
   uint8_t* command_buffer_ = nullptr;
   size_t pos_ = 0;
+  float frame_time_ = 0;
   uint32_t current_shader_ = 0;
   FixedArray<QueueEntry> commands_;
   FixedArray<GLuint> tex_;
