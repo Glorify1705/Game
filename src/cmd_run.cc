@@ -100,6 +100,11 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
   }
   InitializeAssetDb(db);
 
+  // Log all arguments for easy validation of runs from logs.
+  for (size_t i = 0; i < args.size(); ++i) {
+    LOG("args[", i, "]: ", args[i]);
+  }
+
   // Build GameOptions and run.
   GameOptions opts;
   opts.source_directory = source_directory;
@@ -142,6 +147,11 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
       game_args = {args.data() + i + 1, args.size() - i - 1};
       break;
     }
+  }
+
+  // Log all arguments for easy validation of runs from logs.
+  for (size_t i = 0; i < args.size(); ++i) {
+    LOG("args[", i, "]: ", args[i]);
   }
 
   GameOptions opts;
