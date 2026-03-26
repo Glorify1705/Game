@@ -80,12 +80,12 @@ constexpr std::string_view kPostPassVertexShader = R"(
 constexpr std::string_view kPostPassFragmentShader = R"(
   #version 460 core
   out vec4 frag_color;
-    
+
   in vec2 tex_coord;
 
   uniform sampler2D screen_texture;
 
-  void main() { 
+  void main() {
       frag_color = texture(screen_texture, tex_coord);
   }
 )";
@@ -297,6 +297,7 @@ void Shaders::UseProgram(std::string_view program) {
   CHECK(compiled_programs_.Lookup(program, &program_id),
         " could not find program ", program);
   current_program_ = program_id;
+  current_program_name_ = program.data();
   OPENGL_CALL(glUseProgram(current_program_));
 }
 

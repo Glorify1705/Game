@@ -79,28 +79,59 @@ struct LuaError {
   std::string_view message;
 };
 
+// Try to parse "filename:line:" at the start of `s`. Returns true and fills
+// `file` and `line` on success.
+bool TryParseFileAndLine(std::string_view s, std::string_view* file,
+                         int* line) {
+  // Find first colon (end of filename).
+  size_t c1 = s.find(':');
+  if (c1 == std::string_view::npos) return false;
+  // Find second colon (end of line number).
+  size_t c2 = s.find(':', c1 + 1);
+  if (c2 == std::string_view::npos || c2 == c1 + 1) return false;
+  // Verify the text between colons is all digits.
+  for (size_t i = c1 + 1; i < c2; ++i) {
+    if (s[i] < '0' || s[i] > '9') return false;
+  }
+  *file = s.substr(0, c1);
+  // Parse the line number manually (no std::stoi on string_view).
+  *line = 0;
+  for (size_t i = c1 + 1; i < c2; ++i) {
+    *line = 10 * (*line) + (s[i] - '0');
+  }
+  return true;
+}
+
 LuaError ParseLuaError(std::string_view message) {
-  enum State { FILE, LINE };
-  State state = FILE;
   LuaError result;
-  for (size_t i = 0; i < message.size(); ++i) {
-    const char c = message[i];
-    switch (state) {
-      case FILE:
-        if (c == ':') {
-          result.filename = message.substr(0, i);
-          state = LINE;
-        }
-        break;
-      case LINE:
-        if (c == ':') {
-          result.message = message.substr(i + 2);
-          return result;
-        } else {
-          result.line = 10 * result.line + (c - '0');
-        }
-        break;
+  result.message = message;
+  // Try parsing "filename:line: error message" from the first line.
+  if (TryParseFileAndLine(message, &result.filename, &result.line)) {
+    // Skip past "filename:line: " to get the message portion.
+    size_t c2 = message.find(':', result.filename.size() + 1);
+    size_t msg_start = c2 + 1;
+    if (msg_start < message.size() && message[msg_start] == ' ') msg_start++;
+    result.message = message.substr(msg_start);
+    return result;
+  }
+  // Fallback: scan traceback lines for the first "filename:line:" pattern.
+  // Lines look like "\ttestcollision3.lua:104: in function ..."
+  size_t pos = 0;
+  while (pos < message.size()) {
+    size_t eol = message.find('\n', pos);
+    if (eol == std::string_view::npos) eol = message.size();
+    std::string_view line = message.substr(pos, eol - pos);
+    // Strip leading whitespace/tabs.
+    size_t start = 0;
+    while (start < line.size() && (line[start] == ' ' || line[start] == '\t'))
+      start++;
+    std::string_view trimmed = line.substr(start);
+    // Skip [C] lines and the "stack traceback:" header.
+    if (!trimmed.empty() && trimmed[0] != '[' &&
+        TryParseFileAndLine(trimmed, &result.filename, &result.line)) {
+      return result;
     }
+    pos = eol + 1;
   }
   return result;
 }
@@ -716,6 +747,10 @@ void Lua::LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
   lua_setfield(state_, -2, "__name");
   for (size_t i = 0; i < register_count; ++i) {
     const luaL_Reg& r = registers[i];
+    CHECK(r.name != nullptr, "Null entry in metatable '", metatable_name,
+          "' at index ", i,
+          " — remove {nullptr, nullptr} sentinel, LoadMetatable uses array "
+          "size directly");
     lua_pushstring(state_, r.name);
     lua_pushcfunction(state_, r.func);
     lua_settable(state_, -3);
@@ -805,7 +840,11 @@ std::string_view Trim(std::string_view s) {
 }
 
 void Lua::SetError(std::string_view file, int line, std::string_view error) {
-  error_.Set("[", file, ":", line, "] ");
+  if (!file.empty()) {
+    error_.Set("[", file, ":", line, "] ");
+  } else {
+    error_.Set("");
+  }
   // Remove lines with [C] or "(tail call)" since they are not useful.
   size_t st = 0, en = 0;
   auto flush = [&] {

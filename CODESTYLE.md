@@ -366,12 +366,18 @@ namespace internal_strings {
 }  // namespace G
 ```
 
-Use anonymous namespaces in `.cc` files for file-local helpers:
+Use anonymous namespaces in `.cc` files for file-local helpers.
+**Never** use `static` for file-local functions — always use an anonymous
+namespace instead:
 
 ```cpp
+// Good
 namespace {
 int Helper() { return 42; }
 }  // namespace
+
+// Bad
+static int Helper() { return 42; }
 ```
 
 **Never** use `using namespace` in headers. In `.cc` files, prefer explicit
@@ -483,6 +489,19 @@ this codebase.
   bool Lookup(std::string_view key, T* value) const;
   ```
 - Use `[[nodiscard]]` on functions where ignoring the return value is a bug.
+
+### Parameter Comments for Literals
+
+When passing literal values (numbers, booleans) to a function, add a
+`/*parameter_name=*/` comment so the callsite is self-documenting:
+
+```cpp
+// Good
+spatial_hash_.Init(cell_size, /*table_size=*/1024, allocator);
+
+// Bad
+spatial_hash_.Init(cell_size, 1024, allocator);
+```
 
 ### Short Functions
 
@@ -782,6 +801,9 @@ comment. If the code is tricky, explain the reasoning:
 
 - Use `//` for all comments, never `/* */` (except for disabling code blocks
   temporarily).
+- **No banner comments.** Do not use decorative section dividers like
+  `// --- Section Name ---` or `// ========`. If code needs grouping, use
+  a blank line and an ordinary comment.
 - Two spaces before trailing comments:
 
   ```cpp

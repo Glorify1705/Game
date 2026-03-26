@@ -83,6 +83,8 @@ set(VENDORED_SRCS
 set(ENGINE_SRCS
     "src/assets.cc"
     "src/clock.cc"
+    "src/collision.cc"
+    "src/collision_world.cc"
     "src/color.cc"
     "src/config.cc"
     "src/console.cc"
@@ -94,6 +96,7 @@ set(ENGINE_SRCS
     "src/lua.cc"
     "src/lua_assets.cc"
     "src/lua_bytebuffer.cc"
+    "src/lua_collision.cc"
     "src/lua_filesystem.cc"
     "src/lua_graphics.cc"
     "src/lua_input.cc"
@@ -213,7 +216,8 @@ endif()
 enable_testing()
 
 set(TEST_SRCS "src/stringlib.cc" "src/stats.cc" "src/string_table.cc"
-              "src/logging.cc" "tests/test.cc")
+              "src/logging.cc" "src/collision.cc" "src/collision_world.cc"
+              "tests/test.cc")
 
 add_executable(Tests "${TEST_SRCS}")
 

@@ -86,7 +86,7 @@ uint8_t* PushBufferIntoLua(lua_State* state, size_t size) {
 }
 
 void AddByteBufferLibrary(Lua* lua) {
-  lua->LoadMetatable("byte_buffer", kByteBufferMethods);
+  LOAD_METATABLE(lua, "byte_buffer", kByteBufferMethods);
   lua->AddLibrary("data", kDataLib);
 
   static const LuaUserdataOperator kByteBufferOps[] = {
