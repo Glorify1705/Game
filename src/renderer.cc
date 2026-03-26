@@ -1190,7 +1190,11 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
     i++;
   }
   renderer_->SetActiveColor(color);
-  renderer_->SetShaderByHandle(prev_shader);
+  if (prev_shader != 0) {
+    renderer_->SetShaderByHandle(prev_shader);
+  } else {
+    renderer_->SetShaderProgram("pre_pass");
+  }
 }
 
 IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,

@@ -908,13 +908,7 @@ void Lua::LoadMain() {
     LoadFennelAsset(main->name, main->contents, traceback_handler_);
   }
   if (!lua_istable(state_, -1)) {
-    if (lua_isboolean(state_, -1)) {
-      LOG("Single evaluation mode. Finished");
-      single_evaluation_ = true;
-      lua_pop(state_, 1);
-    } else {
-      LUA_ERROR(state_, "Expected a table for single evaluation mode");
-    }
+    LUA_ERROR(state_, "Expected main.lua to return a table");
     return;
   }
   // Check all important functions are defined.
@@ -984,7 +978,7 @@ void Lua::SetPackagePreload(std::string_view modname) {
 
 void Lua::Init() {
   LUA_CHECK_STACK(state_);
-  if (single_evaluation_) return;
+
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1002,7 +996,7 @@ void Lua::Init() {
 
 void Lua::Update(float t, float dt) {
   LUA_CHECK_STACK(state_);
-  if (single_evaluation_) return;
+
   if (!error_.empty()) return;
   READY();
   t_ = t;
@@ -1020,7 +1014,7 @@ void Lua::Update(float t, float dt) {
 
 void Lua::Draw() {
   LUA_CHECK_STACK(state_);
-  if (single_evaluation_) return;
+
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1034,12 +1028,7 @@ void Lua::Draw() {
 
 void Lua::HandleKeypressed(int scancode) {
   LUA_CHECK_STACK(state_);
-  if (single_evaluation_) {
-    if (scancode == SDL_SCANCODE_Q || scancode == SDL_SCANCODE_ESCAPE) {
-      Stop();
-    }
-    return;
-  }
+
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1059,7 +1048,7 @@ void Lua::HandleKeypressed(int scancode) {
 
 void Lua::HandleKeyreleased(int scancode) {
   LUA_CHECK_STACK(state_);
-  if (single_evaluation_) return;
+
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1078,7 +1067,7 @@ void Lua::HandleKeyreleased(int scancode) {
 
 void Lua::HandleMousePressed(int button) {
   LUA_CHECK_STACK(state_);
-  if (single_evaluation_) return;
+
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1097,7 +1086,7 @@ void Lua::HandleMousePressed(int button) {
 
 void Lua::HandleTextInput(std::string_view input) {
   LUA_CHECK_STACK(state_);
-  if (single_evaluation_) return;
+
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1116,7 +1105,7 @@ void Lua::HandleTextInput(std::string_view input) {
 
 void Lua::HandleMouseReleased(int button) {
   LUA_CHECK_STACK(state_);
-  if (single_evaluation_) return;
+
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1136,7 +1125,7 @@ void Lua::HandleMouseReleased(int button) {
 
 void Lua::HandleMouseMoved(FVec2 pos, FVec2 delta) {
   LUA_CHECK_STACK(state_);
-  if (single_evaluation_) return;
+
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
@@ -1159,7 +1148,7 @@ void Lua::HandleMouseMoved(FVec2 pos, FVec2 delta) {
 
 void Lua::HandleQuit() {
   LUA_CHECK_STACK(state_);
-  if (single_evaluation_) return;
+
   if (!error_.empty()) return;
   READY();
   lua_getglobal(state_, "_Game");
