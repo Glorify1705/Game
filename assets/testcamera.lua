@@ -206,7 +206,7 @@ function g.draw()
   G.graphics.draw_text("ponderosa.ttf", 18, status, 10, 10)
 
   local help = "WASD=move  Scroll=zoom  R=rotate  Space=shake  1=deadzone  2=bounds  3=parallax"
-  local vw, vh = G.graphics.get_viewport()
+  local vw, vh = G.window.dimensions()
   G.graphics.draw_text("ponderosa.ttf", 14, help, 10, vh - 25)
 
   -- Show world mouse position.
