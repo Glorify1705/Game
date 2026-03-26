@@ -540,6 +540,16 @@ static const LuaApiFunction kGraphicsLib[] = {
        }
        return 0;
      }},
+    {"has_uniform",
+     "Returns true if the current shader has a uniform with the given name",
+     {{"name", "Name of the uniform to check", "string"}},
+     {{"exists", "Whether the uniform exists", "boolean"}},
+     [](lua_State* state) {
+       auto* shaders = Registry<Shaders>::Retrieve(state);
+       const char* name = luaL_checkstring(state, 1);
+       lua_pushboolean(state, shaders->HasUniform(name));
+       return 1;
+     }},
     {"set_blend_mode",
      "Set the blend mode for subsequent drawing operations",
      {{"mode",

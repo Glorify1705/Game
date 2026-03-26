@@ -115,6 +115,33 @@ class Shaders {
     return {};
   }
 
+  template <typename T, typename = std::void_t<decltype(T::kCardinality)>>
+  void SetUniformSilent(const char* name, const T& value) {
+    if (!current_program_) return;
+    const GLint uniform = glGetUniformLocation(current_program_, name);
+    if (uniform == -1) return;
+    internal::AsOpenglUniform(value, uniform);
+  }
+
+  void SetUniformSilent(const char* name, int value) {
+    if (!current_program_) return;
+    const GLint uniform = glGetUniformLocation(current_program_, name);
+    if (uniform == -1) return;
+    glUniform1i(uniform, value);
+  }
+
+  void SetUniformSilentF(const char* name, float value) {
+    if (!current_program_) return;
+    const GLint uniform = glGetUniformLocation(current_program_, name);
+    if (uniform == -1) return;
+    glUniform1f(uniform, value);
+  }
+
+  bool HasUniform(const char* name) const {
+    if (!current_program_) return false;
+    return glGetUniformLocation(current_program_, name) != -1;
+  }
+
   GLint AttributeLocation(const char* name) const {
     DCHECK(current_program_, "No program set");
     return glGetAttribLocation(current_program_, name);

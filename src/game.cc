@@ -558,6 +558,7 @@ class Game {
         t += kStep;
         accum -= kStep;
       }
+      e_->batch_renderer.SetFrameTime(static_cast<float>(t));
       Render();
       stats_.AddSample((NowInSeconds() - frame_start) * 1000.0);
     }
