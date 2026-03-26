@@ -8,6 +8,7 @@
 
 #include "allocators.h"
 #include "assets.h"
+#include "camera.h"
 #include "cli.h"
 #include "clock.h"
 #include "config.h"
@@ -19,6 +20,7 @@
 #include "lua.h"
 #include "lua_assets.h"
 #include "lua_bytebuffer.h"
+#include "lua_camera.h"
 #include "lua_collision.h"
 #include "lua_filesystem.h"
 #include "lua_graphics.h"
@@ -235,8 +237,10 @@ struct EngineModules {
     lua.Register(&filesystem);
     lua.Register(&physics);
     lua.Register(&console);
+    lua.Register(&camera);
     lua.Register(assets);
     AddByteBufferLibrary(&lua);
+    AddCameraLibrary(&lua);
     AddFilesystemLibrary(&lua);
     AddGraphicsLibrary(&lua);
     AddInputLibrary(&lua);
@@ -424,6 +428,7 @@ struct EngineModules {
   FixedArray<DbAssets::TextFile> text_files_;
   Sound sound;
   Renderer renderer;
+  Camera camera;
   MimallocAllocator lua_allocator;
   Lua lua;
   Physics physics;
@@ -582,6 +587,8 @@ class Game {
     }
     e_->physics.Update(dt);
     e_->lua.Update(t, dt);
+    IVec2 vp = e_->batch_renderer.GetViewport();
+    e_->camera.Update(dt, FVec2(vp.x, vp.y));
   }
 
   void Render() {
