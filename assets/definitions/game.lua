@@ -65,8 +65,12 @@ function G.filesystem.exists(name) end
 ---@class G.graphics
 G.graphics = {}
 
----Clear the screen to black
-function G.graphics.clear() end
+---Clear the current render target. With no arguments clears to transparent black. With arguments clears to the given RGBA color.
+---@param r? number red component (0-1)
+---@param g? number green component (0-1)
+---@param b? number blue component (0-1)
+---@param a? number alpha component (0-1)
+function G.graphics.clear(r?, g?, b?, a?) end
 
 ---Saves a screenshot from the contents of the current framebuffer
 ---@param file? string If provided, a filename where we should write the screenshot.
@@ -185,14 +189,29 @@ function G.graphics.attach_shader(shader?) end
 ---@param value number Value to send. Supported values are G.math.v2,v3,v4, G.math.m2x2, G.math.m3x3, G.math.m4x4, and floats
 function G.graphics.send_uniform(name, value) end
 
----Unimplemented.
-function G.graphics.new_canvas() end
+---Set the blend mode for subsequent drawing operations
+---@param mode string Blend mode: 'alpha' (default), 'add' (additive), 'multiply', or 'replace'
+function G.graphics.set_blend_mode(mode) end
 
----Unimplemented.
-function G.graphics.set_canvas() end
+---Create an off-screen canvas for rendering. Returns a canvas object.
+---@param width integer Canvas width in pixels
+---@param height integer Canvas height in pixels
+---@param options? table Optional table with 'filter' key: 'nearest' for pixel art or 'linear' (default)
+---@return canvas canvas A canvas object
+function G.graphics.new_canvas(width, height, options?) end
 
----Unimplemented.
-function G.graphics.draw_canvas() end
+---Redirect all subsequent drawing to a canvas. Call with no arguments to reset to the screen.
+---@param canvas? canvas Canvas to draw to, or nil/nothing to reset to screen
+function G.graphics.set_canvas(canvas?) end
+
+---Draw a canvas as a textured quad. Handles Y-flip automatically. Uses the current blend mode (set via set_blend_mode). For canvases with semi-transparent content, use set_blend_mode('premultiplied') before drawing to avoid alpha darkening artifacts.
+---@param canvas canvas The canvas to draw
+---@param x number X position to draw at
+---@param y number Y position to draw at
+---@param angle? number Rotation angle in radians
+---@param w? number Width to draw at (default: canvas width)
+---@param h? number Height to draw at (default: canvas height)
+function G.graphics.draw_canvas(canvas, x, y, angle?, w?, h?) end
 
 ---@class G.window
 G.window = {}
@@ -486,6 +505,43 @@ function G.sound.set_global_volume(gain) end
 ---@param source integer source id to stop
 function G.sound.stop_source(source) end
 
+---Adds a sound effect (fully decoded upfront for low-latency playback).
+---@param name string name of the sound asset.
+---@return integer source a handle for the source
+function G.sound.add_effect(name) end
+
+---Loads, decodes, and immediately plays a sound effect.
+---@param name string name of the sound asset.
+function G.sound.play_effect(name) end
+
+---Enables or disables looping for a source.
+---@param source integer source id to modify
+---@param loop boolean true to enable looping, false to disable
+function G.sound.set_loop(source, loop) end
+
+---Pauses a source without rewinding it.
+---@param source integer source id to pause
+function G.sound.pause(source) end
+
+---Resumes a paused source from where it stopped.
+---@param source integer source id to resume
+function G.sound.resume(source) end
+
+---Returns whether a source is currently playing.
+---@param source integer source id to query
+---@return boolean playing true if the source is playing
+function G.sound.is_playing(source) end
+
+---Sets the playback pitch/speed for a source.
+---@param source integer source id to modify
+---@param pitch number pitch multiplier (0.25 to 4.0, 1.0 = normal)
+function G.sound.set_pitch(source, pitch) end
+
+---Sets the stereo panning for a source.
+---@param source integer source id to modify
+---@param pan number pan position (-1.0 = left, 0.0 = center, 1.0 = right)
+function G.sound.set_pan(source, pan) end
+
 ---@class G.system
 G.system = {}
 
@@ -583,9 +639,8 @@ function vec2:len2() end
 ---@return vec2 result normalized vector
 function vec2:normalized() end
 
----Sends this value as a shader uniform
+---Sends this value as a shader uniform. Errors if uniform not found.
 ---@param name string uniform name
----@return boolean ok whether the uniform was set
 function vec2:send_as_uniform(name) end
 
 ---A 3D floating-point vector
@@ -608,9 +663,8 @@ function vec3:len2() end
 ---@return vec3 result normalized vector
 function vec3:normalized() end
 
----Sends this value as a shader uniform
+---Sends this value as a shader uniform. Errors if uniform not found.
 ---@param name string uniform name
----@return boolean ok whether the uniform was set
 function vec3:send_as_uniform(name) end
 
 ---A 4D floating-point vector
@@ -633,36 +687,32 @@ function vec4:len2() end
 ---@return vec4 result normalized vector
 function vec4:normalized() end
 
----Sends this value as a shader uniform
+---Sends this value as a shader uniform. Errors if uniform not found.
 ---@param name string uniform name
----@return boolean ok whether the uniform was set
 function vec4:send_as_uniform(name) end
 
 ---A 2x2 floating-point matrix
 ---@class mat2x2
 local mat2x2 = {}
 
----Sends this matrix as a shader uniform
+---Sends this matrix as a shader uniform. Errors if uniform not found.
 ---@param name string uniform name
----@return boolean ok whether the uniform was set
 function mat2x2:send_as_uniform(name) end
 
 ---A 3x3 floating-point matrix
 ---@class mat3x3
 local mat3x3 = {}
 
----Sends this matrix as a shader uniform
+---Sends this matrix as a shader uniform. Errors if uniform not found.
 ---@param name string uniform name
----@return boolean ok whether the uniform was set
 function mat3x3:send_as_uniform(name) end
 
 ---A 4x4 floating-point matrix
 ---@class mat4x4
 local mat4x4 = {}
 
----Sends this matrix as a shader uniform
+---Sends this matrix as a shader uniform. Errors if uniform not found.
 ---@param name string uniform name
----@return boolean ok whether the uniform was set
 function mat4x4:send_as_uniform(name) end
 
 ---An opaque handle to a physics body
