@@ -673,7 +673,6 @@ void BatchRenderer::Render(Allocator* scratch) {
   shaders_->UseProgram("post_pass");
   glActiveTexture(GL_TEXTURE1);
   MUST(shaders_->SetUniform("screen_texture", 1));
-  MUST(shaders_->SetUniform("color", color.ToFloat()));
   OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));

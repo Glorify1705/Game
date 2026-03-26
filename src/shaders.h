@@ -85,7 +85,10 @@ class Shaders {
   ErrorOr<void> SetUniform(const char* name, const T& value) {
     if (!current_program_) return Error::Message("No program set");
     const GLint uniform = glGetUniformLocation(current_program_, name);
-    if (uniform == -1) return Error::Message("No uniform with that name");
+    if (uniform == -1) {
+      LOG("No uniform '", name, "' in shader '", current_program_name_, "'");
+      return Error::Message("No uniform with that name");
+    }
     internal::AsOpenglUniform(value, uniform);
     return {};
   }
@@ -93,7 +96,10 @@ class Shaders {
   ErrorOr<void> SetUniform(const char* name, int value) {
     if (!current_program_) return Error::Message("No program set");
     const GLint uniform = glGetUniformLocation(current_program_, name);
-    if (uniform == -1) return Error::Message("No uniform with that name");
+    if (uniform == -1) {
+      LOG("No uniform '", name, "' in shader '", current_program_name_, "'");
+      return Error::Message("No uniform with that name");
+    }
     OPENGL_CALL(glUniform1i(uniform, value));
     return {};
   }
@@ -101,7 +107,10 @@ class Shaders {
   ErrorOr<void> SetUniformF(const char* name, float value) {
     if (!current_program_) return Error::Message("No program set");
     const GLint uniform = glGetUniformLocation(current_program_, name);
-    if (uniform == -1) return Error::Message("No uniform with that name");
+    if (uniform == -1) {
+      LOG("No uniform '", name, "' in shader '", current_program_name_, "'");
+      return Error::Message("No uniform with that name");
+    }
     OPENGL_CALL(glUniform1f(uniform, value));
     return {};
   }
@@ -118,6 +127,7 @@ class Shaders {
   FixedArray<GLuint> gl_shader_handles_;
   FixedArray<GLuint> gl_program_handles_;
   GLuint current_program_ = 0;
+  const char* current_program_name_ = "(none)";
 };
 
 }  // namespace G
