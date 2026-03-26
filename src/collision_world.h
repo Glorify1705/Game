@@ -146,9 +146,11 @@ class CollisionWorld {
   // Must be called each frame to rebuild broad phase and detect triggers.
   void Update();
 
-  // Trigger callback Lua registry refs (managed by lua_collision.cc)
-  int trigger_enter_ref = -1;  // LUA_NOREF
-  int trigger_exit_ref = -1;
+  // Trigger callback Lua registry refs (managed by lua_collision.cc).
+  // LUA_NOREF is -2; -1 is LUA_REFNIL which resolves to nil.
+  static constexpr int kNoRef = -2;  // == LUA_NOREF
+  int trigger_enter_ref = kNoRef;
+  int trigger_exit_ref = kNoRef;
 
   // For __gc cleanup
   uint32_t collider_capacity() const { return kMaxColliders; }
