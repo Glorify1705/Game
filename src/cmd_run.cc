@@ -29,6 +29,12 @@ void ComputeCacheDir(const char* source_directory, char* out, size_t out_size) {
   snprintf(out, out_size, "%s/%s", base_cache, hash_str);
 }
 
+void LogArgs(Slice<const char*> args) {
+  for (size_t i = 0; i < args.size(); ++i) {
+    LOG("args[", i, "]: ", args[i]);
+  }
+}
+
 }  // namespace
 
 int CmdRun(Slice<const char*> args, Allocator* allocator) {
@@ -100,6 +106,8 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
   }
   InitializeAssetDb(db);
 
+  LogArgs(args);
+
   // Build GameOptions and run.
   GameOptions opts;
   opts.source_directory = source_directory;
@@ -143,6 +151,8 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
       break;
     }
   }
+
+  LogArgs(args);
 
   GameOptions opts;
   opts.source_directory = nullptr;

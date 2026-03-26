@@ -811,8 +811,15 @@ int Main(int argc, const char* argv[]) {
   ArenaAllocator cli_arena(cli_buf, Megabytes(128));
 
   if (argc >= 2) {
-    Slice<const char*> sub(argv + 1, (size_t)(argc - 1));
     std::string_view cmd = argv[1];
+    // Validate the command before doing anything else.
+    if (cmd != "init" && cmd != "run" && cmd != "clean" && cmd != "package" &&
+        cmd != "stubs" && cmd != "version" && cmd != "help" &&
+        cmd != "--help" && cmd != "--version") {
+      fprintf(stderr, "Error: unknown command '%s'.\n\n", argv[1]);
+      return CmdHelp(argv[0], /*subcommand=*/nullptr);
+    }
+    Slice<const char*> sub(argv + 1, (size_t)(argc - 1));
     if (cmd == "init") return CmdInit(sub, &cli_arena);
     if (cmd == "run") return CmdRun(sub, &cli_arena);
     if (cmd == "clean") return CmdClean(sub, &cli_arena);
