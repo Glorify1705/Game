@@ -134,10 +134,7 @@ constexpr std::string_view kSDFFragmentShader = R"(
 
 constexpr std::string_view kFragmentShaderPreamble = R"(
   #version 460 core
-  #line 1
-)";
 
-constexpr std::string_view kFragmentShaderPostamble = R"(
   out vec4 frag_color;
 
   in vec2 tex_coord;
@@ -148,6 +145,10 @@ constexpr std::string_view kFragmentShaderPostamble = R"(
   uniform vec2 screen_size;
   uniform float time;
 
+  #line 1
+)";
+
+constexpr std::string_view kFragmentShaderPostamble = R"(
   void main() {
       frag_color = effect(out_color, tex, tex_coord, screen_coord);
   }
