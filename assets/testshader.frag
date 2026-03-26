@@ -19,7 +19,7 @@ vec3 palette( float t ) {
 
 //https://www.shadertoy.com/view/mtyGWy
 vec4 effect(vec4 color, sampler2D tex, vec2 tex_coord, vec2 screen_coord) {
-    vec2 uv = (screen_coord * 2.0 - screen_size.xy) / screen_size.y;
+    vec2 uv = (screen_coord * 2.0 - g_ScreenSize.xy) / g_ScreenSize.y;
     vec2 uv0 = uv;
     vec3 finalColor = vec3(0.0);
     
@@ -28,9 +28,9 @@ vec4 effect(vec4 color, sampler2D tex, vec2 tex_coord, vec2 screen_coord) {
 
         float d = length(uv) * exp(-length(uv0));
 
-        vec3 col = palette(length(uv0) + i*.4 + time*.4);
+        vec3 col = palette(length(uv0) + i*.4 + g_Time*.4);
 
-        d = sin(d*8. + time)/8.;
+        d = sin(d*8. + g_Time)/8.;
         d = abs(d);
 
         d = pow(0.01 / d, 1.2);

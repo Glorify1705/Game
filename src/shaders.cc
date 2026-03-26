@@ -142,8 +142,8 @@ constexpr std::string_view kFragmentShaderPreamble = R"(
   in vec4 out_color;
 
   uniform sampler2D tex;
-  uniform vec2 screen_size;
-  uniform float time;
+  uniform vec2 g_ScreenSize;
+  uniform float g_Time;
 
   #line 1
 )";

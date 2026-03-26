@@ -563,9 +563,9 @@ void BatchRenderer::Render(Allocator* scratch) {
       shaders_->SetUniformSilent(
           "projection", Ortho(0, current_viewport_w, 0, current_viewport_h));
       shaders_->SetUniformSilent("transform", transform);
-      shaders_->SetUniformSilent("screen_size",
+      shaders_->SetUniformSilent("g_ScreenSize",
                                  FVec(current_viewport_w, current_viewport_h));
-      shaders_->SetUniformSilentF("time", frame_time_);
+      shaders_->SetUniformSilentF("g_Time", frame_time_);
       OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
       OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex_[texture_unit]));
       const auto indices_start_ptr =
