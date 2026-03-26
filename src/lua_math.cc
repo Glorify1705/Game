@@ -221,8 +221,11 @@ constexpr luaL_Reg kV2Methods[] = {
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        auto result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, !result.is_error());
-       return 1;
+       if (result.is_error()) {
+         LUA_ERROR(state, "Could not set uniform '", name,
+                   "': ", result.error().message());
+       }
+       return 0;
      }}};
 
 constexpr luaL_Reg kV3Methods[] = {
@@ -285,8 +288,11 @@ constexpr luaL_Reg kV3Methods[] = {
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        auto result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, !result.is_error());
-       return 1;
+       if (result.is_error()) {
+         LUA_ERROR(state, "Could not set uniform '", name,
+                   "': ", result.error().message());
+       }
+       return 0;
      }}};
 
 constexpr luaL_Reg kV4Methods[] = {
@@ -349,8 +355,11 @@ constexpr luaL_Reg kV4Methods[] = {
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        auto result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, !result.is_error());
-       return 1;
+       if (result.is_error()) {
+         LUA_ERROR(state, "Could not set uniform '", name,
+                   "': ", result.error().message());
+       }
+       return 0;
      }}};
 
 constexpr luaL_Reg kM2x2Methods[] = {
@@ -359,8 +368,11 @@ constexpr luaL_Reg kM2x2Methods[] = {
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        auto result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, !result.is_error());
-       return 1;
+       if (result.is_error()) {
+         LUA_ERROR(state, "Could not set uniform '", name,
+                   "': ", result.error().message());
+       }
+       return 0;
      }}};
 
 constexpr luaL_Reg kM3x3Methods[] = {
@@ -369,8 +381,11 @@ constexpr luaL_Reg kM3x3Methods[] = {
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        auto result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, !result.is_error());
-       return 1;
+       if (result.is_error()) {
+         LUA_ERROR(state, "Could not set uniform '", name,
+                   "': ", result.error().message());
+       }
+       return 0;
      }}};
 
 constexpr luaL_Reg kM4x4Methods[] = {
@@ -379,8 +394,11 @@ constexpr luaL_Reg kM4x4Methods[] = {
        const char* name = luaL_checkstring(state, 2);
        auto* shaders = Registry<Shaders>::Retrieve(state);
        auto result = shaders->SetUniform(name, *v);
-       lua_pushboolean(state, !result.is_error());
-       return 1;
+       if (result.is_error()) {
+         LUA_ERROR(state, "Could not set uniform '", name,
+                   "': ", result.error().message());
+       }
+       return 0;
      }}};
 
 // "self" is replaced by the type's own LuaLS alias during stub generation.
@@ -398,9 +416,9 @@ const LuaUserdataMethod kVecMethods[] = {
      {},
      {{"result", "normalized vector", "self"}}},
     {"send_as_uniform",
-     "Sends this value as a shader uniform",
+     "Sends this value as a shader uniform. Errors if uniform not found.",
      {{"name", "uniform name", "string"}},
-     {{"ok", "whether the uniform was set", "boolean"}}},
+     {}},
 };
 
 const LuaUserdataOperator kVecOperators[] = {
@@ -411,9 +429,9 @@ const LuaUserdataOperator kVecOperators[] = {
 
 const LuaUserdataMethod kMatMethods[] = {
     {"send_as_uniform",
-     "Sends this matrix as a shader uniform",
+     "Sends this matrix as a shader uniform. Errors if uniform not found.",
      {{"name", "uniform name", "string"}},
-     {{"ok", "whether the uniform was set", "boolean"}}},
+     {}},
 };
 
 }  // namespace
