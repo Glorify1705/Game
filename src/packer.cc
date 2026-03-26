@@ -1,5 +1,9 @@
 #include "packer.h"
 
+#include <atomic>
+
+#include "SDL_cpuinfo.h"
+#include "SDL_thread.h"
 #include "debug_font.h"
 #include "defer.h"
 #include "filesystem.h"
@@ -15,6 +19,7 @@
 #include "schema.sql.h"
 #include "src/allocators.h"
 #include "src/stringlib.h"
+#include "src/thread.h"
 #include "src/units.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -26,6 +31,147 @@
 namespace G {
 namespace {
 
+class BumpAllocator : public Allocator {
+ public:
+  BumpAllocator(uint8_t* buffer, size_t size) {
+    pos_.store(reinterpret_cast<uintptr_t>(buffer), std::memory_order_relaxed);
+    end_ = reinterpret_cast<uintptr_t>(buffer) + size;
+  }
+
+  void* Alloc(size_t size, size_t /*align*/) override {
+    size = Align(size, kMaxAlign);
+    uintptr_t pos = pos_.load(std::memory_order_relaxed);
+    while (true) {
+      uintptr_t next = pos + size;
+      if (next > end_) return nullptr;
+      if (pos_.compare_exchange_weak(pos, next, std::memory_order_relaxed))
+        return reinterpret_cast<void*>(pos);
+    }
+  }
+
+  void Dealloc(void*, size_t) override {}
+
+  void* Realloc(void* p, size_t old_size, size_t new_size,
+                size_t align) override {
+    auto* result = Alloc(new_size, align);
+    if (result && p) std::memcpy(result, p, old_size);
+    return result;
+  }
+
+ private:
+  std::atomic<uintptr_t> pos_;
+  uintptr_t end_;
+};
+
+constexpr size_t kScratchArenaSize = Megabytes(64);
+constexpr size_t kOutputArenaSize = Megabytes(256);
+
+struct WorkItem {
+  enum Type : uint8_t { kPng, kOgg, kWav };
+  Type type;
+  char filename[256];
+  size_t filename_len;
+  uint8_t* input;
+  size_t input_size;
+  uint64_t hash;
+
+  uint8_t* output = nullptr;
+  size_t output_size = 0;
+  int width = 0, height = 0, channels = 0;
+  QoaDesc qoa_desc = {};
+
+  std::string_view name() const { return {filename, filename_len}; }
+};
+
+struct WorkerContext {
+  WorkItem* items;
+  size_t count;
+  std::atomic<size_t> next;
+  uint8_t** scratch_bufs;
+  BumpAllocator* output_arena;
+  std::atomic<size_t> thread_id_counter;
+};
+
+int ProcessWorkItems(void* ud) {
+  auto* ctx = static_cast<WorkerContext*>(ud);
+  size_t thread_idx =
+      ctx->thread_id_counter.fetch_add(1, std::memory_order_relaxed);
+  ArenaAllocator scratch(ctx->scratch_bufs[thread_idx], kScratchArenaSize);
+
+  while (true) {
+    size_t idx = ctx->next.fetch_add(1, std::memory_order_relaxed);
+    if (idx >= ctx->count) break;
+    WorkItem& item = ctx->items[idx];
+    scratch.Reset();
+
+    switch (item.type) {
+      case WorkItem::kPng: {
+        auto* pixels = stbi_load_from_memory(
+            item.input, static_cast<int>(item.input_size), &item.width,
+            &item.height, &item.channels, /*desired_channels=*/0);
+        CHECK(pixels != nullptr, "Failed to load ", item.name());
+        DEFER([&] { stbi_image_free(pixels); });
+        QoiDesc desc;
+        desc.width = item.width;
+        desc.height = item.height;
+        desc.channels = item.channels;
+        desc.colorspace = QoiColorspace::kLinear;
+        int out_len;
+        item.output = static_cast<uint8_t*>(
+            QoiEncode(pixels, &desc, &out_len, ctx->output_arena));
+        CHECK(item.output != nullptr, "Failed to encode ", item.name());
+        item.output_size = static_cast<size_t>(out_len);
+        break;
+      }
+      case WorkItem::kOgg: {
+        int error;
+        stb_vorbis* v = stb_vorbis_open_memory(
+            item.input, static_cast<int>(item.input_size), &error, nullptr);
+        CHECK(v != nullptr, "Failed to open OGG ", item.name());
+        DEFER([&] { stb_vorbis_close(v); });
+        stb_vorbis_info info = stb_vorbis_get_info(v);
+        unsigned int total_frames = stb_vorbis_stream_length_in_samples(v);
+        CHECK(total_frames > 0, "Empty OGG ", item.name());
+        size_t total_samples =
+            static_cast<size_t>(total_frames) * info.channels;
+        auto* pcm = scratch.NewArray<int16_t>(total_samples);
+        stb_vorbis_get_samples_short_interleaved(
+            v, info.channels, pcm, static_cast<int>(total_samples));
+        item.qoa_desc = {static_cast<uint32_t>(info.channels), info.sample_rate,
+                         total_frames};
+        Slice<int16_t> samples(pcm, total_samples);
+        FixedArray<uint8_t> encoded =
+            QoaEncode(samples, &item.qoa_desc, ctx->output_arena);
+        DCHECK(encoded.size() > 0, "Failed to encode ", item.name());
+        item.output = encoded.data();
+        item.output_size = encoded.size();
+        break;
+      }
+      case WorkItem::kWav: {
+        drwav wav;
+        CHECK(drwav_init_memory(&wav, item.input, item.input_size, nullptr),
+              "Failed to decode WAV ", item.name());
+        DEFER([&] { drwav_uninit(&wav); });
+        size_t total_frames = wav.totalPCMFrameCount;
+        size_t ch = wav.channels;
+        size_t total_samples = total_frames * ch;
+        auto* pcm = scratch.NewArray<int16_t>(total_samples);
+        drwav_read_pcm_frames_s16(&wav, total_frames, pcm);
+        item.qoa_desc = {static_cast<uint32_t>(ch), wav.sampleRate,
+                         static_cast<uint32_t>(total_frames)};
+        Slice<int16_t> samples(pcm, total_samples);
+        FixedArray<uint8_t> encoded =
+            QoaEncode(samples, &item.qoa_desc, ctx->output_arena);
+        DCHECK(encoded.size() > 0, "Failed to encode ", item.name());
+        item.output = encoded.data();
+        item.output_size = encoded.size();
+        break;
+      }
+    }
+  }
+  return 0;
+}
+
 class DbPacker {
  public:
   struct AssetInfo {
@@ -36,7 +182,8 @@ class DbPacker {
       : db_(db),
         allocator_(allocator),
         scratch_(allocator, Megabytes(64)),
-        checksums_(allocator) {}
+        checksums_(allocator),
+        deferred_(allocator) {}
 
   AssetInfo InsertIntoTable(std::string_view table, std::string_view filename,
                             const uint8_t* buf, size_t size) {
@@ -121,6 +268,26 @@ class DbPacker {
       DIE("Could not insert data ", sqlite3_errmsg(db_));
     }
     return AssetInfo{.size = static_cast<size_t>(out_len)};
+  }
+
+  AssetInfo InsertImageBlob(std::string_view filename, const uint8_t* buf,
+                            size_t size, int width, int height, int channels) {
+    sqlite3_stmt* stmt;
+    FixedStringBuffer<256> sql(R"(
+      INSERT OR REPLACE INTO images (name, width, height, components, contents)
+      VALUES (?, ?, ?, ?, ?);
+    )");
+    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
+          "Failed to prepare statement: ", sqlite3_errmsg(db_));
+    DEFER([&] { sqlite3_finalize(stmt); });
+    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, width);
+    sqlite3_bind_int(stmt, 3, height);
+    sqlite3_bind_int(stmt, 4, channels);
+    sqlite3_bind_blob(stmt, 5, buf, size, SQLITE_STATIC);
+    CHECK(sqlite3_step(stmt) == SQLITE_DONE,
+          "Insert failed: ", sqlite3_errmsg(db_));
+    return AssetInfo{.size = size};
   }
 
   AssetInfo InsertQoa(std::string_view filename, const uint8_t* buf,
@@ -425,6 +592,53 @@ class DbPacker {
     }
   }
 
+  bool TryDeferFile(const char* directory, const char* filename) {
+    WorkItem::Type type;
+    if (HasSuffix(filename, ".png")) {
+      type = WorkItem::kPng;
+    } else if (HasSuffix(filename, ".ogg")) {
+      type = WorkItem::kOgg;
+    } else if (HasSuffix(filename, ".wav")) {
+      type = WorkItem::kWav;
+    } else {
+      return false;
+    }
+
+    FixedStringBuffer<kMaxPathLength> path(directory, "/", filename);
+    auto* handle = PHYSFS_openRead(path.str());
+    CHECK(handle != nullptr, "Could not read ", path, ": ",
+          PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    const size_t bytes = PHYSFS_fileLength(handle);
+    scratch_.Reset();
+    auto* temp = static_cast<uint8_t*>(scratch_.Alloc(bytes, kMaxAlign));
+    CHECK(temp != nullptr);
+    const size_t read_bytes = PHYSFS_readBytes(handle, temp, bytes);
+    CHECK(read_bytes == bytes);
+    CHECK(PHYSFS_close(handle));
+
+    const auto hash = rapidhash(temp, bytes);
+    DbAssets::ChecksumType saved;
+    if (checksums_.Lookup(filename, &saved) &&
+        !std::memcmp(&saved, &hash, sizeof(hash))) {
+      return true;
+    }
+
+    auto* buffer = allocator_->NewArray<uint8_t>(bytes);
+    std::memcpy(buffer, temp, bytes);
+
+    std::string_view fname = Basename(filename);
+    WorkItem item;
+    item.type = type;
+    item.filename_len = std::min(fname.size(), sizeof(item.filename) - 1);
+    std::memcpy(item.filename, fname.data(), item.filename_len);
+    item.filename[item.filename_len] = '\0';
+    item.input = buffer;
+    item.input_size = bytes;
+    item.hash = hash;
+    deferred_.Push(std::move(item));
+    return true;
+  }
+
   void HandleFile(const char* directory, const char* filename) {
     // Skip directories (e.g. "definitions/") — they are not asset files.
     FixedStringBuffer<kMaxPathLength> full_path(directory, "/", filename);
@@ -433,6 +647,8 @@ class DbPacker {
         stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
       return;
     }
+
+    if (TryDeferFile(directory, filename)) return;
 
     struct DbHandler {
       std::string_view extension;
@@ -522,8 +738,99 @@ class DbPacker {
     }
   }
 
+  void ProcessDeferredItemsSequential() {
+    for (size_t i = 0; i < deferred_.size(); i++) {
+      WorkItem& item = deferred_[i];
+      LOG("Processing file ", item.name());
+      AssetInfo info;
+      switch (item.type) {
+        case WorkItem::kPng:
+          info = InsertPng(item.name(), item.input, item.input_size);
+          InsertIntoAssetMeta(item.name(), info.size, "image", item.hash);
+          break;
+        case WorkItem::kOgg:
+          info = InsertOgg(item.name(), item.input, item.input_size);
+          InsertIntoAssetMeta(item.name(), info.size, "audio", item.hash);
+          break;
+        case WorkItem::kWav:
+          info = InsertWav(item.name(), item.input, item.input_size);
+          InsertIntoAssetMeta(item.name(), info.size, "audio", item.hash);
+          break;
+      }
+      result_.written_files++;
+    }
+  }
+
+  void ProcessDeferredItems() {
+    if (deferred_.empty()) return;
+
+    int num_threads = SDL_GetCPUCount();
+    if (num_threads < 1) num_threads = 1;
+    if (static_cast<size_t>(num_threads) > deferred_.size())
+      num_threads = static_cast<int>(deferred_.size());
+
+    auto* output_buf = allocator_->NewArray<uint8_t>(kOutputArenaSize);
+    if (output_buf == nullptr) {
+      ProcessDeferredItemsSequential();
+      return;
+    }
+
+    auto** scratch_bufs = allocator_->NewArray<uint8_t*>(num_threads);
+    int actual_threads = 0;
+    for (int i = 0; i < num_threads; i++) {
+      scratch_bufs[i] = allocator_->NewArray<uint8_t>(kScratchArenaSize);
+      if (scratch_bufs[i] == nullptr) break;
+      actual_threads++;
+    }
+    if (actual_threads == 0) {
+      ProcessDeferredItemsSequential();
+      return;
+    }
+    num_threads = actual_threads;
+
+    BumpAllocator output_arena(output_buf, kOutputArenaSize);
+
+    WorkerContext ctx;
+    ctx.items = deferred_.data();
+    ctx.count = deferred_.size();
+    ctx.next.store(0, std::memory_order_relaxed);
+    ctx.scratch_bufs = scratch_bufs;
+    ctx.output_arena = &output_arena;
+    ctx.thread_id_counter.store(0, std::memory_order_relaxed);
+
+    LOG("Processing ", deferred_.size(), " files with ", num_threads,
+        " threads");
+
+    FixedArray<SDL_Thread*> threads(num_threads, allocator_);
+    for (int i = 0; i < num_threads; i++) {
+      FixedStringBuffer<32> name("Packer", i);
+      threads.Push(SDL_CreateThread(ProcessWorkItems, name.str(), &ctx));
+    }
+    for (size_t i = 0; i < threads.size(); i++) {
+      int status;
+      SDL_WaitThread(threads[i], &status);
+      CHECK(status == 0, "Worker thread ", i, " failed");
+    }
+
+    for (size_t i = 0; i < deferred_.size(); i++) {
+      WorkItem& item = deferred_[i];
+      if (item.type == WorkItem::kPng) {
+        InsertImageBlob(item.name(), item.output, item.output_size, item.width,
+                        item.height, item.channels);
+      } else {
+        InsertAudioBlob(item.name(), item.output, item.output_size,
+                        item.qoa_desc);
+      }
+      InsertIntoAssetMeta(item.name(), item.output_size,
+                          item.type == WorkItem::kPng ? "image" : "audio",
+                          item.hash);
+      result_.written_files++;
+    }
+  }
+
   AssetWriteResult HandleFiles() {
     PHYSFS_enumerate("/assets", WriteFileToDb, this);
+    ProcessDeferredItems();
     // Ensure we always have the debug font available.
     if (!checksums_.Contains("debug_font.ttf")) {
       InsertFont("debug_font.ttf", kProggyCleanFont, kProggyCleanFontLength);
@@ -550,6 +857,7 @@ class DbPacker {
   Allocator* allocator_ = nullptr;
   ArenaAllocator scratch_;
   Dictionary<DbAssets::ChecksumType> checksums_;
+  DynArray<WorkItem> deferred_;
   AssetWriteResult result_;
 };
 
