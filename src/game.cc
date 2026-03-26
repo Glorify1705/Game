@@ -447,6 +447,9 @@ class Game {
       : opts_(opts), allocator_(allocator), db_(db) {
     TIMER("Setup");
     InitializeLogging();
+    for (size_t i = 0; i < opts.all_args.size(); ++i) {
+      LOG("args[", i, "]: ", opts.all_args[i]);
+    }
     LOG("Program name = game, source = ",
         opts.source_directory ? opts.source_directory : "(packaged)");
     PHYSFS_CHECK(PHYSFS_init("game"), "Could not initialize PhysFS");
@@ -618,6 +621,9 @@ class Game {
   }
 
   void InitializeSDL(const GameConfig& config) {
+    if (config.app_name[0] != '\0') {
+      SDL_SetHint(SDL_HINT_APP_NAME, config.app_name);
+    }
     CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER |
                    SDL_INIT_EVENTS) == 0,
           "Could not initialize SDL: ", SDL_GetError());

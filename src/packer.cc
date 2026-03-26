@@ -4,6 +4,7 @@
 
 #include "SDL_cpuinfo.h"
 #include "SDL_thread.h"
+#include "clock.h"
 #include "debug_font.h"
 #include "defer.h"
 #include "filesystem.h"
@@ -706,12 +707,13 @@ class DbPacker {
         handled = true;
         break;
       }
-      LOG("Processing file ", fname);
-      const AssetInfo info = (this->*method)(fname, buffer, bytes);
+      const AssetInfo info = [&] {
+        TIMER("Processing file ", fname);
+        return (this->*method)(fname, buffer, bytes);
+      }();
       InsertIntoAssetMeta(fname, info.size, handler.type, hash);
       result_.written_files++;
       handled = true;
-      LOG("Finished processing file ", fname);
       break;
     }
     if (!handled) {

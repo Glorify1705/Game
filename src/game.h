@@ -14,6 +14,8 @@ struct GameOptions {
   bool hotreload = true;
   // Arguments forwarded to the game scripts (everything after '--').
   Slice<const char*> args;
+  // All command-line arguments (for logging after SDL logger is set up).
+  Slice<const char*> all_args;
 };
 
 // Runs the full engine with SDL, OpenGL, audio, etc.
