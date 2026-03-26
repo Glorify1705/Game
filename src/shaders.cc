@@ -84,10 +84,9 @@ constexpr std::string_view kPostPassFragmentShader = R"(
   in vec2 tex_coord;
 
   uniform sampler2D screen_texture;
-  uniform vec4 color;
 
   void main() {
-      frag_color = texture(screen_texture, tex_coord) * color;
+      frag_color = texture(screen_texture, tex_coord);
   }
 )";
 
