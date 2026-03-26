@@ -629,7 +629,7 @@ class Game {
     }
     SDL_HideCursor();
     // Initialize audio.
-    SDL_AudioSpec spec = {SDL_AUDIO_F32, 2, 44100};
+    SDL_AudioSpec spec = {SDL_AUDIO_F32, kChannels, 44100};
     audio_stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
                                               &spec, StaticAudioCallback, this);
     CHECK(audio_stream_ != nullptr,
@@ -637,21 +637,23 @@ class Game {
     audio_device_ = SDL_GetAudioStreamDevice(audio_stream_);
   }
 
+  static constexpr int kChannels = 2;
+  // 44100 Hz * 2 channels at ~100ms max = 8820 floats. 16384 is generous.
+  static constexpr int kAudioBufFloats = 16384;
+
   static void SDLCALL StaticAudioCallback(void* userdata,
                                           SDL_AudioStream* stream,
                                           int additional_amount,
                                           int /*total_amount*/) {
     auto* game = static_cast<Game*>(userdata);
-    constexpr int channels = 2;
-    // 44100 Hz * 2 channels at ~100ms max = 8820 floats. 16384 is generous.
-    constexpr int kMaxFloats = 16384;
     const int total_floats = additional_amount / (int)sizeof(float);
-    const int clamped = total_floats < kMaxFloats ? total_floats : kMaxFloats;
-    const int samples_per_channel = clamped / channels;
-    float buf[kMaxFloats];
-    game->e_->sound.SoundCallback(buf, samples_per_channel, channels);
-    SDL_PutAudioStreamData(stream, buf,
-                           samples_per_channel * channels * sizeof(float));
+    const int clamped =
+        total_floats < kAudioBufFloats ? total_floats : kAudioBufFloats;
+    const int samples_per_channel = clamped / kChannels;
+    game->e_->sound.SoundCallback(game->audio_buf_, samples_per_channel,
+                                  kChannels);
+    SDL_PutAudioStreamData(stream, game->audio_buf_,
+                           samples_per_channel * kChannels * sizeof(float));
   }
 
   void PrintSystemInformation() {
@@ -768,6 +770,7 @@ class Game {
   SDL_GLContext context_;
   SDL_AudioStream* audio_stream_ = nullptr;
   SDL_AudioDeviceID audio_device_;
+  float audio_buf_[kAudioBufFloats];
   EngineModules* e_;
   bool debug_ = false;
   Stats stats_;

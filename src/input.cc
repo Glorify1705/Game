@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "controllerdb.h"
+#include "defer.h"
 
 namespace G {
 
@@ -137,6 +138,7 @@ void Controllers::Initialize(ByteSlice db) {
   // Open controllers.
   int count = 0;
   SDL_JoystickID* ids = SDL_GetGamepads(&count);
+  DEFER([ids] { SDL_free(ids); });
   DCHECK(static_cast<size_t>(count) < controllers_.size());
   if (count == 0) LOG("Found no joysticks");
   for (int i = 0; i < count; ++i) {
@@ -147,7 +149,6 @@ void Controllers::Initialize(ByteSlice db) {
     LOG("Opened joystick: ", SDL_GetGamepadName(controller.ptr));
     open_controllers_[i] = true;
   }
-  SDL_free(ids);
 }
 
 void Controllers::InitForFrame() {
