@@ -72,7 +72,6 @@ target_include_directories(double-conversion PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 set(VENDORED_SRCS
     "libraries/dr_wav.cc"
     "libraries/glad.cc"
-    "libraries/json.cc"
 
     "libraries/sqlite3.c"
     "libraries/stb_rect_pack.cc"
@@ -114,6 +113,7 @@ set(ENGINE_SRCS
     "src/stringlib.cc"
     "src/thread_pool.cc"
     "src/transformations.cc"
+    "src/json.cc"
     "src/xml.cc"
     "src/packer.cc"
     "src/cmd_clean.cc"

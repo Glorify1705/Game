@@ -9,8 +9,8 @@
 #include "defer.h"
 #include "filesystem.h"
 #include "image.h"
+#include "json.h"
 #include "libraries/dr_wav.h"
-#include "libraries/json.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
 #include "libraries/stb_vorbis.h"
@@ -488,13 +488,10 @@ class DbPacker {
 
   AssetInfo InsertSpritesheetJson(std::string_view filename, const uint8_t* buf,
                                   size_t size) {
-    std::string_view buffer(reinterpret_cast<const char*>(buf), size);
-
-    auto [status, json] = jt::Json::parse(
-        std::string_view(reinterpret_cast<const char*>(buf), size));
-    CHECK(status == jt::Json::success, "failed to parse ", filename, ": ",
-          jt::Json::StatusToString(status));
-    CHECK(json.isObject(),
+    std::string_view input(reinterpret_cast<const char*>(buf), size);
+    ArenaAllocator scratch(allocator_, Kilobytes(64));
+    JsonValue* json = MUST(ParseJson(input, &scratch));
+    CHECK(json->IsObject(),
           "invalid spritesheet format, must return a json object");
     // Insert sprites.
     sqlite3_stmt* stmt;
@@ -507,18 +504,18 @@ class DbPacker {
     DEFER([&] { sqlite3_finalize(stmt); });
 
     size_t sprite_count = 0, sprite_name_length = 0;
-    for (auto& sprite : json["sprites"].getArray()) {
+    (*json)["sprites"].ForEachElement([&](const JsonValue& sprite) {
       sprite_count++;
 
-      std::string name = sprite["name"].getString();
-      sprite_name_length += name.length();
+      std::string_view name = sprite["name"].GetString();
+      sprite_name_length += name.size();
 
-      const uint32_t x = sprite["x"].getLong();
-      const uint32_t y = sprite["y"].getLong();
-      const uint32_t w = sprite["width"].getLong();
-      const uint32_t h = sprite["height"].getLong();
+      const uint32_t x = sprite["x"].GetLong();
+      const uint32_t y = sprite["y"].GetLong();
+      const uint32_t w = sprite["width"].GetLong();
+      const uint32_t h = sprite["height"].GetLong();
 
-      sqlite3_bind_text(stmt, 1, name.data(), name.length(), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 1, name.data(), name.size(), SQLITE_TRANSIENT);
       sqlite3_bind_text(stmt, 2, filename.data(), filename.size(),
                         SQLITE_STATIC);
       sqlite3_bind_int(stmt, 3, x);
@@ -531,12 +528,12 @@ class DbPacker {
       }
       sqlite3_reset(stmt);
       sqlite3_clear_bindings(stmt);
-    }
-    std::string atlas = json["atlas"].getString();
-    const int64_t width = json["width"].getLong();
-    const int64_t height = json["height"].getLong();
+    });
+    std::string_view atlas = (*json)["atlas"].GetString();
+    const int64_t width = (*json)["width"].GetLong();
+    const int64_t height = (*json)["height"].GetLong();
     InsertSpritesheetEntry(filename, width, height, sprite_count,
-                           sprite_name_length, atlas.c_str());
+                           sprite_name_length, atlas);
     return {};
   }
 
