@@ -1,10 +1,11 @@
+#include "game.h"
+
+#include <SDL3/SDL.h>
+
 #include <cstdint>
 #include <cstring>
 #include <string_view>
 
-#define SDL_MAIN_HANDLED
-#include "SDL.h"
-#include "SDL_hints.h"
 #include "allocators.h"
 #include "assets.h"
 #include "cli.h"
@@ -12,7 +13,6 @@
 #include "config.h"
 #include "console.h"
 #include "filesystem.h"
-#include "game.h"
 #include "input.h"
 #include "libraries/glad.h"
 #include "logging.h"
@@ -98,7 +98,7 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
 
 IVec2 GetWindowViewport(SDL_Window* window) {
   IVec2 result;
-  SDL_GL_GetDrawableSize(window, &result.x, &result.y);
+  SDL_GetWindowSizeInPixels(window, &result.x, &result.y);
   return result;
 }
 
@@ -151,9 +151,9 @@ class Filewatcher {
 
 struct EngineModules {
   EngineModules(Slice<const char*> args, sqlite3* db, DbAssets* db_assets,
-                const GameConfig& config, const SDL_AudioSpec& spec,
-                SDL_Window* sdl_window, Allocator* allocator,
-                const char* source_directory)
+                const GameConfig& config, size_t audio_channels,
+                size_t audio_buffer_samples, SDL_Window* sdl_window,
+                Allocator* allocator, const char* source_directory)
       : console(allocator),
         db(db),
         assets(db_assets),
@@ -167,7 +167,7 @@ struct EngineModules {
         controllers(allocator),
         text_files_table_(allocator),
         text_files_(256, allocator),
-        sound(spec, allocator),
+        sound(audio_channels, audio_buffer_samples, allocator),
         renderer(*db_assets, &batch_renderer, db, allocator),
         lua_allocator(allocator->Alloc(Megabytes(64), kMaxAlign),
                       Megabytes(64)),
@@ -178,20 +178,12 @@ struct EngineModules {
         pool(allocator, 4),
         allocator_(allocator),
         hotload_allocator_(allocator, kHotReloadMemory),
-        watcher_(db),
-        spec_(spec) {
+        watcher_(db) {
     mu = SDL_CreateMutex();
-    SDL_AtomicSet(&pending_changes_, 0);
+    SDL_SetAtomicInt(&pending_changes_, 0);
   }
 
   ~EngineModules() { SDL_DestroyMutex(mu); }
-
-  void AudioCallback(uint8_t* buffer, int length) {
-    std::memset(buffer, 0, length);
-    auto* sample_buffer = reinterpret_cast<float*>(buffer);
-    sound.SoundCallback(sample_buffer, length / sizeof(float) / spec_.channels,
-                        spec_.channels);
-  }
 
   static int StaticCheckChangedFiles(void* ctx) {
     auto* e = static_cast<EngineModules*>(ctx);
@@ -218,14 +210,14 @@ struct EngineModules {
         LOG("Hotload failed: ", result.error().message());
         continue;
       }
-      SDL_AtomicSet(&pending_changes_, result.release_value().written_files);
+      SDL_SetAtomicInt(&pending_changes_, result.release_value().written_files);
       SDL_Delay(10);
     }
   }
 
-  int PendingChanges() { return SDL_AtomicGet(&pending_changes_); }
+  int PendingChanges() { return SDL_GetAtomicInt(&pending_changes_); }
 
-  void MarkChangesAsProcessed() { SDL_AtomicSet(&pending_changes_, 0); }
+  void MarkChangesAsProcessed() { SDL_SetAtomicInt(&pending_changes_, 0); }
 
   void Initialize() {
     TIMER();
@@ -349,17 +341,18 @@ struct EngineModules {
   }
 
   void ForwardEventToLua(const SDL_Event& event) {
-    if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
-      if (event.type == SDL_KEYDOWN) {
-        lua.HandleKeypressed(event.key.keysym.scancode);
+    if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
+      if (event.type == SDL_EVENT_KEY_DOWN) {
+        lua.HandleKeypressed(event.key.scancode);
       }
-      if (event.type == SDL_KEYUP) {
-        lua.HandleKeyreleased(event.key.keysym.scancode);
+      if (event.type == SDL_EVENT_KEY_UP) {
+        lua.HandleKeyreleased(event.key.scancode);
       }
     }
-    if ((event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP ||
-         event.type == SDL_MOUSEMOTION)) {
-      if (event.type == SDL_MOUSEBUTTONDOWN) {
+    if ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
+         event.type == SDL_EVENT_MOUSE_BUTTON_UP ||
+         event.type == SDL_EVENT_MOUSE_MOTION)) {
+      if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         if (event.button.button == SDL_BUTTON_LEFT) {
           lua.HandleMousePressed(0);
         } else if (event.button.button == SDL_BUTTON_MIDDLE) {
@@ -368,7 +361,7 @@ struct EngineModules {
           lua.HandleMousePressed(2);
         }
       }
-      if (event.type == SDL_MOUSEBUTTONUP) {
+      if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
         if (event.button.button == SDL_BUTTON_LEFT) {
           lua.HandleMouseReleased(0);
         } else if (event.button.button == SDL_BUTTON_MIDDLE) {
@@ -377,12 +370,12 @@ struct EngineModules {
           lua.HandleMouseReleased(2);
         }
       }
-      if (event.type == SDL_MOUSEMOTION) {
+      if (event.type == SDL_EVENT_MOUSE_MOTION) {
         lua.HandleMouseMoved(FVec2(event.motion.x, event.motion.y),
                              FVec2(event.motion.xrel, event.motion.yrel));
       }
     }
-    if (event.type == SDL_TEXTINPUT) {
+    if (event.type == SDL_EVENT_TEXT_INPUT) {
       lua.HandleTextInput(event.text.text);
     }
   }
@@ -393,25 +386,27 @@ struct EngineModules {
   }
 
   void HandleEvent(const SDL_Event& event) {
-    if (event.type == SDL_WINDOWEVENT) {
-      if (config->resizable && event.window.event == SDL_WINDOWEVENT_RESIZED) {
+    if (event.type == SDL_EVENT_WINDOW_RESIZED) {
+      if (config->resizable) {
         IVec2 new_viewport(event.window.data1, event.window.data2);
         batch_renderer.SetViewport(new_viewport);
         physics.UpdateDimensions(new_viewport);
       }
     }
-    if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+    if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
       keyboard.PushEvent(event);
     }
-    if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP ||
-        event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEWHEEL) {
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
+        event.type == SDL_EVENT_MOUSE_BUTTON_UP ||
+        event.type == SDL_EVENT_MOUSE_MOTION ||
+        event.type == SDL_EVENT_MOUSE_WHEEL) {
       mouse.PushEvent(event);
     }
     controllers.PushEvent(event);
     ForwardEventToLua(event);
   }
 
-  SDL_mutex* mu;
+  SDL_Mutex* mu;
   DebugConsole console;
   sqlite3* db;
   bool stopped = false;
@@ -437,8 +432,7 @@ struct EngineModules {
   Allocator* allocator_;
   ArenaAllocator hotload_allocator_;
   Filewatcher watcher_;
-  SDL_atomic_t pending_changes_;
-  SDL_AudioSpec spec_;
+  SDL_AtomicInt pending_changes_;
 };
 
 class Game {
@@ -472,7 +466,7 @@ class Game {
     CHECK(config_.version.minor <= GAME_VERSION_MINOR,
           "Unsupported minor engine version requested");
     {
-      TIMER("SDL2 initialization");
+      TIMER("SDL3 initialization");
       InitializeSDL(config_);
       window_ = CreateWindow(config_);
       context_ = CreateOpenglContext(config_, window_);
@@ -481,9 +475,9 @@ class Game {
   }
 
   ~Game() {
-    // Close the audio device first to stop the callback thread before
+    // Destroy the audio stream first to stop the callback thread before
     // destroying EngineModules (which owns the Sound mutex).
-    SDL_CloseAudioDevice(audio_device_);
+    SDL_DestroyAudioStream(audio_stream_);
     e_->Deinitialize();
     allocator_->Destroy(e_);
     if (SDL_WasInit(SDL_INIT_HAPTIC) != 0) {
@@ -492,11 +486,11 @@ class Game {
     if (SDL_WasInit(SDL_INIT_JOYSTICK)) {
       SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
     }
-    if (SDL_WasInit(SDL_INIT_GAMECONTROLLER)) {
-      SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
+    if (SDL_WasInit(SDL_INIT_GAMEPAD)) {
+      SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
     }
     PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
-    SDL_GL_DeleteContext(context_);
+    SDL_GL_DestroyContext(context_);
     SDL_DestroyWindow(window_);
     LOG("Statistics (in ms): ", stats_);
     SDL_Quit();
@@ -506,8 +500,9 @@ class Game {
   void Init() {
     TIMER("Game Initialization");
     e_ = allocator_->New<EngineModules>(opts_.args, db_, db_assets_, config_,
-                                        obtained_spec_, window_, allocator_,
-                                        opts_.source_directory);
+                                        /*audio_channels=*/2,
+                                        /*audio_buffer_samples=*/8192, window_,
+                                        allocator_, opts_.source_directory);
     e_->Initialize();
     e_->lua.Init();
     if (opts_.hotreload) {
@@ -516,7 +511,7 @@ class Game {
   }
 
   void Run() {
-    SDL_PauseAudioDevice(audio_device_, 0);
+    SDL_ResumeAudioDevice(audio_device_);
     double last_frame = NowInSeconds();
     constexpr double kStep = TimeStepInSeconds();
     double t = 0, accum = 0;
@@ -544,14 +539,14 @@ class Game {
       }
       const auto frame_start = NowInSeconds();
       e_->StartFrame();
-      SDL_StartTextInput();
+      SDL_StartTextInput(window_);
       for (SDL_Event event; SDL_PollEvent(&event);) {
-        if (event.type == SDL_QUIT) {
+        if (event.type == SDL_EVENT_QUIT) {
           e_->lua.HandleQuit();
           return;
         }
         e_->HandleEvent(event);
-        if (event.type == SDL_KEYDOWN &&
+        if (event.type == SDL_EVENT_KEY_DOWN &&
             e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
           if (config_.enable_debug_rendering) {
             debug_ = !debug_;
@@ -615,77 +610,55 @@ class Game {
 
  private:
   void InitializeLogging() {
-    SDL_LogSetAllPriority(SDL_LOG_PRIORITY_INFO);
+    SDL_SetLogPriorities(SDL_LOG_PRIORITY_INFO);
     SetLogSink(LogToSDL);
     SetCrashHandler(SdlCrash);
   }
 
   void InitializeSDL(const GameConfig& config) {
-    if (config.app_name[0] != '\0') {
-      SDL_SetHint(SDL_HINT_APP_NAME, config.app_name);
-    }
-    CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER |
-                   SDL_INIT_EVENTS) == 0,
+    SDL_SetAppMetadata(config.app_name[0] != '\0' ? config.app_name : "game",
+                       GAME_VERSION_STR,
+                       config.org_name[0] != '\0' ? config.org_name : nullptr);
+    CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_EVENTS),
           "Could not initialize SDL: ", SDL_GetError());
     if (config.enable_joystick) {
-      CHECK(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) == 0,
+      CHECK(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD),
             "Could not initialize SDL joysticks: ", SDL_GetError());
-      SDL_JoystickEventState(SDL_ENABLE);
-      SDL_GameControllerEventState(SDL_ENABLE);
+      SDL_SetJoystickEventsEnabled(true);
+      SDL_SetGamepadEventsEnabled(true);
     }
-    SDL_ShowCursor(false);
+    SDL_HideCursor();
     // Initialize audio.
-    SDL_AudioSpec desired_spec;
-    std::memset(&desired_spec, 0, sizeof(desired_spec));
-    desired_spec.freq = 44100;
-    desired_spec.format = AUDIO_F32SYS;
-    desired_spec.samples = 256;
-    desired_spec.callback = &StaticAudioCallback;
-    desired_spec.channels = 2;
-    desired_spec.userdata = this;
-    audio_device_ =
-        SDL_OpenAudioDevice(nullptr, 0, &desired_spec, &obtained_spec_, 0);
-    CHECK(audio_device_ > 0, "Could not open audio device ", SDL_GetError());
-    LOG("Audio Spec Channels: ", obtained_spec_.channels);
-    LOG("Audio Spec Buffer Samples: ", obtained_spec_.samples);
-    LOG("Audio Spec Sample Frequency: ", obtained_spec_.freq);
-    LOG("Audio Spec Format: ", obtained_spec_.format);
-    if (obtained_spec_.freq != desired_spec.freq) {
-      LOG("WARNING: obtained audio frequency ", obtained_spec_.freq,
-          " differs from requested ", desired_spec.freq);
-    }
-    if (obtained_spec_.format != desired_spec.format) {
-      LOG("WARNING: obtained audio format ", obtained_spec_.format,
-          " differs from requested ", desired_spec.format);
-    }
-    if (obtained_spec_.channels != desired_spec.channels) {
-      LOG("WARNING: obtained audio channels ", obtained_spec_.channels,
-          " differs from requested ", desired_spec.channels);
-    }
+    SDL_AudioSpec spec = {SDL_AUDIO_F32, kChannels, 44100};
+    audio_stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
+                                              &spec, StaticAudioCallback, this);
+    CHECK(audio_stream_ != nullptr,
+          "Could not open audio stream: ", SDL_GetError());
+    audio_device_ = SDL_GetAudioStreamDevice(audio_stream_);
   }
 
-  static void StaticAudioCallback(void* userdata, uint8_t* buffer,
-                                  int length_in_bytes) {
+  static constexpr int kChannels = 2;
+  // 44100 Hz * 2 channels at ~100ms max = 8820 floats. 16384 is generous.
+  static constexpr int kAudioBufFloats = 16384;
+
+  static void SDLCALL StaticAudioCallback(void* userdata,
+                                          SDL_AudioStream* stream,
+                                          int additional_amount,
+                                          int /*total_amount*/) {
     auto* game = static_cast<Game*>(userdata);
-    game->AudioCallback(buffer, length_in_bytes);
-  }
-
-  void AudioCallback(uint8_t* buffer, int length_in_bytes) {
-    e_->sound.SoundCallback(
-        reinterpret_cast<float*>(buffer),
-        length_in_bytes / sizeof(float) / obtained_spec_.channels,
-        obtained_spec_.channels);
+    const int total_floats = additional_amount / (int)sizeof(float);
+    const int clamped =
+        total_floats < kAudioBufFloats ? total_floats : kAudioBufFloats;
+    const int samples_per_channel = clamped / kChannels;
+    game->e_->sound.SoundCallback(game->audio_buf_, samples_per_channel,
+                                  kChannels);
+    SDL_PutAudioStreamData(stream, game->audio_buf_,
+                           samples_per_channel * kChannels * sizeof(float));
   }
 
   void PrintSystemInformation() {
     LOG("Compiled with ", COMPILER, " version ", COMPILER_VERSION);
-    SDL_version compiled, linked;
-    SDL_VERSION(&compiled);
-    SDL_GetVersion(&linked);
-    LOG("Using Compiled SDL ",
-        SDL_VERSIONNUM(compiled.major, compiled.minor, compiled.patch));
-    LOG("Using Linked SDL ",
-        SDL_VERSIONNUM(linked.major, linked.minor, linked.patch));
+    LOG("Using SDL ", SDL_GetVersion());
     LOG("Using OpenGL Version: ", glGetString(GL_VERSION));
     LOG("Using GLAD Version: ", GLVersion.major, ".", GLVersion.minor);
     LOG("Using ", LUA_VERSION);
@@ -697,25 +670,24 @@ class Game {
         physfs_version.patch);
     LOG("Using SQLite Version ", SQLITE_VERSION);
     LOG("Running on platform: ", SDL_GetPlatform());
-    LOG("Have ", SDL_GetCPUCount(), " logical cores");
+    LOG("Have ", SDL_GetNumLogicalCPUCores(), " logical cores");
   }
 
   SDL_Window* CreateWindow(const GameConfig& config) {
     TIMER("Initializing basic attributes");
-    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
-    CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4) == 0,
+    CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4),
           "Could not set major version", SDL_GetError());
-    CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6) == 0,
+    CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6),
           "Could not set minor version", SDL_GetError());
     CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                              SDL_GL_CONTEXT_PROFILE_CORE) == 0,
+                              SDL_GL_CONTEXT_PROFILE_CORE),
           "Could not set Core profile", SDL_GetError());
-    CHECK(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1) == 0,
+    CHECK(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1),
           "Could not set double buffering version", SDL_GetError());
 #ifdef GAME_WITH_ASSERTS
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 #endif
-    uint32_t flags = SDL_WINDOW_OPENGL;
+    SDL_WindowFlags flags = SDL_WINDOW_OPENGL;
     if (config.resizable) flags |= SDL_WINDOW_RESIZABLE;
     if (config.borderless) flags |= SDL_WINDOW_BORDERLESS;
     if (config.fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
@@ -727,26 +699,26 @@ class Game {
 
       SDL_SetHint(SDL_HINT_X11_WINDOW_TYPE, "_NET_WM_WINDOW_TYPE_DIALOG");
 
-      SDL_DisplayMode display_mode;
-      CHECK(SDL_GetCurrentDisplayMode(0, &display_mode) == 0,
-            "Could not get display mode ", SDL_GetError());
+      SDL_DisplayID display = SDL_GetPrimaryDisplay();
+      const SDL_DisplayMode* display_mode = SDL_GetCurrentDisplayMode(display);
+      CHECK(display_mode != nullptr, "Could not get display mode ",
+            SDL_GetError());
 
-      const int screen_width = display_mode.w;
-      const int screen_height = display_mode.h;
+      const int screen_width = display_mode->w;
+      const int screen_height = display_mode->h;
 
-      LOG("Display mode: width = ", display_mode.w,
-          " height = ", display_mode.h,
-          " refresh rate = ", display_mode.refresh_rate);
+      LOG("Display mode: width = ", display_mode->w,
+          " height = ", display_mode->h,
+          " refresh rate = ", display_mode->refresh_rate);
 
       const int window_x = (screen_width - config.window_width) / 2;
       const int window_y = (screen_height - config.window_height) / 2;
 
-      window = SDL_CreateWindow(config.window_title, window_x, window_y,
-                                config.window_width, config.window_height,
-                                flags | SDL_WINDOW_SHOWN);
+      window = SDL_CreateWindow(config.window_title, config.window_width,
+                                config.window_height, flags);
+      if (window) SDL_SetWindowPosition(window, window_x, window_y);
     } else {
-      window = SDL_CreateWindow(config.window_title, SDL_WINDOWPOS_UNDEFINED,
-                                SDL_WINDOWPOS_UNDEFINED, config.window_width,
+      window = SDL_CreateWindow(config.window_title, config.window_width,
                                 config.window_height, flags);
       CHECK(window != nullptr, "Could not initialize window: ", SDL_GetError());
     }
@@ -758,20 +730,21 @@ class Game {
   SDL_GLContext CreateOpenglContext(const GameConfig& config,
                                     SDL_Window* window) {
     LOG("Creating SDL context");
-    CHECK(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1) == 0,
+    CHECK(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1),
           " failed to set multi sample buffers: ", SDL_GetError());
-    CHECK(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, config.msaa_samples) ==
-              0,
+    CHECK(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, config.msaa_samples),
           " failed to set multi samples: ", SDL_GetError());
-    CHECK(SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1) == 0,
+    CHECK(SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1),
           " failed to set accelerated visual: ", SDL_GetError());
     auto context = SDL_GL_CreateContext(window);
     CHECK(context != nullptr,
           "Could not load OpenGL context: ", SDL_GetError());
-    CHECK(gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress),
+    CHECK(gladLoadGLLoader([](const char* name) -> void* {
+            return (void*)SDL_GL_GetProcAddress(name);
+          }),
           "Could not load GLAD");
     if (config.vsync_mode != 0) {
-      CHECK(SDL_GL_SetSwapInterval(config.vsync_mode) == 0,
+      CHECK(SDL_GL_SetSwapInterval(config.vsync_mode),
             "Could not set up VSync to mode ", config.vsync_mode, ": ",
             SDL_GetError());
     }
@@ -795,11 +768,12 @@ class Game {
   GameConfig config_;
   SDL_Window* window_ = nullptr;
   SDL_GLContext context_;
-  SDL_AudioSpec obtained_spec_;
+  SDL_AudioStream* audio_stream_ = nullptr;
+  SDL_AudioDeviceID audio_device_;
+  float audio_buf_[kAudioBufFloats];
   EngineModules* e_;
   bool debug_ = false;
   Stats stats_;
-  SDL_AudioDeviceID audio_device_;
 };
 
 void RunGame(const GameOptions& opts, sqlite3* db) {

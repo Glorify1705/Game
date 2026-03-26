@@ -2,7 +2,9 @@
 #ifndef _GAME_THREAD_POOL_H
 #define _GAME_THREAD_POOL_H
 
-#include "SDL_thread.h"
+#include <SDL3/SDL_mutex.h>
+#include <SDL3/SDL_thread.h>
+
 #include "array.h"
 #include "circular_buffer.h"
 
@@ -41,8 +43,8 @@ class ThreadPool {
 
   FixedArray<SDL_Thread*> threads_;
   FixedArray<UserData> user_data_;
-  SDL_mutex* mu_ = nullptr;
-  SDL_cond* cv_ = nullptr;
+  SDL_Mutex* mu_ = nullptr;
+  SDL_Condition* cv_ = nullptr;
   size_t num_threads_;
   static constexpr size_t kMaxFunctions = 4096;
   CircularBuffer<Work> work_;

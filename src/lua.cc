@@ -1,8 +1,9 @@
 #include "lua.h"
 
+#include <SDL3/SDL.h>
+
 #include <cstdio>
 
-#include "SDL.h"
 #include "clock.h"
 #include "defer.h"
 

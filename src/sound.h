@@ -2,9 +2,10 @@
 #ifndef _GAME_SOUND_H
 #define _GAME_SOUND_H
 
+#include <SDL3/SDL.h>
+
 #include <algorithm>
 
-#include "SDL.h"
 #include "allocators.h"
 #include "array.h"
 #include "assets.h"
@@ -18,8 +19,8 @@ namespace G {
 
 class Sound {
  public:
-  explicit Sound(const SDL_AudioSpec& spec, Allocator* allocator)
-      : buffer_(static_cast<size_t>(spec.channels) * spec.samples, allocator),
+  explicit Sound(size_t channels, size_t buffer_samples, Allocator* allocator)
+      : buffer_(channels * buffer_samples, allocator),
         sounds_(allocator),
         qoa_samplers_(256, allocator),
         pcm_samplers_(256, allocator),
@@ -262,7 +263,7 @@ class Sound {
   };
 
   FixedArray<float> buffer_;
-  SDL_mutex* mu_ = nullptr;
+  SDL_Mutex* mu_ = nullptr;
   Dictionary<DbAssets::Sound> sounds_;
   static constexpr size_t kMaxStreams = 128;
   Stream streams_[kMaxStreams];

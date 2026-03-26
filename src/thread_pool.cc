@@ -13,7 +13,7 @@ ThreadPool::ThreadPool(Allocator* allocator, size_t num_threads)
 
 ThreadPool::~ThreadPool() {
   SDL_DestroyMutex(mu_);
-  SDL_DestroyCond(cv_);
+  SDL_DestroyCondition(cv_);
 }
 
 void ThreadPool::Queue(int (*fn)(void*), void* userdata) {
@@ -23,14 +23,14 @@ void ThreadPool::Queue(int (*fn)(void*), void* userdata) {
     Work work = {fn, userdata};
     work_.Push(work);
   }
-  SDL_CondSignal(cv_);
+  SDL_SignalCondition(cv_);
 }
 
 void ThreadPool::Start() {
   LOG("Starting thread pool with ", num_threads_, " threads.");
   CHECK(mu_ == nullptr, "Thread pool initialized twice");
   mu_ = SDL_CreateMutex();
-  cv_ = SDL_CreateCond();
+  cv_ = SDL_CreateCondition();
   LockMutex l(mu_);
   for (size_t i = 0; i < num_threads_; ++i) {
     FixedStringBuffer<32> thread_name("Thread", i);
@@ -45,7 +45,7 @@ int ThreadPool::Loop(size_t index) {
   while (true) {
     SDL_LockMutex(mu_);
     while (work_.empty() && !exit_) {
-      SDL_CondWait(cv_, mu_);
+      SDL_WaitCondition(cv_, mu_);
     }
     if (exit_) {
       SDL_UnlockMutex(mu_);
@@ -76,7 +76,7 @@ void ThreadPool::Stop() {
     LockMutex l(mu_);
     exit_ = true;
   }
-  SDL_CondBroadcast(cv_);
+  SDL_BroadcastCondition(cv_);
 }
 
 }  // namespace G
