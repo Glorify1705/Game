@@ -766,10 +766,7 @@ class DbPacker {
   }
 
   void ProcessDeferredItems() {
-    if (deferred_.empty()) {
-      LOG("No deferred items to process");
-      return;
-    }
+    if (deferred_.empty()) return;
 
     int num_threads = SDL_GetCPUCount();
     if (num_threads < 1) num_threads = 1;
