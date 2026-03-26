@@ -73,7 +73,7 @@ set(VENDORED_SRCS
     "libraries/dr_wav.cc"
     "libraries/glad.cc"
     "libraries/json.cc"
-    "libraries/pugixml.cc"
+
     "libraries/sqlite3.c"
     "libraries/stb_rect_pack.cc"
     "libraries/stb_truetype.cc"
@@ -114,6 +114,7 @@ set(ENGINE_SRCS
     "src/stringlib.cc"
     "src/thread_pool.cc"
     "src/transformations.cc"
+    "src/xml.cc"
     "src/packer.cc"
     "src/cmd_clean.cc"
     "src/cmd_help.cc"
@@ -167,7 +168,7 @@ target_compile_options(Game PRIVATE
 )
 
 # Engine code compiles with no exceptions, no RTTI, and extra warnings.
-# Vendored libraries are exempt since some (e.g. pugixml) use exceptions.
+# Vendored libraries are exempt from engine compile flags.
 set_source_files_properties(${ENGINE_SRCS} PROPERTIES
     COMPILE_OPTIONS "$<${IS_GCC_LIKE}:-fno-exceptions;-fno-rtti;-Wshadow;-Wformat=2;-Wimplicit-fallthrough>"
 )

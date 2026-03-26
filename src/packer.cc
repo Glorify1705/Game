@@ -11,7 +11,6 @@
 #include "image.h"
 #include "libraries/dr_wav.h"
 #include "libraries/json.h"
-#include "libraries/pugixml.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
 #include "libraries/stb_vorbis.h"
@@ -22,6 +21,7 @@
 #include "src/stringlib.h"
 #include "src/thread.h"
 #include "src/units.h"
+#include "xml.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
@@ -436,11 +436,11 @@ class DbPacker {
 
   AssetInfo InsertSpritesheetXml(std::string_view filename, const uint8_t* buf,
                                  size_t size) {
-    pugi::xml_document doc;
-    // TODO: change signatures so we pass uint8_t*.
-    doc.load_buffer_inplace(const_cast<uint8_t*>(buf), size);
-
-    pugi::xml_node atlas = doc.child("TextureAtlas");
+    std::string_view xml(reinterpret_cast<const char*>(buf), size);
+    ArenaAllocator scratch(allocator_, Kilobytes(64));
+    XmlElement* atlas = MUST(ParseXml(xml, &scratch));
+    CHECK(atlas->tag == "TextureAtlas", "Expected <TextureAtlas>, got <",
+          atlas->tag, "> in ", filename);
 
     // Insert sprites.
     sqlite3_stmt* stmt;
@@ -453,18 +453,17 @@ class DbPacker {
     DEFER([&] { sqlite3_finalize(stmt); });
 
     size_t sprite_count = 0, sprite_name_length = 0;
-    for (auto& sprite : atlas.children("SubTexture")) {
+    atlas->ForEachChild("SubTexture", [&](const XmlElement& sprite) {
       sprite_count++;
+      std::string_view name = sprite.Attr("name");
+      sprite_name_length += name.size();
 
-      std::string name = sprite.attribute("name").as_string();
-      sprite_name_length += name.length();
+      const int x = sprite.AttrInt("x");
+      const int y = sprite.AttrInt("y");
+      const int w = sprite.AttrInt("width");
+      const int h = sprite.AttrInt("height");
 
-      const uint32_t x = sprite.attribute("x").as_int();
-      const uint32_t y = sprite.attribute("y").as_int();
-      const uint32_t w = sprite.attribute("width").as_int();
-      const uint32_t h = sprite.attribute("height").as_int();
-
-      sqlite3_bind_text(stmt, 1, name.data(), name.length(), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 1, name.data(), name.size(), SQLITE_TRANSIENT);
       sqlite3_bind_text(stmt, 2, filename.data(), filename.size(),
                         SQLITE_STATIC);
       sqlite3_bind_int(stmt, 3, x);
@@ -477,14 +476,13 @@ class DbPacker {
       }
       sqlite3_reset(stmt);
       sqlite3_clear_bindings(stmt);
-    }
-    std::string atlas_image = atlas.attribute("imagePath").as_string();
+    });
     // Width and height are not included in texture atlas, you need to get them
     // from the image.
-    const int64_t width = atlas.attribute("width").as_int();
-    const int64_t height = atlas.attribute("height").as_int();
+    const int64_t width = atlas->AttrInt("width");
+    const int64_t height = atlas->AttrInt("height");
     InsertSpritesheetEntry(filename, width, height, sprite_count,
-                           sprite_name_length, atlas_image.c_str());
+                           sprite_name_length, atlas->Attr("imagePath"));
     return {};
   }
 
