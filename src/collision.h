@@ -15,16 +15,20 @@ enum class CollisionShapeType : uint8_t {
   kAABB,
 };
 
+struct CircleShape {
+  float radius;
+};
+
+struct AABBShape {
+  float half_w;
+  float half_h;
+};
+
 struct CollisionShape {
   CollisionShapeType type;
   union {
-    struct {
-      float radius;
-    } circle;
-    struct {
-      float half_w;
-      float half_h;
-    } aabb;
+    CircleShape circle;
+    AABBShape aabb;
   };
 };
 
@@ -99,18 +103,21 @@ CollisionResult TestCircleAABB(FVec2 circle_pos, float radius, FVec2 aabb_pos,
 CollisionResult TestShapes(const CollisionShape& a, FVec2 pos_a,
                            const CollisionShape& b, FVec2 pos_b);
 
-// Ray intersection tests. Returns true if hit, fills t (parametric distance)
-// and normal.
-bool RaycastCircle(FVec2 origin, FVec2 direction, float max_dist,
-                   FVec2 circle_pos, float radius, float* out_t,
-                   FVec2* out_normal);
+struct RaycastResult {
+  bool hit = false;
+  float t;       // Parametric distance along ray
+  FVec2 normal;  // Surface normal at hit point
+};
 
-bool RaycastAABB(FVec2 origin, FVec2 direction, float max_dist, FVec2 aabb_pos,
-                 float hw, float hh, float* out_t, FVec2* out_normal);
+// Ray intersection tests.
+RaycastResult RaycastCircle(FVec2 origin, FVec2 direction, float max_dist,
+                            FVec2 circle_pos, float radius);
 
-bool RaycastShape(FVec2 origin, FVec2 direction, float max_dist,
-                  const CollisionShape& shape, FVec2 shape_pos, float* out_t,
-                  FVec2* out_normal);
+RaycastResult RaycastAABB(FVec2 origin, FVec2 direction, float max_dist,
+                          FVec2 aabb_pos, float hw, float hh);
+
+RaycastResult RaycastShape(FVec2 origin, FVec2 direction, float max_dist,
+                           const CollisionShape& shape, FVec2 shape_pos);
 
 // Point-in-shape test.
 bool PointInShape(FVec2 point, const CollisionShape& shape, FVec2 shape_pos);

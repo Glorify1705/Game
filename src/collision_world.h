@@ -169,10 +169,10 @@ class CollisionWorld {
     }
   };
 
-  const TriggerPair* new_trigger_pairs() const { return new_triggers_; }
-  uint32_t new_trigger_count() const { return new_trigger_count_; }
-  const TriggerPair* lost_trigger_pairs() const { return lost_triggers_; }
-  uint32_t lost_trigger_count() const { return lost_trigger_count_; }
+  const TriggerPair* new_trigger_pairs() const { return new_triggers_.pairs; }
+  uint32_t new_trigger_count() const { return new_triggers_.count; }
+  const TriggerPair* lost_trigger_pairs() const { return lost_triggers_.pairs; }
+  uint32_t lost_trigger_count() const { return lost_triggers_.count; }
 
   ColliderHandle HandleFor(uint32_t index) const {
     return {index, colliders_[index].generation};
@@ -192,17 +192,19 @@ class CollisionWorld {
   Allocator* allocator_ = nullptr;
   SpatialHash spatial_hash_;
 
-  // Trigger tracking
-  TriggerPair* prev_triggers_ = nullptr;
-  uint32_t prev_trigger_count_ = 0;
-  TriggerPair* curr_triggers_ = nullptr;
-  uint32_t curr_trigger_count_ = 0;
+  // Trigger pair tracking: each frame, Update() builds the set of currently
+  // overlapping trigger pairs (curr) and diffs it against the previous frame
+  // (prev) to produce new (entered this frame) and lost (exited this frame)
+  // lists. Lua callbacks fire for new/lost pairs.
+  struct TriggerPairList {
+    TriggerPair* pairs = nullptr;
+    uint32_t count = 0;
+  };
 
-  // Diff results (valid between Update() calls)
-  TriggerPair* new_triggers_ = nullptr;
-  uint32_t new_trigger_count_ = 0;
-  TriggerPair* lost_triggers_ = nullptr;
-  uint32_t lost_trigger_count_ = 0;
+  TriggerPairList prev_triggers_;
+  TriggerPairList curr_triggers_;
+  TriggerPairList new_triggers_;
+  TriggerPairList lost_triggers_;
 };
 
 }  // namespace G

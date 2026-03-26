@@ -83,14 +83,18 @@ struct LuaError {
 // `file` and `line` on success.
 bool TryParseFileAndLine(std::string_view s, std::string_view* file,
                          int* line) {
+  // Find first colon (end of filename).
   size_t c1 = s.find(':');
   if (c1 == std::string_view::npos) return false;
+  // Find second colon (end of line number).
   size_t c2 = s.find(':', c1 + 1);
   if (c2 == std::string_view::npos || c2 == c1 + 1) return false;
+  // Verify the text between colons is all digits.
   for (size_t i = c1 + 1; i < c2; ++i) {
     if (s[i] < '0' || s[i] > '9') return false;
   }
   *file = s.substr(0, c1);
+  // Parse the line number manually (no std::stoi on string_view).
   *line = 0;
   for (size_t i = c1 + 1; i < c2; ++i) {
     *line = 10 * (*line) + (s[i] - '0');

@@ -8,8 +8,6 @@
 
 namespace G {
 
-// --- SpatialHash ---
-
 void SpatialHash::Init(float cell_size, size_t table_size,
                        Allocator* allocator) {
   cell_size_ = cell_size;
@@ -23,12 +21,11 @@ void SpatialHash::Init(float cell_size, size_t table_size,
 }
 
 void SpatialHash::Destroy() {
-  if (allocator_) {
-    allocator_->DeallocArray(bucket_heads_, table_size_);
-    allocator_->DeallocArray(entries_, kMaxEntries);
-    bucket_heads_ = nullptr;
-    entries_ = nullptr;
-  }
+  if (allocator_ == nullptr) return;
+  allocator_->DeallocArray(bucket_heads_, table_size_);
+  allocator_->DeallocArray(entries_, kMaxEntries);
+  bucket_heads_ = nullptr;
+  entries_ = nullptr;
 }
 
 void SpatialHash::Clear() {
@@ -39,6 +36,8 @@ void SpatialHash::Clear() {
 }
 
 size_t SpatialHash::Hash(int cx, int cy) const {
+  // Large primes for spatial hash mixing, from Teschner et al.
+  // "Optimized Spatial Hashing for Collision Detection of Deformable Objects".
   uint32_t h = static_cast<uint32_t>(cx) * 92837111u ^
                static_cast<uint32_t>(cy) * 689287499u;
   return h % table_size_;
@@ -144,8 +143,6 @@ size_t SpatialHash::QueryRay(FVec2 origin, FVec2 direction, float max_dist,
   return count;
 }
 
-// --- CollisionWorld ---
-
 CollisionWorld::CollisionWorld(float cell_size, Allocator* allocator)
     : allocator_(allocator) {
   colliders_ = allocator_->NewArray<Collider>(kMaxColliders);
@@ -160,23 +157,22 @@ CollisionWorld::CollisionWorld(float cell_size, Allocator* allocator)
   colliders_[kMaxColliders - 1].next_free = UINT32_MAX;
   first_free_ = 0;
 
-  spatial_hash_.Init(cell_size, 1024, allocator);
+  spatial_hash_.Init(cell_size, /*table_size=*/1024, allocator);
 
-  prev_triggers_ = allocator_->NewArray<TriggerPair>(kMaxTriggerPairs);
-  curr_triggers_ = allocator_->NewArray<TriggerPair>(kMaxTriggerPairs);
-  new_triggers_ = allocator_->NewArray<TriggerPair>(kMaxTriggerPairs);
-  lost_triggers_ = allocator_->NewArray<TriggerPair>(kMaxTriggerPairs);
+  prev_triggers_.pairs = allocator_->NewArray<TriggerPair>(kMaxTriggerPairs);
+  curr_triggers_.pairs = allocator_->NewArray<TriggerPair>(kMaxTriggerPairs);
+  new_triggers_.pairs = allocator_->NewArray<TriggerPair>(kMaxTriggerPairs);
+  lost_triggers_.pairs = allocator_->NewArray<TriggerPair>(kMaxTriggerPairs);
 }
 
 CollisionWorld::~CollisionWorld() {
-  if (allocator_) {
-    allocator_->DeallocArray(colliders_, kMaxColliders);
-    spatial_hash_.Destroy();
-    allocator_->DeallocArray(prev_triggers_, kMaxTriggerPairs);
-    allocator_->DeallocArray(curr_triggers_, kMaxTriggerPairs);
-    allocator_->DeallocArray(new_triggers_, kMaxTriggerPairs);
-    allocator_->DeallocArray(lost_triggers_, kMaxTriggerPairs);
-  }
+  if (allocator_ == nullptr) return;
+  allocator_->DeallocArray(colliders_, kMaxColliders);
+  spatial_hash_.Destroy();
+  allocator_->DeallocArray(prev_triggers_.pairs, kMaxTriggerPairs);
+  allocator_->DeallocArray(curr_triggers_.pairs, kMaxTriggerPairs);
+  allocator_->DeallocArray(new_triggers_.pairs, kMaxTriggerPairs);
+  allocator_->DeallocArray(lost_triggers_.pairs, kMaxTriggerPairs);
 }
 
 const CollisionWorld::Collider& CollisionWorld::GetCollider(
@@ -277,8 +273,6 @@ uint32_t CollisionWorld::Deduplicate(uint32_t* ids, uint32_t count,
   }
   return out;
 }
-
-// --- Movement ---
 
 CollisionWorld::MoveResult CollisionWorld::MoveAndSlide(ColliderHandle handle,
                                                         FVec2 velocity) {
@@ -391,8 +385,6 @@ CollisionWorld::MoveResult CollisionWorld::MoveAndCollide(ColliderHandle handle,
   return result;
 }
 
-// --- Overlap queries ---
-
 uint32_t CollisionWorld::GetOverlaps(ColliderHandle handle, OverlapResult* out,
                                      uint32_t capacity) {
   const Collider& c = GetCollider(handle);
@@ -421,8 +413,6 @@ uint32_t CollisionWorld::GetOverlaps(ColliderHandle handle, OverlapResult* out,
   return result_count;
 }
 
-// --- Spatial queries ---
-
 bool CollisionWorld::Raycast(FVec2 origin, FVec2 direction, float max_dist,
                              uint16_t mask, RaycastHit* out) {
   uint32_t candidates[256];
@@ -438,18 +428,15 @@ bool CollisionWorld::Raycast(FVec2 origin, FVec2 direction, float max_dist,
     uint32_t idx = candidates[i];
     const Collider& c = colliders_[idx];
 
-    float t;
-    FVec2 normal;
-    if (RaycastShape(origin, direction, max_dist, c.shape, c.position, &t,
-                     &normal)) {
-      if (t < closest_t) {
-        closest_t = t;
-        out->handle = HandleFor(idx);
-        out->point = origin + direction * t;
-        out->normal = normal;
-        out->t = t;
-        found = true;
-      }
+    RaycastResult r =
+        RaycastShape(origin, direction, max_dist, c.shape, c.position);
+    if (r.hit && r.t < closest_t) {
+      closest_t = r.t;
+      out->handle = HandleFor(idx);
+      out->point = origin + direction * r.t;
+      out->normal = r.normal;
+      out->t = r.t;
+      found = true;
     }
   }
   return found;
@@ -469,14 +456,13 @@ uint32_t CollisionWorld::RaycastAll(FVec2 origin, FVec2 direction,
     uint32_t idx = candidates[i];
     const Collider& c = colliders_[idx];
 
-    float t;
-    FVec2 normal;
-    if (RaycastShape(origin, direction, max_dist, c.shape, c.position, &t,
-                     &normal)) {
+    RaycastResult r =
+        RaycastShape(origin, direction, max_dist, c.shape, c.position);
+    if (r.hit) {
       out[count].handle = HandleFor(idx);
-      out[count].point = origin + direction * t;
-      out[count].normal = normal;
-      out[count].t = t;
+      out[count].point = origin + direction * r.t;
+      out[count].normal = r.normal;
+      out[count].t = r.t;
       count++;
     }
   }
@@ -555,8 +541,6 @@ uint32_t CollisionWorld::QueryCircle(FVec2 center, float radius, uint16_t mask,
   return count;
 }
 
-// --- Update (broad phase rebuild + trigger tracking) ---
-
 void CollisionWorld::Update() {
   // Rebuild spatial hash.
   spatial_hash_.Clear();
@@ -569,8 +553,8 @@ void CollisionWorld::Update() {
 
   // Swap trigger pair buffers.
   std::swap(prev_triggers_, curr_triggers_);
-  uint32_t prev_count = prev_trigger_count_;
-  curr_trigger_count_ = 0;
+  uint32_t prev_count = prev_triggers_.count;
+  curr_triggers_.count = 0;
 
   // Find all current trigger overlapping pairs.
   for (uint32_t i = 0; i < kMaxColliders; ++i) {
@@ -594,8 +578,8 @@ void CollisionWorld::Update() {
 
       // Check if already in curr_triggers_.
       bool already = false;
-      for (uint32_t k = 0; k < curr_trigger_count_; ++k) {
-        if (curr_triggers_[k].a == a && curr_triggers_[k].b == b) {
+      for (uint32_t k = 0; k < curr_triggers_.count; ++k) {
+        if (curr_triggers_.pairs[k].a == a && curr_triggers_.pairs[k].b == b) {
           already = true;
           break;
         }
@@ -606,44 +590,42 @@ void CollisionWorld::Update() {
       CollisionResult cr =
           TestShapes(colliders_[a].shape, colliders_[a].position,
                      colliders_[b].shape, colliders_[b].position);
-      if (cr.hit && curr_trigger_count_ < kMaxTriggerPairs) {
-        curr_triggers_[curr_trigger_count_++] = {a, b};
+      if (cr.hit && curr_triggers_.count < kMaxTriggerPairs) {
+        curr_triggers_.pairs[curr_triggers_.count++] = {a, b};
       }
     }
   }
 
   // Diff: find new pairs (in curr but not prev) and lost pairs (in prev but
   // not curr).
-  new_trigger_count_ = 0;
-  lost_trigger_count_ = 0;
+  new_triggers_.count = 0;
+  lost_triggers_.count = 0;
 
-  for (uint32_t i = 0; i < curr_trigger_count_; ++i) {
+  for (uint32_t i = 0; i < curr_triggers_.count; ++i) {
     bool found = false;
     for (uint32_t j = 0; j < prev_count; ++j) {
-      if (curr_triggers_[i] == prev_triggers_[j]) {
+      if (curr_triggers_.pairs[i] == prev_triggers_.pairs[j]) {
         found = true;
         break;
       }
     }
-    if (!found && new_trigger_count_ < kMaxTriggerPairs) {
-      new_triggers_[new_trigger_count_++] = curr_triggers_[i];
+    if (!found && new_triggers_.count < kMaxTriggerPairs) {
+      new_triggers_.pairs[new_triggers_.count++] = curr_triggers_.pairs[i];
     }
   }
 
   for (uint32_t i = 0; i < prev_count; ++i) {
     bool found = false;
-    for (uint32_t j = 0; j < curr_trigger_count_; ++j) {
-      if (prev_triggers_[i] == curr_triggers_[j]) {
+    for (uint32_t j = 0; j < curr_triggers_.count; ++j) {
+      if (prev_triggers_.pairs[i] == curr_triggers_.pairs[j]) {
         found = true;
         break;
       }
     }
-    if (!found && lost_trigger_count_ < kMaxTriggerPairs) {
-      lost_triggers_[lost_trigger_count_++] = prev_triggers_[i];
+    if (!found && lost_triggers_.count < kMaxTriggerPairs) {
+      lost_triggers_.pairs[lost_triggers_.count++] = prev_triggers_.pairs[i];
     }
   }
-
-  prev_trigger_count_ = curr_trigger_count_;
 }
 
 }  // namespace G

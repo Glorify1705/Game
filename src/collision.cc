@@ -4,6 +4,15 @@
 #include <cmath>
 
 namespace G {
+namespace {
+
+float Clamp(float v, float lo, float hi) {
+  if (v < lo) return lo;
+  if (v > hi) return hi;
+  return v;
+}
+
+}  // namespace
 
 CollisionResult TestCircleCircle(FVec2 pos_a, float radius_a, FVec2 pos_b,
                                  float radius_b) {
@@ -62,12 +71,6 @@ CollisionResult TestAABBAABB(FVec2 pos_a, float hw_a, float hh_a, FVec2 pos_b,
                           pos_a.y + hh_a * sign);
   }
   return result;
-}
-
-static float Clamp(float v, float lo, float hi) {
-  if (v < lo) return lo;
-  if (v > hi) return hi;
-  return v;
 }
 
 CollisionResult TestCircleAABB(FVec2 circle_pos, float radius, FVec2 aabb_pos,
@@ -156,9 +159,8 @@ CollisionResult TestShapes(const CollisionShape& a, FVec2 pos_a,
   return {};
 }
 
-bool RaycastCircle(FVec2 origin, FVec2 direction, float max_dist,
-                   FVec2 circle_pos, float radius, float* out_t,
-                   FVec2* out_normal) {
+RaycastResult RaycastCircle(FVec2 origin, FVec2 direction, float max_dist,
+                            FVec2 circle_pos, float radius) {
   // Solve |origin + t*direction - center|^2 = radius^2
   FVec2 oc = origin - circle_pos;
   float a = direction.Dot(direction);
@@ -166,7 +168,7 @@ bool RaycastCircle(FVec2 origin, FVec2 direction, float max_dist,
   float c = oc.Dot(oc) - radius * radius;
 
   float disc = b * b - 4.0f * a * c;
-  if (disc < 0) return false;
+  if (disc < 0) return {};
 
   float sqrt_disc = std::sqrt(disc);
   float inv_2a = 1.0f / (2.0f * a);
@@ -175,16 +177,14 @@ bool RaycastCircle(FVec2 origin, FVec2 direction, float max_dist,
 
   float t = t0;
   if (t < 0) t = t1;
-  if (t < 0 || t > max_dist) return false;
+  if (t < 0 || t > max_dist) return {};
 
-  *out_t = t;
   FVec2 hit_point = origin + direction * t;
-  *out_normal = (hit_point - circle_pos).Normalized();
-  return true;
+  return {true, t, (hit_point - circle_pos).Normalized()};
 }
 
-bool RaycastAABB(FVec2 origin, FVec2 direction, float max_dist, FVec2 aabb_pos,
-                 float hw, float hh, float* out_t, FVec2* out_normal) {
+RaycastResult RaycastAABB(FVec2 origin, FVec2 direction, float max_dist,
+                          FVec2 aabb_pos, float hw, float hh) {
   // Slab method.
   float min_x = aabb_pos.x - hw;
   float max_x = aabb_pos.x + hw;
@@ -197,7 +197,7 @@ bool RaycastAABB(FVec2 origin, FVec2 direction, float max_dist, FVec2 aabb_pos,
 
   // X axis slab.
   if (std::abs(direction.x) < 1e-8f) {
-    if (origin.x < min_x || origin.x > max_x) return false;
+    if (origin.x < min_x || origin.x > max_x) return {};
   } else {
     float inv_d = 1.0f / direction.x;
     float t1 = (min_x - origin.x) * inv_d;
@@ -213,12 +213,12 @@ bool RaycastAABB(FVec2 origin, FVec2 direction, float max_dist, FVec2 aabb_pos,
       normal = n1;
     }
     if (t2 < tmax) tmax = t2;
-    if (tmin > tmax) return false;
+    if (tmin > tmax) return {};
   }
 
   // Y axis slab.
   if (std::abs(direction.y) < 1e-8f) {
-    if (origin.y < min_y || origin.y > max_y) return false;
+    if (origin.y < min_y || origin.y > max_y) return {};
   } else {
     float inv_d = 1.0f / direction.y;
     float t1 = (min_y - origin.y) * inv_d;
@@ -234,29 +234,25 @@ bool RaycastAABB(FVec2 origin, FVec2 direction, float max_dist, FVec2 aabb_pos,
       normal = n1;
     }
     if (t2 < tmax) tmax = t2;
-    if (tmin > tmax) return false;
+    if (tmin > tmax) return {};
   }
 
-  if (tmin < 0) return false;
+  if (tmin < 0) return {};
 
-  *out_t = tmin;
-  *out_normal = normal;
-  return true;
+  return {true, tmin, normal};
 }
 
-bool RaycastShape(FVec2 origin, FVec2 direction, float max_dist,
-                  const CollisionShape& shape, FVec2 shape_pos, float* out_t,
-                  FVec2* out_normal) {
+RaycastResult RaycastShape(FVec2 origin, FVec2 direction, float max_dist,
+                           const CollisionShape& shape, FVec2 shape_pos) {
   switch (shape.type) {
     case CollisionShapeType::kCircle:
       return RaycastCircle(origin, direction, max_dist, shape_pos,
-                           shape.circle.radius, out_t, out_normal);
+                           shape.circle.radius);
     case CollisionShapeType::kAABB:
       return RaycastAABB(origin, direction, max_dist, shape_pos,
-                         shape.aabb.half_w, shape.aabb.half_h, out_t,
-                         out_normal);
+                         shape.aabb.half_w, shape.aabb.half_h);
   }
-  return false;
+  return {};
 }
 
 bool PointInShape(FVec2 point, const CollisionShape& shape, FVec2 shape_pos) {
