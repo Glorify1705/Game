@@ -165,21 +165,29 @@ class DbPacker {
 
   AssetInfo InsertOgg(std::string_view filename, const uint8_t* buf,
                       size_t size) {
-    int channels = 0, samplerate = 0;
-    int16_t* pcm = nullptr;
-    int total_frames =
-        stb_vorbis_decode_memory(buf, size, &channels, &samplerate, &pcm);
-    if (total_frames < 0 || pcm == nullptr) {
-      DIE("Failed to decode OGG file ", filename);
+    int error;
+    stb_vorbis* v = stb_vorbis_open_memory(buf, size, &error, nullptr);
+    if (v == nullptr) {
+      DIE("Failed to open OGG file ", filename, " (error ", error, ")");
     }
-    DEFER([&] { free(pcm); });
+    DEFER([&] { stb_vorbis_close(v); });
+
+    stb_vorbis_info info = stb_vorbis_get_info(v);
+    unsigned int total_frames = stb_vorbis_stream_length_in_samples(v);
+    CHECK(total_frames > 0, "Failed to get OGG stream length for ", filename);
+
+    size_t total_samples = static_cast<size_t>(total_frames) * info.channels;
+    auto* pcm = scratch_.NewArray<int16_t>(total_samples);
+    CHECK(pcm != nullptr, "Failed to allocate PCM buffer for ", filename);
+
+    stb_vorbis_get_samples_short_interleaved(v, info.channels, pcm,
+                                             static_cast<int>(total_samples));
 
     QoaDesc desc;
-    desc.channels = channels;
-    desc.samplerate = samplerate;
+    desc.channels = info.channels;
+    desc.samplerate = info.sample_rate;
     desc.samples = total_frames;
 
-    size_t total_samples = static_cast<size_t>(total_frames) * channels;
     Slice<int16_t> samples(pcm, total_samples);
     FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator_);
     DCHECK(encoded.size() > 0, "Failed to encode ", filename, " to QOA");
