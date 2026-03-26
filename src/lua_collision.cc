@@ -558,7 +558,7 @@ static int collision_shape_tostring(lua_State* state) {
 
 // --- Metatable registrations ---
 
-static const luaL_Reg kCollisionWorldMethods[] = {
+constexpr luaL_Reg kCollisionWorldMethods[] = {
     {"add", collision_world_add},
     {"remove", collision_world_remove},
     {"set_position", collision_world_set_position},
@@ -581,12 +581,12 @@ static const luaL_Reg kCollisionWorldMethods[] = {
     {"__tostring", collision_world_tostring},
 };
 
-static const luaL_Reg kCollisionHandleMethods[] = {
+constexpr luaL_Reg kCollisionHandleMethods[] = {
     {"__eq", collision_handle_eq},
     {"__tostring", collision_handle_tostring},
 };
 
-static const luaL_Reg kCollisionShapeMethods[] = {
+constexpr luaL_Reg kCollisionShapeMethods[] = {
     {"__tostring", collision_shape_tostring},
 };
 
@@ -738,9 +738,9 @@ static const LuaUserdataMethod kWorldMethods[] = {
 };
 
 void AddCollisionLibrary(Lua* lua) {
-  lua->LoadMetatable("collision_world", kCollisionWorldMethods);
-  lua->LoadMetatable("collision_handle", kCollisionHandleMethods);
-  lua->LoadMetatable("collision_shape", kCollisionShapeMethods);
+  LOAD_METATABLE(lua, "collision_world", kCollisionWorldMethods);
+  LOAD_METATABLE(lua, "collision_handle", kCollisionHandleMethods);
+  LOAD_METATABLE(lua, "collision_shape", kCollisionShapeMethods);
   lua->AddLibrary("collision", kCollisionLib);
   lua->RegisterUserdataType({"collision_world", "collision_world",
                              "A collision detection world with spatial hashing",

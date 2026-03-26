@@ -318,12 +318,6 @@ class Lua {
   void LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
                      size_t register_count);
 
-  template <size_t N>
-  void LoadMetatable(const char* metatable_name,
-                     const luaL_Reg (&registers)[N]) {
-    LoadMetatable(metatable_name, registers, N);
-  }
-
   void SetPackagePreload(std::string_view filename);
 
   void* Alloc(void* ptr, size_t osize, size_t nsize);
@@ -404,5 +398,18 @@ class Lua {
 };
 
 }  // namespace G
+
+// Compile-time checked wrapper for Lua::LoadMetatable. The template overload
+// can't static_assert on the array contents because function parameters are
+// never constant expressions, but at the macro call-site the array name IS
+// a constant expression (assuming constexpr arrays, which all callers use).
+#define LOAD_METATABLE(lua_ptr, mt_name, arr)                                  \
+  do {                                                                         \
+    static_assert(                                                             \
+        std::size(arr) == 0 || (arr)[std::size(arr) - 1].name != nullptr, #arr \
+        " must not end with {nullptr, nullptr} — "                             \
+        "LoadMetatable uses array size, not a sentinel");                      \
+    (lua_ptr)->LoadMetatable(mt_name, arr, std::size(arr));                    \
+  } while (0)
 
 #endif  // _GAME_LUA_H

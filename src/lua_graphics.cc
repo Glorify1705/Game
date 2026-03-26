@@ -768,7 +768,7 @@ constexpr luaL_Reg kCanvasMethods[] = {
 }  // namespace
 
 void AddGraphicsLibrary(Lua* lua) {
-  lua->LoadMetatable("canvas", kCanvasMethods);
+  LOAD_METATABLE(lua, "canvas", kCanvasMethods);
   lua->AddLibrary("graphics", kGraphicsLib);
   lua->AddLibrary("window", kWindowLib);
 }

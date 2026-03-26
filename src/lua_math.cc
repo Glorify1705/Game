@@ -419,12 +419,12 @@ const LuaUserdataMethod kMatMethods[] = {
 }  // namespace
 
 void AddMathLibrary(Lua* lua) {
-  lua->LoadMetatable("fvec2", kV2Methods);
-  lua->LoadMetatable("fvec3", kV3Methods);
-  lua->LoadMetatable("fvec4", kV4Methods);
-  lua->LoadMetatable("fmat2x2", kM2x2Methods);
-  lua->LoadMetatable("fmat3x3", kM3x3Methods);
-  lua->LoadMetatable("fmat4x4", kM4x4Methods);
+  LOAD_METATABLE(lua, "fvec2", kV2Methods);
+  LOAD_METATABLE(lua, "fvec3", kV3Methods);
+  LOAD_METATABLE(lua, "fvec4", kV4Methods);
+  LOAD_METATABLE(lua, "fmat2x2", kM2x2Methods);
+  LOAD_METATABLE(lua, "fmat3x3", kM3x3Methods);
+  LOAD_METATABLE(lua, "fmat4x4", kM4x4Methods);
   lua->AddLibrary("math", kMathLib);
 
   lua->RegisterUserdataType({"fvec2", "vec2", "A 2D floating-point vector",
