@@ -1,3 +1,99 @@
 # Claude Code Guidelines
 
-Follow the code style in `CODESTYLE.md` as closely as possible.
+Follow the code style in `CODESTYLE.md` as closely as possible. When in doubt,
+defer to Google C++ Style with the Zig-flavored modifications described there
+(explicit allocators, no hidden control flow, local reasoning).
+
+## Project Overview
+
+This is a 2D game engine written in C++17. Games are scripted in Lua 5.1 (with
+optional Fennel). The engine handles graphics (SDL2 + OpenGL), audio (QOA
+streaming), physics (Box2D), collision detection, input, and asset management.
+A CLI tool (`game`) drives the workflow: `game init`, `game run` (with
+hot-reload), `game package`.
+
+## Build System
+
+The project uses CMake with Ninja as the preferred generator. A Nix devenv
+provides wrapped build commands:
+
+```sh
+game-build          # CMake configure + Ninja build (preferred)
+game-test           # Build and run tests (GoogleTest, always with sanitizers)
+game-run            # Run the engine with hot-reload
+game-format         # clang-format all source files
+game-tidy           # Run clang-tidy
+game-clean          # Clean build artifacts
+```
+
+There is also a `Makefile` that delegates to these commands (`make all`,
+`make test`, `make run`, etc.).
+
+The build directory is `build/`. Engine code is compiled with
+`-fno-exceptions -fno-rtti -Werror`.
+
+## Directory Layout
+
+```
+src/                 C++ engine source (~80 files)
+libraries/           Vendored third-party libraries (Box2D, Lua, mimalloc,
+                     PhysFS, SQLite3, stb_*, pugixml, glad, GoogleTest, etc.)
+assets/              Example game scripts (Lua/Fennel), sprites, shaders, audio
+tests/               GoogleTest test suite (test.cc)
+design/              Design documents and architecture notes
+scripts/             Build and development helper scripts
+cmake/               CMake modules (FindSDL2, etc.)
+```
+
+## Source Organization
+
+All engine code lives under `src/` in namespace `G`. Major subsystems:
+
+- **Core**: `game.cc` (main loop, SDL init, hot-reload), `config.cc`,
+  `clock.cc`, `platform.cc`
+- **Graphics**: `renderer.cc` (batch renderer, textures), `shaders.cc`,
+  `image.cc`, `color.cc`, `transformations.cc`
+- **Audio**: `sound.cc` (SDL audio callback, sources), `qoa.cc` (codec)
+- **Physics**: `physics.cc` (Box2D wrapper), `collision.cc` (narrow-phase),
+  `collision_world.cc` (spatial hash, broad-phase)
+- **Input**: `input.cc`
+- **Assets**: `assets.cc` (SQLite3 asset DB), `packer.cc` (asset pipeline),
+  `filesystem.cc`
+- **Lua bindings**: `lua_*.cc` files expose the `G.*` API to scripts
+  (`lua_graphics.cc`, `lua_physics.cc`, `lua_sound.cc`, `lua_collision.cc`,
+  `lua_input.cc`, `lua_math.cc`, `lua_assets.cc`, `lua_random.cc`, etc.)
+- **CLI commands**: `cmd_*.cc` (`cmd_run.cc`, `cmd_package.cc`, `cmd_init.cc`,
+  `cmd_stubs.cc`, etc.)
+- **Data structures** (header-only): `vec.h`, `mat.h`, `allocators.h`,
+  `array.h`, `dictionary.h`, `circular_buffer.h`, `segmented_list.h`,
+  `inlined_array.h`
+- **Utilities**: `stringlib.cc`, `string_table.cc`, `logging.cc`, `stats.cc`,
+  `thread_pool.cc`
+
+## Key Conventions
+
+- **No STL containers** in engine code. Use `DynArray`, `Dictionary`,
+  `FixedArray`, `InlinedArray`, etc.
+- **Explicit allocators** everywhere. No hidden `new`/`malloc`. Allocators are
+  passed as parameters (`Allocator*`). Arena allocators for temporary work,
+  system allocator wraps mimalloc.
+- **No exceptions, no RTTI.** Error handling uses `CHECK`/`DCHECK` macros and
+  `DEFER` for cleanup.
+- **Anonymous namespaces** for file-local functions (not `static`).
+- **No banner comments** (`// --- Section ---`). Use the code structure itself.
+- Use **parameter comments** for non-obvious literals:
+  `Init(/*table_size=*/1024)`.
+
+## Tests
+
+Tests live in `tests/test.cc` using GoogleTest. They always compile with
+AddressSanitizer and UBSanitizer. Run with `game-test`.
+
+## Lua Integration
+
+Game scripts return a module table with `init()`, `update(t, dt)`, `draw()`
+callbacks. The engine calls these each frame. Scripts access engine
+functionality through the `G` global table (`G.graphics`, `G.physics`,
+`G.sound`, `G.input`, etc.). Lua bindings use `luaL_Reg` function arrays and
+userdata with metatables. Newer bindings use `LuaApiFunction` structs with
+type annotations for LSP support.
