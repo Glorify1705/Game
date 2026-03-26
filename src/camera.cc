@@ -6,7 +6,9 @@
 
 namespace G {
 
-void Camera::Update(float dt, FVec2 viewport) {
+void Camera::Update(float dt_ms, FVec2 viewport) {
+  const float dt = dt_ms / 1000.0f;
+
   if (following) {
     FVec2 target = follow_target;
 
