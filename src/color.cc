@@ -951,6 +951,7 @@ struct ColorTable {
     table.Insert("lightpurple", Color{191, 119, 246, 255});
     table.Insert("limegreen", Color{137, 254, 5, 255});
     table.Insert("grey", Color{146, 149, 145, 255});
+    table.Insert("gray", Color{146, 149, 145, 255});
     table.Insert("skyblue", Color{117, 187, 253, 255});
     table.Insert("yellow", Color{255, 255, 20, 255});
     table.Insert("magenta", Color{194, 0, 120, 255});
