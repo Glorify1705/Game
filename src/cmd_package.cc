@@ -83,7 +83,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   }
   InitializeAssetDb(db);
 
-  ArenaAllocator packer_arena(allocator, Megabytes(64));
+  ArenaAllocator packer_arena(allocator, Megabytes(512));
   LOG("Packing assets from ", source_directory);
   MUST(WriteAssetsToDb(source_directory, db, &packer_arena));
   sqlite3_close(db);

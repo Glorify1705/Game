@@ -953,39 +953,29 @@ TEST(Collision, TestShapesDispatch) {
 }
 
 TEST(Collision, RaycastCircleHit) {
-  float t;
-  FVec2 normal;
-  bool hit = RaycastCircle(FVec(0, 0), FVec(1, 0), 100.0f, FVec(50, 0), 10, &t,
-                           &normal);
-  EXPECT_TRUE(hit);
-  EXPECT_NEAR(t, 40.0f, 1e-3f);
-  EXPECT_NEAR(normal.x, -1.0f, 1e-3f);
+  auto result = RaycastCircle(FVec(0, 0), FVec(1, 0), 100.0f, FVec(50, 0), 10);
+  EXPECT_TRUE(result.hit);
+  EXPECT_NEAR(result.t, 40.0f, 1e-3f);
+  EXPECT_NEAR(result.normal.x, -1.0f, 1e-3f);
 }
 
 TEST(Collision, RaycastCircleMiss) {
-  float t;
-  FVec2 normal;
-  bool hit = RaycastCircle(FVec(0, 0), FVec(1, 0), 100.0f, FVec(0, 50), 10, &t,
-                           &normal);
-  EXPECT_FALSE(hit);
+  auto result = RaycastCircle(FVec(0, 0), FVec(1, 0), 100.0f, FVec(0, 50), 10);
+  EXPECT_FALSE(result.hit);
 }
 
 TEST(Collision, RaycastAABBHit) {
-  float t;
-  FVec2 normal;
-  bool hit = RaycastAABB(FVec(0, 0), FVec(1, 0), 100.0f, FVec(50, 0), 10, 10,
-                         &t, &normal);
-  EXPECT_TRUE(hit);
-  EXPECT_NEAR(t, 40.0f, 1e-3f);
-  EXPECT_NEAR(normal.x, -1.0f, 1e-3f);
+  auto result =
+      RaycastAABB(FVec(0, 0), FVec(1, 0), 100.0f, FVec(50, 0), 10, 10);
+  EXPECT_TRUE(result.hit);
+  EXPECT_NEAR(result.t, 40.0f, 1e-3f);
+  EXPECT_NEAR(result.normal.x, -1.0f, 1e-3f);
 }
 
 TEST(Collision, RaycastAABBMiss) {
-  float t;
-  FVec2 normal;
-  bool hit = RaycastAABB(FVec(0, 0), FVec(1, 0), 100.0f, FVec(0, 50), 10, 10,
-                         &t, &normal);
-  EXPECT_FALSE(hit);
+  auto result =
+      RaycastAABB(FVec(0, 0), FVec(1, 0), 100.0f, FVec(0, 50), 10, 10);
+  EXPECT_FALSE(result.hit);
 }
 
 TEST(Collision, PointInCircle) {

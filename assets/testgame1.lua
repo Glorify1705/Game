@@ -2,6 +2,7 @@ local Player = require("player")
 local Meteor = require("meteor")
 local Timer = require("timer")
 local Random = require("random")
+local Object = require("classic")
 
 local Entities = Object:extend()
 
