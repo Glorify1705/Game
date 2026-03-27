@@ -318,6 +318,7 @@ class Lua {
   friend void AddAssetsLibrary(Lua* lua);
   friend void AddCollisionLibrary(Lua* lua);
   friend void AddCameraLibrary(Lua* lua);
+  friend void AddTimerLibrary(Lua* lua);
 
  private:
   int LoadLuaAsset(std::string_view filename, std::string_view script_contents,

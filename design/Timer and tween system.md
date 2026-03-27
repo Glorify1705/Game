@@ -188,6 +188,31 @@ enum TimerType : uint8_t {
   kSpring,       // Damped harmonic oscillator
 };
 
+struct EveryData {
+  int32_t remaining;       // Repetitions left (-1 = infinite)
+};
+
+struct TweenData {
+  int target_ref;          // Lua table being tweened
+  int keys_ref;            // Lua table of {key, start, end} triples
+  uint8_t easing;          // EasingType enum
+};
+
+struct CooldownData {
+  int32_t remaining;       // Repetitions left (-1 = infinite)
+  bool ready;              // Timer has expired, waiting for condition
+};
+
+struct SpringData {
+  float value;             // Current position
+  float velocity;          // Current velocity
+  float target;            // Equilibrium position
+  float stiffness;         // Spring constant k
+  float damping;           // Damping coefficient d
+  int target_ref;          // Lua table to write value into
+  int key_ref;             // Lua string key to write
+};
+
 struct Timer {
   TimerType type;
   bool active;
@@ -207,30 +232,10 @@ struct Timer {
 
   // Type-specific data
   union {
-    struct {               // kEvery
-      int32_t remaining;   // Repetitions left (-1 = infinite)
-    } every;
-
-    struct {               // kTween
-      int target_ref;      // Lua table being tweened
-      int keys_ref;        // Lua table of {key, start, end} triples
-      uint8_t easing;      // EasingType enum
-    } tween;
-
-    struct {               // kCooldown
-      int32_t remaining;   // Repetitions left (-1 = infinite)
-      bool ready;          // Timer has expired, waiting for condition
-    } cooldown;
-
-    struct {               // kSpring
-      float value;         // Current position
-      float velocity;      // Current velocity
-      float target;        // Equilibrium position
-      float stiffness;     // Spring constant k
-      float damping;       // Damping coefficient d
-      int target_ref;      // Lua table to write value into
-      int key_ref;         // Lua string key to write
-    } spring;
+    EveryData every;
+    TweenData tween;
+    CooldownData cooldown;
+    SpringData spring;
   };
 };
 ```
