@@ -15,8 +15,8 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->position.x = luaL_checknumber(state, 1);
-       camera->position.y = luaL_checknumber(state, 2);
+       camera->SetPosition(luaL_checknumber(state, 1),
+                           luaL_checknumber(state, 2));
        return 0;
      }},
     {"get",
@@ -26,8 +26,9 @@ const struct LuaApiFunction kCameraLib[] = {
       {"y", "y world coordinate", "number"}},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       lua_pushnumber(state, camera->position.x);
-       lua_pushnumber(state, camera->position.y);
+       FVec2 pos = camera->GetPosition();
+       lua_pushnumber(state, pos.x);
+       lua_pushnumber(state, pos.y);
        return 2;
      }},
     {"move",
@@ -36,8 +37,7 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->position.x += luaL_checknumber(state, 1);
-       camera->position.y += luaL_checknumber(state, 2);
+       camera->Move(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
        return 0;
      }},
     {"set_zoom",
@@ -46,7 +46,7 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->zoom = luaL_checknumber(state, 1);
+       camera->SetZoom(luaL_checknumber(state, 1));
        return 0;
      }},
     {"get_zoom",
@@ -55,7 +55,7 @@ const struct LuaApiFunction kCameraLib[] = {
      {{"zoom", "zoom factor", "number"}},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       lua_pushnumber(state, camera->zoom);
+       lua_pushnumber(state, camera->GetZoom());
        return 1;
      }},
     {"set_rotation",
@@ -64,7 +64,7 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->rotation = luaL_checknumber(state, 1);
+       camera->SetRotation(luaL_checknumber(state, 1));
        return 0;
      }},
     {"get_rotation",
@@ -73,7 +73,7 @@ const struct LuaApiFunction kCameraLib[] = {
      {{"angle", "rotation angle in radians", "number"}},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       lua_pushnumber(state, camera->rotation);
+       lua_pushnumber(state, camera->GetRotation());
        return 1;
      }},
     {"follow",
@@ -84,9 +84,7 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->follow_target.x = luaL_checknumber(state, 1);
-       camera->follow_target.y = luaL_checknumber(state, 2);
-       camera->following = true;
+       camera->Follow(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
        return 0;
      }},
     {"set_lerp",
@@ -97,8 +95,7 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->lerp.x = luaL_checknumber(state, 1);
-       camera->lerp.y = luaL_checknumber(state, 2);
+       camera->SetLerp(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
        return 0;
      }},
     {"unfollow",
@@ -107,7 +104,7 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->following = false;
+       camera->Unfollow();
        return 0;
      }},
     {"set_deadzone",
@@ -118,9 +115,8 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->deadzone.x = luaL_checknumber(state, 1);
-       camera->deadzone.y = luaL_checknumber(state, 2);
-       camera->deadzone_enabled = true;
+       camera->SetDeadzone(luaL_checknumber(state, 1),
+                           luaL_checknumber(state, 2));
        return 0;
      }},
     {"clear_deadzone",
@@ -129,7 +125,7 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->deadzone_enabled = false;
+       camera->ClearDeadzone();
        return 0;
      }},
     {"set_bounds",
@@ -141,11 +137,9 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->bounds_start.x = luaL_checknumber(state, 1);
-       camera->bounds_start.y = luaL_checknumber(state, 2);
-       camera->bounds_size.x = luaL_checknumber(state, 3);
-       camera->bounds_size.y = luaL_checknumber(state, 4);
-       camera->bounds_enabled = true;
+       camera->SetBounds(luaL_checknumber(state, 1), luaL_checknumber(state, 2),
+                         luaL_checknumber(state, 3),
+                         luaL_checknumber(state, 4));
        return 0;
      }},
     {"clear_bounds",
@@ -154,7 +148,7 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->bounds_enabled = false;
+       camera->ClearBounds();
        return 0;
      }},
     {"shake",
@@ -168,13 +162,7 @@ const struct LuaApiFunction kCameraLib[] = {
        float intensity = luaL_checknumber(state, 1);
        float duration = luaL_checknumber(state, 2);
        float frequency = luaL_optnumber(state, 3, 8.0);
-       // Only replace if new shake is stronger.
-       if (intensity >= camera->shake_intensity) {
-         camera->shake_intensity = intensity;
-         camera->shake_duration = duration;
-         camera->shake_timer = duration;
-         camera->shake_frequency = frequency;
-       }
+       camera->Shake(intensity, duration, frequency);
        return 0;
      }},
     {"to_world",

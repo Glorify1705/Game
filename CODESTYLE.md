@@ -818,6 +818,18 @@ comment. If the code is tricky, explain the reasoning:
 
 ### Documentation Comments
 
+All public classes, structs, and their public methods must have a one-line `//`
+comment above the declaration explaining their purpose:
+
+```cpp
+// 2D camera with follow, shake, and viewport bounds.
+class Camera {
+ public:
+  // Advances follow-lerp, bounds clamping, and shake decay.
+  void Update(float dt, FVec2 viewport);
+};
+```
+
 For public API functions that are non-obvious, a one-line `//` comment above
 the declaration is sufficient:
 
