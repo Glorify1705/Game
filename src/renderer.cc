@@ -887,6 +887,170 @@ void Renderer::DrawCircle(FVec2 center, float radius) {
   }
 }
 
+void Renderer::DrawRectOutline(FVec2 top_left, FVec2 bottom_right,
+                               float angle) {
+  renderer_->ClearTexture();
+  FVec2 corners[4] = {
+      top_left,
+      FVec(bottom_right.x, top_left.y),
+      bottom_right,
+      FVec(top_left.x, bottom_right.y),
+  };
+  if (angle != 0.0f) {
+    const FVec2 center = (top_left + bottom_right) / 2;
+    const float c = std::cos(angle);
+    const float s = std::sin(angle);
+    for (auto& corner : corners) {
+      const float dx = corner.x - center.x;
+      const float dy = corner.y - center.y;
+      corner.x = center.x + dx * c - dy * s;
+      corner.y = center.y + dx * s + dy * c;
+    }
+  }
+  renderer_->BeginLine();
+  FVec2 loop[5] = {corners[0], corners[1], corners[2], corners[3], corners[0]};
+  renderer_->PushLinePoints(loop, 5);
+  renderer_->FinishLine();
+}
+
+void Renderer::DrawCircleOutline(FVec2 center, float radius) {
+  renderer_->ClearTexture();
+  constexpr size_t kSegments = 32;
+  constexpr double kAngle = (2.0 * M_PI) / kSegments;
+  FVec2 points[kSegments + 1];
+  for (size_t i = 0; i <= kSegments; ++i) {
+    const size_t idx = i % kSegments;
+    points[i] = FVec(center.x + radius * std::cos(kAngle * idx),
+                     center.y + radius * std::sin(kAngle * idx));
+  }
+  renderer_->BeginLine();
+  renderer_->PushLinePoints(points, kSegments + 1);
+  renderer_->FinishLine();
+}
+
+void Renderer::DrawTriangleOutline(FVec2 p1, FVec2 p2, FVec2 p3) {
+  renderer_->ClearTexture();
+  FVec2 loop[4] = {p1, p2, p3, p1};
+  renderer_->BeginLine();
+  renderer_->PushLinePoints(loop, 4);
+  renderer_->FinishLine();
+}
+
+void Renderer::DrawEllipse(FVec2 center, float rx, float ry) {
+  renderer_->ClearTexture();
+  constexpr size_t kTriangles = 32;
+  auto for_index = [&](size_t index) {
+    const size_t i = index % kTriangles;
+    constexpr double kAngle = (2.0 * M_PI) / kTriangles;
+    return FVec(center.x + rx * std::cos(kAngle * i),
+                center.y + ry * std::sin(kAngle * i));
+  };
+  for (size_t i = 0; i < kTriangles; ++i) {
+    renderer_->PushTriangle(center, for_index(i), for_index(i + 1), FVec(0, 0),
+                            FVec(1, 0), FVec(1, 1));
+  }
+}
+
+void Renderer::DrawEllipseOutline(FVec2 center, float rx, float ry) {
+  renderer_->ClearTexture();
+  constexpr size_t kSegments = 32;
+  constexpr double kAngle = (2.0 * M_PI) / kSegments;
+  FVec2 points[kSegments + 1];
+  for (size_t i = 0; i <= kSegments; ++i) {
+    const size_t idx = i % kSegments;
+    points[i] = FVec(center.x + rx * std::cos(kAngle * idx),
+                     center.y + ry * std::sin(kAngle * idx));
+  }
+  renderer_->BeginLine();
+  renderer_->PushLinePoints(points, kSegments + 1);
+  renderer_->FinishLine();
+}
+
+void Renderer::DrawRoundedRect(FVec2 top_left, FVec2 bottom_right,
+                               float radius) {
+  renderer_->ClearTexture();
+  const float x1 = top_left.x;
+  const float y1 = top_left.y;
+  const float x2 = bottom_right.x;
+  const float y2 = bottom_right.y;
+  const float max_radius = std::min((x2 - x1) / 2.0f, (y2 - y1) / 2.0f);
+  const float r = std::min(radius, max_radius);
+  constexpr size_t kArcSegments = 8;
+  constexpr double kHalfPi = M_PI / 2.0;
+  // Center rectangle (between the rounded corners).
+  renderer_->PushQuad(FVec(x1 + r, y1), FVec(x2 - r, y2), FVec(0, 0),
+                      FVec(1, 1), (top_left + bottom_right) / 2, /*angle=*/0);
+  // Left rectangle.
+  renderer_->PushQuad(FVec(x1, y1 + r), FVec(x1 + r, y2 - r), FVec(0, 0),
+                      FVec(1, 1), (top_left + bottom_right) / 2, /*angle=*/0);
+  // Right rectangle.
+  renderer_->PushQuad(FVec(x2 - r, y1 + r), FVec(x2, y2 - r), FVec(0, 0),
+                      FVec(1, 1), (top_left + bottom_right) / 2, /*angle=*/0);
+  // Four corner arcs as triangle fans.
+  struct ArcCenter {
+    FVec2 center;
+    double start_angle;
+  };
+  const ArcCenter arcs[4] = {
+      {FVec(x2 - r, y1 + r), -kHalfPi},  // top-right
+      {FVec(x2 - r, y2 - r), 0},         // bottom-right
+      {FVec(x1 + r, y2 - r), kHalfPi},   // bottom-left
+      {FVec(x1 + r, y1 + r), M_PI},      // top-left
+  };
+  for (const auto& arc : arcs) {
+    for (size_t i = 0; i < kArcSegments; ++i) {
+      const double a0 = arc.start_angle + (kHalfPi * i) / kArcSegments;
+      const double a1 = arc.start_angle + (kHalfPi * (i + 1)) / kArcSegments;
+      const FVec2 p0 = FVec(arc.center.x + r * std::cos(a0),
+                            arc.center.y + r * std::sin(a0));
+      const FVec2 p1 = FVec(arc.center.x + r * std::cos(a1),
+                            arc.center.y + r * std::sin(a1));
+      renderer_->PushTriangle(arc.center, p0, p1, FVec(0, 0), FVec(1, 0),
+                              FVec(1, 1));
+    }
+  }
+}
+
+void Renderer::DrawRoundedRectOutline(FVec2 top_left, FVec2 bottom_right,
+                                      float radius) {
+  renderer_->ClearTexture();
+  const float x1 = top_left.x;
+  const float y1 = top_left.y;
+  const float x2 = bottom_right.x;
+  const float y2 = bottom_right.y;
+  const float max_radius = std::min((x2 - x1) / 2.0f, (y2 - y1) / 2.0f);
+  const float r = std::min(radius, max_radius);
+  constexpr size_t kArcSegments = 8;
+  constexpr double kHalfPi = M_PI / 2.0;
+  // Build the outline as a single connected line strip: four arcs connected
+  // by four straight edges.
+  constexpr size_t kTotalPoints = 4 * kArcSegments + 5;
+  FVec2 points[kTotalPoints];
+  size_t idx = 0;
+  struct ArcCenter {
+    FVec2 center;
+    double start_angle;
+  };
+  const ArcCenter arcs[4] = {
+      {FVec(x2 - r, y1 + r), -kHalfPi},  // top-right
+      {FVec(x2 - r, y2 - r), 0},         // bottom-right
+      {FVec(x1 + r, y2 - r), kHalfPi},   // bottom-left
+      {FVec(x1 + r, y1 + r), M_PI},      // top-left
+  };
+  for (const auto& arc : arcs) {
+    for (size_t i = 0; i <= kArcSegments; ++i) {
+      const double a = arc.start_angle + (kHalfPi * i) / kArcSegments;
+      points[idx++] =
+          FVec(arc.center.x + r * std::cos(a), arc.center.y + r * std::sin(a));
+    }
+  }
+  // Close the loop back to the first point.
+  points[idx++] = points[0];
+  renderer_->BeginLine();
+  renderer_->PushLinePoints(points, idx);
+  renderer_->FinishLine();
+}
+
 // Generate individual SDF bitmaps for each glyph and prepare packing rects.
 // Populates `bitmaps` with per-glyph SDF data and `rects` with dimensions
 // for atlas packing. Also stores advance widths into `font.glyphs`.
