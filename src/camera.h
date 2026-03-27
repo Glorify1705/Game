@@ -8,7 +8,7 @@
 namespace G {
 
 struct Camera {
-  void Update(float dt_ms, FVec2 viewport);
+  void Update(float dt, FVec2 viewport);
 
   FMat4x4 GetViewMatrix(FVec2 viewport, FVec2 parallax) const;
 

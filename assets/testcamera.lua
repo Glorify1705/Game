@@ -14,7 +14,7 @@ local g = {}
 
 local WORLD_W = 3000
 local WORLD_H = 2000
-local SPEED = 200
+local SPEED = 500
 
 local ship_x, ship_y
 local ship_angle = 0
@@ -67,8 +67,8 @@ function g.update(t, dt)
   if G.input.is_key_down("d") then dx = 1 end
   if dx ~= 0 or dy ~= 0 then
     local len = math.sqrt(dx * dx + dy * dy)
-    ship_x = ship_x + (dx / len) * SPEED * dt / 1000
-    ship_y = ship_y + (dy / len) * SPEED * dt / 1000
+    ship_x = ship_x + (dx / len) * SPEED * dt
+    ship_y = ship_y + (dy / len) * SPEED * dt
   end
   -- Face movement direction.
   if dx ~= 0 or dy ~= 0 then
@@ -126,7 +126,7 @@ function g.update(t, dt)
 
   -- Rotate meteors.
   for _, m in ipairs(meteors) do
-    m.angle = m.angle + m.speed * dt / 1000
+    m.angle = m.angle + m.speed * dt
   end
 end
 
