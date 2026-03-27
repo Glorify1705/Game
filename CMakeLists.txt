@@ -76,6 +76,7 @@ set(VENDORED_SRCS
     "libraries/sqlite3.c"
     "libraries/stb_rect_pack.cc"
     "libraries/stb_truetype.cc"
+    "libraries/stb_image_write.cc"
     "libraries/stb_vorbis.cc")
 
 set(ENGINE_SRCS
@@ -128,6 +129,8 @@ set(ENGINE_SRCS
     "src/platform.cc")
 
 set_source_files_properties(${VENDORED_SRCS} PROPERTIES SKIP_LINTING ON)
+set_source_files_properties("libraries/stb_image_write.cc" PROPERTIES
+    COMPILE_OPTIONS "-Wno-missing-field-initializers")
 
 set(GAME_SRCS ${VENDORED_SRCS} ${ENGINE_SRCS})
 

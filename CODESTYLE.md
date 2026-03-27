@@ -619,8 +619,10 @@ as they do not introduce implicit heap allocations.
 - **`std::variant`** — fine in principle but the visitor pattern (`std::visit`)
   has overhead. Prefer explicit tagged unions with a `switch` when
   performance matters.
-- **`std::filesystem`** — may allocate. Use PhysFS (vendored) for file
-  operations.
+- **`std::filesystem`** — may allocate. Use PhysFS (vendored) for virtual
+  filesystem operations and `platform.h` (`MakeDir`, `MakeDirs`, `FileExists`,
+  etc.) for real filesystem path operations. Do not use SDL filesystem functions
+  (`SDL_CreateDirectory`, etc.) — keep path operations in PhysFS or platform.h.
 - **`std::regex`** — allocates heavily. Write manual parsers or use simple
   string matching.
 
