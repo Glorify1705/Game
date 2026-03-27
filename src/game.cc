@@ -58,8 +58,6 @@ namespace G {
 
 constexpr size_t kEngineMemory = Gigabytes(4);
 constexpr size_t kHotReloadMemory = Megabytes(128);
-constexpr const char* kScreenshotDir = "/tmp/game-screenshots";
-
 #ifndef _INTERNAL_GAME_TRAP
 #if __has_builtin(__builtin_debugtrap)
 #define _INTERNAL_GAME_TRAP __builtin_debugtrap
@@ -632,14 +630,20 @@ class Game {
 
  private:
   void TakeScreenshotToClipboard() {
-    ArenaAllocator scratch(allocator_, Megabytes(32));
-    auto screenshot = e_->batch_renderer.TakeScreenshot(&scratch);
-    if (MakeDirs(kScreenshotDir).is_error()) {
-      LOG("Failed to create screenshot directory: ", kScreenshotDir);
+    const char* write_dir = PHYSFS_getWriteDir();
+    if (write_dir == nullptr) {
+      LOG("Cannot take screenshot: no PhysFS write directory set");
       return;
     }
-    FixedStringBuffer<512> path(kScreenshotDir, "/screenshot_",
+    FixedStringBuffer<512> dir(write_dir, "screenshots");
+    if (MakeDirs(dir.str()).is_error()) {
+      LOG("Failed to create screenshot directory: ", dir.str());
+      return;
+    }
+    FixedStringBuffer<512> path(dir.str(), "/screenshot_",
                                 static_cast<uint64_t>(SDL_GetTicks()), ".png");
+    ArenaAllocator scratch(allocator_, Megabytes(32));
+    auto screenshot = e_->batch_renderer.TakeScreenshot(&scratch);
     int ok =
         stbi_write_png(path.str(), screenshot.width, screenshot.height,
                        /*comp=*/4, screenshot.buffer, screenshot.width * 4);
