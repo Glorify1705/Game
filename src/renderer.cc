@@ -71,6 +71,8 @@ constexpr size_t BatchRenderer::SizeOfCommand(CommandType t) {
       return sizeof(SetBlendMode);
     case kClearColor:
       return sizeof(ClearColor);
+    case kSetSDFOutline:
+      return sizeof(SDFOutline);
     case kDone:
       return 0;
   }
@@ -105,6 +107,8 @@ constexpr std::string_view BatchRenderer::CommandName(CommandType t) {
       return "SET_BLEND_MODE";
     case kClearColor:
       return "CLEAR_COLOR";
+    case kSetSDFOutline:
+      return "SET_SDF_OUTLINE";
     case kDone:
       return "DONE";
   }
@@ -651,6 +655,14 @@ void BatchRenderer::Render(Allocator* scratch) {
       case kSetColor:
         color = c.set_color.color;
         break;
+      case kSetSDFOutline:
+        flush();
+        shaders_->SetUniformSilent("u_outline_color",
+                                   FVec(c.sdf_outline.r, c.sdf_outline.g,
+                                        c.sdf_outline.b, c.sdf_outline.a));
+        shaders_->SetUniformSilentF("u_outline_thickness",
+                                    c.sdf_outline.thickness);
+        break;
       case kDone:
         color = Color::White();
         flush();
@@ -1133,6 +1145,8 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
   CHECK(info != nullptr, "No texture found for ", font_name, " size ", size);
   const uint32_t prev_shader = renderer_->GetCurrentShaderHandle();
   renderer_->SetShaderProgram("sdf");
+  const FVec4 oc = outline_color_.ToFloat();
+  renderer_->SetSDFOutline(oc.x, oc.y, oc.z, oc.w, outline_thickness_);
   renderer_->SetActiveTexture(info->texture);
   const Color color = color_;
   FVec2 p = position;
@@ -1381,6 +1395,183 @@ int Renderer::TextWrappedHeight(std::string_view font_name, uint32_t size,
   WordWrapLines(*info, pixel_scale, str, max_width, &lines);
 
   return static_cast<int>(lines.size() * line_height);
+}
+
+void Renderer::SetTextOutline(Color color, float thickness) {
+  outline_color_ = color;
+  outline_thickness_ = thickness;
+}
+
+void Renderer::ClearTextOutline() {
+  outline_color_ = Color::Zero();
+  outline_thickness_ = 0.0f;
+}
+
+void Renderer::DrawTextColored(std::string_view font_name, uint32_t size,
+                               const ColoredSegment* segments,
+                               size_t num_segments, FVec2 position,
+                               float max_width, TextAlign align) {
+  FontInfo* info = nullptr;
+  if (!font_table_.Lookup(font_name, &info)) {
+    LOG("Could not find ", font_name, " in fonts");
+    return;
+  }
+  const float pixel_scale = size / info->pixel_height;
+  const float line_height = pixel_scale * info->scale *
+                            (info->ascent - info->descent + info->line_gap);
+
+  // Concatenate all segment text to compute total length.
+  size_t total_len = 0;
+  for (size_t i = 0; i < num_segments; ++i) {
+    total_len += segments[i].text.size();
+  }
+  if (total_len == 0) return;
+
+  // Build concatenated string in scratch memory.
+  ArenaAllocator scratch(
+      allocator_,
+      total_len + 1 + (total_len / 2 + 2) * sizeof(WrappedLine) + 256);
+  auto* concat_buf =
+      reinterpret_cast<char*>(scratch.Alloc(total_len, /*align=*/1));
+  size_t offset = 0;
+  for (size_t i = 0; i < num_segments; ++i) {
+    std::memcpy(concat_buf + offset, segments[i].text.data(),
+                segments[i].text.size());
+    offset += segments[i].text.size();
+  }
+  std::string_view concat(concat_buf, total_len);
+
+  // Set up SDF shader and outline.
+  const uint32_t prev_shader = renderer_->GetCurrentShaderHandle();
+  renderer_->SetShaderProgram("sdf");
+  const FVec4 oc = outline_color_.ToFloat();
+  renderer_->SetSDFOutline(oc.x, oc.y, oc.z, oc.w, outline_thickness_);
+  renderer_->SetActiveTexture(info->texture);
+  const Color saved_color = color_;
+
+  if (max_width <= 0) {
+    // No wrapping: render as a single line with color tracking.
+    FVec2 p = position;
+    p.y += info->ascent * info->scale * pixel_scale;
+    size_t seg_idx = 0;
+    size_t seg_offset = 0;
+    renderer_->SetActiveColor(segments[0].color);
+    for (size_t i = 0; i < total_len; ++i) {
+      // Advance to the correct segment for this character.
+      while (seg_idx < num_segments &&
+             seg_offset >= segments[seg_idx].text.size()) {
+        seg_offset = 0;
+        seg_idx++;
+        if (seg_idx < num_segments) {
+          renderer_->SetActiveColor(segments[seg_idx].color);
+        }
+      }
+      const char c = concat[i];
+      if (c == '\n') {
+        p.x = position.x;
+        p.y += line_height;
+        seg_offset++;
+        continue;
+      }
+      const SDFGlyph& g = info->glyphs[static_cast<unsigned char>(c)];
+      if (g.width > 0 && g.height > 0) {
+        const float x0 = p.x + g.x_offset * pixel_scale;
+        const float y0 = p.y + g.y_offset * pixel_scale;
+        const float x1 = x0 + g.width * pixel_scale;
+        const float y1 = y0 + g.height * pixel_scale;
+        renderer_->PushQuad(FVec(x0, y0), FVec(x1, y1), FVec(g.s0, g.t0),
+                            FVec(g.s1, g.t1), FVec(0, 0), /*angle=*/0);
+      }
+      p.x += g.advance * pixel_scale;
+      if ((i + 1) < total_len) {
+        p.x += pixel_scale * info->scale *
+               stbtt_GetCodepointKernAdvance(&info->font_info, concat[i],
+                                             concat[i + 1]);
+      }
+      seg_offset++;
+    }
+  } else {
+    // Word-wrap the concatenated text, then render lines with color tracking.
+    size_t max_lines = total_len / 2 + 2;
+    FixedArray<WrappedLine> lines(max_lines, &scratch);
+    WordWrapLines(*info, pixel_scale, concat, max_width, &lines);
+
+    FVec2 p = position;
+    // Global character index tracks position into the concatenated string,
+    // which in turn maps to the correct color segment.
+    size_t global_char = 0;
+    size_t seg_idx = 0;
+    size_t seg_offset = 0;
+
+    for (size_t li = 0; li < lines.size(); ++li) {
+      const WrappedLine& line = lines[li];
+      float x_offset = 0;
+      if (align == TextAlign::kCenter) {
+        x_offset = std::max(0.0f, (max_width - line.width) * 0.5f);
+      } else if (align == TextAlign::kRight) {
+        x_offset = std::max(0.0f, max_width - line.width);
+      }
+
+      // The line text is a view into the concatenated buffer.
+      // Compute the character offset of this line in the concatenated string.
+      size_t line_start = static_cast<size_t>(line.text.data() - concat_buf);
+
+      // Advance global_char past any whitespace/newlines between lines.
+      // The wrapping may skip trailing spaces and newlines.
+      while (global_char < line_start) {
+        // Advance segment tracking past skipped characters.
+        while (seg_idx < num_segments &&
+               seg_offset >= segments[seg_idx].text.size()) {
+          seg_offset = 0;
+          seg_idx++;
+        }
+        global_char++;
+        seg_offset++;
+      }
+
+      FVec2 lp = FVec(p.x + x_offset, p.y);
+      lp.y += info->ascent * info->scale * pixel_scale;
+
+      for (size_t ci = 0; ci < line.text.size(); ++ci) {
+        // Advance to the correct segment.
+        while (seg_idx < num_segments &&
+               seg_offset >= segments[seg_idx].text.size()) {
+          seg_offset = 0;
+          seg_idx++;
+        }
+        if (seg_idx < num_segments) {
+          renderer_->SetActiveColor(segments[seg_idx].color);
+        }
+
+        const char c = line.text[ci];
+        const SDFGlyph& g = info->glyphs[static_cast<unsigned char>(c)];
+        if (g.width > 0 && g.height > 0) {
+          const float x0 = lp.x + g.x_offset * pixel_scale;
+          const float y0 = lp.y + g.y_offset * pixel_scale;
+          const float x1 = x0 + g.width * pixel_scale;
+          const float y1 = y0 + g.height * pixel_scale;
+          renderer_->PushQuad(FVec(x0, y0), FVec(x1, y1), FVec(g.s0, g.t0),
+                              FVec(g.s1, g.t1), FVec(0, 0), /*angle=*/0);
+        }
+        lp.x += g.advance * pixel_scale;
+        if ((ci + 1) < line.text.size()) {
+          lp.x += pixel_scale * info->scale *
+                  stbtt_GetCodepointKernAdvance(&info->font_info, line.text[ci],
+                                                line.text[ci + 1]);
+        }
+        global_char++;
+        seg_offset++;
+      }
+      p.y += line_height;
+    }
+  }
+
+  renderer_->SetActiveColor(saved_color);
+  if (prev_shader != 0) {
+    renderer_->SetShaderByHandle(prev_shader);
+  } else {
+    renderer_->SetShaderProgram("pre_pass");
+  }
 }
 
 }  // namespace G

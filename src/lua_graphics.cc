@@ -455,6 +455,133 @@ static const LuaApiFunction kGraphicsLib[] = {
        lua_pushinteger(state, height);
        return 1;
      }},
+    {"draw_text_colored",
+     "Draws multi-color text with optional word wrapping and alignment. "
+     "The segments table alternates between {r,g,b,a} color tables (0-255) "
+     "and strings.",
+     {{"font", "Font name to use for writing text", "string"},
+      {"size", "Size in pixels to use for rendering the text", "integer"},
+      {"segments",
+       "Table alternating between {r,g,b,a} color tables and strings", "table"},
+      {"x", "Horizontal position in screen space pixels", "number"},
+      {"y", "Vertical position in screen space pixels", "number"},
+      {"max_width?",
+       "Maximum width in pixels before wrapping (0 or omit for no wrap)",
+       "number"},
+      {"align?", "Text alignment: 'left' (default), 'center', or 'right'",
+       "string"}},
+     {},
+     [](lua_State* state) {
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       std::string_view font = GetLuaString(state, 1);
+       const uint32_t font_size = luaL_checkinteger(state, 2);
+       if (!lua_istable(state, 3)) {
+         LUA_ERROR(state, "Expected table of colored segments as argument 3");
+         return 0;
+       }
+       const float x = luaL_checknumber(state, 4);
+       const float y = luaL_checknumber(state, 5);
+       float max_width = 0;
+       if (lua_gettop(state) >= 6 && lua_isnumber(state, 6)) {
+         max_width = luaL_checknumber(state, 6);
+       }
+       auto align = Renderer::TextAlign::kLeft;
+       if (lua_gettop(state) >= 7 && lua_isstring(state, 7)) {
+         std::string_view align_str = GetLuaString(state, 7);
+         if (align_str == "center") {
+           align = Renderer::TextAlign::kCenter;
+         } else if (align_str == "right") {
+           align = Renderer::TextAlign::kRight;
+         } else if (align_str != "left") {
+           LUA_ERROR(state, "Unknown text alignment '", align_str,
+                     "'. Expected 'left', 'center', or 'right'");
+           return 0;
+         }
+       }
+       // Parse the segments table: alternating {r,g,b,a} and string.
+       const size_t n = lua_objlen(state, 3);
+       if (n % 2 != 0) {
+         LUA_ERROR(state,
+                   "Segments table must have even length (alternating "
+                   "color/string pairs)");
+         return 0;
+       }
+       const size_t num_segments = n / 2;
+       auto* allocator = Registry<Lua>::Retrieve(state)->allocator();
+       ArenaAllocator scratch(
+           allocator, num_segments * sizeof(Renderer::ColoredSegment) + 64);
+       auto* segments =
+           scratch.NewArray<Renderer::ColoredSegment>(num_segments);
+       auto clamp = [](double f) -> uint8_t {
+         return static_cast<uint8_t>(std::clamp(f, 0.0, 255.0));
+       };
+       for (size_t i = 0; i < num_segments; ++i) {
+         // Read color table at index (i*2 + 1).
+         lua_rawgeti(state, 3, static_cast<int>(i * 2 + 1));
+         if (!lua_istable(state, -1)) {
+           LUA_ERROR(state, "Expected color table at segments[", i * 2 + 1,
+                     "]");
+           return 0;
+         }
+         lua_rawgeti(state, -1, 1);
+         segments[i].color.r = clamp(luaL_checknumber(state, -1));
+         lua_pop(state, 1);
+         lua_rawgeti(state, -1, 2);
+         segments[i].color.g = clamp(luaL_checknumber(state, -1));
+         lua_pop(state, 1);
+         lua_rawgeti(state, -1, 3);
+         segments[i].color.b = clamp(luaL_checknumber(state, -1));
+         lua_pop(state, 1);
+         lua_rawgeti(state, -1, 4);
+         segments[i].color.a =
+             lua_isnumber(state, -1) ? clamp(luaL_checknumber(state, -1)) : 255;
+         lua_pop(state, 1);
+         lua_pop(state, 1);  // Pop color table.
+         // Read string at index (i*2 + 2).
+         lua_rawgeti(state, 3, static_cast<int>(i * 2 + 2));
+         if (!lua_isstring(state, -1)) {
+           LUA_ERROR(state, "Expected string at segments[", i * 2 + 2, "]");
+           return 0;
+         }
+         segments[i].text = GetLuaString(state, -1);
+         lua_pop(state, 1);
+       }
+       renderer->DrawTextColored(font, font_size, segments, num_segments,
+                                 FVec(x, y), max_width, align);
+       return 0;
+     }},
+    {"set_text_outline",
+     "Sets the outline color and thickness for subsequent SDF text draws.",
+     {{"r", "Red component (0-255)", "number"},
+      {"g", "Green component (0-255)", "number"},
+      {"b", "Blue component (0-255)", "number"},
+      {"a", "Alpha component (0-255)", "number"},
+      {"thickness", "Outline thickness (0.0 to ~0.3, higher = thicker outline)",
+       "number"}},
+     {},
+     [](lua_State* state) {
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       auto clamp = [](double f) -> uint8_t {
+         return static_cast<uint8_t>(std::clamp(f, 0.0, 255.0));
+       };
+       Color color;
+       color.r = clamp(luaL_checknumber(state, 1));
+       color.g = clamp(luaL_checknumber(state, 2));
+       color.b = clamp(luaL_checknumber(state, 3));
+       color.a = clamp(luaL_checknumber(state, 4));
+       float thickness = luaL_checknumber(state, 5);
+       renderer->SetTextOutline(color, thickness);
+       return 0;
+     }},
+    {"clear_text_outline",
+     "Removes the text outline effect for subsequent text draws.",
+     {},
+     {},
+     [](lua_State* state) {
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->ClearTextOutline();
+       return 0;
+     }},
     {"push",
      "Push a transform to the screen into the transform stack.",
      {{"transform", "A 4x4 matrix with the transform to push", "mat4x4"}},
