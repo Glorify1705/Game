@@ -329,7 +329,11 @@ class Renderer {
   float SetLineWidth(float width);
 
   void DrawRect(FVec2 top_left, FVec2 bottom_right, float angle);
+  // Draws an outlined rectangle using line segments.
+  void DrawRectOutline(FVec2 top_left, FVec2 bottom_right, float angle);
   void DrawCircle(FVec2 center, float radius);
+  // Draws an outlined circle using line segments.
+  void DrawCircleOutline(FVec2 center, float radius);
   void DrawText(std::string_view font_name, uint32_t size, std::string_view str,
                 FVec2 position);
   void DrawLine(FVec2 p0, FVec2 p1);
@@ -338,6 +342,16 @@ class Renderer {
   IVec2 TextDimensions(std::string_view font_name, uint32_t size,
                        std::string_view str);
   void DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3);
+  // Draws an outlined triangle using line segments.
+  void DrawTriangleOutline(FVec2 p1, FVec2 p2, FVec2 p3);
+  // Draws a filled ellipse with separate x and y radii.
+  void DrawEllipse(FVec2 center, float rx, float ry);
+  // Draws an outlined ellipse using line segments.
+  void DrawEllipseOutline(FVec2 center, float rx, float ry);
+  // Draws a filled rounded rectangle with corner radius.
+  void DrawRoundedRect(FVec2 top_left, FVec2 bottom_right, float radius);
+  // Draws an outlined rounded rectangle using line segments.
+  void DrawRoundedRectOutline(FVec2 top_left, FVec2 bottom_right, float radius);
 
   IVec2 viewport() const { return renderer_->GetViewport(); }
 

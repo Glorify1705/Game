@@ -199,6 +199,26 @@ static const LuaApiFunction kGraphicsLib[] = {
        lua_setfield(state, -2, "a");
        return 0;
      }},
+    {"draw_rect_outline",
+     "Draws an outlined rectangle with the global context color",
+     {{"x1", "the x coordinate for the top left of the rectangle", "number"},
+      {"y1", "the y position for the top left of the rectangle", "number"},
+      {"x2", "the x position for the bottom right of the rectangle", "number"},
+      {"y2", "the y position for the bottom right of the rectangle", "number"},
+      {"angle?", "if provided, the angle to rotate the rectangle", "number"}},
+     {},
+     [](lua_State* state) {
+       const int parameters = lua_gettop(state);
+       const float x1 = luaL_checknumber(state, 1);
+       const float y1 = luaL_checknumber(state, 2);
+       const float x2 = luaL_checknumber(state, 3);
+       const float y2 = luaL_checknumber(state, 4);
+       float angle = 0;
+       if (parameters == 5) angle = luaL_checknumber(state, 5);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawRectOutline(FVec(x1, y1), FVec(x2, y2), angle);
+       return 0;
+     }},
     {"draw_circle",
      "Draws a circle with the global context color to the screen",
      {{"x",
@@ -217,6 +237,20 @@ static const LuaApiFunction kGraphicsLib[] = {
        const float radius = luaL_checknumber(state, 3);
        auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->DrawCircle(FVec(x, y), radius);
+       return 0;
+     }},
+    {"draw_circle_outline",
+     "Draws an outlined circle with the global context color",
+     {{"x", "the x position of the center of the circle", "number"},
+      {"y", "the y position of the center of the circle", "number"},
+      {"r", "the radius in pixels of the circle", "number"}},
+     {},
+     [](lua_State* state) {
+       const float x = luaL_checknumber(state, 1);
+       const float y = luaL_checknumber(state, 2);
+       const float radius = luaL_checknumber(state, 3);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawCircleOutline(FVec(x, y), radius);
        return 0;
      }},
     {"draw_triangle",
@@ -255,6 +289,94 @@ static const LuaApiFunction kGraphicsLib[] = {
            FVec(luaL_checknumber(state, 5), luaL_checknumber(state, 6));
        auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->DrawTriangle(p1, p2, p3);
+       return 0;
+     }},
+    {"draw_triangle_outline",
+     "Draws an outlined triangle with the global context color",
+     {{"p1x", "x coordinate of the first point", "number"},
+      {"p1y", "y coordinate of the first point", "number"},
+      {"p2x", "x coordinate of the second point", "number"},
+      {"p2y", "y coordinate of the second point", "number"},
+      {"p3x", "x coordinate of the third point", "number"},
+      {"p3y", "y coordinate of the third point", "number"}},
+     {},
+     [](lua_State* state) {
+       const auto p1 =
+           FVec(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
+       const auto p2 =
+           FVec(luaL_checknumber(state, 3), luaL_checknumber(state, 4));
+       const auto p3 =
+           FVec(luaL_checknumber(state, 5), luaL_checknumber(state, 6));
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawTriangleOutline(p1, p2, p3);
+       return 0;
+     }},
+    {"draw_ellipse",
+     "Draws a filled ellipse with the global context color",
+     {{"x", "x position of the center", "number"},
+      {"y", "y position of the center", "number"},
+      {"rx", "horizontal radius in pixels", "number"},
+      {"ry", "vertical radius in pixels", "number"}},
+     {},
+     [](lua_State* state) {
+       const float x = luaL_checknumber(state, 1);
+       const float y = luaL_checknumber(state, 2);
+       const float rx = luaL_checknumber(state, 3);
+       const float ry = luaL_checknumber(state, 4);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawEllipse(FVec(x, y), rx, ry);
+       return 0;
+     }},
+    {"draw_ellipse_outline",
+     "Draws an outlined ellipse with the global context color",
+     {{"x", "x position of the center", "number"},
+      {"y", "y position of the center", "number"},
+      {"rx", "horizontal radius in pixels", "number"},
+      {"ry", "vertical radius in pixels", "number"}},
+     {},
+     [](lua_State* state) {
+       const float x = luaL_checknumber(state, 1);
+       const float y = luaL_checknumber(state, 2);
+       const float rx = luaL_checknumber(state, 3);
+       const float ry = luaL_checknumber(state, 4);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawEllipseOutline(FVec(x, y), rx, ry);
+       return 0;
+     }},
+    {"draw_rounded_rect",
+     "Draws a filled rounded rectangle with the global context color",
+     {{"x1", "x coordinate of the top left corner", "number"},
+      {"y1", "y coordinate of the top left corner", "number"},
+      {"x2", "x coordinate of the bottom right corner", "number"},
+      {"y2", "y coordinate of the bottom right corner", "number"},
+      {"radius", "corner radius in pixels", "number"}},
+     {},
+     [](lua_State* state) {
+       const float x1 = luaL_checknumber(state, 1);
+       const float y1 = luaL_checknumber(state, 2);
+       const float x2 = luaL_checknumber(state, 3);
+       const float y2 = luaL_checknumber(state, 4);
+       const float radius = luaL_checknumber(state, 5);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawRoundedRect(FVec(x1, y1), FVec(x2, y2), radius);
+       return 0;
+     }},
+    {"draw_rounded_rect_outline",
+     "Draws an outlined rounded rectangle with the global context color",
+     {{"x1", "x coordinate of the top left corner", "number"},
+      {"y1", "y coordinate of the top left corner", "number"},
+      {"x2", "x coordinate of the bottom right corner", "number"},
+      {"y2", "y coordinate of the bottom right corner", "number"},
+      {"radius", "corner radius in pixels", "number"}},
+     {},
+     [](lua_State* state) {
+       const float x1 = luaL_checknumber(state, 1);
+       const float y1 = luaL_checknumber(state, 2);
+       const float x2 = luaL_checknumber(state, 3);
+       const float y2 = luaL_checknumber(state, 4);
+       const float radius = luaL_checknumber(state, 5);
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       renderer->DrawRoundedRectOutline(FVec(x1, y1), FVec(x2, y2), radius);
        return 0;
      }},
     {"draw_line",
