@@ -349,6 +349,11 @@ class Renderer {
   void Translate(float x, float y) { ApplyTransform(TranslationXY(x, y)); }
   void Scale(float x, float y) { ApplyTransform(ScaleXY(x, y)); }
 
+  void ApplyTransform(const FMat4x4& mat) {
+    transform_stack_.back() = mat * transform_stack_.back();
+    renderer_->SetActiveTransform(transform_stack_.back());
+  }
+
  private:
   // Per-glyph SDF atlas data used by the SDF text renderer. Stores the
   // glyph's location in the atlas texture and its positioning metrics.
@@ -397,11 +402,6 @@ class Renderer {
   static void SaveSDFToCache(sqlite3* db, std::string_view font_name,
                              uint64_t font_hash, const FontInfo& font,
                              const uint8_t* atlas_bitmap);
-
-  void ApplyTransform(const FMat4x4& mat) {
-    transform_stack_.back() = mat * transform_stack_.back();
-    renderer_->SetActiveTransform(transform_stack_.back());
-  }
 
   Color color_;
   float line_width_;

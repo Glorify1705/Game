@@ -78,9 +78,7 @@ void Keyboard::PushEvent(const SDL_Event& event) {
 
 void Mouse::PushEvent(const SDL_Event& event) {
   if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-    mouse_wheel_ += FVec(event.wheel.x, event.wheel.y) / 50;
-    mouse_wheel_.x = std::clamp(0.0f, mouse_wheel_.x, 1.0f);
-    mouse_wheel_.y = std::clamp(0.0f, mouse_wheel_.y, 1.0f);
+    mouse_wheel_ += FVec(event.wheel.x, event.wheel.y);
   }
   if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
       event.type == SDL_EVENT_MOUSE_BUTTON_UP) {

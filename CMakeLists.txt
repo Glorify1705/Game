@@ -80,6 +80,7 @@ set(VENDORED_SRCS
 
 set(ENGINE_SRCS
     "src/assets.cc"
+    "src/camera.cc"
     "src/clock.cc"
     "src/collision.cc"
     "src/collision_world.cc"
@@ -94,6 +95,7 @@ set(ENGINE_SRCS
     "src/lua.cc"
     "src/lua_assets.cc"
     "src/lua_bytebuffer.cc"
+    "src/lua_camera.cc"
     "src/lua_collision.cc"
     "src/lua_filesystem.cc"
     "src/lua_graphics.cc"
