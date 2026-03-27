@@ -749,9 +749,9 @@ Aseprite format:
 The parser needs to navigate one extra level of nesting and read `duration`.
 Our `JsonValue::operator[]` and `ForEachElement` already handle this.
 
-**Phase 2 (optional): Binary .ase support via cute_aseprite.h.**
+**Phase 2: Binary .ase support via cute_aseprite.h.**
 
-Worth adding later if any of these become true:
+Worth adding if any of these become true:
 - Artists want to skip the export step (save .ase, hot-reload sees it directly)
 - We need per-layer access (dynamic composition, e.g., equipping armor overlays)
 - We need user data (attaching metadata to specific frames/tags/slices)
@@ -760,16 +760,159 @@ Worth adding later if any of these become true:
 Integration would require:
 1. Vendor `cute_aseprite.h` in `libraries/` (~1.4K lines)
 2. Define `CUTE_ASEPRITE_ALLOC` / `CUTE_ASEPRITE_FREE` to use our `Allocator*`
-3. Write an atlas packer that takes the composited per-frame pixels and packs
-   them into a single texture (we don't have an atlas packer today -- the artist
-   handles packing via Aseprite export)
-4. Register `.ase` / `.aseprite` as a recognized file type in the packer
-5. ~200-300 lines of integration code in `packer.cc`
+3. Pack composited frames into an atlas using `stb_rect_pack`
+4. Store the packed atlas in the SQLite asset DB as an image blob
+5. Register `.ase` / `.aseprite` as a recognized file type in the packer
+6. ~200-300 lines of integration code in `packer.cc`
 
-The atlas packing step is the main additional complexity. A simple
-shelf-packing algorithm (line-by-line, tallest-first) would be sufficient for
-game-sized spritesheets. But this is work we don't need to do if the artist
-exports a pre-packed atlas via JSON.
+### Atlas packing with stb_rect_pack
+
+We already vendor `stb_rect_pack.h` and use it for SDF font glyph atlas
+packing in `renderer.cc`. The exact same pattern applies to sprite frames.
+
+`PackGlyphRects` (`renderer.cc:913`) does this:
+
+```cpp
+int atlas_dim = 256;
+bool packed = false;
+while (atlas_dim <= 2048 && !packed) {
+  stbrp_context pack_ctx;
+  stbrp_node nodes[512];
+  stbrp_init_target(&pack_ctx, atlas_dim, atlas_dim, nodes, 512);
+  packed = stbrp_pack_rects(&pack_ctx, rects, count) == 1;
+  if (!packed) atlas_dim *= 2;
+}
+```
+
+Try 256x256, double until everything fits (max 2048x2048). For sprite frames
+this is the same -- fill a `stbrp_rect` array with each frame's dimensions,
+pack, blit pixels into the atlas at the packed positions.
+
+For a typical Aseprite file (e.g., 20 frames of 32x32): 20 * 32 * 32 = 20,480
+pixels. A 256x256 atlas (65,536 pixels) fits this with room to spare. Even a
+complex character with 60 frames of 64x64 fits in 512x512.
+
+The packer pipeline for a `.ase` file:
+
+```
+1. Load .ase via cute_aseprite_load_from_memory()
+   -> ase_t with N composited frames, each w*h RGBA
+
+2. Fill stbrp_rect array (one per frame):
+   rects[i] = { .id = i, .w = ase->w + padding, .h = ase->h + padding }
+
+3. Pack: stbrp_pack_rects(&ctx, rects, ase->frame_count)
+   (retry with larger atlas if needed, same as PackGlyphRects)
+
+4. Allocate atlas buffer: atlas_dim * atlas_dim * 4 bytes (RGBA)
+
+5. Blit each frame into the atlas:
+   for each frame i:
+     dst_x = rects[i].x, dst_y = rects[i].y
+     memcpy rows from frame->pixels into atlas at (dst_x, dst_y)
+
+6. QOI-encode the atlas (same as InsertPng does for PNGs)
+
+7. INSERT into SQLite:
+   - images table: atlas as QOI blob (same as any other image)
+   - spritesheets table: name, image ref, dimensions
+   - sprites table: one entry per frame with packed x/y/w/h
+   - animations table: one entry per tag with frame ranges + durations
+```
+
+### Storing the packed atlas in SQLite
+
+The asset DB already stores all images as blobs in the `images` table. PNGs are
+decoded and re-encoded as QOI before insertion (`InsertPng` in `packer.cc`).
+The runtime loads images from the DB and uploads them as GL textures -- it never
+touches the filesystem.
+
+The packed atlas goes through the same path. From the runtime's perspective,
+an Aseprite-sourced spritesheet is indistinguishable from a manually exported
+one: it's an image blob in `images`, with frame rectangles in `sprites` and
+animation metadata in `animations`. No special loading code needed.
+
+This also means the `.ase` source file is never shipped in the final package.
+The packer transforms it into standard engine assets at build time. The artist
+works with `.ase` files, the game ships with SQLite blobs.
+
+### Hot-reload with binary .ase
+
+The workflow becomes:
+
+```
+1. Artist edits sprite in Aseprite
+2. Artist saves (Ctrl+S) -> writes .ase file to assets/
+3. File watcher detects change
+4. Packer re-parses .ase, re-packs atlas, updates SQLite
+5. Runtime reloads image + sprite entries + animation defs
+6. Game shows updated art immediately
+```
+
+No export step. The inotify watcher already monitors the assets directory
+(`game.cc:111-151`). The packer callback system (`RegisterSpriteLoad`,
+`RegisterImageLoad`, etc. in `game.cc:271-329`) propagates changes to the
+renderer. The only new work is registering `.ase` as a file type and writing
+`InsertAseprite()` in the packer.
+
+### What the packer function looks like
+
+```cpp
+AssetInfo InsertAseprite(std::string_view filename, const uint8_t* buf,
+                         size_t size) {
+  ArenaAllocator scratch(allocator_, Megabytes(4));
+
+  // 1. Parse binary .ase
+  ase_t* ase = cute_aseprite_load_from_memory(buf, size, &scratch);
+  DCHECK(ase != nullptr, "Failed to load Aseprite file: ", filename);
+  DEFER([&] { cute_aseprite_free(ase); });
+
+  // 2. Pack frames into atlas
+  auto* rects = scratch.NewArray<stbrp_rect>(ase->frame_count);
+  for (int i = 0; i < ase->frame_count; i++) {
+    rects[i].id = i;
+    rects[i].w = ase->w + 1;  // 1px padding prevents bleeding
+    rects[i].h = ase->h + 1;
+  }
+  int atlas_dim = PackFrameRects(rects, ase->frame_count);
+
+  // 3. Blit frames into atlas
+  size_t atlas_bytes = atlas_dim * atlas_dim * 4;
+  auto* atlas = scratch.NewArray<uint8_t>(atlas_bytes);
+  std::memset(atlas, 0, atlas_bytes);
+  for (int i = 0; i < ase->frame_count; i++) {
+    BlitFrame(atlas, atlas_dim, rects[i].x, rects[i].y,
+              ase->frames[i].pixels, ase->w, ase->h);
+  }
+
+  // 4. QOI-encode and insert atlas as image
+  QoiDesc desc = {atlas_dim, atlas_dim, 4, QoiColorspace::kLinear};
+  int qoi_len;
+  auto* qoi = QoiEncode(atlas, &desc, &qoi_len, &scratch);
+  InsertImageBlob(filename, qoi, qoi_len, atlas_dim, atlas_dim, 4);
+
+  // 5. Insert spritesheet + per-frame sprites
+  for (int i = 0; i < ase->frame_count; i++) {
+    InsertSprite(frame_name(filename, i), filename,
+                 rects[i].x, rects[i].y, ase->w, ase->h);
+  }
+
+  // 6. Insert animation defs from tags
+  for (int i = 0; i < ase->tag_count; i++) {
+    ase_tag_t* tag = &ase->tags[i];
+    InsertAnimationDef(anim_name(filename, tag->name),
+                       filename, tag->from_frame, tag->to_frame,
+                       tag->loop_animation_direction,
+                       ase->frames);  // for per-frame durations
+  }
+
+  return AssetInfo{.size = size};
+}
+```
+
+~60 lines of core logic, plus helpers for blitting and name generation. The
+heaviest work (parsing, decompression, compositing, rect packing) is done by
+cute_aseprite.h and stb_rect_pack.h.
 
 ### Artist workflow comparison
 
@@ -793,4 +936,8 @@ an export script that runs on save.
 3. Hot-reload picks up changes
 ```
 
-One fewer step, but requires the engine to do atlas packing.
+The binary workflow is the ideal end state. The packer does the atlas packing
+that the artist would otherwise do manually, using infrastructure we already
+have (stb_rect_pack + SQLite image blobs + QOI encoding). The artist never
+thinks about export settings, atlas sizes, or file pairs -- they just save
+their `.ase` file and the engine handles the rest.
