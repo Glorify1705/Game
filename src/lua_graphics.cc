@@ -556,7 +556,7 @@ static const LuaApiFunction kGraphicsLib[] = {
       {"g", "Green component (0-255)", "number"},
       {"b", "Blue component (0-255)", "number"},
       {"a", "Alpha component (0-255)", "number"},
-      {"thickness", "Outline thickness (0.0 to ~0.3, higher = thicker outline)",
+      {"thickness", "Outline thickness in screen pixels (e.g. 2 = 2px outline)",
        "number"}},
      {},
      [](lua_State* state) {

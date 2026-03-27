@@ -26,28 +26,28 @@ function Game:draw()
 
 	-- Black outline on white text.
 	G.graphics.set_color("white")
-	G.graphics.set_text_outline(0, 0, 0, 255, 0.15)
+	G.graphics.set_text_outline(0, 0, 0, 255, 2)
 	G.graphics.draw_text(FONT, 36, "Black outline", 20, y)
 	G.graphics.clear_text_outline()
 	y = y + 55
 
 	-- Red outline on white text.
 	G.graphics.set_color("white")
-	G.graphics.set_text_outline(255, 40, 40, 255, 0.15)
+	G.graphics.set_text_outline(255, 40, 40, 255, 2)
 	G.graphics.draw_text(FONT, 36, "Red outline", 20, y)
 	G.graphics.clear_text_outline()
 	y = y + 55
 
 	-- Blue outline on yellow text.
 	G.graphics.set_color(255, 255, 0, 255)
-	G.graphics.set_text_outline(30, 60, 220, 255, 0.2)
+	G.graphics.set_text_outline(30, 60, 220, 255, 3)
 	G.graphics.draw_text(FONT, 36, "Blue outline on yellow", 20, y)
 	G.graphics.clear_text_outline()
 	y = y + 55
 
 	-- Green glow (semi-transparent outline).
 	G.graphics.set_color("white")
-	G.graphics.set_text_outline(0, 255, 80, 160, 0.25)
+	G.graphics.set_text_outline(0, 255, 80, 160, 4)
 	G.graphics.draw_text(FONT, 36, "Green glow", 20, y)
 	G.graphics.clear_text_outline()
 	y = y + 55
@@ -58,11 +58,11 @@ function Game:draw()
 	G.graphics.draw_text(FONT, 20, "Outline thickness comparison:", 20, y)
 	y = y + 30
 
-	local thicknesses = { 0.05, 0.1, 0.15, 0.2, 0.25, 0.3 }
+	local thicknesses = { 1, 2, 3, 4, 5, 6 }
 	for _, thick in ipairs(thicknesses) do
 		G.graphics.set_color("white")
 		G.graphics.set_text_outline(0, 0, 0, 255, thick)
-		G.graphics.draw_text(FONT, 28, string.format("thickness = %.2f", thick), 40, y)
+		G.graphics.draw_text(FONT, 28, string.format("thickness = %d px", thick), 40, y)
 		G.graphics.clear_text_outline()
 		y = y + 40
 	end
@@ -76,7 +76,7 @@ function Game:draw()
 	local sizes = { 14, 20, 28, 40, 56 }
 	for _, sz in ipairs(sizes) do
 		G.graphics.set_color("white")
-		G.graphics.set_text_outline(60, 0, 120, 255, 0.15)
+		G.graphics.set_text_outline(60, 0, 120, 255, 2)
 		G.graphics.draw_text(FONT, sz, "Hello", 40, y)
 		G.graphics.clear_text_outline()
 		G.graphics.set_color(120, 120, 120, 255)
@@ -92,7 +92,7 @@ function Game:draw()
 	G.graphics.draw_text(FONT, 28, "Outlined + Colored Text", rx, ry)
 	ry = ry + 50
 
-	G.graphics.set_text_outline(0, 0, 0, 255, 0.2)
+	G.graphics.set_text_outline(0, 0, 0, 255, 3)
 	G.graphics.draw_text_colored(FONT, 30, {
 		{ 255, 100, 100, 255 },
 		"Red ",
@@ -104,7 +104,7 @@ function Game:draw()
 	G.graphics.clear_text_outline()
 	ry = ry + 50
 
-	G.graphics.set_text_outline(255, 255, 255, 200, 0.15)
+	G.graphics.set_text_outline(255, 255, 255, 200, 2)
 	G.graphics.draw_text_colored(FONT, 30, {
 		{ 200, 50, 50, 255 },
 		"Fire ",

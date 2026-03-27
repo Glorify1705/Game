@@ -117,8 +117,8 @@ constexpr std::string_view kSDFFragmentShader = R"(
     in vec4 out_color;
 
     uniform sampler2D tex;
-    uniform vec4 u_outline_color;
     uniform float u_outline_thickness;
+    uniform vec4 u_outline_color;
 
     void main() {
         float dist = texture(tex, tex_coord).r;
@@ -132,15 +132,16 @@ constexpr std::string_view kSDFFragmentShader = R"(
         float alpha = smoothstep(threshold - w, threshold + w, dist);
 
         if (u_outline_thickness > 0.0) {
-            float outline_threshold = threshold - u_outline_thickness;
-            float outline_alpha = smoothstep(outline_threshold - w,
-                                             outline_threshold + w, dist);
-            // Composite: text color over outline color over transparent.
-            vec4 fill = vec4(out_color.rgb, out_color.a * alpha);
-            vec4 outline = vec4(u_outline_color.rgb,
-                                u_outline_color.a * outline_alpha);
-            // Blend fill over outline.
-            frag_color = fill + outline * (1.0 - fill.a);
+            float outline_dist = u_outline_thickness * grad;
+            float outline_threshold = threshold - outline_dist;
+            float outline_w = min(0.5 * grad, 0.08);
+            float outline_alpha = smoothstep(outline_threshold - outline_w,
+                                             outline_threshold + outline_w, dist);
+            float fill_a = out_color.a * alpha;
+            vec4 fill = vec4(out_color.rgb * fill_a, fill_a);
+            float ol_a = u_outline_color.a * outline_alpha;
+            vec4 ol = vec4(u_outline_color.rgb * ol_a, ol_a);
+            frag_color = fill + ol * (1.0 - fill.a);
         } else {
             frag_color = vec4(out_color.rgb, out_color.a * alpha);
         }

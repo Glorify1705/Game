@@ -657,11 +657,11 @@ void BatchRenderer::Render(Allocator* scratch) {
         break;
       case kSetSDFOutline:
         flush();
+        shaders_->SetUniformSilentF("u_outline_thickness",
+                                    c.sdf_outline.thickness);
         shaders_->SetUniformSilent("u_outline_color",
                                    FVec(c.sdf_outline.r, c.sdf_outline.g,
                                         c.sdf_outline.b, c.sdf_outline.a));
-        shaders_->SetUniformSilentF("u_outline_thickness",
-                                    c.sdf_outline.thickness);
         break;
       case kDone:
         color = Color::White();
