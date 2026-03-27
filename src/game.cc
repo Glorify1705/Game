@@ -519,7 +519,7 @@ class Game {
     SDL_ResumeAudioDevice(audio_device_);
     double last_frame = NowInSeconds();
     constexpr double kStep = TimeStepInSeconds();
-    double t = 0, accum = 0;
+    double t = 0, real_t = 0, accum = 0;
     for (;;) {
       if (e_->lua.Stopped()) return;
       if (e_->lua.HasError() && e_->keyboard.IsDown(SDL_SCANCODE_Q)) {
@@ -559,8 +559,10 @@ class Game {
         }
       }
       while (accum >= kStep) {
-        Update(t, kStep);
-        t += kStep;
+        const double scaled_dt = kStep * e_->lua.TimeScale();
+        Update(t, real_t, scaled_dt, kStep);
+        t += scaled_dt;
+        real_t += kStep;
         accum -= kStep;
       }
       e_->batch_renderer.SetFrameTime(static_cast<float>(t));
@@ -579,16 +581,17 @@ class Game {
     e_->renderer.DrawText("debug_font.ttf", 24, error, FVec(50, 50));
   }
 
-  // Update state given current time t and frame delta dt, both in ms.
-  void Update(double t, double dt) {
+  // Update state given scaled game time t and scaled delta dt.
+  void Update(double t, double real_t, double scaled_dt, double real_dt) {
     if (e_->lua.HasError()) {
       e_->sound.StopAll();
       return;
     }
-    e_->physics.Update(dt);
-    e_->lua.Update(t, dt);
+    e_->lua.SetRealTime(real_t, real_dt);
+    e_->physics.Update(scaled_dt);
+    e_->lua.Update(t, scaled_dt);
     IVec2 vp = e_->batch_renderer.GetViewport();
-    e_->camera.Update(dt, FVec2(vp.x, vp.y));
+    e_->camera.Update(scaled_dt, FVec2(vp.x, vp.y));
   }
 
   void Render() {

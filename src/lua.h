@@ -263,6 +263,24 @@ class Lua {
   double time() const { return t_; }
   double dt() const { return dt_; }
 
+  // Returns the unscaled real elapsed time.
+  double RealTime() const { return real_t_; }
+
+  // Returns the unscaled real delta time.
+  double RealDt() const { return real_dt_; }
+
+  // Sets the time scale multiplier (0 = paused, 1 = normal, 2 = double).
+  void SetTimeScale(float scale) { time_scale_ = scale; }
+
+  // Returns the current time scale multiplier.
+  float TimeScale() const { return time_scale_; }
+
+  // Sets the real (unscaled) time and delta for the current frame.
+  void SetRealTime(double real_t, double real_dt) {
+    real_t_ = real_t;
+    real_dt_ = real_dt;
+  }
+
   size_t argc() const { return args_.size(); }
   std::string_view argv(size_t i) const { return args_[i]; }
 
@@ -394,6 +412,9 @@ class Lua {
 
   double t_ = 0;
   double dt_ = 0;
+  double real_t_ = 0;
+  double real_dt_ = 0;
+  float time_scale_ = 1.0f;
 
   bool hotload_requested_ = false;
 };
