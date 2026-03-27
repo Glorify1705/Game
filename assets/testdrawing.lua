@@ -8,7 +8,7 @@ function Game:init()
 end
 
 function Game:update(t, dt)
-    if G.input.is_key_pressed("escape") then
+    if G.input.is_key_pressed("escape") or G.input.is_key_pressed("q") then
         G.system.quit()
     end
     self.angle = t * 0.5
@@ -95,9 +95,9 @@ function Game:draw()
 
     -- Labels
     G.graphics.set_color(255, 255, 255, 255)
-    G.graphics.print("Filled", 20, 5)
-    G.graphics.print("Outlined", 20, row_h + 5)
-    G.graphics.print("Rounded / Rotated", 20, row_h * 2 + 5)
+    G.graphics.print("Filled", 30, 5)
+    G.graphics.print("Outlined", 30, row_h + 5)
+    G.graphics.print("Rounded / Rotated", 30, row_h * 2 + 5)
 end
 
 return Game
