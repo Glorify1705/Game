@@ -1355,9 +1355,9 @@ void Renderer::DrawTextWrapped(std::string_view font_name, uint32_t size,
   for (size_t i = 0; i < lines.size(); ++i) {
     float x_offset = 0;
     if (align == TextAlign::kCenter) {
-      x_offset = (max_width - lines[i].width) * 0.5f;
+      x_offset = std::max(0.0f, (max_width - lines[i].width) * 0.5f);
     } else if (align == TextAlign::kRight) {
-      x_offset = max_width - lines[i].width;
+      x_offset = std::max(0.0f, max_width - lines[i].width);
     }
     DrawText(font_name, size, lines[i].text, FVec(p.x + x_offset, p.y));
     p.y += line_height;

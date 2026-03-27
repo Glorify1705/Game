@@ -16,7 +16,7 @@ local short_text = "Hello, world!"
 
 function Game:init()
   G.window.set_title("Text Layout Test")
-  G.window.set_dimensions(900, 700)
+  G.window.set_dimensions(1100, 750)
 end
 
 function Game:update(t, dt)
@@ -75,7 +75,7 @@ function Game:draw()
   y = y + right_h + 20
 
   -- Side-by-side comparison at right side of screen.
-  local rx = 500
+  local rx = 600
   G.graphics.set_color("gold")
   G.graphics.draw_text(FONT, SIZE, "Wrapped height measurement:", rx, 20)
 
