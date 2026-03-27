@@ -99,7 +99,7 @@ function Game:draw()
 
     -- HUD (uses real time for blinking, unaffected by time scale).
     local scale = G.system.get_time_scale()
-    local game_time = G.clock.gametime()
+    local game_time = G.system.gametime()
     local real_time = G.system.get_real_time()
 
     G.graphics.set_color("white")
@@ -121,7 +121,7 @@ function Game:draw()
         G.graphics.set_color("green")
         line("[REAL-TIME BLINK] (uses real_dt)")
     else
-        G.graphics.set_color(0.2, 0.2, 0.2, 1.0)
+        G.graphics.set_color(50, 50, 50, 255)
         line("[REAL-TIME BLINK] (uses real_dt)")
     end
 
