@@ -20,6 +20,9 @@ function Game:init()
 end
 
 function Game:update(t, dt)
+  if G.input.is_key_pressed("escape") or G.input.is_key_pressed("q") then
+    G.system.quit()
+  end
 end
 
 function Game:draw()
