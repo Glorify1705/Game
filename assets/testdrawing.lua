@@ -95,9 +95,9 @@ function Game:draw()
 
     -- Labels
     G.graphics.set_color(255, 255, 255, 255)
-    G.graphics.print("Filled", 10, 5)
-    G.graphics.print("Outlined", 10, row_h + 5)
-    G.graphics.print("Rounded / Rotated", 10, row_h * 2 + 5)
+    G.graphics.print("Filled", 20, 5)
+    G.graphics.print("Outlined", 20, row_h + 5)
+    G.graphics.print("Rounded / Rotated", 20, row_h * 2 + 5)
 end
 
 return Game
