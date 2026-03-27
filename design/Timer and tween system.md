@@ -34,9 +34,11 @@ it overshoots, bounces back, and settles. Springs feel more organic than tweens
 and respond naturally to interrupted input. Used for UI elements, camera follow,
 juice effects.
 
-**Time scale**: A global multiplier on delta time. At 0.5, everything runs at
-half speed (slow-motion). At 0.0, the game is paused. Some systems (UI, screen
-transitions) need to ignore time scale and run in real time.
+**Time scale**: A global multiplier on delta time, already implemented in the
+engine (`G.system.set_time_scale`). At 0.5, everything runs at half speed
+(slow-motion). At 0.0, the game is paused. Some systems (UI, screen
+transitions) need to ignore time scale and run in real time -- the engine
+exposes `G.system.get_real_dt()` for this.
 
 **Tag**: A string identifier for a timer. Allows cancellation by name rather
 than by handle. Critical for hot-reload: when Lua code is reloaded, new timers
@@ -58,6 +60,7 @@ registered with the same tag automatically replace old ones.
 | **Chaining** | N/A | N/A | tween:after() -> chained | Sequence.Append/Join | Sequential by default, chain()/parallel() | Timeline position params |
 | **Coroutine scripting** | N/A | script(fn(wait)) | N/A | N/A | N/A | N/A |
 | **Time scale** | N/A (uses global dt) | N/A | N/A | SetUpdate(independent:true) | set_pause_mode | N/A |
+| **Ours (existing)** | `G.system.set_time_scale` scales dt globally; `G.system.get_real_dt` for unscaled | | | | | |
 | **Memory** | Lua tables, GC'd | Lua tables, handle set | Array + per-object hash | Pre-allocated pools | Engine-managed | N/A |
 | **GC pressure** | Medium (tables per timer) | Low (handle tables) | Low (flat struct) | None (pooled C#) | None (C++ engine) | N/A (JS GC) |
 
@@ -102,9 +105,32 @@ double NowInSeconds();
 inline constexpr double TimeStepInSeconds() { return 1.0 / 60.0; }
 ```
 
-The main loop (`game.cc`) runs a fixed timestep of 1/60s. Lua receives `t`
-(total game time) and `dt` (fixed step) in `update(t, dt)`. There is no time
-scale -- `dt` is always `1/60`.
+The main loop (`game.cc`) runs a fixed timestep of 1/60s. The engine has a
+**time scale system** (implemented in PR #34). The main loop multiplies the
+fixed step by the time scale before passing it to subsystems:
+
+```cpp
+const double scaled_dt = kStep * e_->lua.TimeScale();
+Update(t, real_t, scaled_dt, kStep);
+t += scaled_dt;
+real_t += kStep;
+```
+
+Physics, Lua `update(t, dt)`, and camera all receive the scaled dt. The Lua API
+exposes both scaled and unscaled time:
+
+```lua
+G.system.set_time_scale(0.5)    -- half speed
+G.system.get_time_scale()       --> 0.5
+G.system.get_real_dt()          --> unscaled dt (always 1/60)
+G.system.get_real_time()        --> unscaled elapsed time
+G.clock.gametime()              --> scaled game time
+G.clock.gamedelta()             --> scaled dt
+```
+
+The time scale is stored on the `Lua` object (`lua.h:417`) and affects
+everything that uses the dt passed through `Update()`. This is exactly what the
+timer system needs to integrate with.
 
 Currently, timers and tweens require manual Lua code:
 
@@ -437,40 +463,52 @@ Tags are hashed to `uint32_t` for fast lookup. The hash-to-slot mapping is a
 Auto-generated tags use an incrementing counter (no need for true UUIDs since
 tags only need to be unique within a session).
 
-### Time scale
+### Integration with time scale
 
-Add to the engine clock:
+The engine already has a time scale system (`G.system.set_time_scale`). The main
+loop computes `scaled_dt = kStep * time_scale` and passes it to physics, Lua,
+and camera. Unscaled time is available via `G.system.get_real_dt()`.
+
+**By default, timers use scaled dt.** This is the right behavior for gameplay
+timers: when the game is in slow-motion, attack cooldowns, spawn delays, and
+tweens all slow down proportionally. The timer system receives `scaled_dt` from
+the engine update, same as everything else.
+
+**Real-time timers ignore time scale.** Some timers need to run at wall-clock
+speed regardless of time scale: pause menu animations, screen fades during
+slow-motion, input debouncing. These use the unscaled dt.
+
+The timer system needs both values from the engine:
 
 ```cpp
-float time_scale = 1.0f;   // Multiplier for game dt
+void TimerSystem::Update(float scaled_dt, float raw_dt) {
+  for each active timer:
+    float dt_eff = timer.ignore_time_scale ? raw_dt : scaled_dt;
+    // ... rest of update
+}
 ```
 
-During the main loop update:
+The main loop passes both:
 
 ```cpp
-float scaled_dt = dt * time_scale;
-lua.Update(t, scaled_dt);              // Lua sees scaled dt
-camera.Update(scaled_dt, viewport);    // Camera sees scaled dt
-// Timer system internally uses scaled_dt for normal timers,
-// raw dt for ignore_time_scale timers
+void Update(double t, double real_t, double scaled_dt, double real_dt) {
+  // ...
+  timer_system.Update(scaled_dt, real_dt);
+}
 ```
 
-Lua API for time scale:
+The `raw_dt` is already tracked -- it's the fixed `kStep` (1/60s) before time
+scale is applied. No new engine infrastructure needed.
 
-```lua
-G.clock.set_time_scale(scale)   -- 0.0 = paused, 0.5 = half speed, 1.0 = normal
-G.clock.time_scale()            --> number
-```
-
-Timers with `ignore_time_scale` always use raw dt:
+**Lua API for real-time timers:**
 
 ```lua
 -- Screen fade during pause (ignores time scale)
 G.timer.tween(0.5, overlay, {alpha = 1}, "in-quad", nil, "pause_fade")
-G.timer.set_ignore_time_scale("pause_fade", true)
+G.timer.set_real_time("pause_fade", true)
 ```
 
-Or as a creation-time flag:
+Or as a creation-time option:
 
 ```lua
 G.timer.after(0.5, unpause_fn, {tag = "unpause", real_time = true})
@@ -480,9 +518,15 @@ The simpler approach (flag per timer) is preferable to Godot's process mode or
 DOTween's update type. Most games only need a handful of real-time timers (UI
 transitions, input handling during pause).
 
+**What happens at time_scale = 0 (paused)?** Normal timers freeze entirely
+(scaled_dt = 0). Real-time timers keep running. This is correct: a pause menu
+tween should animate, but an enemy spawn timer should not advance.
+
 ### Update logic
 
-Called once per frame by the engine, after `Lua.Update()`:
+Called once per frame by the engine, after `Lua.Update()`. The engine passes
+both `scaled_dt` (affected by `G.system.set_time_scale`) and `raw_dt` (always
+1/60s):
 
 ```
 for each active timer:
@@ -755,12 +799,15 @@ end, 0, "player_shoot")  -- 0 = infinite repetitions
 3. `bind()` for auto-updating Lua table fields.
 4. Lua bindings: `G.timer.spring`, `spring:pull`, `spring:animate`.
 
-### Phase 5: Time scale
+### Phase 5: Real-time timer support
 
-1. Add `time_scale` to the engine clock.
-2. Pass `scaled_dt` and `raw_dt` to the timer system.
-3. `ignore_time_scale` flag on timers.
-4. Lua: `G.clock.set_time_scale`, `G.clock.time_scale`.
+Time scale is already implemented (`G.system.set_time_scale`, PR #34). The
+main loop already computes `scaled_dt` and has `raw_dt` available. This phase
+just wires them into the timer system:
+
+1. Pass both `scaled_dt` and `raw_dt` to `TimerSystem::Update()`.
+2. `ignore_time_scale` flag on timer structs.
+3. Lua: `G.timer.set_real_time(tag, bool)` and `real_time` creation option.
 
 ### Phase 6: Expose easing as utility
 
