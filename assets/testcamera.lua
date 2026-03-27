@@ -14,7 +14,7 @@ local g = {}
 
 local WORLD_W = 3000
 local WORLD_H = 2000
-local SPEED = 500
+local SPEED = 200
 
 local ship_x, ship_y
 local ship_angle = 0
