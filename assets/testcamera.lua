@@ -25,7 +25,7 @@ local parallax_mode = 0
 local stars = {}
 local meteors = {}
 
-function g.init()
+function g:init()
   ship_x = WORLD_W / 2
   ship_y = WORLD_H / 2
 
@@ -54,7 +54,7 @@ function g.init()
   G.camera.set_bounds(0, 0, WORLD_W, WORLD_H)
 end
 
-function g.update(t, dt)
+function g:update(t, dt)
   if G.input.is_key_pressed("q") then
     G.system.quit()
   end
@@ -148,7 +148,7 @@ local function draw_world_border()
   G.graphics.draw_line(0, WORLD_H, 0, 0)
 end
 
-function g.draw()
+function g:draw()
   G.graphics.clear()
 
   -- Background parallax layer (stars move slowly).
