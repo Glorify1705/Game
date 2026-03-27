@@ -264,19 +264,19 @@ class Lua {
   double dt() const { return dt_; }
 
   // Returns the unscaled real elapsed time.
-  double real_time() const { return real_t_; }
+  double RealTime() const { return real_t_; }
 
   // Returns the unscaled real delta time.
-  double real_dt() const { return real_dt_; }
+  double RealDt() const { return real_dt_; }
 
   // Sets the time scale multiplier (0 = paused, 1 = normal, 2 = double).
-  void set_time_scale(float scale) { time_scale_ = scale; }
+  void SetTimeScale(float scale) { time_scale_ = scale; }
 
   // Returns the current time scale multiplier.
-  float time_scale() const { return time_scale_; }
+  float TimeScale() const { return time_scale_; }
 
   // Sets the real (unscaled) time and delta for the current frame.
-  void set_real_time(double real_t, double real_dt) {
+  void SetRealTime(double real_t, double real_dt) {
     real_t_ = real_t;
     real_dt_ = real_dt;
   }

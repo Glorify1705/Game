@@ -559,7 +559,7 @@ class Game {
         }
       }
       while (accum >= kStep) {
-        const double scaled_dt = kStep * e_->lua.time_scale();
+        const double scaled_dt = kStep * e_->lua.TimeScale();
         Update(t, real_t, scaled_dt, kStep);
         t += scaled_dt;
         real_t += kStep;
@@ -587,7 +587,7 @@ class Game {
       e_->sound.StopAll();
       return;
     }
-    e_->lua.set_real_time(real_t, real_dt);
+    e_->lua.SetRealTime(real_t, real_dt);
     e_->physics.Update(scaled_dt);
     e_->lua.Update(t, scaled_dt);
     IVec2 vp = e_->batch_renderer.GetViewport();

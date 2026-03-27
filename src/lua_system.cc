@@ -93,7 +93,7 @@ const struct LuaApiFunction kSystemLib[] = {
      [](lua_State* state) {
        auto* lua = Registry<Lua>::Retrieve(state);
        float scale = static_cast<float>(luaL_checknumber(state, 1));
-       lua->set_time_scale(scale);
+       lua->SetTimeScale(scale);
        return 0;
      }},
     {"get_time_scale",
@@ -102,7 +102,7 @@ const struct LuaApiFunction kSystemLib[] = {
      {{"scale", "the time scale multiplier", "number"}},
      [](lua_State* state) {
        auto* lua = Registry<Lua>::Retrieve(state);
-       lua_pushnumber(state, lua->time_scale());
+       lua_pushnumber(state, lua->TimeScale());
        return 1;
      }},
     {"get_real_dt",
@@ -111,7 +111,7 @@ const struct LuaApiFunction kSystemLib[] = {
      {{"dt", "unscaled delta time in seconds", "number"}},
      [](lua_State* state) {
        auto* lua = Registry<Lua>::Retrieve(state);
-       lua_pushnumber(state, lua->real_dt());
+       lua_pushnumber(state, lua->RealDt());
        return 1;
      }},
     {"get_real_time",
@@ -120,7 +120,7 @@ const struct LuaApiFunction kSystemLib[] = {
      {{"time", "unscaled elapsed time in seconds", "number"}},
      [](lua_State* state) {
        auto* lua = Registry<Lua>::Retrieve(state);
-       lua_pushnumber(state, lua->real_time());
+       lua_pushnumber(state, lua->RealTime());
        return 1;
      }}};
 
