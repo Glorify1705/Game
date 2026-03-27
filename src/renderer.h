@@ -337,6 +337,19 @@ class Renderer {
 
   IVec2 TextDimensions(std::string_view font_name, uint32_t size,
                        std::string_view str);
+
+  // Text alignment for wrapped text drawing.
+  enum class TextAlign : uint8_t { kLeft, kCenter, kRight };
+
+  // Draws word-wrapped text within max_width pixels.
+  void DrawTextWrapped(std::string_view font_name, uint32_t size,
+                       std::string_view str, FVec2 position, float max_width,
+                       TextAlign align);
+
+  // Returns the total height that word-wrapped text would occupy.
+  int TextWrappedHeight(std::string_view font_name, uint32_t size,
+                        std::string_view str, float max_width);
+
   void DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3);
 
   IVec2 viewport() const { return renderer_->GetViewport(); }
@@ -402,6 +415,21 @@ class Renderer {
   static void SaveSDFToCache(sqlite3* db, std::string_view font_name,
                              uint64_t font_hash, const FontInfo& font,
                              const uint8_t* atlas_bitmap);
+
+  // A single line produced by word wrapping.
+  struct WrappedLine {
+    std::string_view text;  // Substring view into the original text.
+    float width;            // Pixel width of this line.
+  };
+
+  // Breaks text into lines that fit within max_width pixels.
+  void WordWrapLines(const FontInfo& info, float pixel_scale,
+                     std::string_view str, float max_width,
+                     FixedArray<WrappedLine>* out);
+
+  // Measures the pixel width of a text span using the given font metrics.
+  float MeasureSpan(const FontInfo& info, float pixel_scale,
+                    std::string_view str);
 
   Color color_;
   float line_width_;

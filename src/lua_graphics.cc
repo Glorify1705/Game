@@ -399,6 +399,62 @@ static const LuaApiFunction kGraphicsLib[] = {
        lua_pushinteger(state, result.y);
        return 2;
      }},
+    {"draw_text_wrapped",
+     "Draws word-wrapped text within a maximum width, with optional alignment.",
+     {{"font", "Font name to use for writing text", "string"},
+      {"size", "Size in pixels to use for rendering the text", "integer"},
+      {"text", "The text content to render", "string"},
+      {"x", "Horizontal position in screen space pixels", "number"},
+      {"y", "Vertical position in screen space pixels", "number"},
+      {"max_width", "Maximum width in pixels before wrapping to the next line",
+       "number"},
+      {"align?", "Text alignment: 'left' (default), 'center', or 'right'",
+       "string"}},
+     {},
+     [](lua_State* state) {
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       std::string_view font = GetLuaString(state, 1);
+       const uint32_t font_size = luaL_checkinteger(state, 2);
+       std::string_view text = GetLuaString(state, 3);
+       const float x = luaL_checknumber(state, 4);
+       const float y = luaL_checknumber(state, 5);
+       const float max_width = luaL_checknumber(state, 6);
+       auto align = Renderer::TextAlign::kLeft;
+       if (lua_gettop(state) >= 7 && lua_isstring(state, 7)) {
+         std::string_view align_str = GetLuaString(state, 7);
+         if (align_str == "center") {
+           align = Renderer::TextAlign::kCenter;
+         } else if (align_str == "right") {
+           align = Renderer::TextAlign::kRight;
+         } else if (align_str != "left") {
+           LUA_ERROR(state, "Unknown text alignment '", align_str,
+                     "'. Expected 'left', 'center', or 'right'");
+         }
+       }
+       renderer->DrawTextWrapped(font, font_size, text, FVec(x, y), max_width,
+                                 align);
+       return 0;
+     }},
+    {"text_wrapped_height",
+     "Returns the total height in pixels that word-wrapped text would occupy.",
+     {{"font", "Font name to use for writing text", "string"},
+      {"size", "Size in pixels to use for rendering the text", "integer"},
+      {"text", "The text content to measure", "string"},
+      {"max_width", "Maximum width in pixels before wrapping to the next line",
+       "number"}},
+     {{"height", "Total height in pixels the wrapped text would occupy",
+       "integer"}},
+     [](lua_State* state) {
+       auto* renderer = Registry<Renderer>::Retrieve(state);
+       std::string_view font = GetLuaString(state, 1);
+       const uint32_t font_size = luaL_checkinteger(state, 2);
+       std::string_view text = GetLuaString(state, 3);
+       const float max_width = luaL_checknumber(state, 4);
+       const int height =
+           renderer->TextWrappedHeight(font, font_size, text, max_width);
+       lua_pushinteger(state, height);
+       return 1;
+     }},
     {"push",
      "Push a transform to the screen into the transform stack.",
      {{"transform", "A 4x4 matrix with the transform to push", "mat4x4"}},

@@ -1240,4 +1240,147 @@ IVec2 Renderer::TextDimensions(std::string_view font_name, uint32_t size,
   return IVec2(static_cast<int>(max_x), static_cast<int>(py));
 }
 
+float Renderer::MeasureSpan(const FontInfo& info, float pixel_scale,
+                            std::string_view str) {
+  float px = 0;
+  for (size_t i = 0; i < str.size(); ++i) {
+    const char c = str[i];
+    if (c == '\033') {
+      while (i < str.size() && str[i] != 'm') i++;
+      continue;
+    }
+    px += info.glyphs[static_cast<unsigned char>(c)].advance * pixel_scale;
+    if ((i + 1) < str.size()) {
+      px += pixel_scale * info.scale *
+            stbtt_GetCodepointKernAdvance(&info.font_info, str[i], str[i + 1]);
+    }
+  }
+  return px;
+}
+
+void Renderer::WordWrapLines(const FontInfo& info, float pixel_scale,
+                             std::string_view str, float max_width,
+                             FixedArray<WrappedLine>* out) {
+  size_t line_start = 0;
+  while (line_start < str.size()) {
+    // Find the end of this paragraph (next newline or end of string).
+    size_t newline_pos = str.find('\n', line_start);
+    if (newline_pos == std::string_view::npos) newline_pos = str.size();
+    std::string_view paragraph =
+        str.substr(line_start, newline_pos - line_start);
+
+    if (paragraph.empty()) {
+      out->Push(WrappedLine{paragraph, 0});
+      line_start = newline_pos + 1;
+      continue;
+    }
+
+    size_t word_start = 0;
+    size_t current_line_start = 0;
+    float current_width = 0;
+    float space_width =
+        info.glyphs[static_cast<unsigned char>(' ')].advance * pixel_scale;
+
+    while (word_start < paragraph.size()) {
+      // Skip leading spaces for measurement.
+      size_t ws_end = word_start;
+      while (ws_end < paragraph.size() && paragraph[ws_end] == ' ') ws_end++;
+
+      // Find end of word.
+      size_t word_end = ws_end;
+      while (word_end < paragraph.size() && paragraph[word_end] != ' ')
+        word_end++;
+
+      std::string_view word = paragraph.substr(ws_end, word_end - ws_end);
+      float word_width = MeasureSpan(info, pixel_scale, word);
+
+      if (current_line_start == word_start) {
+        // First word on this line: always place it even if it exceeds
+        // max_width.
+        current_width = word_width;
+        word_start = word_end;
+      } else {
+        float test_width = current_width + space_width + word_width;
+        if (test_width <= max_width) {
+          current_width = test_width;
+          word_start = word_end;
+        } else {
+          // Emit the current line (trim trailing spaces).
+          std::string_view line_text = paragraph.substr(
+              current_line_start, word_start - current_line_start);
+          // Trim trailing spaces.
+          while (!line_text.empty() && line_text.back() == ' ')
+            line_text.remove_suffix(1);
+          out->Push(WrappedLine{line_text,
+                                MeasureSpan(info, pixel_scale, line_text)});
+          current_line_start = ws_end;
+          current_width = word_width;
+          word_start = word_end;
+        }
+      }
+    }
+
+    // Emit the last line of this paragraph.
+    std::string_view last_line = paragraph.substr(
+        current_line_start, paragraph.size() - current_line_start);
+    while (!last_line.empty() && last_line.back() == ' ')
+      last_line.remove_suffix(1);
+    out->Push(
+        WrappedLine{last_line, MeasureSpan(info, pixel_scale, last_line)});
+
+    line_start = newline_pos + 1;
+  }
+}
+
+void Renderer::DrawTextWrapped(std::string_view font_name, uint32_t size,
+                               std::string_view str, FVec2 position,
+                               float max_width, TextAlign align) {
+  FontInfo* info = nullptr;
+  if (!font_table_.Lookup(font_name, &info)) {
+    LOG("Could not find ", font_name, " in fonts");
+    return;
+  }
+  const float pixel_scale = size / info->pixel_height;
+  const float line_height = pixel_scale * info->scale *
+                            (info->ascent - info->descent + info->line_gap);
+
+  // Estimate max lines: text_length / ~4 chars per word is a generous upper
+  // bound, plus one per newline, plus 1.
+  size_t max_lines = str.size() / 2 + 2;
+  ArenaAllocator scratch(allocator_, max_lines * sizeof(WrappedLine) + 256);
+  FixedArray<WrappedLine> lines(max_lines, &scratch);
+  WordWrapLines(*info, pixel_scale, str, max_width, &lines);
+
+  FVec2 p = position;
+  for (size_t i = 0; i < lines.size(); ++i) {
+    float x_offset = 0;
+    if (align == TextAlign::kCenter) {
+      x_offset = (max_width - lines[i].width) * 0.5f;
+    } else if (align == TextAlign::kRight) {
+      x_offset = max_width - lines[i].width;
+    }
+    DrawText(font_name, size, lines[i].text, FVec(p.x + x_offset, p.y));
+    p.y += line_height;
+  }
+}
+
+int Renderer::TextWrappedHeight(std::string_view font_name, uint32_t size,
+                                std::string_view str, float max_width) {
+  FontInfo* info = nullptr;
+  if (!font_table_.Lookup(font_name, &info)) {
+    LOG("Could not find ", font_name, " in fonts");
+    return 0;
+  }
+  const float pixel_scale = size / info->pixel_height;
+  const float line_height = pixel_scale * info->scale *
+                            (info->ascent - info->descent + info->line_gap);
+
+  size_t max_lines = str.size() / 2 + 2;
+  ArenaAllocator scratch(allocator_, max_lines * sizeof(WrappedLine) + 256);
+  FixedArray<WrappedLine> lines(max_lines, &scratch);
+  WordWrapLines(*info, pixel_scale, str, max_width, &lines);
+
+  return static_cast<int>(lines.size() * line_height);
+}
+
 }  // namespace G
