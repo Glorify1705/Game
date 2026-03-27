@@ -566,3 +566,231 @@ CREATE TABLE animations (
 2. `looped()` query (loop counter).
 3. `finished()` query for once-mode animations.
 4. Speed multiplier.
+
+## Appendix: Aseprite format integration
+
+### The two formats
+
+Aseprite can produce two kinds of output:
+
+1. **JSON export** (via CLI `--format json-array --list-tags`): a `.json` file
+   describing frame rectangles, durations, and tags, paired with a `.png`
+   spritesheet atlas. This is what most Love2D/Raylib/Godot importers consume.
+
+2. **Binary `.ase` / `.aseprite` format**: the native save format. Contains
+   everything: per-layer pixel data (zlib-compressed), cel positions, opacity,
+   blend modes, tags, slices with 9-slice/pivot data, palette, color profiles,
+   user data, and tilemap data. A single file -- no separate PNG.
+
+### cute_aseprite.h
+
+Randy Gaul's `cute_aseprite.h` (from the `cute_headers` collection) is a
+single-header C library that parses the **binary** `.ase` format. Key facts:
+
+- **1,374 lines**, zero external dependencies (embeds its own DEFLATE inflater)
+- Parses in one pass via `cute_aseprite_load_from_memory()`
+- Composites all visible layers into per-frame RGBA pixel buffers automatically
+- Exposes tags (`ase_tag_t`), slices (`ase_slice_t`), layers (`ase_layer_t`),
+  per-frame duration, palette, and user data
+- **Custom allocator support** via `CUTE_ASEPRITE_ALLOC(size, ctx)` /
+  `CUTE_ASEPRITE_FREE(mem, ctx)` macros with a `void* mem_ctx` threaded through
+  all allocations -- maps directly to our `Allocator*` pattern
+- **Custom file I/O** via overridable `CUTE_ASEPRITE_FILE*` macros (can redirect
+  through PhysFS)
+- Licensed zlib/public domain (dual)
+- Used by raylib-aseprite, Cute Framework, and others
+
+Output data model:
+
+```c
+struct ase_t {
+  int w, h;                   // Canvas dimensions
+  int frame_count;
+  ase_frame_t* frames;        // Pre-composited frames
+
+  int tag_count;
+  ase_tag_t tags[256];        // Animation tags (name, from, to, direction)
+
+  int slice_count;
+  ase_slice_t slices[128];    // Hitboxes, attachment points
+
+  int layer_count;
+  ase_layer_t layers[64];     // Layer names, visibility, opacity
+
+  ase_palette_t palette;
+  // ...
+};
+
+struct ase_frame_t {
+  int duration_milliseconds;
+  ase_color_t* pixels;        // w * h RGBA, all layers composited
+};
+
+struct ase_tag_t {
+  const char* name;           // "idle", "walk", etc.
+  int from_frame, to_frame;   // Inclusive, 0-based
+  ase_animation_direction_t loop_animation_direction;  // FORWARDS, BACKWORDS, PINGPONG
+  int repeat;
+};
+
+struct ase_slice_t {
+  const char* name;           // "hitbox", "weapon_attach", etc.
+  int origin_x, origin_y, w, h;
+  int has_pivot;
+  int pivot_x, pivot_y;
+  int has_center_as_9_slice;
+  int center_x, center_y, center_w, center_h;
+};
+```
+
+**Limitations**: No support for blend modes other than Normal (warns on
+others), no tilemap cel parsing (type 3), no tileset chunks. These are rarely
+relevant for sprite animation.
+
+### JSON export: what we get and what we lose
+
+The JSON export gives us:
+
+```json
+{
+  "frames": [
+    {
+      "filename": "player 0.aseprite",
+      "frame": {"x": 0, "y": 0, "w": 32, "h": 32},
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {"x": 4, "y": 2, "w": 24, "h": 30},
+      "sourceSize": {"w": 32, "h": 32},
+      "duration": 100
+    }
+  ],
+  "meta": {
+    "image": "spritesheet.png",
+    "size": {"w": 256, "h": 64},
+    "frameTags": [
+      {"name": "idle", "from": 0, "to": 3, "direction": "forward"},
+      {"name": "walk", "from": 4, "to": 9, "direction": "pingpong"}
+    ],
+    "slices": [
+      {
+        "name": "hitbox",
+        "keys": [{"frame": 0, "bounds": {"x": 4, "y": 2, "w": 24, "h": 30}}]
+      }
+    ]
+  }
+}
+```
+
+Available: frame rectangles, per-frame duration (ms), tags with direction, trim
+data, slices with per-frame bounds and pivots.
+
+**Not available in JSON**: per-layer pixel data, cel-level opacity/position,
+blend modes, palette, color profiles, user data text/properties, tileset data,
+linked cel relationships.
+
+### Comparison for our use case
+
+| Aspect | JSON export | Binary .ase via cute_aseprite |
+|--------|-------------|-------------------------------|
+| **Parse complexity** | Trivial -- our `ParseJson` handles it | Need cute_aseprite.h (~1.4K LOC vendored) |
+| **Atlas generation** | Artist exports PNG + JSON from Aseprite | We composite frames and pack our own atlas |
+| **File count** | Two files per spritesheet (.json + .png) | One file (.ase) |
+| **Frame data** | Atlas rectangles (pre-packed by Aseprite) | Raw RGBA pixels (we must atlas-pack them) |
+| **Per-frame duration** | Yes (ms) | Yes (ms) |
+| **Tags** | Yes (name, from, to, direction) | Yes (same + repeat count + user data) |
+| **Slices / hitboxes** | Yes (bounds, pivots, 9-slice) | Yes (same + user data) |
+| **Trim data** | Yes (spriteSourceSize) | N/A (we get full frames) |
+| **User data** | No | Yes (text + color per layer/cel/tag/slice) |
+| **Palette** | No | Yes |
+| **Workflow** | Artist must export manually (or script it) | Artist just saves the .ase file |
+| **Hot-reload** | Re-export needed on art change | Direct -- save triggers reload |
+
+### Recommendation: JSON first, binary later
+
+**Phase 1: JSON export support.** This is the pragmatic choice because:
+
+1. **Our JSON parser already works.** The `ParseJson` in `json.cc` handles the
+   full Aseprite JSON format. The only work is a new `InsertSpritesheetAseprite`
+   function in `packer.cc` that parses the `frames` array and `meta.frameTags`,
+   following the same pattern as `InsertSpritesheetJson`.
+
+2. **No new dependencies.** No library to vendor, no DEFLATE decompressor, no
+   atlas packer to write.
+
+3. **Atlas packing is already done.** Aseprite's export produces a packed
+   spritesheet PNG. We just need to read the rectangles, not generate them.
+
+4. **Per-frame durations and tags are the critical data.** The JSON export has
+   everything we need for the animation system. User data, palette, and
+   per-layer access are nice-to-haves, not blockers.
+
+5. **Effort estimate: ~100 lines in packer.cc.** Concretely:
+   - Detect `.aseprite.json` files (or `.sprites.aseprite.json`)
+   - Parse `meta.frameTags` to build animation definitions
+   - Parse `frames` array to build sprite entries (using `frame.x/y/w/h`)
+   - Handle both array format (`frames: [...]`) and hash format
+     (`frames: {"name": ...}`) -- array is preferred
+   - Convert `direction` string to PlaybackMode enum
+   - Insert into `animations` and `sprites` tables
+
+The JSON structure differs from our current custom format, but only in nesting.
+Current format:
+
+```json
+{"sprites": [{"name":"x", "x":0, "y":0, "width":32, "height":32}]}
+```
+
+Aseprite format:
+
+```json
+{"frames": [{"frame": {"x":0, "y":0, "w":32, "h":32}, "duration": 100}]}
+```
+
+The parser needs to navigate one extra level of nesting and read `duration`.
+Our `JsonValue::operator[]` and `ForEachElement` already handle this.
+
+**Phase 2 (optional): Binary .ase support via cute_aseprite.h.**
+
+Worth adding later if any of these become true:
+- Artists want to skip the export step (save .ase, hot-reload sees it directly)
+- We need per-layer access (dynamic composition, e.g., equipping armor overlays)
+- We need user data (attaching metadata to specific frames/tags/slices)
+- We want single-file assets (one .ase instead of .json + .png)
+
+Integration would require:
+1. Vendor `cute_aseprite.h` in `libraries/` (~1.4K lines)
+2. Define `CUTE_ASEPRITE_ALLOC` / `CUTE_ASEPRITE_FREE` to use our `Allocator*`
+3. Write an atlas packer that takes the composited per-frame pixels and packs
+   them into a single texture (we don't have an atlas packer today -- the artist
+   handles packing via Aseprite export)
+4. Register `.ase` / `.aseprite` as a recognized file type in the packer
+5. ~200-300 lines of integration code in `packer.cc`
+
+The atlas packing step is the main additional complexity. A simple
+shelf-packing algorithm (line-by-line, tallest-first) would be sufficient for
+game-sized spritesheets. But this is work we don't need to do if the artist
+exports a pre-packed atlas via JSON.
+
+### Artist workflow comparison
+
+**JSON workflow** (Phase 1):
+```
+1. Create/edit sprite in Aseprite
+2. File > Export Sprite Sheet (or CLI: aseprite -b player.ase
+     --sheet player.png --data player.aseprite.json
+     --format json-array --list-tags --list-slices)
+3. Place player.png + player.aseprite.json in assets/
+4. Hot-reload picks up changes
+```
+
+This can be scripted with a one-liner or an Aseprite macro. Many studios have
+an export script that runs on save.
+
+**Binary workflow** (Phase 2):
+```
+1. Create/edit sprite in Aseprite
+2. Save (Ctrl+S)
+3. Hot-reload picks up changes
+```
+
+One fewer step, but requires the engine to do atlas packing.
