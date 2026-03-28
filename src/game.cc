@@ -744,8 +744,9 @@ class Game {
     const int samples_per_channel = clamped / kChannels;
     game->e_->sound.SoundCallback(game->audio_buf_, samples_per_channel,
                                   kChannels);
-    SDL_PutAudioStreamData(stream, game->audio_buf_,
-                           samples_per_channel * kChannels * sizeof(float));
+    SDL_PutAudioStreamData(
+        stream, game->audio_buf_,
+        static_cast<size_t>(samples_per_channel) * kChannels * sizeof(float));
   }
 
   void PrintSystemInformation() {

@@ -27,8 +27,7 @@ local function draw_scene(x_off, y_off)
 			else
 				G.graphics.set_color(40, 70, 140, 255)
 			end
-			G.graphics.draw_rect(x_off + col * 24, y_off + row * 24,
-				x_off + col * 24 + 24, y_off + row * 24 + 24)
+			G.graphics.draw_rect(x_off + col * 24, y_off + row * 24, x_off + col * 24 + 24, y_off + row * 24 + 24)
 		end
 	end
 	-- Some shapes on top.
@@ -37,10 +36,7 @@ local function draw_scene(x_off, y_off)
 	G.graphics.set_color(50, 255, 150, 255)
 	G.graphics.draw_rect(x_off + 60, y_off + 80, x_off + 120, y_off + 160)
 	G.graphics.set_color(255, 80, 80, 255)
-	G.graphics.draw_triangle(
-		x_off + 250, y_off + 60,
-		x_off + 220, y_off + 160,
-		x_off + 280, y_off + 160)
+	G.graphics.draw_triangle(x_off + 250, y_off + 60, x_off + 220, y_off + 160, x_off + 280, y_off + 160)
 end
 
 function Game:draw()
@@ -79,10 +75,7 @@ function Game:draw()
 	G.graphics.push()
 	G.graphics.translate(cx2, cy2)
 	G.graphics.rotate(t * 0.5)
-	G.graphics.draw_triangle(
-		-tri_r, tri_r * 0.7,
-		tri_r, tri_r * 0.7,
-		0, -tri_r)
+	G.graphics.draw_triangle(-tri_r, tri_r * 0.7, tri_r, tri_r * 0.7, 0, -tri_r)
 	G.graphics.pop()
 	G.graphics.stencil_end()
 
@@ -138,15 +131,13 @@ function Game:draw()
 	local portal_r = 30
 
 	G.graphics.stencil_begin("replace", 3)
-	G.graphics.draw_rounded_rect(portal_x, portal_y,
-		portal_x + portal_w, portal_y + portal_h, portal_r)
+	G.graphics.draw_rounded_rect(portal_x, portal_y, portal_x + portal_w, portal_y + portal_h, portal_r)
 	G.graphics.stencil_end()
 
 	G.graphics.set_stencil_test("equal", 3)
 	-- Animated scene inside the portal.
 	G.graphics.set_color(15, 15, 40, 255)
-	G.graphics.draw_rect(portal_x, portal_y,
-		portal_x + portal_w, portal_y + portal_h)
+	G.graphics.draw_rect(portal_x, portal_y, portal_x + portal_w, portal_y + portal_h)
 	-- Orbiting dots.
 	for i = 1, 12 do
 		local angle = t * (0.5 + i * 0.1) + i * (math.pi * 2 / 12)
@@ -161,8 +152,7 @@ function Game:draw()
 
 	-- Portal border.
 	G.graphics.set_color(200, 200, 220, 255)
-	G.graphics.draw_rounded_rect_outline(portal_x, portal_y,
-		portal_x + portal_w, portal_y + portal_h, portal_r)
+	G.graphics.draw_rounded_rect_outline(portal_x, portal_y, portal_x + portal_w, portal_y + portal_h, portal_r)
 
 	-- Labels.
 	G.graphics.set_color(255, 255, 255, 255)

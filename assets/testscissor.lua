@@ -63,8 +63,7 @@ function Game:draw()
 	G.graphics.pop()
 	-- Text also gets clipped.
 	G.graphics.set_color(255, 255, 255, 255)
-	G.graphics.draw_text("terminus.ttf", 20,
-		"This text is clipped by the scissor rect!", sx + 10, sy + 10)
+	G.graphics.draw_text("terminus.ttf", 20, "This text is clipped by the scissor rect!", sx + 10, sy + 10)
 
 	G.graphics.clear_scissor()
 

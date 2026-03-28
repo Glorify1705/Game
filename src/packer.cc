@@ -147,7 +147,7 @@ int ProcessWorkItems(void* ud) {
         Slice<int16_t> samples(pcm, total_samples);
         FixedArray<uint8_t> encoded =
             QoaEncode(samples, &item.qoa_desc, ctx->output_arena);
-        DCHECK(encoded.size() > 0, "Failed to encode ", item.name());
+        DCHECK(!encoded.empty(), "Failed to encode ", item.name());
         item.output = encoded.data();
         item.output_size = encoded.size();
         break;
@@ -167,7 +167,7 @@ int ProcessWorkItems(void* ud) {
         Slice<int16_t> samples(pcm, total_samples);
         FixedArray<uint8_t> encoded =
             QoaEncode(samples, &item.qoa_desc, ctx->output_arena);
-        DCHECK(encoded.size() > 0, "Failed to encode ", item.name());
+        DCHECK(!encoded.empty(), "Failed to encode ", item.name());
         item.output = encoded.data();
         item.output_size = encoded.size();
         break;
@@ -300,7 +300,7 @@ class DbPacker {
     QoaDesc desc;
     ByteSlice data(buf, size);
     FixedArray<int16_t> decoded = QoaDecode(data, &desc, allocator_);
-    if (decoded.size() == 0) {
+    if (decoded.empty()) {
       DIE("Failed to decode QOA file ", filename);
     }
     return InsertAudioBlob(filename, buf, size, desc);
@@ -330,7 +330,7 @@ class DbPacker {
 
     Slice<int16_t> samples(pcm, total_samples);
     FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator_);
-    DCHECK(encoded.size() > 0, "Failed to encode ", filename, " to QOA");
+    DCHECK(!encoded.empty(), "Failed to encode ", filename, " to QOA");
 
     return InsertAudioBlob(filename, encoded.cdata(), encoded.size(), desc);
   }
@@ -362,7 +362,7 @@ class DbPacker {
 
     Slice<int16_t> samples(pcm, total_samples);
     FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator_);
-    DCHECK(encoded.size() > 0, "Failed to encode ", filename, " to QOA");
+    DCHECK(!encoded.empty(), "Failed to encode ", filename, " to QOA");
 
     return InsertAudioBlob(filename, encoded.cdata(), encoded.size(), desc);
   }
@@ -635,7 +635,7 @@ class DbPacker {
     item.input = buffer;
     item.input_size = bytes;
     item.hash = hash;
-    deferred_.Push(std::move(item));
+    deferred_.Push(item);
     return true;
   }
 

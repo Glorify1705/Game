@@ -6,16 +6,16 @@
 local Game = {}
 
 local FAMILIES = {
-	{ name = "quad",    color = { 255,  80,  80 } },
-	{ name = "cubic",   color = { 255, 160,  60 } },
-	{ name = "quart",   color = { 255, 220,  60 } },
-	{ name = "quint",   color = { 180, 230,  50 } },
-	{ name = "sine",    color = {  80, 220, 100 } },
-	{ name = "expo",    color = {  60, 200, 200 } },
-	{ name = "circ",    color = {  60, 180, 255 } },
-	{ name = "back",    color = { 120, 120, 255 } },
+	{ name = "quad", color = { 255, 80, 80 } },
+	{ name = "cubic", color = { 255, 160, 60 } },
+	{ name = "quart", color = { 255, 220, 60 } },
+	{ name = "quint", color = { 180, 230, 50 } },
+	{ name = "sine", color = { 80, 220, 100 } },
+	{ name = "expo", color = { 60, 200, 200 } },
+	{ name = "circ", color = { 60, 180, 255 } },
+	{ name = "back", color = { 120, 120, 255 } },
 	{ name = "elastic", color = { 180, 100, 255 } },
-	{ name = "bounce",  color = { 255, 100, 200 } },
+	{ name = "bounce", color = { 255, 100, 200 } },
 }
 
 local VARIANTS = { "in-", "out-", "in-out-" }
@@ -70,8 +70,12 @@ function Game:start_animation()
 end
 
 function Game:update(t, dt)
-	if G.input.is_key_pressed("escape") then G.system.quit() end
-	if G.input.is_key_pressed("space") then self:start_animation() end
+	if G.input.is_key_pressed("escape") then
+		G.system.quit()
+	end
+	if G.input.is_key_pressed("space") then
+		self:start_animation()
+	end
 	if G.input.is_key_pressed("m") then
 		if self.mode == "position" then
 			self.mode = "scale"
@@ -146,9 +150,7 @@ function Game:draw()
 
 	-- Footer.
 	G.graphics.set_color(100, 100, 120, 255)
-	G.graphics.print(
-		string.format("Mode: %s   |   Space: replay   M: toggle mode   Esc: quit", self.mode),
-		16, wh - 24)
+	G.graphics.print(string.format("Mode: %s   |   Space: replay   M: toggle mode   Esc: quit", self.mode), 16, wh - 24)
 end
 
 return Game

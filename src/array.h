@@ -19,7 +19,22 @@ class FixedArray {
   FixedArray(size_t n, Allocator* allocator) : allocator_(allocator), size_(n) {
     buffer_ = allocator->NewArray<T>(size_);
   }
-  ~FixedArray() { allocator_->DeallocArray<T>(buffer_, size_); }
+  ~FixedArray() {
+    if (buffer_) allocator_->DeallocArray<T>(buffer_, size_);
+  }
+
+  FixedArray(FixedArray&& other)
+      : allocator_(other.allocator_),
+        buffer_(other.buffer_),
+        elems_(other.elems_),
+        size_(other.size_) {
+    other.buffer_ = nullptr;
+    other.elems_ = 0;
+  }
+
+  FixedArray(const FixedArray&) = delete;
+  FixedArray& operator=(const FixedArray&) = delete;
+  FixedArray& operator=(FixedArray&&) = delete;
 
   void Push(T&& t) {
     DCHECK(elems_ < size_, elems_, " vs ", size_);

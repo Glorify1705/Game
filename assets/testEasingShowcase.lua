@@ -6,16 +6,36 @@ local Game = {}
 
 local EASINGS = {
 	"linear",
-	"in-quad",       "out-quad",       "in-out-quad",
-	"in-cubic",      "out-cubic",      "in-out-cubic",
-	"in-quart",      "out-quart",      "in-out-quart",
-	"in-quint",      "out-quint",      "in-out-quint",
-	"in-sine",       "out-sine",       "in-out-sine",
-	"in-expo",       "out-expo",       "in-out-expo",
-	"in-circ",       "out-circ",       "in-out-circ",
-	"in-back",       "out-back",       "in-out-back",
-	"in-elastic",    "out-elastic",    "in-out-elastic",
-	"in-bounce",     "out-bounce",     "in-out-bounce",
+	"in-quad",
+	"out-quad",
+	"in-out-quad",
+	"in-cubic",
+	"out-cubic",
+	"in-out-cubic",
+	"in-quart",
+	"out-quart",
+	"in-out-quart",
+	"in-quint",
+	"out-quint",
+	"in-out-quint",
+	"in-sine",
+	"out-sine",
+	"in-out-sine",
+	"in-expo",
+	"out-expo",
+	"in-out-expo",
+	"in-circ",
+	"out-circ",
+	"in-out-circ",
+	"in-back",
+	"out-back",
+	"in-out-back",
+	"in-elastic",
+	"out-elastic",
+	"in-out-elastic",
+	"in-bounce",
+	"out-bounce",
+	"in-out-bounce",
 }
 
 local NUM_RINGS = 12
@@ -80,7 +100,9 @@ function Game:start()
 end
 
 function Game:update(t, dt)
-	if G.input.is_key_pressed("escape") then G.system.quit() end
+	if G.input.is_key_pressed("escape") then
+		G.system.quit()
+	end
 
 	local changed = false
 	if G.input.is_key_pressed("right") then
@@ -91,8 +113,12 @@ function Game:update(t, dt)
 		self.easing_idx = ((self.easing_idx - 2) % #EASINGS) + 1
 		changed = true
 	end
-	if G.input.is_key_pressed("space") then changed = true end
-	if changed then self:start() end
+	if G.input.is_key_pressed("space") then
+		changed = true
+	end
+	if changed then
+		self:start()
+	end
 end
 
 function Game:draw_rings(cx, cy)
@@ -100,9 +126,9 @@ function Game:draw_rings(cx, cy)
 		local r = self.ring[i]
 		if r and r.radius > 1 then
 			local hue = (i - 1) / NUM_RINGS
-			local red   = math.floor(128 + 127 * math.sin(hue * math.pi * 2))
+			local red = math.floor(128 + 127 * math.sin(hue * math.pi * 2))
 			local green = math.floor(128 + 127 * math.sin(hue * math.pi * 2 + 2.1))
-			local blue  = math.floor(128 + 127 * math.sin(hue * math.pi * 2 + 4.2))
+			local blue = math.floor(128 + 127 * math.sin(hue * math.pi * 2 + 4.2))
 			G.graphics.set_color(red, green, blue, math.floor(math.max(r.alpha, 0)))
 			G.graphics.draw_circle_outline(cx, cy, r.radius)
 		end
@@ -116,9 +142,9 @@ function Game:draw_bars(bx, by, total_w, max_h)
 		local b = self.bars[i]
 		if b and b.height > 0 then
 			local hue = (i - 1) / NUM_BARS
-			local red   = math.floor(60 + 195 * hue)
+			local red = math.floor(60 + 195 * hue)
 			local green = math.floor(220 - 140 * hue)
-			local blue  = math.floor(255 - 200 * hue)
+			local blue = math.floor(255 - 200 * hue)
 			G.graphics.set_color(red, green, blue, 220)
 			local x1 = bx + (i - 1) * bar_w + gap
 			local x2 = bx + i * bar_w - gap
@@ -150,7 +176,9 @@ end
 
 function Game:draw_square(cx, cy)
 	local s = self.square.size
-	if s < 1 then return end
+	if s < 1 then
+		return
+	end
 	local half = s * 0.5
 
 	G.graphics.push()
@@ -180,8 +208,7 @@ function Game:draw()
 
 	-- Page indicator.
 	G.graphics.set_color(100, 100, 120, 255)
-	G.graphics.print(
-		string.format("%d / %d", self.easing_idx, #EASINGS), 40, 68)
+	G.graphics.print(string.format("%d / %d", self.easing_idx, #EASINGS), 40, 68)
 
 	-- Layout: 2x2 quadrants.
 	local mid_x = ww * 0.5

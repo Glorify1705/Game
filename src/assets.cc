@@ -14,7 +14,8 @@ void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
   constexpr std::string_view sql =
       "SELECT contents FROM scripts WHERE name = ?";
   sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
+  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
+                         nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
   DEFER([&] { sqlite3_finalize(stmt); });
@@ -35,7 +36,8 @@ void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer, size_t size,
                         ChecksumType checksum) {
   constexpr std::string_view sql = "SELECT contents FROM fonts WHERE name = ?";
   sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
+  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
+                         nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
   DEFER([&] { sqlite3_finalize(stmt); });
@@ -58,7 +60,8 @@ void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
       "SELECT contents, channels, samplerate, samples FROM audios WHERE name "
       "= ?";
   sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
+  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
+                         nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
   DEFER([&] { sqlite3_finalize(stmt); });
@@ -84,7 +87,8 @@ void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
   constexpr std::string_view sql =
       "SELECT contents, shader_type FROM shaders WHERE name = ?";
   sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
+  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
+                         nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
   DEFER([&] { sqlite3_finalize(stmt); });
@@ -109,7 +113,8 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
   constexpr std::string_view sql =
       "SELECT contents FROM text_files WHERE name = ?";
   sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
+  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
+                         nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
   DEFER([&] { sqlite3_finalize(stmt); });
@@ -132,7 +137,8 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
     constexpr std::string_view sql =
         "SELECT image, width, height FROM spritesheets WHERE name = ?";
     sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db_, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
+    if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
+                           nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
     }
     DEFER([&] { sqlite3_finalize(stmt); });
@@ -153,7 +159,8 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
     constexpr std::string_view sql =
         "SELECT name, x, y, width, height FROM sprites WHERE spritesheet = ?";
     sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db_, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
+    if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
+                           nullptr) != SQLITE_OK) {
       DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
     }
     DEFER([&] { sqlite3_finalize(stmt); });
@@ -181,7 +188,8 @@ void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
   constexpr std::string_view sql =
       "SELECT contents, width, height FROM images WHERE name = ?";
   sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
+  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
+                         nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
   DEFER([&] { sqlite3_finalize(stmt); });
@@ -236,7 +244,8 @@ void DbAssets::Load() {
       "SELECT name, type, size, hash FROM "
       "asset_metadata ORDER BY processing_order, type";
   sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
+  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
+                         nullptr) != SQLITE_OK) {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
   DEFER([&] { sqlite3_finalize(stmt); });

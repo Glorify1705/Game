@@ -5,16 +5,36 @@ local Game = {}
 
 local EASINGS = {
 	"linear",
-	"in-quad",       "out-quad",       "in-out-quad",
-	"in-cubic",      "out-cubic",      "in-out-cubic",
-	"in-quart",      "out-quart",      "in-out-quart",
-	"in-quint",      "out-quint",      "in-out-quint",
-	"in-sine",       "out-sine",       "in-out-sine",
-	"in-expo",       "out-expo",       "in-out-expo",
-	"in-circ",       "out-circ",       "in-out-circ",
-	"in-back",       "out-back",       "in-out-back",
-	"in-elastic",    "out-elastic",    "in-out-elastic",
-	"in-bounce",     "out-bounce",     "in-out-bounce",
+	"in-quad",
+	"out-quad",
+	"in-out-quad",
+	"in-cubic",
+	"out-cubic",
+	"in-out-cubic",
+	"in-quart",
+	"out-quart",
+	"in-out-quart",
+	"in-quint",
+	"out-quint",
+	"in-out-quint",
+	"in-sine",
+	"out-sine",
+	"in-out-sine",
+	"in-expo",
+	"out-expo",
+	"in-out-expo",
+	"in-circ",
+	"out-circ",
+	"in-out-circ",
+	"in-back",
+	"out-back",
+	"in-out-back",
+	"in-elastic",
+	"out-elastic",
+	"in-out-elastic",
+	"in-bounce",
+	"out-bounce",
+	"in-out-bounce",
 }
 
 local COLS = 6
@@ -22,11 +42,11 @@ local ROWS = 6
 local DURATION = 2.0
 
 local PALETTE = {
-	{ 255,  80,  80 }, -- red
-	{ 255, 160,  60 }, -- orange
-	{ 255, 220,  60 }, -- yellow
-	{  80, 220, 100 }, -- green
-	{  60, 180, 255 }, -- blue
+	{ 255, 80, 80 }, -- red
+	{ 255, 160, 60 }, -- orange
+	{ 255, 220, 60 }, -- yellow
+	{ 80, 220, 100 }, -- green
+	{ 60, 180, 255 }, -- blue
 	{ 180, 100, 255 }, -- purple
 }
 
@@ -48,8 +68,12 @@ function Game:start_tweens()
 end
 
 function Game:update(t, dt)
-	if G.input.is_key_pressed("escape") then G.system.quit() end
-	if G.input.is_key_pressed("space") then self:start_tweens() end
+	if G.input.is_key_pressed("escape") then
+		G.system.quit()
+	end
+	if G.input.is_key_pressed("space") then
+		self:start_tweens()
+	end
 end
 
 function Game:draw()
@@ -71,7 +95,7 @@ function Game:draw()
 		local gx = cx + inset
 		local gy = cy + inset + 16
 		local cell = self.cells[i]
-		local pal = PALETTE[((row) % #PALETTE) + 1]
+		local pal = PALETTE[(row % #PALETTE) + 1]
 
 		-- Cell background.
 		G.graphics.set_color(30, 30, 40, 200)

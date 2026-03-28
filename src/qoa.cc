@@ -99,7 +99,7 @@ void QoaWriteU64(uint64_t v, uint8_t* bytes, size_t* p) {
 
 size_t QoaFrameSize(uint32_t channels, uint32_t slices) {
   return kQoaFrameHeaderSize + kQoaLmsStateSize * channels +
-         8 * slices * channels;
+         static_cast<size_t>(8) * slices * channels;
 }
 
 // Decodes a single frame starting at bytes + *p.
@@ -350,9 +350,9 @@ FixedArray<uint8_t> QoaEncode(Slice<int16_t> samples, const QoaDesc* desc,
     uint32_t frame_len =
         QoaClamp(kQoaFrameLen, 0, desc->samples - sample_offset);
 
-    size_t frame_bytes =
-        QoaEncodeFrame(samples.data() + sample_offset * desc->channels,
-                       &frame_desc, lms, frame_len, output.data() + p);
+    size_t frame_bytes = QoaEncodeFrame(
+        samples.data() + static_cast<size_t>(sample_offset) * desc->channels,
+        &frame_desc, lms, frame_len, output.data() + p);
     p += frame_bytes;
     sample_offset += frame_len;
   }

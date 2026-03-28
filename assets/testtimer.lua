@@ -152,7 +152,9 @@ function Game:draw()
 	G.graphics.set_color(180, 180, 180, 255)
 	for _, msg in ipairs(self.log) do
 		line(msg)
-		if y > h - 20 then break end
+		if y > h - 20 then
+			break
+		end
 	end
 end
 

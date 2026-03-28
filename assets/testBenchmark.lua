@@ -47,10 +47,7 @@ end
 function Game:spawn_batch(count)
 	local w, h = self.w, self.h
 	for i = 1, count do
-		self:spawn_object(
-			40 + math.random() * (w - 80),
-			40 + math.random() * (h / 2)
-		)
+		self:spawn_object(40 + math.random() * (w - 80), 40 + math.random() * (h / 2))
 	end
 end
 
@@ -104,8 +101,12 @@ function Game:spawn_particles(x, y, count)
 end
 
 function Game:update(t, dt)
-	if G.input.is_key_pressed("escape") then G.system.quit() end
-	if G.input.is_key_pressed("r") then self:reset() end
+	if G.input.is_key_pressed("escape") then
+		G.system.quit()
+	end
+	if G.input.is_key_pressed("r") then
+		self:reset()
+	end
 
 	local counts = { 100, 300, 500, 1000, 2000 }
 	for i, n in ipairs(counts) do
@@ -122,9 +123,7 @@ function Game:update(t, dt)
 		obj.vy = obj.vy + GRAVITY_Y * dt
 		obj.age = obj.age + dt
 
-		local nx, ny, contacts = self.world:move_and_slide(
-			obj.handle, obj.vx * dt, obj.vy * dt
-		)
+		local nx, ny, contacts = self.world:move_and_slide(obj.handle, obj.vx * dt, obj.vy * dt)
 		obj.x, obj.y = nx, ny
 
 		-- Bounce off contacts.
@@ -163,9 +162,7 @@ function Game:update(t, dt)
 	local ray_angle = t * 2
 	local ray_dx = math.cos(ray_angle)
 	local ray_dy = math.sin(ray_angle)
-	self.last_ray_hits = self.world:raycast_all(
-		ray_ox, ray_oy, ray_dx, ray_dy, 800
-	)
+	self.last_ray_hits = self.world:raycast_all(ray_ox, ray_oy, ray_dx, ray_dy, 800)
 	self.ray_ox, self.ray_oy = ray_ox, ray_oy
 	self.ray_dx, self.ray_dy = ray_dx, ray_dy
 
@@ -228,7 +225,9 @@ function Game:draw()
 	-- Draw particles.
 	for _, p in ipairs(self.particles) do
 		local a = math.floor(255 * (p.life / 0.8))
-		if a > 255 then a = 255 end
+		if a > 255 then
+			a = 255
+		end
 		G.graphics.set_color(p.r, p.g, p.b, a)
 		G.graphics.draw_circle(p.x, p.y, 2)
 	end
@@ -247,14 +246,12 @@ function Game:draw()
 
 	-- HUD.
 	G.graphics.set_color(220, 220, 230, 255)
-	G.graphics.print(string.format(
-		"Objects: %d   Particles: %d   Target: %d",
-		#self.objects, #self.particles, TARGET_COUNT
-	), 16, 16)
 	G.graphics.print(
-		"1-5: set count (100-2000)   R: reset   F11: profiler   Esc: quit",
-		16, 38
+		string.format("Objects: %d   Particles: %d   Target: %d", #self.objects, #self.particles, TARGET_COUNT),
+		16,
+		16
 	)
+	G.graphics.print("1-5: set count (100-2000)   R: reset   F11: profiler   Esc: quit", 16, 38)
 end
 
 return Game
