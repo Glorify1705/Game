@@ -421,6 +421,21 @@ function G1:update(t, dt)
 		end
 	end
 
+	if self.player and not self.player.dead then
+		for _, entity in pairs(self.entities.entities) do
+			if entity.is_powerup and entity:is_powerup() and entity.check_pickup then
+				if entity:check_pickup(self.player) then
+					if entity.ptype == "score_bonus" then
+						self.score = self.score + 500
+					else
+						self.player:apply_powerup(entity.ptype)
+					end
+					self:show_message(POWERUP_NAMES[entity.ptype] or entity.ptype)
+				end
+			end
+		end
+	end
+
 	local dead = self.entities:collect_dead()
 	local to_spawn = {}
 	local powerup_spawns = {}
@@ -445,14 +460,6 @@ function G1:update(t, dt)
 				local ptype = G.random.pick(self.rnd.rnd, POWERUP_TYPES)
 				powerup_spawns[#powerup_spawns + 1] = { x = v.x, y = v.y, ptype = ptype }
 			end
-		end
-		if entity.is_powerup and entity:is_powerup() and entity.picked_up and self.player and not self.player.dead then
-			if entity.ptype == "score_bonus" then
-				self.score = self.score + 500
-			else
-				self.player:apply_powerup(entity.ptype)
-			end
-			self:show_message(POWERUP_NAMES[entity.ptype] or entity.ptype)
 		end
 	end
 

@@ -1,11 +1,12 @@
-local Entity = require("entity")
+local Object = require("classic")
 
-local Powerup = Entity:extend()
+local Powerup = Object:extend()
 
 local count = 0
-local DRIFT_SPEED = 30
+local DRIFT_SPEED = 20
 local LIFETIME = 8.0
 local BLINK_START = 6.0
+local PICKUP_RADIUS = 40
 
 local TYPE_SPRITES = {
 	shield = "powerupBlue_shield",
@@ -16,20 +17,26 @@ local TYPE_SPRITES = {
 
 function Powerup:new(x, y, ptype)
 	self.ptype = ptype
-	local sprite = TYPE_SPRITES[ptype]
-	local id = "powerup" .. count
+	self.image = TYPE_SPRITES[ptype]
+	self.entity_id = "powerup" .. count
 	count = count + 1
-	Powerup.super.new(self, x, y, 0, sprite, id)
+	self.x = x
+	self.y = y
+	self.vy = DRIFT_SPEED
 	self.dead = false
 	self.picked_up = false
 	self.lifetime = LIFETIME
 	self.visible = true
 	self.blink_timer = 0
-	self.physics:apply_linear_impulse(0, DRIFT_SPEED)
+end
+
+function Powerup:id()
+	return self.entity_id
 end
 
 function Powerup:update(dt)
 	self.lifetime = self.lifetime - dt
+	self.y = self.y + self.vy * dt
 	if self.lifetime <= 0 then
 		self.dead = true
 		return
@@ -43,24 +50,36 @@ function Powerup:update(dt)
 	end
 end
 
-function Powerup:draw()
-	if not self.visible then return end
-	local v = self.physics:position()
-	local angle = self.physics:angle()
-	G.graphics.draw_sprite(self.image, v.x, v.y, angle)
-end
-
-function Powerup:on_collision(other)
-	if not other then return end
-	if other.is_player and other:is_player() then
+function Powerup:check_pickup(player)
+	if self.dead then return false end
+	if player.dead then return false end
+	local pv = player.physics:position()
+	local dx = self.x - pv.x
+	local dy = self.y - pv.y
+	if dx * dx + dy * dy < PICKUP_RADIUS * PICKUP_RADIUS then
 		self.dead = true
 		self.picked_up = true
 		G.sound.play_effect("pong-blip1.ogg")
+		return true
 	end
+	return false
 end
+
+function Powerup:draw()
+	if not self.visible then return end
+	G.graphics.draw_sprite(self.image, self.x, self.y)
+end
+
+function Powerup:on_collision(other) end
 
 function Powerup:is_powerup()
 	return true
 end
+
+function Powerup:is_player()
+	return false
+end
+
+function Powerup:destroy() end
 
 return Powerup
