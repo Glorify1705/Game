@@ -73,6 +73,18 @@ constexpr size_t BatchRenderer::SizeOfCommand(CommandType t) {
       return sizeof(ClearColor);
     case kSetSDFOutline:
       return sizeof(SDFOutline);
+    case kSetScissor:
+      return sizeof(SetScissorRect);
+    case kClearScissor:
+      return sizeof(ClearScissorRect);
+    case kBeginStencilWrite:
+      return sizeof(BeginStencilWriteCmd);
+    case kEndStencilWrite:
+      return sizeof(EndStencilWriteCmd);
+    case kSetStencilTest:
+      return sizeof(SetStencilTestCmd);
+    case kClearStencilTest:
+      return sizeof(ClearStencilTestCmd);
     case kDone:
       return 0;
   }
@@ -109,6 +121,18 @@ constexpr std::string_view BatchRenderer::CommandName(CommandType t) {
       return "CLEAR_COLOR";
     case kSetSDFOutline:
       return "SET_SDF_OUTLINE";
+    case kSetScissor:
+      return "SET_SCISSOR";
+    case kClearScissor:
+      return "CLEAR_SCISSOR";
+    case kBeginStencilWrite:
+      return "BEGIN_STENCIL_WRITE";
+    case kEndStencilWrite:
+      return "END_STENCIL_WRITE";
+    case kSetStencilTest:
+      return "SET_STENCIL_TEST";
+    case kClearStencilTest:
+      return "CLEAR_STENCIL_TEST";
     case kDone:
       return "DONE";
   }
@@ -223,6 +247,16 @@ void BatchRenderer::InitializeFramebuffers() {
   OPENGL_CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                      GL_TEXTURE_2D_MULTISAMPLE, render_texture_,
                                      /*level=*/0));
+  // Attach a multisampled depth/stencil renderbuffer to the MSAA render target
+  // so stencil operations work during the main rendering pass.
+  OPENGL_CALL(glGenRenderbuffers(1, &depth_buffer_));
+  OPENGL_CALL(glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_));
+  OPENGL_CALL(glRenderbufferStorageMultisample(
+      GL_RENDERBUFFER, antialiasing_samples_, GL_DEPTH24_STENCIL8, viewport_.x,
+      viewport_.y));
+  OPENGL_CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                                        GL_DEPTH_STENCIL_ATTACHMENT,
+                                        GL_RENDERBUFFER, depth_buffer_));
   CHECK(!glGetError(), "Could generate render texture: ", glGetError());
   CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
         "Render target framebuffer incomplete: ",
@@ -243,17 +277,6 @@ void BatchRenderer::InitializeFramebuffers() {
   CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
         "Downsampled target framebuffer incomplete: ",
         glCheckFramebufferStatus(GL_FRAMEBUFFER));
-  OPENGL_CALL(glGenRenderbuffers(1, &depth_buffer_));
-  OPENGL_CALL(glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_));
-  OPENGL_CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8,
-                                    viewport_.x, viewport_.y));
-  OPENGL_CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER,
-                                        GL_DEPTH_STENCIL_ATTACHMENT,
-                                        GL_RENDERBUFFER, depth_buffer_));
-  CHECK(
-      glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
-      "Downsampled target framebuffer incomplete after depth/stencil attach: ",
-      glCheckFramebufferStatus(GL_FRAMEBUFFER));
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   glActiveTexture(GL_TEXTURE0);
 }
@@ -400,7 +423,10 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
   OPENGL_CALL(glBlendEquation(GL_FUNC_ADD));
   OPENGL_CALL(glDisable(GL_DEPTH_TEST));
-  OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+  OPENGL_CALL(glDisable(GL_STENCIL_TEST));
+  OPENGL_CALL(glStencilMask(0xFF));
+  OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT));
+  OPENGL_CALL(glStencilMask(0x00));
   OPENGL_CALL(glEnable(GL_LINE_SMOOTH));
   // Compute size of data.
   size_t vertices_count = 0, indices_count = 0;
@@ -650,7 +676,10 @@ void BatchRenderer::Render(Allocator* scratch) {
         flush();
         OPENGL_CALL(glClearColor(c.clear_color.r, c.clear_color.g,
                                  c.clear_color.b, c.clear_color.a));
-        OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+        // Clear stencil alongside color so each clear() resets mask state.
+        OPENGL_CALL(glStencilMask(0xFF));
+        OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT));
+        OPENGL_CALL(glStencilMask(0x00));
         break;
       case kSetColor:
         color = c.set_color.color;
@@ -662,6 +691,47 @@ void BatchRenderer::Render(Allocator* scratch) {
         shaders_->SetUniformSilent("u_outline_color",
                                    FVec(c.sdf_outline.r, c.sdf_outline.g,
                                         c.sdf_outline.b, c.sdf_outline.a));
+        break;
+      case kSetScissor:
+        flush();
+        OPENGL_CALL(glEnable(GL_SCISSOR_TEST));
+        // OpenGL scissor Y is bottom-up; convert from top-left origin.
+        OPENGL_CALL(
+            glScissor(c.set_scissor.x,
+                      current_viewport_h - c.set_scissor.y - c.set_scissor.h,
+                      c.set_scissor.w, c.set_scissor.h));
+        break;
+      case kClearScissor:
+        flush();
+        OPENGL_CALL(glDisable(GL_SCISSOR_TEST));
+        break;
+      case kBeginStencilWrite:
+        flush();
+        OPENGL_CALL(glEnable(GL_STENCIL_TEST));
+        OPENGL_CALL(glStencilFunc(GL_ALWAYS, c.begin_stencil_write.ref, 0xFF));
+        OPENGL_CALL(
+            glStencilOp(GL_KEEP, GL_KEEP, c.begin_stencil_write.action));
+        OPENGL_CALL(glStencilMask(0xFF));
+        // Disable color writes so stencil geometry is invisible.
+        OPENGL_CALL(glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE));
+        break;
+      case kEndStencilWrite:
+        flush();
+        OPENGL_CALL(glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE));
+        OPENGL_CALL(glStencilMask(0x00));
+        OPENGL_CALL(glDisable(GL_STENCIL_TEST));
+        break;
+      case kSetStencilTest:
+        flush();
+        OPENGL_CALL(glEnable(GL_STENCIL_TEST));
+        OPENGL_CALL(glStencilFunc(c.set_stencil_test.compare,
+                                  c.set_stencil_test.ref, 0xFF));
+        OPENGL_CALL(glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP));
+        OPENGL_CALL(glStencilMask(0x00));
+        break;
+      case kClearStencilTest:
+        flush();
+        OPENGL_CALL(glDisable(GL_STENCIL_TEST));
         break;
       case kDone:
         color = Color::White();

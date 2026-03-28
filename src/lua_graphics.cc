@@ -855,6 +855,123 @@ static const LuaApiFunction kGraphicsLib[] = {
        lua_pushboolean(state, shaders->HasUniform(name));
        return 1;
      }},
+    {"set_scissor",
+     "Clips all subsequent drawing to an axis-aligned rectangle in screen "
+     "pixels. Does not interact with the transform stack.",
+     {{"x", "Left edge in pixels", "number"},
+      {"y", "Top edge in pixels", "number"},
+      {"w", "Width in pixels", "number"},
+      {"h", "Height in pixels", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       int x = luaL_checkinteger(state, 1);
+       int y = luaL_checkinteger(state, 2);
+       int w = luaL_checkinteger(state, 3);
+       int h = luaL_checkinteger(state, 4);
+       batch->SetScissor(x, y, w, h);
+       return 0;
+     }},
+    {"clear_scissor",
+     "Removes the scissor clipping region so drawing is unrestricted.",
+     {},
+     {},
+     [](lua_State* state) {
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       batch->ClearScissor();
+       return 0;
+     }},
+    {"stencil_begin",
+     "Begin writing geometry into the stencil buffer. Shapes drawn between "
+     "stencil_begin and stencil_end are invisible but write a value into the "
+     "stencil buffer for later masking via set_stencil_test.",
+     {{"action",
+       "How to modify the stencil: 'replace', 'increment', 'decrement', or "
+       "'invert'",
+       "string"},
+      {"value?", "Reference value to write (default 1)", "integer"}},
+     {},
+     [](lua_State* state) {
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       std::string_view action = GetLuaString(state, 1);
+       uint8_t ref = 1;
+       if (lua_gettop(state) >= 2) ref = luaL_checkinteger(state, 2);
+       GLenum gl_action;
+       if (action == "replace") {
+         gl_action = GL_REPLACE;
+       } else if (action == "increment") {
+         gl_action = GL_INCR;
+       } else if (action == "decrement") {
+         gl_action = GL_DECR;
+       } else if (action == "invert") {
+         gl_action = GL_INVERT;
+       } else {
+         LUA_ERROR(state, "Unknown stencil action '", action,
+                   "'. Expected 'replace', 'increment', 'decrement', "
+                   "or 'invert'");
+         return 0;
+       }
+       batch->BeginStencilWrite(gl_action, ref);
+       return 0;
+     }},
+    {"stencil_end",
+     "Stop writing to the stencil buffer and restore normal color output.",
+     {},
+     {},
+     [](lua_State* state) {
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       batch->EndStencilWrite();
+       return 0;
+     }},
+    {"set_stencil_test",
+     "Enable stencil testing. Subsequent draws only appear where the stencil "
+     "buffer passes the comparison against the reference value.",
+     {{"compare",
+       "Comparison function: 'equal', 'notequal', 'less', 'lequal', "
+       "'greater', 'gequal', 'always', or 'never'",
+       "string"},
+      {"ref?", "Reference value to compare against (default 1)", "integer"}},
+     {},
+     [](lua_State* state) {
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       std::string_view compare = GetLuaString(state, 1);
+       uint8_t ref = 1;
+       if (lua_gettop(state) >= 2) ref = luaL_checkinteger(state, 2);
+       GLenum gl_compare;
+       if (compare == "equal") {
+         gl_compare = GL_EQUAL;
+       } else if (compare == "notequal") {
+         gl_compare = GL_NOTEQUAL;
+       } else if (compare == "less") {
+         gl_compare = GL_LESS;
+       } else if (compare == "lequal") {
+         gl_compare = GL_LEQUAL;
+       } else if (compare == "greater") {
+         gl_compare = GL_GREATER;
+       } else if (compare == "gequal") {
+         gl_compare = GL_GEQUAL;
+       } else if (compare == "always") {
+         gl_compare = GL_ALWAYS;
+       } else if (compare == "never") {
+         gl_compare = GL_NEVER;
+       } else {
+         LUA_ERROR(state, "Unknown stencil compare '", compare,
+                   "'. Expected 'equal', 'notequal', 'less', 'lequal', "
+                   "'greater', 'gequal', 'always', or 'never'");
+         return 0;
+       }
+       batch->SetStencilTest(gl_compare, ref);
+       return 0;
+     }},
+    {"clear_stencil_test",
+     "Disable stencil testing so all subsequent draws appear normally.",
+     {},
+     {},
+     [](lua_State* state) {
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       batch->ClearStencilTest();
+       return 0;
+     }},
     {"set_blend_mode",
      "Set the blend mode for subsequent drawing operations",
      {{"mode",

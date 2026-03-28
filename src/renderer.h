@@ -83,6 +83,34 @@ class BatchRenderer {
     AddCommand(kSetSDFOutline, SDFOutline{r, g, b, a, thickness});
   }
 
+  // Clips all subsequent draws to an axis-aligned screen rectangle.
+  void SetScissor(int x, int y, int w, int h) {
+    AddCommand(kSetScissor, SetScissorRect{x, y, w, h});
+  }
+
+  // Removes the scissor clipping region.
+  void ClearScissor() { AddCommand(kClearScissor, ClearScissorRect{}); }
+
+  // Begins writing to the stencil buffer. Geometry drawn after this call
+  // writes stencil values instead of visible pixels.
+  void BeginStencilWrite(uint16_t action, uint8_t ref) {
+    AddCommand(kBeginStencilWrite, BeginStencilWriteCmd{action, ref});
+  }
+
+  // Ends stencil writing and restores normal color output.
+  void EndStencilWrite() { AddCommand(kEndStencilWrite, EndStencilWriteCmd{}); }
+
+  // Enables stencil testing: subsequent draws only appear where the stencil
+  // buffer passes the comparison.
+  void SetStencilTest(uint16_t compare, uint8_t ref) {
+    AddCommand(kSetStencilTest, SetStencilTestCmd{compare, ref});
+  }
+
+  // Disables stencil testing.
+  void ClearStencilTest() {
+    AddCommand(kClearStencilTest, ClearStencilTestCmd{});
+  }
+
   void PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1, FVec2 origin,
                 float angle) {
     AddCommand(kRenderQuad, RenderQuad{p0, p1, q0, q1, origin, angle});
@@ -157,6 +185,12 @@ class BatchRenderer {
     kSetBlendMode,
     kClearColor,
     kSetSDFOutline,
+    kSetScissor,
+    kClearScissor,
+    kBeginStencilWrite,
+    kEndStencilWrite,
+    kSetStencilTest,
+    kClearStencilTest,
     kDone
   };
 
@@ -218,6 +252,29 @@ class BatchRenderer {
     float thickness;
   };
 
+  // Axis-aligned scissor rectangle in screen pixels.
+  struct SetScissorRect {
+    int x, y, w, h;
+  };
+
+  struct ClearScissorRect {};
+
+  // Stencil write mode: draw geometry into the stencil buffer.
+  struct BeginStencilWriteCmd {
+    uint16_t action;  // GL stencil op (GL_REPLACE, GL_INCR, GL_DECR, GL_INVERT)
+    uint8_t ref;      // Reference value to write.
+  };
+
+  struct EndStencilWriteCmd {};
+
+  // Stencil test: subsequent draws pass/fail based on stencil comparison.
+  struct SetStencilTestCmd {
+    uint16_t compare;  // GL comparison func (GL_EQUAL, GL_NOTEQUAL, etc.)
+    uint8_t ref;       // Reference value to compare against.
+  };
+
+  struct ClearStencilTestCmd {};
+
   inline static constexpr uint32_t kMaxCount = 1 << 20;
 
   struct QueueEntry {
@@ -240,6 +297,12 @@ class BatchRenderer {
     SetBlendMode set_blend_mode;
     ClearColor clear_color;
     SDFOutline sdf_outline;
+    SetScissorRect set_scissor;
+    ClearScissorRect clear_scissor;
+    BeginStencilWriteCmd begin_stencil_write;
+    EndStencilWriteCmd end_stencil_write;
+    SetStencilTestCmd set_stencil_test;
+    ClearStencilTestCmd clear_stencil_test;
   };
 
   static_assert(std::is_trivially_copyable_v<Command>);
