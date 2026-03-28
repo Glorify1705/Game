@@ -107,11 +107,25 @@ function G.graphics.draw_rect(x1, y1, x2, y2, angle?) end
 ---@param a number a component of the RGBA for the color
 function G.graphics.set_color(color, r, g, b, a) end
 
+---Draws an outlined rectangle with the global context color
+---@param x1 number the x coordinate for the top left of the rectangle
+---@param y1 number the y position for the top left of the rectangle
+---@param x2 number the x position for the bottom right of the rectangle
+---@param y2 number the y position for the bottom right of the rectangle
+---@param angle? number if provided, the angle to rotate the rectangle
+function G.graphics.draw_rect_outline(x1, y1, x2, y2, angle?) end
+
 ---Draws a circle with the global context color to the screen
 ---@param x number the x position (left-right) in screen coordinates of the center of the circle
 ---@param y number the y position (top-bottom) in screen coordinates of the center of the circle
 ---@param r number the radius in pixels of the center of the circle
 function G.graphics.draw_circle(x, y, r) end
+
+---Draws an outlined circle with the global context color
+---@param x number the x position of the center of the circle
+---@param y number the y position of the center of the circle
+---@param r number the radius in pixels of the circle
+function G.graphics.draw_circle_outline(x, y, r) end
 
 ---Draws a triangle with the global context color to the screen
 ---@param p1x number The x coordinate in screen coordinates of the first point of the triangle
@@ -121,6 +135,45 @@ function G.graphics.draw_circle(x, y, r) end
 ---@param p3x number The x coordinate in screen coordinates of the third point of the triangle
 ---@param p3y number The y coordinate in screen coordinates of the third point of the triangle
 function G.graphics.draw_triangle(p1x, p1y, p2x, p2y, p3x, p3y) end
+
+---Draws an outlined triangle with the global context color
+---@param p1x number x coordinate of the first point
+---@param p1y number y coordinate of the first point
+---@param p2x number x coordinate of the second point
+---@param p2y number y coordinate of the second point
+---@param p3x number x coordinate of the third point
+---@param p3y number y coordinate of the third point
+function G.graphics.draw_triangle_outline(p1x, p1y, p2x, p2y, p3x, p3y) end
+
+---Draws a filled ellipse with the global context color
+---@param x number x position of the center
+---@param y number y position of the center
+---@param rx number horizontal radius in pixels
+---@param ry number vertical radius in pixels
+function G.graphics.draw_ellipse(x, y, rx, ry) end
+
+---Draws an outlined ellipse with the global context color
+---@param x number x position of the center
+---@param y number y position of the center
+---@param rx number horizontal radius in pixels
+---@param ry number vertical radius in pixels
+function G.graphics.draw_ellipse_outline(x, y, rx, ry) end
+
+---Draws a filled rounded rectangle with the global context color
+---@param x1 number x coordinate of the top left corner
+---@param y1 number y coordinate of the top left corner
+---@param x2 number x coordinate of the bottom right corner
+---@param y2 number y coordinate of the bottom right corner
+---@param radius number corner radius in pixels
+function G.graphics.draw_rounded_rect(x1, y1, x2, y2, radius) end
+
+---Draws an outlined rounded rectangle with the global context color
+---@param x1 number x coordinate of the top left corner
+---@param y1 number y coordinate of the top left corner
+---@param x2 number x coordinate of the bottom right corner
+---@param y2 number y coordinate of the bottom right corner
+---@param radius number corner radius in pixels
+function G.graphics.draw_rounded_rect_outline(x1, y1, x2, y2, radius) end
 
 ---Draws a line with the global context color to the screen
 ---@param p1x number The x coordinate in screen coordinates of the first point of the line
@@ -155,6 +208,45 @@ function G.graphics.draw_text(font, text, size, x, y) end
 ---@return integer height Height in pixels the text would occupy in the screen
 function G.graphics.text_dimensions(font, size, text) end
 
+---Draws word-wrapped text within a maximum width, with optional alignment.
+---@param font string Font name to use for writing text
+---@param size integer Size in pixels to use for rendering the text
+---@param text string The text content to render
+---@param x number Horizontal position in screen space pixels
+---@param y number Vertical position in screen space pixels
+---@param max_width number Maximum width in pixels before wrapping to the next line
+---@param align? string Text alignment: 'left' (default), 'center', or 'right'
+function G.graphics.draw_text_wrapped(font, size, text, x, y, max_width, align?) end
+
+---Returns the total height in pixels that word-wrapped text would occupy.
+---@param font string Font name to use for writing text
+---@param size integer Size in pixels to use for rendering the text
+---@param text string The text content to measure
+---@param max_width number Maximum width in pixels before wrapping to the next line
+---@return integer height Total height in pixels the wrapped text would occupy
+function G.graphics.text_wrapped_height(font, size, text, max_width) end
+
+---Draws multi-color text with optional word wrapping and alignment. The segments table alternates between {r,g,b,a} color tables (0-255) and strings.
+---@param font string Font name to use for writing text
+---@param size integer Size in pixels to use for rendering the text
+---@param segments table Table alternating between {r,g,b,a} color tables and strings
+---@param x number Horizontal position in screen space pixels
+---@param y number Vertical position in screen space pixels
+---@param max_width? number Maximum width in pixels before wrapping (0 or omit for no wrap)
+---@param align? string Text alignment: 'left' (default), 'center', or 'right'
+function G.graphics.draw_text_colored(font, size, segments, x, y, max_width?, align?) end
+
+---Sets the outline color and thickness for subsequent SDF text draws.
+---@param r number Red component (0-255)
+---@param g number Green component (0-255)
+---@param b number Blue component (0-255)
+---@param a number Alpha component (0-255)
+---@param thickness number Outline thickness in screen pixels (e.g. 2 = 2px outline)
+function G.graphics.set_text_outline(r, g, b, a, thickness) end
+
+---Removes the text outline effect for subsequent text draws.
+function G.graphics.clear_text_outline() end
+
 ---Push a transform to the screen into the transform stack.
 ---@param transform mat4x4 A 4x4 matrix with the transform to push
 function G.graphics.push(transform) end
@@ -188,6 +280,37 @@ function G.graphics.attach_shader(shader?) end
 ---@param name string Name of the uniform to send
 ---@param value number Value to send. Supported values are G.math.v2,v3,v4, G.math.m2x2, G.math.m3x3, G.math.m4x4, and floats
 function G.graphics.send_uniform(name, value) end
+
+---Returns true if the current shader has a uniform with the given name
+---@param name string Name of the uniform to check
+---@return boolean exists Whether the uniform exists
+function G.graphics.has_uniform(name) end
+
+---Clips all subsequent drawing to an axis-aligned rectangle in screen pixels. Does not interact with the transform stack.
+---@param x number Left edge in pixels
+---@param y number Top edge in pixels
+---@param w number Width in pixels
+---@param h number Height in pixels
+function G.graphics.set_scissor(x, y, w, h) end
+
+---Removes the scissor clipping region so drawing is unrestricted.
+function G.graphics.clear_scissor() end
+
+---Begin writing geometry into the stencil buffer. Shapes drawn between stencil_begin and stencil_end are invisible but write a value into the stencil buffer for later masking via set_stencil_test.
+---@param action string How to modify the stencil: 'replace', 'increment', 'decrement', or 'invert'
+---@param value? integer Reference value to write (default 1)
+function G.graphics.stencil_begin(action, value?) end
+
+---Stop writing to the stencil buffer and restore normal color output.
+function G.graphics.stencil_end() end
+
+---Enable stencil testing. Subsequent draws only appear where the stencil buffer passes the comparison against the reference value.
+---@param compare string Comparison function: 'equal', 'notequal', 'less', 'lequal', 'greater', 'gequal', 'always', or 'never'
+---@param ref? integer Reference value to compare against (default 1)
+function G.graphics.set_stencil_test(compare, ref?) end
+
+---Disable stencil testing so all subsequent draws appear normally.
+function G.graphics.clear_stencil_test() end
 
 ---Set the blend mode for subsequent drawing operations
 ---@param mode string Blend mode: 'alpha' (default), 'add' (additive), 'multiply', or 'replace'
@@ -572,6 +695,22 @@ function G.system.cli_arguments() end
 ---Returns the current system clipboard text
 ---@return string text the clipboard contents
 function G.system.get_clipboard() end
+
+---Sets the time scale multiplier (0 = paused, 0.5 = half, 1 = normal, 2 = double)
+---@param scale number the time scale multiplier
+function G.system.set_time_scale(scale) end
+
+---Returns the current time scale multiplier
+---@return number scale the time scale multiplier
+function G.system.get_time_scale() end
+
+---Returns the unscaled delta time (useful for UI unaffected by time scale)
+---@return number dt unscaled delta time in seconds
+function G.system.get_real_dt() end
+
+---Returns the unscaled elapsed time in seconds
+---@return number time unscaled elapsed time in seconds
+function G.system.get_real_time() end
 
 ---@class G.clock
 G.clock = {}
