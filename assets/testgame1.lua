@@ -5,6 +5,7 @@ local Timer = require("timer")
 local Random = require("random")
 local Object = require("classic")
 local Starfield = require("starfield")
+local Powerup = require("powerup")
 
 local Entities = Object:extend()
 
@@ -89,6 +90,12 @@ local G1 = {}
 
 local SCORE_VALUES = { big = 100, med = 50, small = 25 }
 local INVINCIBLE_TIME = 3.0
+local POWERUP_TYPES = { "shield", "rapid_fire", "heal", "score_bonus" }
+local POWERUP_DROP_CHANCE = 0.2
+local POWERUP_HUD_SPRITES = {
+	shield = "powerupBlue_shield",
+	rapid_fire = "powerupGreen_bolt",
+}
 
 function G1:init()
 	G.window.set_title("My awesome Lua game 1!")
@@ -244,6 +251,7 @@ function G1:update(t, dt)
 
 	local dead = self.entities:collect_dead()
 	local to_spawn = {}
+	local powerup_spawns = {}
 	for _, entity in ipairs(dead) do
 		if entity.is_meteor and entity:is_meteor() then
 			self.score = self.score + (SCORE_VALUES[entity.size] or 0)
@@ -256,6 +264,24 @@ function G1:update(t, dt)
 			elseif entity.size == "med" then
 				self:screen_shake(4)
 			end
+			if (entity.size == "big" or entity.size == "med") and G.random.sample(self.rnd.rnd) < POWERUP_DROP_CHANCE then
+				local v = entity.physics:position()
+				local ptype = G.random.pick(self.rnd.rnd, POWERUP_TYPES)
+				powerup_spawns[#powerup_spawns + 1] = { x = v.x, y = v.y, ptype = ptype }
+			end
+		end
+		if entity.is_powerup and entity:is_powerup() and self.player and not self.player.dead then
+			local v = entity.physics:position()
+			local pv = self.player.physics:position()
+			local dx = v.x - pv.x
+			local dy = v.y - pv.y
+			if dx * dx + dy * dy < 60 * 60 then
+				if entity.ptype == "score_bonus" then
+					self.score = self.score + 500
+				else
+					self.player:apply_powerup(entity.ptype)
+				end
+			end
 		end
 	end
 
@@ -267,6 +293,11 @@ function G1:update(t, dt)
 		local impulse = 20
 		m.physics:apply_linear_impulse(math.cos(c.angle) * impulse, math.sin(c.angle) * impulse)
 		self.entities:add(m)
+	end
+
+	for _, p in ipairs(powerup_spawns) do
+		local pu = Powerup(p.x, p.y, p.ptype)
+		self.entities:add(pu)
 	end
 
 	if self.wave_active and self.entities:count_meteors() == 0 then
@@ -293,6 +324,13 @@ function G1:draw_hud()
 
 	G.graphics.set_color("white")
 	G.graphics.print("WAVE " .. self.wave, SCREEN_W / 2 - 30, 5)
+
+	if self.player and not self.player.dead then
+		local pname = self.player:active_powerup_name()
+		if pname and POWERUP_HUD_SPRITES[pname] then
+			G.graphics.draw_sprite(POWERUP_HUD_SPRITES[pname], SCREEN_W - 50, 50)
+		end
+	end
 end
 
 function G1:draw()

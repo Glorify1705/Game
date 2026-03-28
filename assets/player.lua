@@ -21,6 +21,10 @@ function Player:new(x, y)
 	self.visible = true
 	self.blink_timer = 0
 	self.on_death = nil
+	self.shield_active = false
+	self.shield_timer = 0
+	self.rapid_fire = false
+	self.rapid_fire_timer = 0
 end
 
 function Player:set_spawn_callback(fn)
@@ -36,9 +40,45 @@ function Player:make_invincible(duration)
 	self.invincible_timer = duration
 end
 
+function Player:apply_powerup(ptype)
+	if ptype == "shield" then
+		self.shield_active = true
+		self.shield_timer = 5.0
+		self.invincible = true
+		self.invincible_timer = 5.0
+	elseif ptype == "rapid_fire" then
+		self.rapid_fire = true
+		self.rapid_fire_timer = 5.0
+		self.fire_cooldown = FIRE_COOLDOWN / 2
+	elseif ptype == "heal" then
+		self.health = math.min(100, self.health + 25)
+	end
+end
+
+function Player:active_powerup_name()
+	if self.shield_active then return "shield" end
+	if self.rapid_fire then return "rapid_fire" end
+	return nil
+end
+
 function Player:update(dt)
 	self.timer:update(dt)
 	self.fire_timer = math.max(0, self.fire_timer - dt)
+
+	if self.shield_active then
+		self.shield_timer = self.shield_timer - dt
+		if self.shield_timer <= 0 then
+			self.shield_active = false
+		end
+	end
+
+	if self.rapid_fire then
+		self.rapid_fire_timer = self.rapid_fire_timer - dt
+		if self.rapid_fire_timer <= 0 then
+			self.rapid_fire = false
+			self.fire_cooldown = FIRE_COOLDOWN
+		end
+	end
 
 	if self.invincible then
 		self.invincible_timer = self.invincible_timer - dt
@@ -107,6 +147,10 @@ function Player:draw()
 		G.graphics.set_color(unpack(self.cooldown.color))
 	end
 	G.graphics.draw_sprite(self.image, v.x, v.y, angle)
+	if self.shield_active then
+		G.graphics.set_color(100, 150, 255, 150)
+		G.graphics.draw_sprite("shield1", v.x, v.y, angle)
+	end
 	G.graphics.set_color(255, 255, 255, 255)
 end
 
