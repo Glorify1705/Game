@@ -9,6 +9,7 @@
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
 #include "libraries/stb_rect_pack.h"
+#include "profiler.h"
 #include "transformations.h"
 #include "units.h"
 
@@ -414,6 +415,7 @@ Canvas BatchRenderer::CreateCanvas(int width, int height, bool nearest_filter) {
 }
 
 void BatchRenderer::Render(Allocator* scratch) {
+  PROFILE_SCOPE;
   // Setup OpenGL state.
   OPENGL_CALL(glEnable(GL_MULTISAMPLE));
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
@@ -763,6 +765,8 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   render_calls++;
+  PROFILE_COUNTER("Draw Calls", render_calls);
+  PROFILE_COUNTER("Vertices", static_cast<double>(vertices_count));
 }
 
 BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(

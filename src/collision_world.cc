@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "logging.h"
+#include "profiler.h"
 
 namespace G {
 
@@ -276,6 +277,7 @@ uint32_t CollisionWorld::Deduplicate(uint32_t* ids, uint32_t count,
 
 CollisionWorld::MoveResult CollisionWorld::MoveAndSlide(ColliderHandle handle,
                                                         FVec2 velocity) {
+  PROFILE_SCOPE_N("Collision::MoveAndSlide");
   MoveResult result = {};
   Collider& c = GetColliderMut(handle);
   FVec2 remaining = velocity;
@@ -445,6 +447,7 @@ bool CollisionWorld::Raycast(FVec2 origin, FVec2 direction, float max_dist,
 uint32_t CollisionWorld::RaycastAll(FVec2 origin, FVec2 direction,
                                     float max_dist, uint16_t mask,
                                     RaycastHit* out, uint32_t capacity) {
+  PROFILE_SCOPE_N("Collision::RaycastAll");
   uint32_t candidates[256];
   size_t num_cand =
       spatial_hash_.QueryRay(origin, direction, max_dist, candidates, 256);
@@ -542,6 +545,7 @@ uint32_t CollisionWorld::QueryCircle(FVec2 center, float radius, uint16_t mask,
 }
 
 void CollisionWorld::Update() {
+  PROFILE_SCOPE_N("Collision::Update");
   // Rebuild spatial hash.
   spatial_hash_.Clear();
   for (uint32_t i = 0; i < kMaxColliders; ++i) {

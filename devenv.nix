@@ -113,6 +113,14 @@ in
     '';
   };
 
+  scripts."game-profile" = {
+    exec = ''
+      cmake -DENABLE_PROFILING=ON -G Ninja -S . -B build \
+      && cmake --build build --target Game \
+      && ./build/game run assets -- testBenchmark
+    '';
+  };
+
   scripts."game-debug" = {
     exec = ''
       ${pkgs.gf}/bin/gf2 --args ./build/Game assets ./build/assets.sqlite3
