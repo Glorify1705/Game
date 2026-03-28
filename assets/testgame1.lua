@@ -103,7 +103,6 @@ local POWERUP_NAMES = {
 	heal = "HEAL +25",
 	score_bonus = "SCORE +500",
 }
-local WRAP_MARGIN = 60
 
 function G1:init()
 	G.window.set_title("My awesome Lua game 1!")
@@ -209,18 +208,18 @@ function G1:screen_wrap_entity(entity)
 	local v = entity.physics:position()
 	local nx, ny = v.x, v.y
 	local wrapped = false
-	if v.x < -WRAP_MARGIN then
-		nx = WORLD_W + WRAP_MARGIN
+	if v.x < 0 then
+		nx = WORLD_W + v.x
 		wrapped = true
-	elseif v.x > WORLD_W + WRAP_MARGIN then
-		nx = -WRAP_MARGIN
+	elseif v.x > WORLD_W then
+		nx = v.x - WORLD_W
 		wrapped = true
 	end
-	if v.y < -WRAP_MARGIN then
-		ny = WORLD_H + WRAP_MARGIN
+	if v.y < 0 then
+		ny = WORLD_H + v.y
 		wrapped = true
-	elseif v.y > WORLD_H + WRAP_MARGIN then
-		ny = -WRAP_MARGIN
+	elseif v.y > WORLD_H then
+		ny = v.y - WORLD_H
 		wrapped = true
 	end
 	if wrapped then
@@ -329,8 +328,8 @@ end
 
 function G1:spawn_meteor(size, grey)
 	local rng = self.rnd.rnd
-	local x = G.random.sample(rng, 0, WORLD_W)
-	local y = G.random.sample(rng, 0, WORLD_H)
+	local x = G.random.sample(rng, 100, WORLD_W - 100)
+	local y = G.random.sample(rng, 100, WORLD_H - 100)
 	-- avoid spawning right on top of the player
 	if self.player and not self.player.dead then
 		local pv = self.player.physics:position()
