@@ -172,8 +172,10 @@ function G1:on_player_death()
 end
 
 function G1:screen_shake(intensity)
-	self.shake.x = intensity
-	self.shake.y = intensity
+	local angle = math.random() * math.pi * 2
+	local scaled = intensity / math.max(self.zoom, 0.3)
+	self.shake.x = math.cos(angle) * scaled
+	self.shake.y = math.sin(angle) * scaled
 	self.timer:tween(0.3, self.shake, { x = 0, y = 0 }, "out-quad")
 end
 
@@ -374,9 +376,11 @@ function G1:update(t, dt)
 				to_spawn[#to_spawn + 1] = c
 			end
 			if entity.size == "big" then
-				self:screen_shake(8)
+				self:screen_shake(12)
 			elseif entity.size == "med" then
-				self:screen_shake(4)
+				self:screen_shake(6)
+			else
+				self:screen_shake(3)
 			end
 			if (entity.size == "big" or entity.size == "med") and G.random.sample(self.rnd.rnd, 1, 100) <= 20 then
 				local v = entity.physics:position()
