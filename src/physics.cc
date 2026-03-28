@@ -101,6 +101,7 @@ void Physics::SetEndContactCallback(ContactCallback callback, void* userdata) {
 
 Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
                                 uintptr_t userdata) {
+  CHECK(ground_, "create_ground() must be called before add_box()");
   const b2Vec2 tl = To(top_left);
   const b2Vec2 br = To(bottom_right);
   b2BodyDef def;
@@ -133,6 +134,7 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
 
 Physics::Handle Physics::AddCircle(FVec2 position, double radius,
                                    uintptr_t userdata) {
+  CHECK(ground_, "create_ground() must be called before add_circle()");
   const b2Vec2 p = To(position);
   b2BodyDef def;
   def.type = b2_dynamicBody;
