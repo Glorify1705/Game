@@ -75,7 +75,7 @@ class Physics final : public b2ContactListener {
   FVec2 world_dimensions_;
   b2World world_;
   b2Body *ground_ = nullptr;
-  bool walls_ = true;
+  bool walls_ = false;
 
   ContactCallback begin_contact_callback_ = DefaultContact;
   void *begin_contact_userdata_ = this;
