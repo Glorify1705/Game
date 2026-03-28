@@ -99,7 +99,7 @@ local WRAP_MARGIN = 60
 
 function G1:init()
 	G.window.set_title("My awesome Lua game 1!")
-	G.physics.create_ground()
+	G.physics.create_ground(false)
 	self.entities = Entities()
 	self.timer = Timer()
 	self.fullscreen = false
