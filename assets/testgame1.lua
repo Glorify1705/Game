@@ -127,6 +127,10 @@ function G1:init()
 	self.target_zoom = 1.0
 	self.starfield = Starfield(SCREEN_W, SCREEN_H, self.rnd.rnd)
 
+	self.game_canvas = G.graphics.new_canvas(SCREEN_W, SCREEN_H)
+	self.vignette_canvas = G.graphics.new_canvas(SCREEN_W, SCREEN_H)
+	self:bake_vignette()
+
 	self:spawn_player()
 
 	Entities:on_collision(function(a, b)
@@ -201,6 +205,24 @@ function G1:update_shake(dt)
 	local angle = math.random() * math.pi * 2
 	self.shake.x = math.cos(angle) * strength
 	self.shake.y = math.sin(angle) * strength
+end
+
+function G1:bake_vignette()
+	G.graphics.set_canvas(self.vignette_canvas)
+	G.graphics.clear()
+	local cx = SCREEN_W / 2
+	local cy = SCREEN_H / 2
+	local max_r = math.sqrt(cx * cx + cy * cy)
+	local steps = 40
+	for i = steps, 1, -1 do
+		local t = i / steps
+		local radius = max_r * t
+		local alpha = math.floor(180 * (1 - t) * (1 - t))
+		G.graphics.set_color(0, 0, 0, alpha)
+		G.graphics.draw_circle(cx, cy, radius)
+	end
+	G.graphics.set_color("white")
+	G.graphics.set_canvas()
 end
 
 function G1:screen_wrap_entity(entity)
@@ -563,8 +585,8 @@ function G1:draw_aim_line()
 	local dx = math.sin(angle)
 	local dy = -math.cos(angle)
 	local start_dist = 50
-	local dot_spacing = 20
-	local num_dots = 12
+	local dot_spacing = 14
+	local num_dots = 25
 	for i = 0, num_dots - 1 do
 		local dist = start_dist + i * dot_spacing
 		local alpha = math.floor(180 * (1 - i / num_dots))
@@ -575,6 +597,8 @@ function G1:draw_aim_line()
 end
 
 function G1:draw()
+	-- Render everything to the game canvas with CRT shader.
+	G.graphics.set_canvas(self.game_canvas)
 	G.graphics.clear()
 
 	G.graphics.attach_shader("crt.frag")
@@ -605,6 +629,15 @@ function G1:draw()
 	end
 
 	G.graphics.attach_shader()
+
+	-- Draw game canvas to screen, then overlay vignette.
+	G.graphics.set_canvas()
+	G.graphics.clear()
+	G.graphics.set_color("white")
+	G.graphics.set_blend_mode("premultiplied")
+	G.graphics.draw_canvas(self.game_canvas, 0, 0)
+	G.graphics.set_blend_mode("alpha")
+	G.graphics.draw_canvas(self.vignette_canvas, 0, 0)
 	G.graphics.set_color("white")
 end
 
