@@ -110,27 +110,27 @@ function Game:draw()
 	-- Flash overlay.
 	if self.flash_alpha > 1 then
 		G.graphics.set_color(255, 255, 100, math.floor(self.flash_alpha))
-		G.graphics.draw_filled_rect(0, 0, w, h)
+		G.graphics.draw_rect(0, 0, w, h)
 	end
 
 	-- Dots.
 	G.graphics.set_color("cyan")
 	for _, d in ipairs(self.dots) do
-		G.graphics.draw_filled_circle(d.x, d.y, 8)
+		G.graphics.draw_circle(d.x, d.y, 8)
 	end
 
 	-- Progress bar.
 	if self.progress_active then
 		local bx, by, bw, bh = 50, 350, w - 100, 20
 		G.graphics.set_color(80, 80, 80, 255)
-		G.graphics.draw_filled_rect(bx, by, bx + bw, by + bh)
+		G.graphics.draw_rect(bx, by, bx + bw, by + bh)
 		G.graphics.set_color("green")
-		G.graphics.draw_filled_rect(bx, by, bx + bw * self.progress, by + bh)
+		G.graphics.draw_rect(bx, by, bx + bw * self.progress, by + bh)
 	end
 
 	-- Tween box.
 	G.graphics.set_color("yellow")
-	G.graphics.draw_filled_rect(self.box.x, self.box.y, self.box.x + 50, self.box.y + 50)
+	G.graphics.draw_rect(self.box.x, self.box.y, self.box.x + 50, self.box.y + 50)
 
 	-- Cooldown indicator.
 	G.graphics.set_color("white")
