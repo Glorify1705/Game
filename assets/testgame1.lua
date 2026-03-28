@@ -96,6 +96,7 @@ local POWERUP_HUD_SPRITES = {
 	shield = "powerupBlue_shield",
 	rapid_fire = "powerupGreen_bolt",
 }
+local WRAP_MARGIN = 60
 
 function G1:init()
 	G.window.set_title("My awesome Lua game 1!")
@@ -110,6 +111,8 @@ function G1:init()
 	self.shake = { x = 0, y = 0 }
 	self.state = "playing"
 	self.respawning = false
+	self.particles = {}
+	self.intense_music = false
 	self.starfield = Starfield(SCREEN_W, SCREEN_H, self.rnd.rnd)
 
 	self:spawn_player()
@@ -166,6 +169,94 @@ function G1:screen_shake(intensity)
 	self.shake.x = intensity
 	self.shake.y = intensity
 	self.timer:tween(0.3, self.shake, { x = 0, y = 0 }, "out-quad")
+end
+
+function G1:screen_wrap_entity(entity)
+	if not entity.physics or (entity.physics.destroyed) then return end
+	local v = entity.physics:position()
+	local nx, ny = v.x, v.y
+	local wrapped = false
+	if v.x < -WRAP_MARGIN then
+		nx = SCREEN_W + WRAP_MARGIN
+		wrapped = true
+	elseif v.x > SCREEN_W + WRAP_MARGIN then
+		nx = -WRAP_MARGIN
+		wrapped = true
+	end
+	if v.y < -WRAP_MARGIN then
+		ny = SCREEN_H + WRAP_MARGIN
+		wrapped = true
+	elseif v.y > SCREEN_H + WRAP_MARGIN then
+		ny = -WRAP_MARGIN
+		wrapped = true
+	end
+	if wrapped then
+		entity:destroy()
+		local info = G.assets.sprite_info(entity.image)
+		local Physics = require("physics")
+		entity.physics = Physics(nx, ny, nx + info.width, ny + info.height, 0, entity)
+	end
+end
+
+function G1:spawn_particles(x, y, count)
+	for i = 1, count do
+		local angle = math.random() * math.pi * 2
+		local speed = 50 + math.random() * 100
+		local p = {
+			x = x,
+			y = y,
+			vx = math.cos(angle) * speed,
+			vy = math.sin(angle) * speed,
+			life = 0.3,
+			max_life = 0.3,
+			r = math.random(200, 255),
+			g = math.random(100, 200),
+			b = 0,
+		}
+		self.particles[#self.particles + 1] = p
+	end
+end
+
+function G1:update_particles(dt)
+	local alive = {}
+	for _, p in ipairs(self.particles) do
+		p.x = p.x + p.vx * dt
+		p.y = p.y + p.vy * dt
+		p.life = p.life - dt
+		if p.life > 0 then
+			alive[#alive + 1] = p
+		end
+	end
+	self.particles = alive
+end
+
+function G1:draw_particles()
+	for _, p in ipairs(self.particles) do
+		local t = p.life / p.max_life
+		local radius = 3 * t
+		G.graphics.set_color(p.r, p.g, p.b, math.floor(255 * t))
+		G.graphics.draw_circle(p.x, p.y, radius)
+	end
+	G.graphics.set_color("white")
+end
+
+function G1:update_music()
+	local meteor_count = self.entities:count_meteors()
+	if meteor_count > 0 and not self.intense_music then
+		self.intense_music = true
+		G.sound.stop_source(self.music_source)
+		self.music_source = G.sound.add_source("weapons_mode.ogg")
+		G.sound.set_volume(self.music_source, 0.4)
+		G.sound.set_loop(self.music_source, true)
+		G.sound.play_source(self.music_source)
+	elseif meteor_count == 0 and self.intense_music then
+		self.intense_music = false
+		G.sound.stop_source(self.music_source)
+		self.music_source = G.sound.add_source("music.ogg")
+		G.sound.set_volume(self.music_source, 0.4)
+		G.sound.set_loop(self.music_source, true)
+		G.sound.play_source(self.music_source)
+	end
 end
 
 function G1:spawn_meteor_offscreen(size, grey)
@@ -248,6 +339,13 @@ function G1:update(t, dt)
 	end
 
 	self.entities:update(dt)
+	self:update_particles(dt)
+
+	for _, entity in pairs(self.entities.entities) do
+		if entity.is_player or entity.is_meteor or entity.is_bullet then
+			self:screen_wrap_entity(entity)
+		end
+	end
 
 	local dead = self.entities:collect_dead()
 	local to_spawn = {}
@@ -255,6 +353,8 @@ function G1:update(t, dt)
 	for _, entity in ipairs(dead) do
 		if entity.is_meteor and entity:is_meteor() then
 			self.score = self.score + (SCORE_VALUES[entity.size] or 0)
+			local v = entity.physics:position()
+			self:spawn_particles(v.x, v.y, G.random.sample(self.rnd.rnd, 5, 8))
 			local children = entity:get_split_children(self.rnd.rnd)
 			for _, c in ipairs(children) do
 				to_spawn[#to_spawn + 1] = c
@@ -306,6 +406,8 @@ function G1:update(t, dt)
 			self:start_next_wave()
 		end)
 	end
+
+	self:update_music()
 end
 
 function G1:draw_hud()
@@ -341,6 +443,7 @@ function G1:draw()
 	G.graphics.translate(self.shake.x, self.shake.y)
 
 	self.entities:draw()
+	self:draw_particles()
 
 	G.graphics.pop()
 

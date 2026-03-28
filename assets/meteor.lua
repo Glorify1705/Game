@@ -21,6 +21,7 @@ function Meteor:new(x, y, size, grey)
 	self.size = size
 	self.dead = false
 	self.split_pending = false
+	self.flash_timer = 0
 	local sprites = grey and GREY_SPRITES[size] or SPRITES[size]
 	local sprite = sprites[math.random(#sprites)]
 	local id = "meteor" .. count
@@ -30,11 +31,27 @@ end
 
 function Meteor:update(dt)
 	self.physics:rotate(0.2)
+	if self.flash_timer > 0 then
+		self.flash_timer = self.flash_timer - dt
+	end
+end
+
+function Meteor:draw()
+	if self.flash_timer > 0 then
+		G.graphics.set_color(255, 80, 80, 255)
+	end
+	local v = self.physics:position()
+	local angle = self.physics:angle()
+	G.graphics.draw_sprite(self.image, v.x, v.y, angle)
+	if self.flash_timer > 0 then
+		G.graphics.set_color("white")
+	end
 end
 
 function Meteor:on_collision(other)
 	if other and other.is_bullet and other:is_bullet() then
 		self.dead = true
+		self.flash_timer = 0.1
 		if self.size == "big" or self.size == "med" then
 			self.split_pending = true
 		end
