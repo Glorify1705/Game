@@ -89,7 +89,6 @@ int LuaGetLevel(lua_State* state) {
 constexpr struct luaL_Reg kLogLib[] = {
     {"set_level", LuaSetLevel},
     {"get_level", LuaGetLevel},
-    {nullptr, nullptr},
 };
 
 #endif  // GAME_WITH_ASSERTS
