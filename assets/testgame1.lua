@@ -145,7 +145,6 @@ function G1:init()
 	self.respawning = false
 	self.particles = {}
 	self.messages = {}
-	self.intense_music = false
 	self.target_zoom = 1.0
 
 	self.screen_w, self.screen_h = G.window.dimensions()
@@ -328,25 +327,6 @@ function G1:draw_messages()
 	G.graphics.set_color("white")
 end
 
-function G1:update_music()
-	local meteor_count = self.entities:count_meteors()
-	if meteor_count > 0 and not self.intense_music then
-		self.intense_music = true
-		G.sound.stop_source(self.music_source)
-		self.music_source = G.sound.add_source("weapons_mode.ogg")
-		G.sound.set_volume(self.music_source, 0.4)
-		G.sound.set_loop(self.music_source, true)
-		G.sound.play_source(self.music_source)
-	elseif meteor_count == 0 and self.intense_music then
-		self.intense_music = false
-		G.sound.stop_source(self.music_source)
-		self.music_source = G.sound.add_source("music.ogg")
-		G.sound.set_volume(self.music_source, 0.4)
-		G.sound.set_loop(self.music_source, true)
-		G.sound.play_source(self.music_source)
-	end
-end
-
 function G1:spawn_meteor(size, grey)
 	local rng = self.rnd.rnd
 	local x = G.random.sample(rng, 100, WORLD_W - 100)
@@ -485,7 +465,7 @@ function G1:update(t, dt)
 
 	if self.state == "game_over" then
 		if G.input.is_key_pressed("return") then
-			self:init()
+			self.state = "back_to_menu"
 		end
 		return
 	end
@@ -566,7 +546,6 @@ function G1:update(t, dt)
 		end)
 	end
 
-	self:update_music()
 end
 
 function G1:draw_hud()
@@ -753,39 +732,98 @@ function G1:draw()
 	G.graphics.set_color("white")
 end
 
-local G2 = {}
+local Menu = {}
 
-function G2:init() end
+function Menu:init()
+	self.screen_w, self.screen_h = G.window.dimensions()
+	self.selected = 1
+	self.items = { "PLAY GAME", "QUIT" }
+	self.rnd = Random()
+	self.starfield = Starfield(self.screen_w, self.screen_h, self.rnd.rnd)
+end
 
-function G2:update(t, dt) end
+function Menu:update(t, dt)
+	self.starfield:update(dt)
 
-function G2:draw() end
+	if G.input.is_key_pressed("q") then
+		G.system.quit()
+	end
 
-local Game = { g = G1 }
+	if G.input.is_key_pressed("up") or G.input.is_key_pressed("w") then
+		self.selected = self.selected - 1
+		if self.selected < 1 then self.selected = #self.items end
+	end
+	if G.input.is_key_pressed("down") or G.input.is_key_pressed("s") then
+		self.selected = self.selected + 1
+		if self.selected > #self.items then self.selected = 1 end
+	end
+
+	if G.input.is_key_pressed("return") or G.input.is_key_pressed("space") then
+		if self.selected == 1 then
+			return "play"
+		elseif self.selected == 2 then
+			G.system.quit()
+		end
+	end
+end
+
+function Menu:draw()
+	G.graphics.clear()
+	local cx = self.screen_w / 2
+	local cy = self.screen_h / 2
+
+	self.starfield:draw(0, 0)
+
+	G.graphics.set_color(100, 200, 255, 255)
+	draw_text_centered("SHOOT CLICKER", 48, cx, cy - 120)
+
+	for i, item in ipairs(self.items) do
+		local y = cy + (i - 1) * 40
+		if i == self.selected then
+			G.graphics.set_color(255, 255, 100, 255)
+			draw_text_centered("> " .. item .. " <", FONT_MD, cx, y)
+		else
+			G.graphics.set_color(200, 200, 200, 255)
+			draw_text_centered(item, FONT_MD, cx, y)
+		end
+	end
+
+	G.graphics.set_color("white")
+end
+
+local Game = {}
 
 function Game:init()
-	self.g:init()
+	G.window.set_title("Shoot Clicker")
+	self.state = "menu"
+	Menu:init()
 end
 
 function Game:update(t, dt)
-	if G.input.is_key_pressed("n") then
-		print("Using Game G1")
-		if self.g ~= G1 then
-			self.g = G1
-			self.g:init()
+	if self.state == "menu" then
+		local result = Menu:update(t, dt)
+		if result == "play" then
+			self.state = "playing"
+			G1:init()
 		end
-	elseif G.input.is_key_pressed("m") then
-		print("Using Game G2")
-		if self.g ~= G2 then
-			self.g = G2
-			self.g:init()
+	elseif self.state == "playing" then
+		G1:update(t, dt)
+		if G1.state == "back_to_menu" then
+			if G1.music_source then
+				G.sound.stop_source(G1.music_source)
+			end
+			self.state = "menu"
+			Menu:init()
 		end
 	end
-	self.g:update(t, dt)
 end
 
 function Game:draw()
-	self.g:draw()
+	if self.state == "menu" then
+		Menu:draw()
+	elseif self.state == "playing" then
+		G1:draw()
+	end
 end
 
 return Game
