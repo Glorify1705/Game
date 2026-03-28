@@ -93,7 +93,8 @@ commit messages (e.g. `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`,
 `test:`).
 
 When using worktrees, name the branch `worktree-<worktree name>` (e.g.
-`worktree-sdl3-migration`).
+`worktree-sdl3-migration`). Place worktrees under `.claude/worktrees/<name>`
+(e.g. `.claude/worktrees/sdl3-migration`).
 
 ## Tests
 
