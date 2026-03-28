@@ -246,10 +246,6 @@ function G1:screen_wrap_entity(entity)
 	end
 	if wrapped then
 		entity.physics:set_position(nx, ny)
-		if entity:is_player() then
-			self.cam_x = nx
-			self.cam_y = ny
-		end
 	end
 end
 
@@ -439,8 +435,16 @@ function G1:update(t, dt)
 
 	if self.player and not self.player.dead then
 		local pv = self.player.physics:position()
-		self.cam_x = self.cam_x + (pv.x - self.cam_x) * math.min(1, dt * 5)
-		self.cam_y = self.cam_y + (pv.y - self.cam_y) * math.min(1, dt * 5)
+		-- Toroidal lerp: take the shortest path around the world.
+		local dx = pv.x - self.cam_x
+		local dy = pv.y - self.cam_y
+		if dx > WORLD_W / 2 then dx = dx - WORLD_W end
+		if dx < -WORLD_W / 2 then dx = dx + WORLD_W end
+		if dy > WORLD_H / 2 then dy = dy - WORLD_H end
+		if dy < -WORLD_H / 2 then dy = dy + WORLD_H end
+		local speed = math.min(1, dt * 5)
+		self.cam_x = self.cam_x + dx * speed
+		self.cam_y = self.cam_y + dy * speed
 	end
 
 	if self.player and not self.player.dead then
@@ -578,6 +582,47 @@ function G1:draw_minimap()
 	G.graphics.set_color("white")
 end
 
+function G1:get_wrap_offsets(x, y, margin)
+	local offsets = { { 0, 0 } }
+	local near_left = x < margin
+	local near_right = x > WORLD_W - margin
+	local near_top = y < margin
+	local near_bottom = y > WORLD_H - margin
+	if near_left then offsets[#offsets + 1] = { WORLD_W, 0 } end
+	if near_right then offsets[#offsets + 1] = { -WORLD_W, 0 } end
+	if near_top then offsets[#offsets + 1] = { 0, WORLD_H } end
+	if near_bottom then offsets[#offsets + 1] = { 0, -WORLD_H } end
+	if near_left and near_top then offsets[#offsets + 1] = { WORLD_W, WORLD_H } end
+	if near_left and near_bottom then offsets[#offsets + 1] = { WORLD_W, -WORLD_H } end
+	if near_right and near_top then offsets[#offsets + 1] = { -WORLD_W, WORLD_H } end
+	if near_right and near_bottom then offsets[#offsets + 1] = { -WORLD_W, -WORLD_H } end
+	return offsets
+end
+
+function G1:draw_entities_wrapped()
+	local margin = SCREEN_W / self.zoom
+	for _, entity in pairs(self.entities.entities) do
+		local ex, ey
+		if entity.physics and not entity.physics.destroyed then
+			local v = entity.physics:position()
+			ex, ey = v.x, v.y
+		elseif entity.x then
+			ex, ey = entity.x, entity.y
+		else
+			entity:draw()
+			goto continue
+		end
+		local offsets = self:get_wrap_offsets(ex, ey, margin)
+		for _, off in ipairs(offsets) do
+			G.graphics.push()
+			G.graphics.translate(off[1], off[2])
+			entity:draw()
+			G.graphics.pop()
+		end
+		::continue::
+	end
+end
+
 function G1:draw_aim_line()
 	if not self.player or self.player.dead then return end
 	local v = self.player.physics:position()
@@ -610,9 +655,20 @@ function G1:draw()
 	G.graphics.scale(self.zoom, self.zoom)
 	G.graphics.translate(-self.cam_x, -self.cam_y)
 
-	self.entities:draw()
+	self:draw_entities_wrapped()
 	self:draw_particles()
-	self:draw_aim_line()
+
+	if self.player and not self.player.dead then
+		local pv = self.player.physics:position()
+		local margin = SCREEN_W / self.zoom
+		local offsets = self:get_wrap_offsets(pv.x, pv.y, margin)
+		for _, off in ipairs(offsets) do
+			G.graphics.push()
+			G.graphics.translate(off[1], off[2])
+			self:draw_aim_line()
+			G.graphics.pop()
+		end
+	end
 
 	G.graphics.pop()
 
