@@ -608,18 +608,18 @@ function G1:draw_entities_wrapped()
 			ex, ey = v.x, v.y
 		elseif entity.x then
 			ex, ey = entity.x, entity.y
+		end
+		if ex then
+			local offsets = self:get_wrap_offsets(ex, ey, margin)
+			for _, off in ipairs(offsets) do
+				G.graphics.push()
+				G.graphics.translate(off[1], off[2])
+				entity:draw()
+				G.graphics.pop()
+			end
 		else
 			entity:draw()
-			goto continue
 		end
-		local offsets = self:get_wrap_offsets(ex, ey, margin)
-		for _, off in ipairs(offsets) do
-			G.graphics.push()
-			G.graphics.translate(off[1], off[2])
-			entity:draw()
-			G.graphics.pop()
-		end
-		::continue::
 	end
 end
 
