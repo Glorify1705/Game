@@ -7,42 +7,46 @@
 
 namespace G {
 
+// Easing functions for interpolation. Each family (quad, cubic, etc.) comes
+// in three variants: in (accelerate), out (decelerate), in-out (both).
 enum EasingType : uint8_t {
-  kLinear,
-  kInQuad,
-  kOutQuad,
-  kInOutQuad,
-  kInCubic,
-  kOutCubic,
-  kInOutCubic,
-  kInQuart,
-  kOutQuart,
-  kInOutQuart,
-  kInQuint,
-  kOutQuint,
-  kInOutQuint,
-  kInSine,
-  kOutSine,
-  kInOutSine,
-  kInExpo,
-  kOutExpo,
-  kInOutExpo,
-  kInCirc,
-  kOutCirc,
-  kInOutCirc,
-  kInBack,
-  kOutBack,
-  kInOutBack,
-  kInElastic,
-  kOutElastic,
-  kInOutElastic,
-  kInBounce,
-  kOutBounce,
-  kInOutBounce,
+  kLinear,        // Constant speed, no acceleration.
+  kInQuad,        // Quadratic (t^2) ease in.
+  kOutQuad,       // Quadratic ease out.
+  kInOutQuad,     // Quadratic ease in then out.
+  kInCubic,       // Cubic (t^3) ease in.
+  kOutCubic,      // Cubic ease out.
+  kInOutCubic,    // Cubic ease in then out.
+  kInQuart,       // Quartic (t^4) ease in.
+  kOutQuart,      // Quartic ease out.
+  kInOutQuart,    // Quartic ease in then out.
+  kInQuint,       // Quintic (t^5) ease in.
+  kOutQuint,      // Quintic ease out.
+  kInOutQuint,    // Quintic ease in then out.
+  kInSine,        // Sinusoidal ease in.
+  kOutSine,       // Sinusoidal ease out.
+  kInOutSine,     // Sinusoidal ease in then out.
+  kInExpo,        // Exponential (2^t) ease in.
+  kOutExpo,       // Exponential ease out.
+  kInOutExpo,     // Exponential ease in then out.
+  kInCirc,        // Circular (quarter-circle arc) ease in.
+  kOutCirc,       // Circular ease out.
+  kInOutCirc,     // Circular ease in then out.
+  kInBack,        // Overshoots then returns, ease in.
+  kOutBack,       // Overshoots then settles, ease out.
+  kInOutBack,     // Overshoot on both ends.
+  kInElastic,     // Spring-like oscillation, ease in.
+  kOutElastic,    // Spring-like oscillation, ease out.
+  kInOutElastic,  // Spring-like oscillation on both ends.
+  kInBounce,      // Bouncing ball effect, ease in.
+  kOutBounce,     // Bouncing ball effect, ease out.
+  kInOutBounce,   // Bouncing ball effect on both ends.
   kEasingCount,
 };
 
 constexpr float kPi = 3.14159265358979323846f;
+// Overshoot constant for back easing (used in EaseInBack). Controls how far
+// the animation overshoots before settling. ~10% overshoot at the default.
 constexpr float kBackOvershoot = 1.70158f;
 
 inline float EaseInQuad(float t) { return t * t; }

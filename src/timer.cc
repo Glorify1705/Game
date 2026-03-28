@@ -1,5 +1,6 @@
 #include "timer.h"
 
+#include <array>
 #include <cstring>
 
 #include "easing.h"
@@ -11,11 +12,11 @@ namespace G {
 namespace {
 
 struct EasingEntry {
-  const char* name;
+  std::string_view name;
   EasingType type;
 };
 
-const EasingEntry kEasingNames[] = {
+constexpr std::array<EasingEntry, 41> kEasingNames = {{
     {"linear", kLinear},          {"in-quad", kInQuad},
     {"out-quad", kOutQuad},       {"in-out-quad", kInOutQuad},
     {"quad", kOutQuad},           {"in-cubic", kInCubic},
@@ -37,10 +38,7 @@ const EasingEntry kEasingNames[] = {
     {"elastic", kOutElastic},     {"in-bounce", kInBounce},
     {"out-bounce", kOutBounce},   {"in-out-bounce", kInOutBounce},
     {"bounce", kOutBounce},
-};
-
-constexpr size_t kEasingNameCount =
-    sizeof(kEasingNames) / sizeof(kEasingNames[0]);
+}};
 
 }  // namespace
 
@@ -401,8 +399,8 @@ void TimerSystem::Clear() {
 }
 
 EasingType EasingFromName(std::string_view name) {
-  for (size_t i = 0; i < kEasingNameCount; ++i) {
-    if (name == kEasingNames[i].name) return kEasingNames[i].type;
+  for (const auto& entry : kEasingNames) {
+    if (name == entry.name) return entry.type;
   }
   return kLinear;
 }

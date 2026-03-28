@@ -81,6 +81,8 @@ All engine code lives under `src/` in namespace `G`. Major subsystems:
   `DEFER` for cleanup.
 - **Anonymous namespaces** for file-local functions (not `static`).
 - **No banner comments** (`// --- Section ---`). Use the code structure itself.
+- **Comment all public API**: every public class, struct, method, and enum
+  member must have a one-line `//` comment. See `CODESTYLE.md` for details.
 - Use **parameter comments** for non-obvious literals:
   `Init(/*table_size=*/1024)`.
 

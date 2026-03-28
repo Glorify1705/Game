@@ -177,7 +177,6 @@ struct EngineModules {
         lua_allocator(allocator->Alloc(Megabytes(64), kMaxAlign),
                       Megabytes(64)),
         lua(args, db, db_assets, &lua_allocator),
-        timers(),
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)),
