@@ -2,12 +2,13 @@
 #ifndef _GAME_THREAD_H
 #define _GAME_THREAD_H
 
+#include <chrono>
 #include <mutex>
+#include <thread>
 
 namespace G {
 
-// RAII lock guard for std::mutex. Equivalent to std::lock_guard but
-// keeps the existing name used throughout the codebase.
+// RAII lock guard for std::mutex.
 struct LockMutex {
   explicit LockMutex(std::mutex& mutex) : mu_(mutex) { mu_.lock(); }
 
@@ -19,6 +20,11 @@ struct LockMutex {
  private:
   std::mutex& mu_;
 };
+
+// Sleep the current thread for the given number of milliseconds.
+inline void SleepMs(int ms) {
+  std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+}
 
 }  // namespace G
 

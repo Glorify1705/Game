@@ -2,6 +2,8 @@
 
 #include <SDL3/SDL.h>
 
+#include "thread.h"
+
 namespace G {
 namespace {
 
@@ -147,7 +149,7 @@ const struct LuaApiFunction kClockLib[] = {
      {{"ms", "the number of milliseconds to sleep", "number"}},
      {},
      [](lua_State* state) {
-       SDL_Delay(luaL_checknumber(state, 1));
+       SleepMs(luaL_checknumber(state, 1));
        return 0;
      }},
     {"gamedelta",
