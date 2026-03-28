@@ -24,6 +24,11 @@ function Bullet:update(dt)
 		self.dead = true
 		return
 	end
+	local v = self.physics:position()
+	if v.x < 0 or v.x > 4000 or v.y < 0 or v.y > 3000 then
+		self.dead = true
+		return
+	end
 	self.physics:apply_force(self.dx * FORCE, self.dy * FORCE)
 end
 
