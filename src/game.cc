@@ -704,6 +704,7 @@ class Game {
   void Render() {
     e_->renderer.ClearForFrame();
     FixedStringBuffer<1024> buf;
+    buf.AllowTruncation();
     if (e_->lua.Error(&buf)) {
       RenderCrashScreen(buf.str());
     } else {
@@ -712,9 +713,10 @@ class Game {
     }
     // Draw FPS counter in debug mode.
     if (debug_ && stats_.samples() > 0) {
-      FixedStringBuffer<kMaxLogLineLength> log(
-          "FPS: ", (1000.0 / stats_.avg()), " Stats = ", stats_,
-          "\nLua memory usage: ", (e_->lua.MemoryUsage() / 1024.0f));
+      FixedStringBuffer<kMaxLogLineLength> log;
+      log.AllowTruncation();
+      log.Append("FPS: ", (1000.0 / stats_.avg()), " Stats = ", stats_,
+                 "\nLua memory usage: ", (e_->lua.MemoryUsage() / 1024.0f));
       const IVec2 dims =
           e_->renderer.TextDimensions("debug_font.ttf", 16, log.str());
       const IVec2 viewport = e_->batch_renderer.GetViewport();

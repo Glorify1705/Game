@@ -118,6 +118,13 @@ TEST(Tests, FixedStringBufferTest) {
   EXPECT_STREQ(buffer.str(), "foo bar");
   EXPECT_EQ(buffer.size(), 7);
   EXPECT_FALSE(buffer.empty());
+}
+
+TEST(Tests, FixedStringBufferTruncation) {
+  FixedStringBuffer<16> buffer;
+  buffer.AllowTruncation();
+  buffer.Append("foo ");
+  buffer.Append("bar");
   buffer.Append(" bar ");
   buffer.Append("bar ");
   buffer.Append("bar ");
@@ -126,6 +133,37 @@ TEST(Tests, FixedStringBufferTest) {
   EXPECT_STREQ(buffer.str(), "foo bar bar bar ");
   EXPECT_EQ(buffer.size(), 16);
   EXPECT_FALSE(buffer.empty());
+}
+
+TEST(Tests, FixedStringBufferGrowable) {
+  Allocator* alloc = SystemAllocator::Instance();
+  FixedStringBuffer<8> buffer(alloc);
+  buffer.Append("hello");
+  EXPECT_STREQ(buffer.str(), "hello");
+  EXPECT_EQ(buffer.size(), 5);
+  // This would truncate without an allocator, but grows instead.
+  buffer.Append(" world, this is a longer string");
+  EXPECT_STREQ(buffer.str(), "hello world, this is a longer string");
+  EXPECT_EQ(buffer.size(), 36);
+}
+
+TEST(Tests, FixedStringBufferGrowableAppendF) {
+  Allocator* alloc = SystemAllocator::Instance();
+  FixedStringBuffer<8> buffer(alloc);
+  buffer.AppendF("number=%d", 42);
+  EXPECT_STREQ(buffer.str(), "number=42");
+  EXPECT_EQ(buffer.size(), 9);
+}
+
+TEST(Tests, StrAlias) {
+  Str buffer("hello ", "world");
+  EXPECT_STREQ(buffer.str(), "hello world");
+}
+
+TEST(Tests, SmallBufferAlias) {
+  SmallBuffer buffer;
+  buffer.Append("test");
+  EXPECT_STREQ(buffer.str(), "test");
 }
 
 TEST(Tests, Dictionary) {

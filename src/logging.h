@@ -85,8 +85,9 @@ void LogAt(LogLevel level, std::string_view file, int line, T&&... ts) {
 
 template <typename... T>
 [[noreturn]] void Crash(std::string_view file, int line, T&&... ts) {
-  FixedStringBuffer<kMaxLogLineLength> buf("[", TrimPath(file), ":", line,
-                                           "] ");
+  FixedStringBuffer<kMaxLogLineLength> buf;
+  buf.AllowTruncation();
+  buf.Append("[", TrimPath(file), ":", line, "] ");
   buf.Append<T...>(std::forward<T>(ts)...);
   GetLogSink()(LogLevel::kFatal, buf.str());
   Crash(buf.str());
@@ -94,8 +95,9 @@ template <typename... T>
 
 template <typename... T>
 void Log(std::string_view file, int line, T&&... ts) {
-  FixedStringBuffer<kMaxLogLineLength> buf("[", TrimPath(file), ":", line,
-                                           "] ");
+  FixedStringBuffer<kMaxLogLineLength> buf;
+  buf.AllowTruncation();
+  buf.Append("[", TrimPath(file), ":", line, "] ");
   buf.Append<T...>(std::forward<T>(ts)...);
   GetLogSink()(LogLevel::kInfo, buf.str());
 }
@@ -104,6 +106,7 @@ struct OpenGLSourceLine {
   char file[kMaxPathLength] = {0};
   size_t line = 0;
   FixedStringBuffer<kMaxLogLineLength> buffer;
+  OpenGLSourceLine() { buffer.AllowTruncation(); }
 };
 
 inline OpenGLSourceLine* GetOpenGLSourceLine() {

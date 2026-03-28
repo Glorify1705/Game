@@ -1,8 +1,23 @@
 #include "stringlib.h"
 
+#include "allocators.h"
 #include "libraries/double-conversion/double-to-string.h"
 
 namespace G {
+
+void* StringBufferAlloc(void* allocator, size_t size) {
+  return static_cast<Allocator*>(allocator)->Alloc(size, /*align=*/1);
+}
+
+void* StringBufferRealloc(void* allocator, void* ptr, size_t old_size,
+                          size_t new_size) {
+  return static_cast<Allocator*>(allocator)->Realloc(ptr, old_size, new_size,
+                                                     /*align=*/1);
+}
+
+void StringBufferDealloc(void* allocator, void* ptr, size_t size) {
+  static_cast<Allocator*>(allocator)->Dealloc(ptr, size);
+}
 namespace {
 
 static const double_conversion::DoubleToStringConverter kDoubleToJson(

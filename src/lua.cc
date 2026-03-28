@@ -18,6 +18,7 @@ int GetLuaAbsoluteIndex(lua_State* L, int idx) {
 #define LUA_LOG_VALUE(state, pos, ...)           \
   do {                                           \
     FixedStringBuffer<kMaxLogLineLength> _l;     \
+    _l.AllowTruncation();                        \
     _l.Append("", ##__VA_ARGS__);                \
     Lua::LogValue(state, pos, /*depth=*/0, &_l); \
     Log(__FILE__, __LINE__, _l.str());           \
@@ -43,8 +44,12 @@ int Traceback(lua_State* state) {
 
 struct LogLine {
   FixedStringBuffer<kMaxLogLineLength> file;
-  int line;
+  int line = 0;
   FixedStringBuffer<kMaxLogLineLength> log;
+  LogLine() {
+    file.AllowTruncation();
+    log.AllowTruncation();
+  }
 };
 
 void FillLogLine(lua_State* state, LogLine* l) {
@@ -197,7 +202,9 @@ Lua::Lua(Slice<const char*> args, sqlite3* db, DbAssets* assets,
       assets_(assets),
       scripts_by_name_(allocator),
       scripts_(1 << 16, allocator),
-      compilation_cache_(allocator) {}
+      compilation_cache_(allocator) {
+  error_.AllowTruncation();
+}
 
 void Lua::Crash() {
   std::string_view message = GetLuaString(state_, 1);

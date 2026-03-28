@@ -2,6 +2,7 @@
 #ifndef _GAME_STRINGLIB_H
 #define _GAME_STRINGLIB_H
 
+#include <cassert>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -9,11 +10,22 @@
 #include <string_view>
 #include <type_traits>
 
+#include "constants.h"
+
 namespace G {
+
+class Allocator;
 
 void PrintDouble(double val, char* buffer, size_t size);
 
 class StringBuffer;
+
+// Type-erased allocator operations for StringBuffer growth. Defined in
+// stringlib.cc where Allocator is a complete type.
+void* StringBufferAlloc(void* allocator, size_t size);
+void* StringBufferRealloc(void* allocator, void* ptr, size_t old_size,
+                          size_t new_size);
+void StringBufferDealloc(void* allocator, void* ptr, size_t size);
 
 namespace internal_strings {
 
@@ -92,12 +104,19 @@ class Alphanumeric {
 
 }  // namespace internal_strings
 
+// Writes formatted text into a caller-provided character buffer. Does not own
+// the buffer. Supports type-safe variadic Append and printf-style AppendF.
 class StringBuffer {
  public:
+  // Callback type for growable subclasses. Returns true if the buffer was
+  // grown and the caller should retry the append.
+  using GrowFn = bool (*)(StringBuffer* self, size_t needed);
+
   StringBuffer(char* buf, size_t size) : buf_(buf), size_(size) {
     buf_[pos_] = '\0';
   }
 
+  // Appends one or more values to the buffer.
   template <typename... T>
   StringBuffer& Append(const T&... ts) {
     (AppendOne(ts), ...);
@@ -105,18 +124,19 @@ class StringBuffer {
     return *this;
   }
 
+  // Appends the contents of another StringBuffer.
   StringBuffer& AppendBuffer(StringBuffer& buf) {
     Append(buf.str());
     return *this;
   }
 
+  // Appends raw bytes from a buffer.
   StringBuffer& AppendBuffer(void* buf, size_t size) {
-    const size_t length = capacity(size);
-    std::memcpy(buf_ + pos_, buf, length);
-    pos_ += length;
+    AppendRaw(buf, size);
     return *this;
   }
 
+  // Appends a printf-style formatted string.
   __attribute__((format(printf, 2, 3))) StringBuffer& AppendF(const char* fmt,
                                                               ...) {
     va_list l;
@@ -126,12 +146,14 @@ class StringBuffer {
     return *this;
   }
 
+  // Clears the buffer and appends the given values.
   template <typename... T>
   StringBuffer& Set(const T&... ts) {
     pos_ = 0;
     return Append(ts...);
   }
 
+  // Clears the buffer and appends a printf-style formatted string.
   __attribute__((format(printf, 2, 3))) StringBuffer& SetF(const char* fmt,
                                                            ...) {
     pos_ = 0;
@@ -142,16 +164,36 @@ class StringBuffer {
     return *this;
   }
 
+  // Returns the null-terminated string.
   const char* str() const { return buf_; }
 
   operator const char*() const { return buf_; }
 
+  // Returns the number of bytes written.
   size_t size() const { return pos_; }
 
+  // Returns a string_view of the written content.
   std::string_view piece() const { return std::string_view(str(), size()); }
 
+  // Resets the buffer to empty.
   void Clear() { pos_ = 0; }
+
+  // Returns true if no bytes have been written.
   bool empty() const { return pos_ == 0; }
+
+  // Allows this buffer to silently truncate on overflow. By default, overflow
+  // triggers an assertion in debug builds.
+  void AllowTruncation() { allow_truncation_ = true; }
+
+ protected:
+  // Redirects the buffer pointer. Used by growable subclasses after realloc.
+  void ResetBuffer(char* buf, size_t size) {
+    buf_ = buf;
+    size_ = size;
+  }
+
+  // Sets the growth callback. Used by growable subclasses.
+  void SetGrowFn(GrowFn fn) { grow_fn_ = fn; }
 
  private:
   template <typename T>
@@ -168,37 +210,142 @@ class StringBuffer {
     // NOLINTNEXTLINE(clang-diagnostic-format-nonliteral)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
+    va_list copy;
+    va_copy(copy, l);
     int needed = vsnprintf(&buf_[pos_], size_ - pos_, fmt, l);
+    size_t uneeded = static_cast<size_t>(needed);
+    if (uneeded > size_ - pos_ && grow_fn_ && grow_fn_(this, pos_ + uneeded)) {
+      // Buffer grew. Retry the format into the new space.
+      vsnprintf(&buf_[pos_], size_ - pos_, fmt, copy);
+      pos_ += uneeded;
+    } else if (uneeded > size_ - pos_) {
+#ifdef GAME_WITH_ASSERTS
+      assert(allow_truncation_ &&
+             "StringBuffer truncated in AppendF (buffer too small)");
+#endif
+      pos_ = size_ > 0 ? size_ - 1 : 0;
+    } else {
+      pos_ += uneeded;
+    }
+    va_end(copy);
 #pragma clang diagnostic pop
-    pos_ = std::min(size_, pos_ + needed);
   }
 
   void AppendStr(std::string_view s) {
-    const size_t length = capacity(s.size());
-    std::memcpy(buf_ + pos_, s.data(), length);
-    pos_ += length;
+    if (s.size() > remaining()) {
+      if (grow_fn_ && grow_fn_(this, pos_ + s.size())) {
+        // Growth succeeded. Fall through to the memcpy below.
+      } else {
+#ifdef GAME_WITH_ASSERTS
+        assert(allow_truncation_ &&
+               "StringBuffer truncated (buffer too small)");
+#endif
+        s = s.substr(0, remaining());
+      }
+    }
+    std::memcpy(buf_ + pos_, s.data(), s.size());
+    pos_ += s.size();
+  }
+
+  void AppendRaw(const void* data, size_t size) {
+    if (size > remaining()) {
+      if (grow_fn_ && grow_fn_(this, pos_ + size)) {
+        // Growth succeeded.
+      } else {
+#ifdef GAME_WITH_ASSERTS
+        assert(allow_truncation_ &&
+               "StringBuffer truncated (buffer too small)");
+#endif
+        size = remaining();
+      }
+    }
+    std::memcpy(buf_ + pos_, data, size);
+    pos_ += size;
   }
 
   size_t remaining() const { return pos_ >= size_ ? 0 : (size_ - pos_); }
-  size_t capacity(size_t cs) const { return std::min(cs, remaining()); }
 
   char* buf_;
-  size_t pos_ = 0, size_;
+  size_t pos_ = 0;
+  size_t size_;
+  GrowFn grow_fn_ = nullptr;
+  bool allow_truncation_ = false;
 };
 
-template <size_t N>
+// Fixed-capacity string buffer with inline storage. Optionally grows through
+// an Allocator when the inline capacity is exceeded.
+template <size_t N = 256>
 class FixedStringBuffer final : public StringBuffer {
  public:
-  FixedStringBuffer() : StringBuffer(buf_, N) {}
+  // Stack-only mode. Truncates on overflow (with assert in debug builds).
+  FixedStringBuffer() : StringBuffer(inline_buf_, N) {}
 
+  // Stack-only mode with initial content.
   template <typename... Ts>
-  explicit FixedStringBuffer(Ts... ts) : StringBuffer(buf_, N) {
+  explicit FixedStringBuffer(Ts... ts) : StringBuffer(inline_buf_, N) {
     Append(std::forward<Ts>(ts)...);
   }
 
+  // Growable mode. Overflows to heap via the given allocator.
+  explicit FixedStringBuffer(Allocator* overflow)
+      : StringBuffer(inline_buf_, N), overflow_(overflow) {
+    SetGrowFn(&GrowCallback);
+  }
+
+  // Growable mode with initial content.
+  template <typename... Ts>
+  FixedStringBuffer(Allocator* overflow, Ts... ts)
+      : StringBuffer(inline_buf_, N), overflow_(overflow) {
+    SetGrowFn(&GrowCallback);
+    Append(std::forward<Ts>(ts)...);
+  }
+
+  ~FixedStringBuffer() {
+    if (heap_buf_)
+      StringBufferDealloc(overflow_, heap_buf_, heap_capacity_ + 1);
+  }
+
+  FixedStringBuffer(const FixedStringBuffer&) = delete;
+  FixedStringBuffer& operator=(const FixedStringBuffer&) = delete;
+
  private:
-  char buf_[N + 1];
+  // Growth callback invoked by StringBuffer when the buffer is full.
+  static bool GrowCallback(StringBuffer* self, size_t needed) {
+    auto* buf = static_cast<FixedStringBuffer<N>*>(self);
+    if (!buf->overflow_) return false;
+
+    // 1.5x growth so freed blocks can be reused (Fibonacci property).
+    size_t new_cap = buf->heap_capacity_ ? buf->heap_capacity_ : N;
+    while (new_cap <= needed) new_cap = new_cap + new_cap / 2;
+
+    char* new_buf;
+    if (buf->heap_buf_) {
+      new_buf = static_cast<char*>(
+          StringBufferRealloc(buf->overflow_, buf->heap_buf_,
+                              buf->heap_capacity_ + 1, new_cap + 1));
+    } else {
+      new_buf =
+          static_cast<char*>(StringBufferAlloc(buf->overflow_, new_cap + 1));
+      std::memcpy(new_buf, buf->inline_buf_, buf->size() + 1);
+    }
+    buf->heap_buf_ = new_buf;
+    buf->heap_capacity_ = new_cap;
+    buf->ResetBuffer(new_buf, new_cap);
+    return true;
+  }
+
+  char inline_buf_[N + 1];
+  void* overflow_ = nullptr;
+  char* heap_buf_ = nullptr;
+  size_t heap_capacity_ = 0;
 };
+
+// Named aliases for common buffer sizes.
+using Str = FixedStringBuffer<>;
+using PathBuffer = FixedStringBuffer<kMaxPathLength>;
+using LogBuffer = FixedStringBuffer<kMaxLogLineLength>;
+using SqlBuffer = FixedStringBuffer<1024>;
+using SmallBuffer = FixedStringBuffer<64>;
 
 bool HasSuffix(std::string_view str, std::string_view suffix);
 bool ConsumeSuffix(std::string_view* str, std::string_view suffix);

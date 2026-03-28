@@ -124,6 +124,7 @@ T* AsUserdata(lua_State* state, int index) {
 #define LUA_ERROR(state, ...)                                                \
   do {                                                                       \
     FixedStringBuffer<kMaxLogLineLength> _luaerror_buffer;                   \
+    _luaerror_buffer.AllowTruncation();                                      \
     _luaerror_buffer.Append(Basename(__FILE__), ":", __LINE__,               \
                             "]: ", ##__VA_ARGS__);                           \
     lua_pushlstring(state, _luaerror_buffer.str(), _luaerror_buffer.size()); \
