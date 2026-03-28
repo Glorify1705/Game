@@ -10,15 +10,13 @@
 
 namespace G {
 
-Profiler::Profiler() {}
-
 Profiler* GetProfiler() {
   static Profiler instance;
   return &instance;
 }
 
-void Profiler::AddEvent(const char* name, const char* category, double start,
-                        double duration, uint32_t tid) {
+void Profiler::AddEvent(std::string_view name, std::string_view category,
+                        double start, double duration, uint32_t tid) {
   TraceEvent& e = events_[write_pos_ % kMaxEvents];
   e.name = name;
   e.category = category;
@@ -31,7 +29,7 @@ void Profiler::AddEvent(const char* name, const char* category, double start,
   if (count_ < kMaxEvents) count_++;
 }
 
-void Profiler::AddInstant(const char* name, const char* category,
+void Profiler::AddInstant(std::string_view name, std::string_view category,
                           uint32_t tid) {
   TraceEvent& e = events_[write_pos_ % kMaxEvents];
   e.name = name;
@@ -45,7 +43,7 @@ void Profiler::AddInstant(const char* name, const char* category,
   if (count_ < kMaxEvents) count_++;
 }
 
-void Profiler::AddCounter(const char* name, double value, uint32_t tid) {
+void Profiler::AddCounter(std::string_view name, double value, uint32_t tid) {
   TraceEvent& e = events_[write_pos_ % kMaxEvents];
   e.name = name;
   e.category = "counters";
@@ -104,22 +102,25 @@ void Profiler::Flush() {
     switch (e.phase) {
       case kComplete:
         fprintf(f,
-                R"({"ph":"X","name":"%s","cat":"%s","pid":1,"tid":%u,)"
+                R"({"ph":"X","name":"%.*s","cat":"%.*s","pid":1,"tid":%u,)"
                 R"("ts":%.3f,"dur":%.3f})",
-                e.name, e.category, e.thread_id, ts_us, e.duration * 1000000.0);
+                (int)e.name.size(), e.name.data(), (int)e.category.size(),
+                e.category.data(), e.thread_id, ts_us, e.duration * 1000000.0);
         break;
       case kInstant:
         fprintf(f,
-                R"({"ph":"i","name":"%s","cat":"%s","pid":1,"tid":%u,)"
+                R"({"ph":"i","name":"%.*s","cat":"%.*s","pid":1,"tid":%u,)"
                 R"("ts":%.3f,"s":"g"})",
-                e.name, e.category, e.thread_id, ts_us);
+                (int)e.name.size(), e.name.data(), (int)e.category.size(),
+                e.category.data(), e.thread_id, ts_us);
         break;
       case kCounter:
         fprintf(f,
-                R"({"ph":"C","name":"%s","cat":"%s","pid":1,"tid":%u,)"
-                R"("ts":%.3f,"args":{"%s":%.6f}})",
-                e.name, e.category, e.thread_id, ts_us, e.name,
-                e.counter_value);
+                R"({"ph":"C","name":"%.*s","cat":"%.*s","pid":1,"tid":%u,)"
+                R"("ts":%.3f,"args":{"%.*s":%.6f}})",
+                (int)e.name.size(), e.name.data(), (int)e.category.size(),
+                e.category.data(), e.thread_id, ts_us, (int)e.name.size(),
+                e.name.data(), e.counter_value);
         break;
     }
   }
