@@ -446,19 +446,13 @@ function G1:update(t, dt)
 				powerup_spawns[#powerup_spawns + 1] = { x = v.x, y = v.y, ptype = ptype }
 			end
 		end
-		if entity.is_powerup and entity:is_powerup() and self.player and not self.player.dead then
-			local v = entity.physics:position()
-			local pv = self.player.physics:position()
-			local dx = v.x - pv.x
-			local dy = v.y - pv.y
-			if dx * dx + dy * dy < 60 * 60 then
-				if entity.ptype == "score_bonus" then
-					self.score = self.score + 500
-				else
-					self.player:apply_powerup(entity.ptype)
-				end
-				self:show_message(POWERUP_NAMES[entity.ptype] or entity.ptype)
+		if entity.is_powerup and entity:is_powerup() and entity.picked_up and self.player and not self.player.dead then
+			if entity.ptype == "score_bonus" then
+				self.score = self.score + 500
+			else
+				self.player:apply_powerup(entity.ptype)
 			end
+			self:show_message(POWERUP_NAMES[entity.ptype] or entity.ptype)
 		end
 	end
 

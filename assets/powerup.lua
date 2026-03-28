@@ -21,6 +21,7 @@ function Powerup:new(x, y, ptype)
 	count = count + 1
 	Powerup.super.new(self, x, y, 0, sprite, id)
 	self.dead = false
+	self.picked_up = false
 	self.lifetime = LIFETIME
 	self.visible = true
 	self.blink_timer = 0
@@ -52,6 +53,7 @@ end
 function Powerup:on_collision(other)
 	if other and other.is_player and other:is_player() then
 		self.dead = true
+		self.picked_up = true
 		G.sound.play_effect("pong-blip1.ogg")
 	end
 end
