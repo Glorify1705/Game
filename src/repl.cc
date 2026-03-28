@@ -1,5 +1,6 @@
 #include "repl.h"
 
+#include <cstdio>
 #include <cstring>
 
 #include "clock.h"

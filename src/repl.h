@@ -2,6 +2,7 @@
 #ifndef _GAME_REPL_H
 #define _GAME_REPL_H
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <thread>
@@ -111,7 +112,7 @@ class ReplServer {
 
   uint16_t port_ = 9741;
   Allocator* allocator_ = nullptr;
-  bool running_ = false;
+  std::atomic<bool> running_{false};
 
   SocketHandle listen_socket_ = kInvalidSocket;
   std::thread listener_thread_;
