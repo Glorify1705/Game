@@ -770,7 +770,7 @@ static const LuaApiFunction kGraphicsLib[] = {
        auto result = shaders->Compile(HasSuffix(name, ".vert")
                                           ? DbAssets::ShaderType::kVertex
                                           : DbAssets::ShaderType::kFragment,
-                                      name, code, Shaders::kUseCache);
+                                      name, code, Shaders::kForceCompile);
        if (result.is_error()) {
          LUA_ERROR(state, "Could not compile shader ", name, ": ",
                    result.error().message());

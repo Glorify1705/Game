@@ -77,7 +77,7 @@ int LuaGetLevel(lua_State* state) {
     LogLevel level = GetChannelLevel(entry.channel);
     for (const auto& l : kLevels) {
       if (l.level == level) {
-        lua_pushstring(state, l.name.data());
+        lua_pushlstring(state, l.name.data(), l.name.size());
         return 1;
       }
     }
