@@ -1,8 +1,6 @@
 // CRT monitor effect: scanlines, chromatic aberration, vignette, flicker.
 // Per-draw-call shader (not post-process).
 
-uniform vec2 iResolution;
-
 vec4 effect(vec4 color, sampler2D tex, vec2 tex_coord, vec2 screen_coord) {
   // Chromatic aberration: offset R and B channels slightly.
   float aberration = 0.002;
@@ -21,7 +19,7 @@ vec4 effect(vec4 color, sampler2D tex, vec2 tex_coord, vec2 screen_coord) {
   darken += band * 0.08;
 
   // Vignette: darken towards screen edges.
-  vec2 uv = gl_FragCoord.xy / iResolution;
+  vec2 uv = gl_FragCoord.xy / g_ScreenSize;
   float vig = uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
   vig = clamp(pow(16.0 * vig, 0.25), 0.0, 1.0);
 

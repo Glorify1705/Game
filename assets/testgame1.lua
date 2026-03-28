@@ -560,7 +560,6 @@ function G1:draw()
 	G.graphics.clear()
 
 	G.graphics.attach_shader("crt.frag")
-	G.graphics.send_uniform("iResolution", SCREEN_W, SCREEN_H)
 
 	self.starfield:draw(self.cam_x, self.cam_y)
 
