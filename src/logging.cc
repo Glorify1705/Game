@@ -9,8 +9,16 @@ const char* LevelToString(LogLevel level) {
   switch (level) {
     case LogLevel::kFatal:
       return "F";
+    case LogLevel::kError:
+      return "E";
+    case LogLevel::kWarn:
+      return "W";
     case LogLevel::kInfo:
       return "I";
+    case LogLevel::kDebug:
+      return "D";
+    case LogLevel::kTrace:
+      return "T";
   }
   return "?";
 }
@@ -44,5 +52,15 @@ void SetCrashHandler(CrashHandler handler) { g_CrashHandler = handler; }
   g_CrashHandler(message);
   std::abort();
 }
+
+#ifdef GAME_WITH_ASSERTS
+void SetChannelLevel(LogChannel channel, LogLevel level) {
+  g_channel_levels[static_cast<size_t>(channel)] = level;
+}
+
+LogLevel GetChannelLevel(LogChannel channel) {
+  return g_channel_levels[static_cast<size_t>(channel)];
+}
+#endif
 
 }  // namespace G

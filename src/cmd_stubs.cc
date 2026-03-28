@@ -10,6 +10,7 @@
 #include "lua_filesystem.h"
 #include "lua_graphics.h"
 #include "lua_input.h"
+#include "lua_log.h"
 #include "lua_math.h"
 #include "lua_physics.h"
 #include "lua_random.h"
@@ -49,6 +50,7 @@ int CmdStubs(Slice<const char*> args, Allocator* allocator) {
   AddFilesystemLibrary(&lua);
   AddGraphicsLibrary(&lua);
   AddInputLibrary(&lua);
+  AddLogLibrary(&lua);
   AddMathLibrary(&lua);
   AddPhysicsLibrary(&lua);
   AddRandomLibrary(&lua);
