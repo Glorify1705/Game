@@ -4,6 +4,7 @@ local Bullet = require("bullet")
 local Timer = require("timer")
 local Random = require("random")
 local Object = require("classic")
+local Starfield = require("starfield")
 
 local Entities = Object:extend()
 
@@ -102,6 +103,7 @@ function G1:init()
 	self.shake = { x = 0, y = 0 }
 	self.state = "playing"
 	self.respawning = false
+	self.starfield = Starfield(SCREEN_W, SCREEN_H, self.rnd.rnd)
 
 	self:spawn_player()
 
@@ -229,6 +231,8 @@ function G1:update(t, dt)
 		G.hotload()
 	end
 
+	self.starfield:update(dt)
+
 	if self.state == "game_over" then
 		if G.input.is_key_pressed("return") then
 			self:init()
@@ -293,6 +297,8 @@ end
 
 function G1:draw()
 	G.graphics.clear()
+	self.starfield:draw()
+
 	G.graphics.push()
 	G.graphics.translate(self.shake.x, self.shake.y)
 
