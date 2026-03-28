@@ -224,10 +224,16 @@ function G1:screen_wrap_entity(entity)
 		wrapped = true
 	end
 	if wrapped then
+		local dx = nx - v.x
+		local dy = ny - v.y
 		entity:destroy()
 		local info = G.assets.sprite_info(entity.image)
 		local Physics = require("physics")
 		entity.physics = Physics(nx, ny, nx + info.width, ny + info.height, 0, entity)
+		if entity:is_player() then
+			self.cam_x = self.cam_x + dx
+			self.cam_y = self.cam_y + dy
+		end
 	end
 end
 
