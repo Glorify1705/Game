@@ -156,7 +156,7 @@ function G1:spawn_player()
 	end)
 
 	self.player:set_damage_callback(function()
-		self:screen_shake(8)
+		self:screen_shake(25, 2.0)
 	end)
 end
 
@@ -175,12 +175,13 @@ function G1:on_player_death()
 	end
 end
 
-function G1:screen_shake(intensity)
+function G1:screen_shake(intensity, duration)
+	duration = duration or 0.3
 	local angle = math.random() * math.pi * 2
 	local scaled = intensity / math.max(self.zoom, 0.3)
 	self.shake.x = math.cos(angle) * scaled
 	self.shake.y = math.sin(angle) * scaled
-	self.timer:tween(0.3, self.shake, { x = 0, y = 0 }, "out-quad")
+	self.timer:tween(duration, self.shake, { x = 0, y = 0 }, "out-quad")
 end
 
 function G1:screen_wrap_entity(entity)
