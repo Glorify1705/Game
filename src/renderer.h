@@ -79,6 +79,10 @@ class BatchRenderer {
     AddCommand(kClearColor, ClearColor{r, g, b, a});
   }
 
+  void SetSDFOutline(float r, float g, float b, float a, float thickness) {
+    AddCommand(kSetSDFOutline, SDFOutline{r, g, b, a, thickness});
+  }
+
   void PushQuad(FVec2 p0, FVec2 p1, FVec2 q0, FVec2 q1, FVec2 origin,
                 float angle) {
     AddCommand(kRenderQuad, RenderQuad{p0, p1, q0, q1, origin, angle});
@@ -152,6 +156,7 @@ class BatchRenderer {
     kSetCanvas,
     kSetBlendMode,
     kClearColor,
+    kSetSDFOutline,
     kDone
   };
 
@@ -207,6 +212,12 @@ class BatchRenderer {
     float r, g, b, a;
   };
 
+  // Outline parameters for SDF text rendering. Color is premultiplied alpha.
+  struct SDFOutline {
+    float r, g, b, a;
+    float thickness;
+  };
+
   inline static constexpr uint32_t kMaxCount = 1 << 20;
 
   struct QueueEntry {
@@ -228,6 +239,7 @@ class BatchRenderer {
     SetCanvas set_canvas;
     SetBlendMode set_blend_mode;
     ClearColor clear_color;
+    SDFOutline sdf_outline;
   };
 
   static_assert(std::is_trivially_copyable_v<Command>);
@@ -341,6 +353,36 @@ class Renderer {
 
   IVec2 TextDimensions(std::string_view font_name, uint32_t size,
                        std::string_view str);
+
+  // Text alignment for wrapped text drawing.
+  enum class TextAlign : uint8_t { kLeft, kCenter, kRight };
+
+  // Draws word-wrapped text within max_width pixels.
+  void DrawTextWrapped(std::string_view font_name, uint32_t size,
+                       std::string_view str, FVec2 position, float max_width,
+                       TextAlign align);
+
+  // Returns the total height that word-wrapped text would occupy.
+  int TextWrappedHeight(std::string_view font_name, uint32_t size,
+                        std::string_view str, float max_width);
+
+  // A colored text segment for multi-color text rendering.
+  struct ColoredSegment {
+    Color color;
+    std::string_view text;
+  };
+
+  // Draws multi-color text with optional word wrapping and alignment.
+  void DrawTextColored(std::string_view font_name, uint32_t size,
+                       const ColoredSegment* segments, size_t num_segments,
+                       FVec2 position, float max_width, TextAlign align);
+
+  // Sets the outline color and thickness for subsequent SDF text draws.
+  void SetTextOutline(Color color, float thickness);
+
+  // Removes the text outline effect.
+  void ClearTextOutline();
+
   void DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3);
   // Draws an outlined triangle using line segments.
   void DrawTriangleOutline(FVec2 p1, FVec2 p2, FVec2 p3);
@@ -417,8 +459,25 @@ class Renderer {
                              uint64_t font_hash, const FontInfo& font,
                              const uint8_t* atlas_bitmap);
 
+  // A single line produced by word wrapping.
+  struct WrappedLine {
+    std::string_view text;  // Substring view into the original text.
+    float width;            // Pixel width of this line.
+  };
+
+  // Breaks text into lines that fit within max_width pixels.
+  void WordWrapLines(const FontInfo& info, float pixel_scale,
+                     std::string_view str, float max_width,
+                     FixedArray<WrappedLine>* out);
+
+  // Measures the pixel width of a text span using the given font metrics.
+  float MeasureSpan(const FontInfo& info, float pixel_scale,
+                    std::string_view str);
+
   Color color_;
   float line_width_;
+  Color outline_color_;
+  float outline_thickness_ = 0.0f;
 
   Allocator* allocator_;
   BatchRenderer* renderer_;

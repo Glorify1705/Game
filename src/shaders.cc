@@ -117,6 +117,8 @@ constexpr std::string_view kSDFFragmentShader = R"(
     in vec4 out_color;
 
     uniform sampler2D tex;
+    uniform float u_outline_thickness;
+    uniform vec4 u_outline_color;
 
     void main() {
         float dist = texture(tex, tex_coord).r;
@@ -128,7 +130,24 @@ constexpr std::string_view kSDFFragmentShader = R"(
         // Shift threshold inward at small sizes to keep thin strokes opaque.
         float threshold = 0.5 - 0.15 * grad;
         float alpha = smoothstep(threshold - w, threshold + w, dist);
-        frag_color = vec4(out_color.rgb, out_color.a * alpha);
+
+        // No outline: just apply the fill color with SDF-derived alpha.
+        if (u_outline_thickness <= 0.0) {
+            frag_color = vec4(out_color.rgb, out_color.a * alpha);
+            return;
+        }
+
+        // Composite fill over outline using premultiplied alpha blending.
+        float outline_dist = u_outline_thickness * grad;
+        float outline_threshold = threshold - outline_dist;
+        float outline_w = min(0.5 * grad, 0.08);
+        float outline_alpha = smoothstep(outline_threshold - outline_w,
+                                         outline_threshold + outline_w, dist);
+        float fill_a = out_color.a * alpha;
+        vec4 fill = vec4(out_color.rgb * fill_a, fill_a);
+        float ol_a = u_outline_color.a * outline_alpha;
+        vec4 ol = vec4(u_outline_color.rgb * ol_a, ol_a);
+        frag_color = fill + ol * (1.0 - fill.a);
     }
   )";
 
