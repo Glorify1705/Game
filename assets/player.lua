@@ -21,6 +21,7 @@ function Player:new(x, y)
 	self.visible = true
 	self.blink_timer = 0
 	self.on_death = nil
+	self.on_damage = nil
 	self.shield_active = false
 	self.shield_timer = 0
 	self.rapid_fire = false
@@ -33,6 +34,10 @@ end
 
 function Player:set_death_callback(fn)
 	self.on_death = fn
+end
+
+function Player:set_damage_callback(fn)
+	self.on_damage = fn
 end
 
 function Player:make_invincible(duration)
@@ -130,6 +135,9 @@ function Player:on_collision(other)
 		self.cooldown.v = 1
 		self.cooldown.color = { 255, 0, 0, 255 }
 		self.timer:tween(5, self.cooldown, { v = 0, color = { 255, 255, 255, 255 } }, "in-out-quad")
+		if self.on_damage then
+			self.on_damage()
+		end
 		if self.health <= 0 then
 			self.dead = true
 			if self.on_death then

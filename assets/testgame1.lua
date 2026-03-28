@@ -154,6 +154,10 @@ function G1:spawn_player()
 	self.player:set_death_callback(function()
 		self:on_player_death()
 	end)
+
+	self.player:set_damage_callback(function()
+		self:screen_shake(8)
+	end)
 end
 
 function G1:on_player_death()
