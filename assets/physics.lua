@@ -42,4 +42,20 @@ function Physics:apply_torque(angle)
 	G.physics.apply_torque(self.handle, angle)
 end
 
+function Physics:linear_velocity()
+	return G.physics.linear_velocity(self.handle)
+end
+
+function Physics:set_linear_velocity(vx, vy)
+	G.physics.set_linear_velocity(self.handle, vx, vy)
+end
+
+function Physics:angular_velocity()
+	return G.physics.angular_velocity(self.handle)
+end
+
+function Physics:set_angular_velocity(omega)
+	G.physics.set_angular_velocity(self.handle, omega)
+end
+
 return Physics
