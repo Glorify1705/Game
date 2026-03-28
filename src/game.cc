@@ -36,6 +36,7 @@
 #include "packer.h"
 #include "physics.h"
 #include "platform.h"
+#include "profiler.h"
 #include "renderer.h"
 #include "shaders.h"
 #include "sound.h"
@@ -534,6 +535,7 @@ class Game {
         return;
       }
       if (e_->PendingChanges()) {
+        PROFILE_SCOPE_N("HotReload");
         TIMER("Hotload requested");
         e_->lua.ClearError();
         e_->Reload();
@@ -549,35 +551,55 @@ class Game {
         SDL_Delay(1);
         continue;
       }
+      PROFILE_FRAME;
       const auto frame_start = NowInSeconds();
-      e_->StartFrame();
-      SDL_StartTextInput(window_);
-      for (SDL_Event event; SDL_PollEvent(&event);) {
-        if (event.type == SDL_EVENT_QUIT) {
-          e_->lua.HandleQuit();
-          return;
-        }
-        e_->HandleEvent(event);
-        if (event.type == SDL_EVENT_KEY_DOWN &&
-            e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
-          if (config_.enable_debug_rendering) {
-            debug_ = !debug_;
+      {
+        PROFILE_SCOPE_N("StartFrame");
+        e_->StartFrame();
+        SDL_StartTextInput(window_);
+      }
+      {
+        PROFILE_SCOPE_N("PollEvents");
+        for (SDL_Event event; SDL_PollEvent(&event);) {
+          if (event.type == SDL_EVENT_QUIT) {
+            e_->lua.HandleQuit();
+            return;
+          }
+          e_->HandleEvent(event);
+          if (event.type == SDL_EVENT_KEY_DOWN &&
+              e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
+            if (config_.enable_debug_rendering) {
+              debug_ = !debug_;
+            }
+          }
+          if (event.type == SDL_EVENT_KEY_DOWN &&
+              e_->keyboard.IsDown(SDL_SCANCODE_F12)) {
+            screenshot_requested_ = true;
+          }
+          if (event.type == SDL_EVENT_KEY_DOWN &&
+              e_->keyboard.IsDown(SDL_SCANCODE_F11)) {
+            GetProfiler()->ToggleRecording();
           }
         }
-        if (event.type == SDL_EVENT_KEY_DOWN &&
-            e_->keyboard.IsDown(SDL_SCANCODE_F12)) {
-          screenshot_requested_ = true;
+      }
+      {
+        PROFILE_SCOPE_N("Update");
+        while (accum >= kStep) {
+          const double scaled_dt = kStep * e_->lua.TimeScale();
+          Update(t, real_t, scaled_dt, kStep);
+          t += scaled_dt;
+          real_t += kStep;
+          accum -= kStep;
         }
       }
-      while (accum >= kStep) {
-        const double scaled_dt = kStep * e_->lua.TimeScale();
-        Update(t, real_t, scaled_dt, kStep);
-        t += scaled_dt;
-        real_t += kStep;
-        accum -= kStep;
-      }
       e_->batch_renderer.SetFrameTime(static_cast<float>(t));
-      Render();
+      {
+        PROFILE_SCOPE_N("Render");
+        Render();
+      }
+      PROFILE_COUNTER("Frame Time (ms)",
+                      (NowInSeconds() - frame_start) * 1000.0);
+      PROFILE_COUNTER("Lua Memory (KB)", e_->lua.MemoryUsage() / 1024.0);
       stats_.AddSample((NowInSeconds() - frame_start) * 1000.0);
     }
   }
@@ -599,10 +621,19 @@ class Game {
       return;
     }
     e_->lua.SetRealTime(real_t, real_dt);
-    e_->timers.Update(static_cast<float>(scaled_dt),
-                      static_cast<float>(real_dt));
-    e_->physics.Update(scaled_dt);
-    e_->lua.Update(t, scaled_dt);
+    {
+      PROFILE_SCOPE_N("Timers::Update");
+      e_->timers.Update(static_cast<float>(scaled_dt),
+                        static_cast<float>(real_dt));
+    }
+    {
+      PROFILE_SCOPE_N("Physics::Update");
+      e_->physics.Update(scaled_dt);
+    }
+    {
+      PROFILE_SCOPE_N("Lua::Update");
+      e_->lua.Update(t, scaled_dt);
+    }
     IVec2 vp = e_->batch_renderer.GetViewport();
     e_->camera.Update(scaled_dt, FVec2(vp.x, vp.y));
   }
@@ -613,6 +644,7 @@ class Game {
     if (e_->lua.Error(&buf)) {
       RenderCrashScreen(buf.str());
     } else {
+      PROFILE_SCOPE_N("Lua::Draw");
       e_->lua.Draw();
     }
     // Draw FPS counter in debug mode.
@@ -632,8 +664,14 @@ class Game {
       TakeScreenshotToClipboard();
     }
     e_->renderer.FlushFrame();
-    e_->batch_renderer.Render(&e_->frame_allocator);
-    SDL_GL_SwapWindow(window_);
+    {
+      PROFILE_SCOPE_N("BatchRenderer::Render");
+      e_->batch_renderer.Render(&e_->frame_allocator);
+    }
+    {
+      PROFILE_SCOPE_N("SwapWindow");
+      SDL_GL_SwapWindow(window_);
+    }
   }
 
  private:

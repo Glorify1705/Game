@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS True)
 
 option(ENABLE_SANITIZERS "Build with ASan+UBSan" OFF)
 option(ENABLE_CLANG_TIDY "Run clang-tidy during build" OFF)
+option(ENABLE_PROFILING "Enable trace profiler instrumentation" OFF)
 
 project(
   Game
@@ -108,6 +109,7 @@ set(ENGINE_SRCS
     "src/lua_timer.cc"
     "src/lua_math.cc"
     "src/physics.cc"
+    "src/profiler.cc"
     "src/qoa.cc"
     "src/renderer.cc"
     "src/shaders.cc"
@@ -190,6 +192,10 @@ endif()
 target_compile_definitions(Game PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
 )
+
+if(ENABLE_PROFILING)
+    target_compile_definitions(Game PRIVATE GAME_WITH_PROFILING)
+endif()
 
 set_source_files_properties(libraries/sqlite3.c PROPERTIES
     COMPILE_DEFINITIONS SQLITE_ENABLE_MEMSYS5)
