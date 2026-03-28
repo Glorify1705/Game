@@ -556,6 +556,24 @@ function G1:draw_minimap()
 	G.graphics.set_color("white")
 end
 
+function G1:draw_aim_line()
+	if not self.player or self.player.dead then return end
+	local v = self.player.physics:position()
+	local angle = self.player.physics:angle()
+	local dx = math.sin(angle)
+	local dy = -math.cos(angle)
+	local start_dist = 50
+	local dot_spacing = 20
+	local num_dots = 12
+	for i = 0, num_dots - 1 do
+		local dist = start_dist + i * dot_spacing
+		local alpha = math.floor(180 * (1 - i / num_dots))
+		G.graphics.set_color(100, 255, 100, alpha)
+		G.graphics.draw_circle(v.x + dx * dist, v.y + dy * dist, 2)
+	end
+	G.graphics.set_color("white")
+end
+
 function G1:draw()
 	G.graphics.clear()
 
@@ -570,6 +588,7 @@ function G1:draw()
 
 	self.entities:draw()
 	self:draw_particles()
+	self:draw_aim_line()
 
 	G.graphics.pop()
 
