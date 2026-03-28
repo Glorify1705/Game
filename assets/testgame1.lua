@@ -73,8 +73,6 @@ function Entities:count_meteors()
 	return count
 end
 
-local SCREEN_W = 1024
-local SCREEN_H = 800
 local WORLD_W = 4000
 local WORLD_H = 3000
 
@@ -115,21 +113,23 @@ function G1:init()
 	self.lives = 3
 	self.wave = 0
 	self.wave_active = false
-	self.shake = { x = 0, y = 0 }
 	self.state = "playing"
 	self.respawning = false
 	self.particles = {}
 	self.messages = {}
 	self.intense_music = false
-	self.cam_x = WORLD_W / 2
-	self.cam_y = WORLD_H / 2
-	self.zoom = 1.0
 	self.target_zoom = 1.0
-	self.starfield = Starfield(SCREEN_W, SCREEN_H, self.rnd.rnd)
 
-	self.game_canvas = G.graphics.new_canvas(SCREEN_W, SCREEN_H)
-	self.vignette_canvas = G.graphics.new_canvas(SCREEN_W, SCREEN_H)
+	self.screen_w, self.screen_h = G.window.dimensions()
+	self.starfield = Starfield(self.screen_w, self.screen_h, self.rnd.rnd)
+
+	self.game_canvas = G.graphics.new_canvas(self.screen_w, self.screen_h)
+	self.vignette_canvas = G.graphics.new_canvas(self.screen_w, self.screen_h)
 	self:bake_vignette()
+
+	G.camera.set(WORLD_W / 2, WORLD_H / 2)
+	G.camera.set_zoom(1.0)
+	G.camera.set_lerp(0.1, 0.1)
 
 	self:spawn_player()
 
@@ -166,13 +166,13 @@ function G1:spawn_player()
 	end)
 
 	self.player:set_damage_callback(function()
-		self:screen_shake(25, 2.0)
+		G.camera.shake(25, 2.0)
 	end)
 end
 
 function G1:on_player_death()
 	self.lives = self.lives - 1
-	self:screen_shake(12)
+	G.camera.shake(12, 0.3)
 	if self.lives <= 0 then
 		self.state = "game_over"
 		G.sound.play_effect("game-over.ogg")
@@ -185,33 +185,11 @@ function G1:on_player_death()
 	end
 end
 
-function G1:screen_shake(intensity, duration)
-	duration = duration or 0.3
-	local scaled = intensity / math.max(self.zoom, 0.3)
-	self.shake_intensity = scaled
-	self.shake_duration = duration
-	self.shake_elapsed = 0
-end
-
-function G1:update_shake(dt)
-	if not self.shake_duration or self.shake_elapsed >= self.shake_duration then
-		self.shake.x = 0
-		self.shake.y = 0
-		return
-	end
-	self.shake_elapsed = self.shake_elapsed + dt
-	local t = self.shake_elapsed / self.shake_duration
-	local strength = self.shake_intensity * (1 - t * t)
-	local angle = math.random() * math.pi * 2
-	self.shake.x = math.cos(angle) * strength
-	self.shake.y = math.sin(angle) * strength
-end
-
 function G1:bake_vignette()
 	G.graphics.set_canvas(self.vignette_canvas)
 	G.graphics.clear()
-	local cx = SCREEN_W / 2
-	local cy = SCREEN_H / 2
+	local cx = self.screen_w / 2
+	local cy = self.screen_h / 2
 	local max_r = math.sqrt(cx * cx + cy * cy)
 	local steps = 40
 	for i = steps, 1, -1 do
@@ -317,7 +295,7 @@ function G1:draw_messages()
 		local t = m.life / m.max_life
 		local alpha = math.floor(255 * math.min(1, t * 3))
 		G.graphics.set_color(255, 255, 100, alpha)
-		G.graphics.print(m.text, SCREEN_W / 2 - 40, SCREEN_H / 2 - 60 - m.y_offset)
+		G.graphics.print(m.text, self.screen_w / 2 - 40, self.screen_h / 2 - 60 - m.y_offset)
 	end
 	G.graphics.set_color("white")
 end
@@ -345,7 +323,6 @@ function G1:spawn_meteor(size, grey)
 	local rng = self.rnd.rnd
 	local x = G.random.sample(rng, 100, WORLD_W - 100)
 	local y = G.random.sample(rng, 100, WORLD_H - 100)
-	-- avoid spawning right on top of the player
 	if self.player and not self.player.dead then
 		local pv = self.player.physics:position()
 		local dx = x - pv.x
@@ -357,7 +334,6 @@ function G1:spawn_meteor(size, grey)
 	end
 
 	local m = Meteor(x, y, size, grey)
-	-- random gentle drift direction
 	local angle = G.random.sample(rng, 0, 628) / 100.0
 	local base_force = 20 + self.wave * 3
 	m:set_drift(math.cos(angle) * base_force, math.sin(angle) * base_force)
@@ -384,6 +360,22 @@ function G1:start_next_wave()
 		local grey = use_grey and G.random.sample(self.rnd.rnd, 1, 100) > 50
 		self:spawn_meteor("small", grey)
 	end
+end
+
+function G1:toroidal_camera_follow(dt)
+	if not self.player or self.player.dead then return end
+	local pv = self.player.physics:position()
+	local cam_x, cam_y = G.camera.get()
+	local dx = pv.x - cam_x
+	local dy = pv.y - cam_y
+	if dx > WORLD_W / 2 then dx = dx - WORLD_W end
+	if dx < -WORLD_W / 2 then dx = dx + WORLD_W end
+	if dy > WORLD_H / 2 then dy = dy - WORLD_H end
+	if dy < -WORLD_H / 2 then dy = dy + WORLD_H end
+	local speed = math.min(1, dt * 5)
+	local new_x = (cam_x + dx * speed) % WORLD_W
+	local new_y = (cam_y + dy * speed) % WORLD_H
+	G.camera.set(new_x, new_y)
 end
 
 function G1:update(t, dt)
@@ -413,7 +405,9 @@ function G1:update(t, dt)
 	if wy ~= 0 then
 		self.target_zoom = G.math.clamp(self.target_zoom + wy * 0.1, 0.3, 2.0)
 	end
-	self.zoom = self.zoom + (self.target_zoom - self.zoom) * math.min(1, dt * 8)
+	local zoom = G.camera.get_zoom()
+	zoom = zoom + (self.target_zoom - zoom) * math.min(1, dt * 8)
+	G.camera.set_zoom(zoom)
 
 	if self.state == "game_over" then
 		if G.input.is_key_pressed("return") then
@@ -422,7 +416,6 @@ function G1:update(t, dt)
 		return
 	end
 
-	self:update_shake(dt)
 	self:update_messages(dt)
 	self.entities:update(dt)
 	self:update_particles(dt)
@@ -433,22 +426,7 @@ function G1:update(t, dt)
 		end
 	end
 
-	if self.player and not self.player.dead then
-		local pv = self.player.physics:position()
-		-- Toroidal lerp: take the shortest path around the world.
-		local dx = pv.x - self.cam_x
-		local dy = pv.y - self.cam_y
-		if dx > WORLD_W / 2 then dx = dx - WORLD_W end
-		if dx < -WORLD_W / 2 then dx = dx + WORLD_W end
-		if dy > WORLD_H / 2 then dy = dy - WORLD_H end
-		if dy < -WORLD_H / 2 then dy = dy + WORLD_H end
-		local speed = math.min(1, dt * 5)
-		self.cam_x = self.cam_x + dx * speed
-		self.cam_y = self.cam_y + dy * speed
-		-- Keep camera coordinates within world bounds.
-		self.cam_x = self.cam_x % WORLD_W
-		self.cam_y = self.cam_y % WORLD_H
-	end
+	self:toroidal_camera_follow(dt)
 
 	if self.player and not self.player.dead then
 		for _, entity in pairs(self.entities.entities) do
@@ -478,11 +456,11 @@ function G1:update(t, dt)
 				to_spawn[#to_spawn + 1] = c
 			end
 			if entity.size == "big" then
-				self:screen_shake(12)
+				G.camera.shake(12, 0.3)
 			elseif entity.size == "med" then
-				self:screen_shake(6)
+				G.camera.shake(6, 0.3)
 			else
-				self:screen_shake(3)
+				G.camera.shake(3, 0.3)
 			end
 			if (entity.size == "big" or entity.size == "med") and G.random.sample(self.rnd.rnd, 1, 100) <= 20 then
 				local v = entity.physics:position()
@@ -519,7 +497,7 @@ end
 
 function G1:draw_hud()
 	G.graphics.set_color("white")
-	draw_number(self.score, SCREEN_W - 20, 15)
+	draw_number(self.score, self.screen_w - 20, 15)
 
 	for i = 1, self.lives do
 		G.graphics.draw_sprite("playerLife1_green", 350 + (i - 1) * 35, 15)
@@ -532,31 +510,28 @@ function G1:draw_hud()
 	G.graphics.draw_rect(300 * health / 100, 10, 300, 20)
 
 	G.graphics.set_color("white")
-	G.graphics.print("WAVE " .. self.wave, SCREEN_W / 2 - 30, 5)
+	G.graphics.print("WAVE " .. self.wave, self.screen_w / 2 - 30, 5)
 
 	if self.player and not self.player.dead then
 		local pname = self.player:active_powerup_name()
 		if pname and POWERUP_HUD_SPRITES[pname] then
-			G.graphics.draw_sprite(POWERUP_HUD_SPRITES[pname], SCREEN_W - 50, 50)
+			G.graphics.draw_sprite(POWERUP_HUD_SPRITES[pname], self.screen_w - 50, 50)
 		end
 	end
 end
 
-local MINIMAP_W = 160
-local MINIMAP_H = MINIMAP_W * (WORLD_H / WORLD_W)
-local MINIMAP_X = SCREEN_W - MINIMAP_W - 10
-local MINIMAP_Y = SCREEN_H - MINIMAP_H - 10
-
 function G1:draw_minimap()
-	local mx = MINIMAP_X
-	local my = MINIMAP_Y
-	local sx = MINIMAP_W / WORLD_W
-	local sy = MINIMAP_H / WORLD_H
+	local minimap_w = 160
+	local minimap_h = minimap_w * (WORLD_H / WORLD_W)
+	local mx = self.screen_w - minimap_w - 10
+	local my = self.screen_h - minimap_h - 10
+	local sx = minimap_w / WORLD_W
+	local sy = minimap_h / WORLD_H
 
 	G.graphics.set_color(0, 0, 0, 150)
-	G.graphics.draw_rect(mx, my, mx + MINIMAP_W, my + MINIMAP_H)
+	G.graphics.draw_rect(mx, my, mx + minimap_w, my + minimap_h)
 	G.graphics.set_color(80, 80, 80, 200)
-	G.graphics.draw_rect_outline(mx, my, mx + MINIMAP_W, my + MINIMAP_H)
+	G.graphics.draw_rect_outline(mx, my, mx + minimap_w, my + minimap_h)
 
 	for _, entity in pairs(self.entities.entities) do
 		if entity.is_meteor and entity:is_meteor() then
@@ -603,7 +578,8 @@ function G1:get_wrap_offsets(x, y, margin)
 end
 
 function G1:draw_entities_wrapped()
-	local margin = SCREEN_W / self.zoom
+	local zoom = G.camera.get_zoom()
+	local margin = self.screen_w / zoom
 	for _, entity in pairs(self.entities.entities) do
 		if entity.is_bullet and entity:is_bullet() then
 			entity:draw()
@@ -649,25 +625,23 @@ function G1:draw_aim_line()
 end
 
 function G1:draw()
-	-- Render everything to the game canvas with CRT shader.
 	G.graphics.set_canvas(self.game_canvas)
 	G.graphics.clear()
 
 	G.graphics.attach_shader("crt.frag")
 
-	self.starfield:draw(self.cam_x, self.cam_y)
+	local cam_x, cam_y = G.camera.get()
+	self.starfield:draw(cam_x, cam_y)
 
-	G.graphics.push()
-	G.graphics.translate(SCREEN_W / 2 + self.shake.x, SCREEN_H / 2 + self.shake.y)
-	G.graphics.scale(self.zoom, self.zoom)
-	G.graphics.translate(-self.cam_x, -self.cam_y)
+	G.camera.attach()
 
 	self:draw_entities_wrapped()
 	self:draw_particles()
 
 	if self.player and not self.player.dead then
 		local pv = self.player.physics:position()
-		local margin = SCREEN_W / self.zoom
+		local zoom = G.camera.get_zoom()
+		local margin = self.screen_w / zoom
 		local offsets = self:get_wrap_offsets(pv.x, pv.y, margin)
 		for _, off in ipairs(offsets) do
 			G.graphics.push()
@@ -677,7 +651,7 @@ function G1:draw()
 		end
 	end
 
-	G.graphics.pop()
+	G.camera.detach()
 
 	self:draw_hud()
 	self:draw_minimap()
@@ -685,15 +659,14 @@ function G1:draw()
 
 	if self.state == "game_over" then
 		G.graphics.set_color(200, 0, 0, 255)
-		G.graphics.print("GAME OVER", SCREEN_W / 2 - 50, SCREEN_H / 2 - 40)
+		G.graphics.print("GAME OVER", self.screen_w / 2 - 50, self.screen_h / 2 - 40)
 		G.graphics.set_color("white")
-		G.graphics.print("SCORE: " .. self.score, SCREEN_W / 2 - 50, SCREEN_H / 2)
-		G.graphics.print("Press ENTER to restart", SCREEN_W / 2 - 80, SCREEN_H / 2 + 30)
+		G.graphics.print("SCORE: " .. self.score, self.screen_w / 2 - 50, self.screen_h / 2)
+		G.graphics.print("Press ENTER to restart", self.screen_w / 2 - 80, self.screen_h / 2 + 30)
 	end
 
 	G.graphics.attach_shader()
 
-	-- Draw game canvas to screen, then overlay vignette.
 	G.graphics.set_canvas()
 	G.graphics.clear()
 	G.graphics.set_color("white")
