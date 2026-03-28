@@ -97,6 +97,12 @@ local POWERUP_HUD_SPRITES = {
 	shield = "powerupBlue_shield",
 	rapid_fire = "powerupGreen_bolt",
 }
+local POWERUP_NAMES = {
+	shield = "SHIELD",
+	rapid_fire = "RAPID FIRE",
+	heal = "HEAL +25",
+	score_bonus = "SCORE +500",
+}
 local WRAP_MARGIN = 60
 
 function G1:init()
@@ -114,6 +120,7 @@ function G1:init()
 	self.state = "playing"
 	self.respawning = false
 	self.particles = {}
+	self.messages = {}
 	self.intense_music = false
 	self.cam_x = WORLD_W / 2
 	self.cam_y = WORLD_H / 2
@@ -266,6 +273,37 @@ function G1:draw_particles()
 	G.graphics.set_color("white")
 end
 
+function G1:show_message(text)
+	self.messages[#self.messages + 1] = {
+		text = text,
+		life = 2.0,
+		max_life = 2.0,
+		y_offset = 0,
+	}
+end
+
+function G1:update_messages(dt)
+	local alive = {}
+	for _, m in ipairs(self.messages) do
+		m.life = m.life - dt
+		m.y_offset = m.y_offset + dt * 40
+		if m.life > 0 then
+			alive[#alive + 1] = m
+		end
+	end
+	self.messages = alive
+end
+
+function G1:draw_messages()
+	for _, m in ipairs(self.messages) do
+		local t = m.life / m.max_life
+		local alpha = math.floor(255 * math.min(1, t * 3))
+		G.graphics.set_color(255, 255, 100, alpha)
+		G.graphics.print(m.text, SCREEN_W / 2 - 40, SCREEN_H / 2 - 60 - m.y_offset)
+	end
+	G.graphics.set_color("white")
+end
+
 function G1:update_music()
 	local meteor_count = self.entities:count_meteors()
 	if meteor_count > 0 and not self.intense_music then
@@ -373,6 +411,7 @@ function G1:update(t, dt)
 	end
 
 	self:update_shake(dt)
+	self:update_messages(dt)
 	self.entities:update(dt)
 	self:update_particles(dt)
 
@@ -418,6 +457,7 @@ function G1:update(t, dt)
 				else
 					self.player:apply_powerup(entity.ptype)
 				end
+				self:show_message(POWERUP_NAMES[entity.ptype] or entity.ptype)
 			end
 		end
 	end
@@ -487,6 +527,7 @@ function G1:draw()
 	G.graphics.pop()
 
 	self:draw_hud()
+	self:draw_messages()
 
 	if self.state == "game_over" then
 		G.graphics.set_color(200, 0, 0, 255)
