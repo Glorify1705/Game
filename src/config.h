@@ -25,6 +25,10 @@ struct GameConfig {
   bool enable_debug_rendering = true;
   char org_name[512] = {0};
   char app_name[512] = {0};
+  // REPL server port (0 disables the server).
+  uint16_t repl_port = 9741;
+  // Whether the REPL server is enabled.
+  bool repl_enabled = true;
   struct Version {
     int major = 0;
     int minor = 1;

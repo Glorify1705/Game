@@ -53,6 +53,17 @@ void LoadConfig(std::string_view json_configuration, GameConfig* config,
       CopyString(value.GetString(), config->org_name, sizeof(config->org_name));
     } else if (key == "app_name") {
       CopyString(value.GetString(), config->app_name, sizeof(config->app_name));
+    } else if (key == "repl") {
+      if (value.IsObject()) {
+        const auto& enabled = value["enabled"];
+        if (enabled.type == JsonValue::kBool) {
+          config->repl_enabled = enabled.GetBool();
+        }
+        const auto& port = value["port"];
+        if (port.type == JsonValue::kNumber) {
+          config->repl_port = static_cast<uint16_t>(port.GetLong());
+        }
+      }
     } else if (key == "version") {
       // GetString() points into allocator memory and is null-terminated
       // when escape processing occurs, but for safety copy to a local buffer.
