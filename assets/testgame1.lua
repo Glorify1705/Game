@@ -558,6 +558,10 @@ end
 
 function G1:draw()
 	G.graphics.clear()
+
+	G.graphics.attach_shader("crt.frag")
+	G.graphics.send_uniform("iResolution", SCREEN_W, SCREEN_H)
+
 	self.starfield:draw(self.cam_x, self.cam_y)
 
 	G.graphics.push()
@@ -582,6 +586,7 @@ function G1:draw()
 		G.graphics.print("Press ENTER to restart", SCREEN_W / 2 - 80, SCREEN_H / 2 + 30)
 	end
 
+	G.graphics.attach_shader()
 	G.graphics.set_color("white")
 end
 
