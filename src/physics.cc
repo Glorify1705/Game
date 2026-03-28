@@ -217,6 +217,11 @@ float Physics::GetAngle(Handle handle) const {
   return handle.handle->GetAngle();
 }
 
+void Physics::SetPosition(Handle handle, FVec2 position) {
+  auto* body = handle.handle;
+  body->SetTransform(To(position), body->GetAngle());
+}
+
 FVec2 Physics::GetLinearVelocity(Handle handle) const {
   return From(handle.handle->GetLinearVelocity());
 }

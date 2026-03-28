@@ -129,6 +129,21 @@ const struct LuaApiFunction kPhysicsLib[] = {
        lua_pushnumber(state, pos.y);
        return 2;
      }},
+    {"set_position",
+     "Teleports a physics body to a new position",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"x", "new x position", "number"},
+      {"y", "new y position", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float x = luaL_checknumber(state, 2);
+       const float y = luaL_checknumber(state, 3);
+       physics->SetPosition(*handle, FVec(x, y));
+       return 0;
+     }},
     {"angle",
      "Returns the rotation angle of a physics body in radians",
      {{"handle", "the physics handle", "physics_handle"}},

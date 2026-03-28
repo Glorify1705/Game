@@ -57,6 +57,9 @@ class Physics final : public b2ContactListener {
 
   float GetAngle(Handle handle) const;
 
+  // Teleports a body to a new position, preserving angle and velocity.
+  void SetPosition(Handle handle, FVec2 position);
+
   // Returns the linear velocity in pixel-space.
   FVec2 GetLinearVelocity(Handle handle) const;
 
