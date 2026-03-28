@@ -415,6 +415,24 @@ G.system.quit()
 
 Don't wrap the `G` API in unnecessary abstractions. Call it directly.
 
+**Prefer engine functions over reimplementing.** Before writing utility code
+(math helpers, data structure operations, file I/O, random number generation,
+etc.), check whether the engine already provides it through `G.*`. The engine
+API is extensive and covers graphics, sound, input, physics, collision,
+filesystem, math, random numbers, asset management, and more.
+
+**Consult the type definitions.** The file `definitions/game.lua` contains
+auto-generated LuaLS type stubs for every engine function, including parameter
+names, types, and descriptions. Read it before implementing functionality that
+the engine might already provide. You can regenerate it at any time with:
+
+```sh
+game stubs
+```
+
+If your editor supports LuaLS (Lua Language Server), the definitions file
+gives you autocomplete and type checking for the entire `G.*` API. Use it.
+
 ## Control Flow
 
 Prefer early returns to reduce nesting:

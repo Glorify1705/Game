@@ -134,7 +134,11 @@ function Game:draw()
 
 	-- Cooldown indicator.
 	G.graphics.set_color("white")
-	G.graphics.print(string.format("Cooldown fires: %d  (hold space after pressing 5)", self.cooldown_fires), 50, 470)
+	G.graphics.print(
+		string.format("Cooldown fires: %d  (hold space after pressing 5)", self.cooldown_fires),
+		50,
+		470
+	)
 
 	-- HUD.
 	G.graphics.set_color("white")

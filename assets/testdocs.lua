@@ -2,8 +2,7 @@
 
 local Game = {}
 
-function Game:init()
-end
+function Game:init() end
 
 function Game:update(t, dt)
 	if G.input.is_key_pressed("q") then

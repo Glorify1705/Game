@@ -247,7 +247,12 @@ function Game:draw()
 	-- HUD.
 	G.graphics.set_color(220, 220, 230, 255)
 	G.graphics.print(
-		string.format("Objects: %d   Particles: %d   Target: %d", #self.objects, #self.particles, target_count),
+		string.format(
+			"Objects: %d   Particles: %d   Target: %d",
+			#self.objects,
+			#self.particles,
+			target_count
+		),
 		16,
 		16
 	)
