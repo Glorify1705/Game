@@ -1,11 +1,11 @@
 -- Test program for the timer system.
 -- Demonstrates: after, every, during, tween, cooldown, cancel.
 -- Controls:
---   1: Fire timer.after (flash after 1s)
---   2: Fire timer.every (spawn dots every 0.5s, 6 times)
---   3: Fire timer.during (progress bar over 2s)
---   4: Fire timer.tween (move box across screen)
---   5: Fire timer.cooldown (click-ready indicator, 1s cooldown)
+--   1: Fire G.timer.after (flash after 1s)
+--   2: Fire G.timer.every (spawn dots every 0.5s, 6 times)
+--   3: Fire G.timer.during (progress bar over 2s)
+--   4: Fire G.timer.tween (move box across screen)
+--   5: Fire G.timer.cooldown (click-ready indicator, 1s cooldown)
 --   C: Cancel all timers
 --   Esc: Quit
 
@@ -38,11 +38,11 @@ function Game:update(t, dt)
 	end
 
 	if G.input.is_key_pressed("1") then
-		self:add_log("timer.after: flash in 1s")
-		timer.after(1.0, function()
+		self:add_log("G.timer.after: flash in 1s")
+		G.timer.after(1.0, function()
 			self.flash_alpha = 255
 			self:add_log("FLASH!")
-			timer.during(0.5, function(dt2, elapsed, frac)
+			G.timer.during(0.5, function(dt2, elapsed, frac)
 				self.flash_alpha = 255 * (1 - frac)
 			end, nil, "flash-fade")
 		end, "flash")
@@ -50,8 +50,8 @@ function Game:update(t, dt)
 
 	if G.input.is_key_pressed("2") then
 		self.dots = {}
-		self:add_log("timer.every: 6 dots, 0.5s apart")
-		timer.every(0.5, function()
+		self:add_log("G.timer.every: 6 dots, 0.5s apart")
+		G.timer.every(0.5, function()
 			local w, h = G.window.dimensions()
 			table.insert(self.dots, {
 				x = 100 + math.random() * (w - 200),
@@ -64,13 +64,13 @@ function Game:update(t, dt)
 	if G.input.is_key_pressed("3") then
 		self.progress = 0
 		self.progress_active = true
-		self:add_log("timer.during: 2s progress bar")
-		timer.during(2.0, function(dt2, elapsed, frac)
+		self:add_log("G.timer.during: 2s progress bar")
+		G.timer.during(2.0, function(dt2, elapsed, frac)
 			self.progress = frac
 		end, function()
 			self.progress = 1
 			self:add_log("  progress complete")
-			timer.after(0.5, function()
+			G.timer.after(0.5, function()
 				self.progress_active = false
 			end)
 		end, "progress")
@@ -78,9 +78,9 @@ function Game:update(t, dt)
 
 	if G.input.is_key_pressed("4") then
 		self.box.x = 50
-		self:add_log("timer.tween: box slide (out-cubic)")
+		self:add_log("G.timer.tween: box slide (out-cubic)")
 		local w = G.window.dimensions()
-		timer.tween(1.5, self.box, { x = w - 100 }, "out-cubic", function()
+		G.timer.tween(1.5, self.box, { x = w - 100 }, "out-cubic", function()
 			self:add_log("  tween done")
 		end, "box-tween")
 	end
@@ -88,8 +88,8 @@ function Game:update(t, dt)
 	if G.input.is_key_pressed("5") then
 		self.cooldown_ready = true
 		self.cooldown_fires = 0
-		self:add_log("timer.cooldown: 1s, needs space held")
-		timer.cooldown(1.0, function()
+		self:add_log("G.timer.cooldown: 1s, needs space held")
+		G.timer.cooldown(1.0, function()
 			return G.input.is_key_down("space")
 		end, function()
 			self.cooldown_fires = self.cooldown_fires + 1
@@ -98,7 +98,7 @@ function Game:update(t, dt)
 	end
 
 	if G.input.is_key_pressed("c") then
-		timer.cancel_all()
+		G.timer.cancel_all()
 		self:add_log("cancel_all")
 	end
 end
