@@ -445,6 +445,9 @@ function G1:update(t, dt)
 		local speed = math.min(1, dt * 5)
 		self.cam_x = self.cam_x + dx * speed
 		self.cam_y = self.cam_y + dy * speed
+		-- Keep camera coordinates within world bounds.
+		self.cam_x = self.cam_x % WORLD_W
+		self.cam_y = self.cam_y % WORLD_H
 	end
 
 	if self.player and not self.player.dead then
