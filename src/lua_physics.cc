@@ -196,6 +196,58 @@ const struct LuaApiFunction kPhysicsLib[] = {
        const float x = luaL_checknumber(state, 2);
        physics->ApplyTorque(*handle, x);
        return 0;
+     }},
+    {"linear_velocity",
+     "Returns the linear velocity of a physics body in pixels/s",
+     {{"handle", "the physics handle", "physics_handle"}},
+     {{"vx", "x velocity", "number"}, {"vy", "y velocity", "number"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const FVec2 v = physics->GetLinearVelocity(*handle);
+       lua_pushnumber(state, v.x);
+       lua_pushnumber(state, v.y);
+       return 2;
+     }},
+    {"set_linear_velocity",
+     "Sets the linear velocity of a physics body in pixels/s",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"vx", "x velocity", "number"},
+      {"vy", "y velocity", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float vx = luaL_checknumber(state, 2);
+       const float vy = luaL_checknumber(state, 3);
+       physics->SetLinearVelocity(*handle, FVec(vx, vy));
+       return 0;
+     }},
+    {"angular_velocity",
+     "Returns the angular velocity of a physics body in rad/s",
+     {{"handle", "the physics handle", "physics_handle"}},
+     {{"omega", "angular velocity", "number"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       lua_pushnumber(state, physics->GetAngularVelocity(*handle));
+       return 1;
+     }},
+    {"set_angular_velocity",
+     "Sets the angular velocity of a physics body in rad/s",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"omega", "angular velocity", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float omega = luaL_checknumber(state, 2);
+       physics->SetAngularVelocity(*handle, omega);
+       return 0;
      }}};
 
 }  // namespace

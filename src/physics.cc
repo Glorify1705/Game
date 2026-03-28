@@ -217,6 +217,22 @@ float Physics::GetAngle(Handle handle) const {
   return handle.handle->GetAngle();
 }
 
+FVec2 Physics::GetLinearVelocity(Handle handle) const {
+  return From(handle.handle->GetLinearVelocity());
+}
+
+void Physics::SetLinearVelocity(Handle handle, FVec2 v) {
+  handle.handle->SetLinearVelocity(To(v));
+}
+
+float Physics::GetAngularVelocity(Handle handle) const {
+  return handle.handle->GetAngularVelocity();
+}
+
+void Physics::SetAngularVelocity(Handle handle, float v) {
+  handle.handle->SetAngularVelocity(v);
+}
+
 FVec2 Physics::From(b2Vec2 v) const {
   return FVec(v.x, v.y) * pixels_per_meter_;
 }

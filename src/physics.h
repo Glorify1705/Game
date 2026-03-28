@@ -57,6 +57,18 @@ class Physics final : public b2ContactListener {
 
   float GetAngle(Handle handle) const;
 
+  // Returns the linear velocity in pixel-space.
+  FVec2 GetLinearVelocity(Handle handle) const;
+
+  // Sets the linear velocity in pixel-space.
+  void SetLinearVelocity(Handle handle, FVec2 v);
+
+  // Returns the angular velocity in radians/s.
+  float GetAngularVelocity(Handle handle) const;
+
+  // Sets the angular velocity in radians/s.
+  void SetAngularVelocity(Handle handle, float v);
+
   // Creates a static ground body. If walls is true, adds edge fixtures
   // around the screen perimeter.
   void CreateGround(bool walls = true);
