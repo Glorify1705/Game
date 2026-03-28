@@ -51,7 +51,8 @@ function Powerup:draw()
 end
 
 function Powerup:on_collision(other)
-	if other and other.is_player and other:is_player() then
+	if not other then return end
+	if other.is_player and other:is_player() then
 		self.dead = true
 		self.picked_up = true
 		G.sound.play_effect("pong-blip1.ogg")

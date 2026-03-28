@@ -33,9 +33,10 @@ function Bullet:draw()
 end
 
 function Bullet:on_collision(other)
-	if other and not other:is_player() then
-		self.dead = true
-	end
+	if not other then return end
+	if other:is_player() then return end
+	if other.is_powerup and other:is_powerup() then return end
+	self.dead = true
 end
 
 function Bullet:is_bullet()
