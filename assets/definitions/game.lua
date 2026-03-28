@@ -534,8 +534,9 @@ function G.physics.add_circle(tx, ty, radius, callback) end
 ---@param handle physics_handle the physics handle to destroy
 function G.physics.destroy_handle(handle) end
 
----Creates a static ground body
-function G.physics.create_ground() end
+---Creates a static ground body. If walls is false, no screen boundary edges are created.
+---@param walls? boolean if true (default), add edge walls around the screen perimeter
+function G.physics.create_ground(walls) end
 
 ---Sets a global callback invoked when two bodies begin contact
 ---@param callback function function called with two collision callbacks

@@ -54,7 +54,9 @@ class Physics final : public b2ContactListener {
 
   float GetAngle(Handle handle) const;
 
-  void CreateGround();
+  // Creates a static ground body. If walls is true, adds edge fixtures
+  // around the screen perimeter.
+  void CreateGround(bool walls = true);
 
  private:
   static void DefaultDestroy(uintptr_t, void *) {}
@@ -70,6 +72,7 @@ class Physics final : public b2ContactListener {
   FVec2 world_dimensions_;
   b2World world_;
   b2Body *ground_ = nullptr;
+  bool walls_ = true;
 
   ContactCallback begin_contact_callback_ = DefaultContact;
   void *begin_contact_userdata_ = this;

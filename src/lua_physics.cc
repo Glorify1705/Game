@@ -65,11 +65,16 @@ const struct LuaApiFunction kPhysicsLib[] = {
      }},
     {"create_ground",
      "Creates a static ground body",
-     {},
+     {{"walls", "if true, add edge walls around the screen (default true)",
+       "boolean"}},
      {},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
-       physics->CreateGround();
+       bool walls = true;
+       if (lua_gettop(state) >= 1 && lua_isboolean(state, 1)) {
+         walls = lua_toboolean(state, 1);
+       }
+       physics->CreateGround(walls);
        return 0;
      }},
     {"set_collision_callback",

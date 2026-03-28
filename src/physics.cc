@@ -25,7 +25,8 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
   world_.SetContactListener(this);
 }
 
-void Physics::CreateGround() {
+void Physics::CreateGround(bool walls) {
+  walls_ = walls;
   if (ground_ != nullptr) {
     auto* fixture = ground_->GetFixtureList();
     while (fixture) {
@@ -40,6 +41,8 @@ void Physics::CreateGround() {
   bd.position.Set(0.0f, 0.0f);
   bd.userData.pointer = 0;
   ground_ = world_.CreateBody(&bd);
+
+  if (!walls) return;
 
   b2EdgeShape shape;
 
@@ -64,7 +67,7 @@ void Physics::CreateGround() {
 void Physics::UpdateDimensions(IVec2 pixel_dimensions) {
   world_dimensions_ =
       FVec(pixel_dimensions.x, pixel_dimensions.y) / pixels_per_meter_;
-  CreateGround();
+  CreateGround(walls_);
 }
 
 void Physics::SetDestroyCallback(DestroyCallback callback, void* userdata) {
