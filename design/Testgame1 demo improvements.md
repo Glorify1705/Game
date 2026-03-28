@@ -125,6 +125,140 @@ in non-gameplay state.
 - **Damage flash** on meteors when hit (tint red briefly, already proven with
   player cooldown tween)
 
+## Engine Feedback from Implementation
+
+Building all the features above with Claude Code surfaced real friction points
+in the engine. This section captures what was missing, what required workarounds,
+and what worked well — to guide engine improvements.
+
+### What worked well
+
+- **Camera module** (`G.camera`): follow, shake, zoom, attach/detach with
+  parallax all work great. Shake is particularly satisfying for game feel.
+- **Canvas API**: `new_canvas` / `set_canvas` / `draw_canvas` made the
+  post-process vignette possible without engine changes.
+- **Timer/tween system**: `G.timer.after`, `G.timer.tween` with 31 easing
+  curves covered all timing needs (respawn delays, powerup despawn, etc.).
+- **Hot-reload**: iterating on Lua gameplay code is fast and seamless.
+- **Physics basics**: once `set_position` and velocity accessors were added,
+  the Box2D wrapper handled everything the game needed.
+
+### Friction: sensor bodies (high impact)
+
+Powerups need to be detectable (player walks over them) but not physically
+collidable (bullets shouldn't push them, they shouldn't damage the player).
+The engine has no sensor/trigger concept in the physics system.
+
+**Workaround**: rewrote Powerup as a pure Lua object with no physics body,
+doing manual distance checks every frame in the update loop. This works but
+loses integration with the physics world (no spatial queries, no automatic
+contact detection).
+
+**Proposed fix**: expose `set_sensor(handle, true)` on the Box2D wrapper.
+Sensor fixtures detect overlaps via `BeginContact`/`EndContact` but generate
+no collision response. This is already planned in the Physics System Expansion
+design doc — implementing it would eliminate an entire class of workarounds.
+
+### Friction: collision filtering (high impact)
+
+Every collision callback does manual type-checking:
+
+```lua
+function Bullet:on_collision(other)
+    if not other then return end
+    if other:is_player() then return end
+    if other.is_powerup and other:is_powerup() then return end
+    self.dead = true
+end
+```
+
+This is error-prone (forget a check and you get bugs) and means every entity
+must know about every other entity type. The physics world already has Box2D
+category/mask bits internally (and the collision system uses them).
+
+**Proposed fix**: expose `set_filter(handle, category, mask)` to Lua. Then:
+
+```lua
+-- At creation time:
+CATEGORY_PLAYER  = 0x0001
+CATEGORY_METEOR  = 0x0002
+CATEGORY_BULLET  = 0x0004
+CATEGORY_POWERUP = 0x0008
+
+-- Bullets collide with meteors only:
+G.physics.set_filter(bullet_handle, CATEGORY_BULLET, CATEGORY_METEOR)
+-- Powerups are sensors, collide with player only:
+G.physics.set_filter(powerup_handle, CATEGORY_POWERUP, CATEGORY_PLAYER)
+```
+
+This eliminates all the `is_player()` / `is_powerup()` checks from callbacks.
+Also already covered in the Physics System Expansion doc.
+
+### Friction: missing physics accessors (fixed)
+
+`set_position` (teleport), `linear_velocity`, `set_linear_velocity`,
+`angular_velocity`, and `set_angular_velocity` were not exposed to Lua. These
+are basic operations needed for:
+
+- Toroidal world wrapping (teleport without destroying the body)
+- Preserving velocity across teleports
+- Reading velocity for gameplay logic (e.g. speed-dependent effects)
+
+**Status**: all five were added to `physics.h`, `physics.cc`, and
+`lua_physics.cc` during this implementation and are now committed.
+
+### Friction: shader hot-reload was broken (fixed)
+
+`new_shader` in `lua_graphics.cc` used `Shaders::kUseCache`, so editing a
+`.frag` file and hot-reloading did nothing — the engine kept using the cached
+compiled shader from the asset DB. This made shader iteration impossible without
+restarting the engine.
+
+**Status**: changed to `Shaders::kForceCompile`. The caching behavior should
+probably be: `kForceCompile` during development (hot-reload), `kUseCache` only
+for packaged builds.
+
+### Friction: no post-process shader pipeline (medium impact)
+
+Per-draw-call shaders (`attach_shader`) work well for per-sprite effects (CRT
+scanlines, chromatic aberration). But fullscreen post-processing (vignette,
+bloom, color grading, screen-wide distortion) requires manual canvas management:
+
+```lua
+-- Current workaround:
+G.graphics.set_canvas(game_canvas)
+-- ... draw everything ...
+G.graphics.set_canvas()
+G.graphics.set_blend_mode("premultiplied")
+G.graphics.draw_canvas(game_canvas, 0, 0)
+-- draw vignette overlay separately
+```
+
+**Proposed**: a `G.graphics.set_post_process("shader.frag")` that internally
+renders to an FBO and applies a fullscreen quad shader after the frame is
+complete. The shader would receive the full framebuffer as a texture, making
+effects like vignette, bloom, and color grading trivial:
+
+```glsl
+vec4 post_process(sampler2D screen, vec2 uv, vec2 screen_size) {
+    // vignette, bloom, CRT, etc. operating on the full frame
+}
+```
+
+This complements per-draw-call shaders rather than replacing them.
+
+### Minor: toroidal world wrapping is game-side boilerplate
+
+The game needed ~40 lines of custom code for:
+- Toroidal camera follow (shortest-path lerp around world edges)
+- Ghost rendering (draw entities at wrapped positions near edges)
+- Entity teleportation at world boundaries
+
+This is a common pattern (Asteroids, many top-down games). Could be an optional
+engine feature: `G.camera.set_wrap(WORLD_W, WORLD_H)` that handles the toroidal
+math in the view matrix and provides a `G.physics.set_world_wrap(w, h)` for
+automatic entity teleportation. Low priority since the Lua-side solution works.
+
 ## Implementation Order
 
 Recommended sequence to keep the game playable at each step:
