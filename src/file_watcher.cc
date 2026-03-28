@@ -94,7 +94,8 @@ struct FileWatcher::PlatformData {
     inotify_rm_watch(fd, wd);
     for (uint32_t i = 0; i < watch_count; ++i) {
       if (watches[i].wd == wd) {
-        watches[i] = watches[watch_count - 1];
+        watches[i].wd = watches[watch_count - 1].wd;
+        watches[i].dir_path.Set(watches[watch_count - 1].dir_path.str());
         watch_count--;
         return;
       }
