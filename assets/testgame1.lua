@@ -156,7 +156,7 @@ function G1:spawn_player()
 	end)
 
 	self.player:set_damage_callback(function()
-		self:screen_shake(25, 2.0)
+		self:screen_shake(25, 3.5)
 	end)
 end
 
@@ -177,11 +177,24 @@ end
 
 function G1:screen_shake(intensity, duration)
 	duration = duration or 0.3
-	local angle = math.random() * math.pi * 2
 	local scaled = intensity / math.max(self.zoom, 0.3)
-	self.shake.x = math.cos(angle) * scaled
-	self.shake.y = math.sin(angle) * scaled
-	self.timer:tween(duration, self.shake, { x = 0, y = 0 }, "out-quad")
+	self.shake_intensity = scaled
+	self.shake_duration = duration
+	self.shake_elapsed = 0
+end
+
+function G1:update_shake(dt)
+	if not self.shake_duration or self.shake_elapsed >= self.shake_duration then
+		self.shake.x = 0
+		self.shake.y = 0
+		return
+	end
+	self.shake_elapsed = self.shake_elapsed + dt
+	local t = self.shake_elapsed / self.shake_duration
+	local strength = self.shake_intensity * (1 - t * t)
+	local angle = math.random() * math.pi * 2
+	self.shake.x = math.cos(angle) * strength
+	self.shake.y = math.sin(angle) * strength
 end
 
 function G1:screen_wrap_entity(entity)
@@ -359,6 +372,7 @@ function G1:update(t, dt)
 		return
 	end
 
+	self:update_shake(dt)
 	self.entities:update(dt)
 	self:update_particles(dt)
 
