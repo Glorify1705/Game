@@ -89,6 +89,7 @@ set(ENGINE_SRCS
     "src/color.cc"
     "src/config.cc"
     "src/console.cc"
+    "src/file_watcher.cc"
     "src/filesystem.cc"
     "src/game.cc"
     "src/image.cc"

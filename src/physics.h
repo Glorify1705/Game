@@ -42,6 +42,9 @@ class Physics final : public b2ContactListener {
 
   void DestroyHandle(Handle handle);
 
+  // Destroy all dynamic bodies, keeping the ground. Used during hot-reload.
+  void Clear();
+
   void ApplyLinearImpulse(Handle handle, FVec2 v);
 
   void Rotate(Handle handle, float angle);

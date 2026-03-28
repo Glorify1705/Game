@@ -13,11 +13,12 @@ static const double_conversion::DoubleToStringConverter kDoubleToJson(
 }  // namespace
 
 bool HasSuffix(std::string_view str, std::string_view suffix) {
+  if (suffix.size() > str.size()) return false;
   size_t i = 0;
-  for (; i < str.size() && i < suffix.size(); i++) {
-    if (suffix[suffix.size() - i] != str[str.size() - i]) return false;
+  for (; i < suffix.size(); i++) {
+    if (suffix[suffix.size() - 1 - i] != str[str.size() - 1 - i]) return false;
   }
-  return i == suffix.size();
+  return true;
 }
 
 bool ConsumeSuffix(std::string_view* str, std::string_view suffix) {
