@@ -224,15 +224,13 @@ function G1:screen_wrap_entity(entity)
 		wrapped = true
 	end
 	if wrapped then
-		local dx = nx - v.x
-		local dy = ny - v.y
 		entity:destroy()
 		local info = G.assets.sprite_info(entity.image)
 		local Physics = require("physics")
 		entity.physics = Physics(nx, ny, nx + info.width, ny + info.height, 0, entity)
 		if entity:is_player() then
-			self.cam_x = self.cam_x + dx
-			self.cam_y = self.cam_y + dy
+			self.cam_x = nx
+			self.cam_y = ny
 		end
 	end
 end
@@ -403,12 +401,6 @@ function G1:update(t, dt)
 	end
 	self.zoom = self.zoom + (self.target_zoom - self.zoom) * math.min(1, dt * 8)
 
-	if self.player and not self.player.dead then
-		local pv = self.player.physics:position()
-		self.cam_x = self.cam_x + (pv.x - self.cam_x) * math.min(1, dt * 5)
-		self.cam_y = self.cam_y + (pv.y - self.cam_y) * math.min(1, dt * 5)
-	end
-
 	if self.state == "game_over" then
 		if G.input.is_key_pressed("return") then
 			self:init()
@@ -425,6 +417,12 @@ function G1:update(t, dt)
 		if entity:is_player() or (entity.is_meteor and entity:is_meteor()) then
 			self:screen_wrap_entity(entity)
 		end
+	end
+
+	if self.player and not self.player.dead then
+		local pv = self.player.physics:position()
+		self.cam_x = self.cam_x + (pv.x - self.cam_x) * math.min(1, dt * 5)
+		self.cam_y = self.cam_y + (pv.y - self.cam_y) * math.min(1, dt * 5)
 	end
 
 	if self.player and not self.player.dead then
@@ -519,6 +517,49 @@ function G1:draw_hud()
 	end
 end
 
+local MINIMAP_W = 160
+local MINIMAP_H = MINIMAP_W * (WORLD_H / WORLD_W)
+local MINIMAP_X = SCREEN_W - MINIMAP_W - 10
+local MINIMAP_Y = SCREEN_H - MINIMAP_H - 10
+
+function G1:draw_minimap()
+	local mx = MINIMAP_X
+	local my = MINIMAP_Y
+	local sx = MINIMAP_W / WORLD_W
+	local sy = MINIMAP_H / WORLD_H
+
+	G.graphics.set_color(0, 0, 0, 150)
+	G.graphics.draw_rect(mx, my, mx + MINIMAP_W, my + MINIMAP_H)
+	G.graphics.set_color(80, 80, 80, 200)
+	G.graphics.draw_rect_outline(mx, my, mx + MINIMAP_W, my + MINIMAP_H)
+
+	for _, entity in pairs(self.entities.entities) do
+		if entity.is_meteor and entity:is_meteor() then
+			local v = entity.physics:position()
+			local px = mx + v.x * sx
+			local py = my + v.y * sy
+			G.graphics.set_color(180, 120, 60, 220)
+			G.graphics.draw_circle(px, py, 2)
+		end
+		if entity.is_powerup and entity:is_powerup() then
+			local px = mx + entity.x * sx
+			local py = my + entity.y * sy
+			G.graphics.set_color(255, 255, 100, 220)
+			G.graphics.draw_circle(px, py, 2)
+		end
+	end
+
+	if self.player and not self.player.dead then
+		local pv = self.player.physics:position()
+		local px = mx + pv.x * sx
+		local py = my + pv.y * sy
+		G.graphics.set_color(100, 255, 100, 255)
+		G.graphics.draw_circle(px, py, 3)
+	end
+
+	G.graphics.set_color("white")
+end
+
 function G1:draw()
 	G.graphics.clear()
 	self.starfield:draw(self.cam_x, self.cam_y)
@@ -534,6 +575,7 @@ function G1:draw()
 	G.graphics.pop()
 
 	self:draw_hud()
+	self:draw_minimap()
 	self:draw_messages()
 
 	if self.state == "game_over" then
