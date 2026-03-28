@@ -223,14 +223,7 @@ function G1:screen_wrap_entity(entity)
 		wrapped = true
 	end
 	if wrapped then
-		local vx, vy = entity.physics:linear_velocity()
-		local omega = entity.physics:angular_velocity()
-		entity:destroy()
-		local info = G.assets.sprite_info(entity.image)
-		local Physics = require("physics")
-		entity.physics = Physics(nx, ny, nx + info.width, ny + info.height, 0, entity)
-		entity.physics:set_linear_velocity(vx, vy)
-		entity.physics:set_angular_velocity(omega)
+		entity.physics:set_position(nx, ny)
 		if entity:is_player() then
 			self.cam_x = nx
 			self.cam_y = ny
