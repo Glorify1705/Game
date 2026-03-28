@@ -61,6 +61,19 @@ function Entities:remove_dead()
 	end
 end
 
+local SCREEN_W = 1024
+local SCREEN_H = 800
+
+local function draw_number(n, x, y)
+	local s = tostring(n)
+	local digit_w = 19
+	local start_x = x - #s * digit_w
+	for i = 1, #s do
+		local ch = s:sub(i, i)
+		G.graphics.draw_sprite("numeral" .. ch, start_x + (i - 1) * digit_w, y)
+	end
+end
+
 local G1 = {}
 
 local SCORE_VALUES = { big = 100, med = 50, small = 25 }
@@ -76,6 +89,8 @@ function G1:init()
 	self.fullscreen = false
 	self.rnd = Random()
 	self.score = 0
+	self.lives = 3
+	self.wave = 1
 	self.shake = { x = 0, y = 0 }
 
 	self.player:set_spawn_callback(function(x, y, angle)
@@ -156,22 +171,35 @@ function G1:update(t, dt)
 	end
 end
 
+function G1:draw_hud()
+	G.graphics.set_color("white")
+	draw_number(self.score, SCREEN_W - 20, 15)
+
+	for i = 1, self.lives do
+		G.graphics.draw_sprite("playerLife1_green", 350 + (i - 1) * 35, 15)
+	end
+
+	G.graphics.set_color("freshgreen")
+	G.graphics.draw_rect(10, 10, 300, 20)
+	G.graphics.set_color("neonred")
+	local health = self.player and self.player:get_health() or 0
+	G.graphics.draw_rect(300 * health / 100, 10, 300, 20)
+
+	G.graphics.set_color("white")
+	G.graphics.print("WAVE " .. self.wave, SCREEN_W / 2 - 30, 5)
+end
+
 function G1:draw()
 	G.graphics.clear()
 	G.graphics.push()
 	G.graphics.translate(self.shake.x, self.shake.y)
 
-	local mx, my = G.input.mouse_position()
-	G.graphics.set_color("freshgreen")
-	G.graphics.draw_rect(10, 10, 300, 20)
-	G.graphics.set_color("neonred")
-	G.graphics.draw_rect(300 * self.player:get_health() / 100, 10, 300, 20)
-	G.graphics.set_color("white")
-	G.graphics.draw_sprite("numeralX", mx, my)
 	self.entities:draw()
-	G.graphics.set_color("white")
 
 	G.graphics.pop()
+
+	self:draw_hud()
+	G.graphics.set_color("white")
 end
 
 local G2 = {}
