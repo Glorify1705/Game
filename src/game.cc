@@ -32,6 +32,7 @@
 #include "lua_filesystem.h"
 #include "lua_graphics.h"
 #include "lua_input.h"
+#include "lua_log.h"
 #include "lua_math.h"
 #include "lua_physics.h"
 #include "lua_random.h"
@@ -82,8 +83,20 @@ void LogToSDL(LogLevel level, const char* message) {
     case LogLevel::kFatal:
       SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "%s", message);
       break;
+    case LogLevel::kError:
+      SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s", message);
+      break;
+    case LogLevel::kWarn:
+      SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "%s", message);
+      break;
     case LogLevel::kInfo:
       SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "%s", message);
+      break;
+    case LogLevel::kDebug:
+      SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "%s", message);
+      break;
+    case LogLevel::kTrace:
+      SDL_LogVerbose(SDL_LOG_CATEGORY_APPLICATION, "%s", message);
       break;
   }
 }
@@ -292,6 +305,7 @@ struct EngineModules {
     AddFilesystemLibrary(&lua);
     AddGraphicsLibrary(&lua);
     AddInputLibrary(&lua);
+    AddLogLibrary(&lua);
     AddMathLibrary(&lua);
     AddPhysicsLibrary(&lua);
     AddRandomLibrary(&lua);
@@ -754,7 +768,11 @@ class Game {
   }
 
   void InitializeLogging() {
+#ifdef GAME_WITH_ASSERTS
+    SDL_SetLogPriorities(SDL_LOG_PRIORITY_VERBOSE);
+#else
     SDL_SetLogPriorities(SDL_LOG_PRIORITY_INFO);
+#endif
     SetLogSink(LogToSDL);
     SetCrashHandler(SdlCrash);
   }

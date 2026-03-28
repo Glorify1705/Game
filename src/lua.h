@@ -310,6 +310,7 @@ class Lua {
   friend void AddRandomLibrary(Lua* lua);
   friend void AddSystemLibrary(Lua* lua);
   friend void AddInputLibrary(Lua* lua);
+  friend void AddLogLibrary(Lua* lua);
   friend void AddPhysicsLibrary(Lua* lua);
   friend void AddSoundLibrary(Lua* lua);
   friend void AddBufferLibrary(Lua* lua);

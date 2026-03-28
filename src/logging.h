@@ -9,7 +9,48 @@
 
 namespace G {
 
-enum class LogLevel : uint8_t { kInfo, kFatal };
+// Log severity levels, ordered from most to least severe.
+enum class LogLevel : uint8_t {
+  kFatal,  // Unrecoverable - crash after logging
+  kError,  // Wrong but recoverable
+  kWarn,   // Suspicious but possibly fine
+  kInfo,   // Normal operational messages
+  kDebug,  // Developer diagnostics - compiled out in release
+  kTrace,  // High-frequency diagnostics - compiled out in release
+};
+
+// Compile-time log level threshold. Levels above this are eliminated entirely.
+#ifdef GAME_WITH_ASSERTS
+inline constexpr LogLevel kCompileTimeLogLevel = LogLevel::kTrace;
+#else
+inline constexpr LogLevel kCompileTimeLogLevel = LogLevel::kInfo;
+#endif
+
+// Log channels for per-subsystem filtering.
+enum class LogChannel : uint8_t {
+  kGeneral,   // Default channel
+  kGraphics,  // Rendering and GPU
+  kPhysics,   // Physics simulation
+  kAudio,     // Sound and music
+  kInput,     // Input handling
+  kAssets,    // Asset loading and management
+  kLua,       // Lua scripting
+  kCount,
+};
+
+#ifdef GAME_WITH_ASSERTS
+// Runtime level per channel (debug builds only).
+inline LogLevel g_channel_levels[static_cast<size_t>(LogChannel::kCount)] = {
+    LogLevel::kTrace, LogLevel::kTrace, LogLevel::kTrace, LogLevel::kTrace,
+    LogLevel::kTrace, LogLevel::kTrace, LogLevel::kTrace,
+};
+
+// Sets the runtime log level for a channel (debug builds only).
+void SetChannelLevel(LogChannel channel, LogLevel level);
+
+// Gets the runtime log level for a channel (debug builds only).
+LogLevel GetChannelLevel(LogChannel channel);
+#endif
 
 using LogSink = void (*)(LogLevel /*lvl*/, const char* /*message*/);
 
@@ -32,6 +73,15 @@ LogSink SetCrashHandler();
 
 // Trims the path to be the last part of the path (basename).
 std::string_view TrimPath(std::string_view f);
+
+// Logs a message at the given level with file and line information.
+template <typename... T>
+void LogAt(LogLevel level, std::string_view file, int line, T&&... ts) {
+  FixedStringBuffer<kMaxLogLineLength> buf("[", TrimPath(file), ":", line,
+                                           "] ");
+  buf.Append<T...>(std::forward<T>(ts)...);
+  GetLogSink()(level, buf.str());
+}
 
 template <typename... T>
 [[noreturn]] void Crash(std::string_view file, int line, T&&... ts) {
@@ -88,7 +138,30 @@ template <typename T>
 
 #define DIE(...) ::G::Crash(__FILE__, __LINE__, ##__VA_ARGS__)
 
-#define LOG(...) ::G::Log(__FILE__, __LINE__, ##__VA_ARGS__)
+// Logs a message at the given level. Levels above kCompileTimeLogLevel are
+// eliminated entirely by the compiler - no string literals, no formatting.
+#define LOG_AT(level, ...)                                    \
+  do {                                                        \
+    if constexpr ((level) <= ::G::kCompileTimeLogLevel) {     \
+      ::G::LogAt((level), __FILE__, __LINE__, ##__VA_ARGS__); \
+    }                                                         \
+  } while (0)
+
+#define LOG(...) LOG_AT(::G::LogLevel::kInfo, __VA_ARGS__)
+#define ELOG(...) LOG_AT(::G::LogLevel::kError, __VA_ARGS__)
+#define WLOG(...) LOG_AT(::G::LogLevel::kWarn, __VA_ARGS__)
+#define DLOG(...) LOG_AT(::G::LogLevel::kDebug, __VA_ARGS__)
+#define TLOG(...) LOG_AT(::G::LogLevel::kTrace, __VA_ARGS__)
+
+// Logs with per-subsystem channel filtering (runtime check, debug builds only).
+#define CLOG(channel, level, ...)                                           \
+  do {                                                                      \
+    if constexpr ((level) <= ::G::kCompileTimeLogLevel) {                   \
+      if ((level) <= ::G::g_channel_levels[static_cast<size_t>(channel)]) { \
+        ::G::LogAt((level), __FILE__, __LINE__, ##__VA_ARGS__);             \
+      }                                                                     \
+    }                                                                       \
+  } while (0)
 
 #define DONOTSUBMIT LOG
 
