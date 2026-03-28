@@ -832,6 +832,17 @@ class Camera {
 };
 ```
 
+Every member of a public enum must have a trailing `//` comment explaining
+its meaning:
+
+```cpp
+// Discriminant for the Timer union.
+enum TimerType : uint8_t {
+  kAfter,     // Fire once after a delay.
+  kEvery,     // Fire repeatedly at a fixed interval.
+};
+```
+
 For public API functions that are non-obvious, a one-line `//` comment above
 the declaration is sufficient:
 

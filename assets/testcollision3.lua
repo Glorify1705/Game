@@ -20,8 +20,8 @@ local PLAYER_W = 24
 local PLAYER_H = 24
 
 local CAT_PLAYER = 1
-local CAT_WALL   = 2
-local CAT_COIN   = 4
+local CAT_WALL = 2
+local CAT_COIN = 4
 
 -- For standalone test visualization
 local test_shape_a, test_shape_b
@@ -67,9 +67,14 @@ function Game:init()
 
 	-- Coins (trigger circles)
 	local coin_positions = {
-		{ 120, 100 }, { 350, 100 }, { 600, 100 },
-		{ 120, 300 }, { 350, 400 }, { 600, 300 },
-		{ 250, 500 }, { 550, 500 },
+		{ 120, 100 },
+		{ 350, 100 },
+		{ 600, 100 },
+		{ 120, 300 },
+		{ 350, 400 },
+		{ 600, 300 },
+		{ 250, 500 },
+		{ 550, 500 },
 	}
 	for _, pos in ipairs(coin_positions) do
 		local s = G.collision.circle(14)
@@ -109,10 +114,18 @@ function Game:update(t, dt)
 
 	-- Player movement with slide
 	local vx, vy = 0, 0
-	if G.input.is_key_down("w") then vy = -PLAYER_SPEED end
-	if G.input.is_key_down("s") then vy = PLAYER_SPEED end
-	if G.input.is_key_down("a") then vx = -PLAYER_SPEED end
-	if G.input.is_key_down("d") then vx = PLAYER_SPEED end
+	if G.input.is_key_down("w") then
+		vy = -PLAYER_SPEED
+	end
+	if G.input.is_key_down("s") then
+		vy = PLAYER_SPEED
+	end
+	if G.input.is_key_down("a") then
+		vx = -PLAYER_SPEED
+	end
+	if G.input.is_key_down("d") then
+		vx = PLAYER_SPEED
+	end
 
 	if vx ~= 0 and vy ~= 0 then
 		local inv = 1.0 / math.sqrt(2)
@@ -135,10 +148,7 @@ function Game:update(t, dt)
 	local W = G.window.dimensions()
 	local mx, my = G.input.mouse_position()
 	local box_cx, box_cy = W - 100, 100
-	local hit, nx, ny, depth = G.collision.test(
-		test_shape_a, mx, my,
-		test_shape_b, box_cx, box_cy
-	)
+	local hit, nx, ny, depth = G.collision.test(test_shape_a, mx, my, test_shape_b, box_cx, box_cy)
 	test_result.hit = hit
 	test_result.nx = nx or 0
 	test_result.ny = ny or 0
@@ -154,8 +164,7 @@ function Game:draw()
 	-- Draw walls
 	G.graphics.set_color(80, 80, 100, 255)
 	for _, w in ipairs(walls) do
-		G.graphics.draw_rect(w.x - w.w / 2, w.y - w.h / 2,
-			w.x + w.w / 2, w.y + w.h / 2)
+		G.graphics.draw_rect(w.x - w.w / 2, w.y - w.h / 2, w.x + w.w / 2, w.y + w.h / 2)
 	end
 
 	-- Draw coins
@@ -171,8 +180,7 @@ function Game:draw()
 	-- Draw player
 	local px, py = world:get_position(player)
 	G.graphics.set_color("white")
-	G.graphics.draw_rect(px - PLAYER_W / 2, py - PLAYER_H / 2,
-		px + PLAYER_W / 2, py + PLAYER_H / 2)
+	G.graphics.draw_rect(px - PLAYER_W / 2, py - PLAYER_H / 2, px + PLAYER_W / 2, py + PLAYER_H / 2)
 
 	-- Draw standalone test visualization (top-right area)
 	-- Box (static)
@@ -181,17 +189,19 @@ function Game:draw()
 	else
 		G.graphics.set_color(60, 60, 80, 200)
 	end
-	G.graphics.draw_rect(test_result.bx - 20, test_result.by - 20,
-		test_result.bx + 20, test_result.by + 20)
+	G.graphics.draw_rect(test_result.bx - 20, test_result.by - 20, test_result.bx + 20, test_result.by + 20)
 
 	-- Circle (follows mouse)
 	if test_result.hit then
 		G.graphics.set_color(255, 100, 100, 180)
 		-- Draw separation normal
 		G.graphics.set_color("green")
-		G.graphics.draw_line(test_result.ax, test_result.ay,
+		G.graphics.draw_line(
+			test_result.ax,
+			test_result.ay,
 			test_result.ax + test_result.nx * test_result.depth * 2,
-			test_result.ay + test_result.ny * test_result.depth * 2)
+			test_result.ay + test_result.ny * test_result.depth * 2
+		)
 		G.graphics.set_color(255, 100, 100, 180)
 	else
 		G.graphics.set_color(100, 100, 140, 180)
@@ -206,8 +216,16 @@ function Game:draw()
 
 	if test_result.hit then
 		G.graphics.set_color("red")
-		G.graphics.print(string.format("collision.test: HIT  depth=%.1f  n=(%.2f, %.2f)",
-			test_result.depth, test_result.nx, test_result.ny), 10, 94)
+		G.graphics.print(
+			string.format(
+				"collision.test: HIT  depth=%.1f  n=(%.2f, %.2f)",
+				test_result.depth,
+				test_result.nx,
+				test_result.ny
+			),
+			10,
+			94
+		)
 	else
 		G.graphics.set_color(100, 100, 100, 255)
 		G.graphics.print("collision.test: no hit", 10, 94)

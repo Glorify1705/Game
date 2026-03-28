@@ -31,6 +31,7 @@
 #include "lua_random.h"
 #include "lua_sound.h"
 #include "lua_system.h"
+#include "lua_timer.h"
 #include "mimalloc_allocator.h"
 #include "packer.h"
 #include "physics.h"
@@ -42,6 +43,7 @@
 #include "stats.h"
 #include "stringlib.h"
 #include "thread_pool.h"
+#include "timer.h"
 #include "units.h"
 #include "vec.h"
 #include "version.h"
@@ -240,6 +242,7 @@ struct EngineModules {
     lua.Register(&console);
     lua.Register(&camera);
     lua.Register(assets);
+    lua.Register(&timers);
     AddByteBufferLibrary(&lua);
     AddCameraLibrary(&lua);
     AddFilesystemLibrary(&lua);
@@ -252,6 +255,7 @@ struct EngineModules {
     AddSystemLibrary(&lua);
     AddAssetsLibrary(&lua);
     AddCollisionLibrary(&lua);
+    AddTimerLibrary(&lua);
     lua.BuildCompilationCache();
     RegisterLoaders();
     assets->Load();
@@ -386,6 +390,7 @@ struct EngineModules {
   }
 
   void Reload() {
+    timers.Clear();
     sound.StopAll();
     assets->Load();
   }
@@ -432,6 +437,7 @@ struct EngineModules {
   Camera camera;
   MimallocAllocator lua_allocator;
   Lua lua;
+  TimerSystem timers;
   Physics physics;
   ArenaAllocator frame_allocator;
   ThreadPool pool;
@@ -593,6 +599,8 @@ class Game {
       return;
     }
     e_->lua.SetRealTime(real_t, real_dt);
+    e_->timers.Update(static_cast<float>(scaled_dt),
+                      static_cast<float>(real_dt));
     e_->physics.Update(scaled_dt);
     e_->lua.Update(t, scaled_dt);
     IVec2 vp = e_->batch_renderer.GetViewport();
