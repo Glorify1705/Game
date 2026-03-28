@@ -4,6 +4,8 @@
 
 #include <SDL3/SDL.h>
 
+#include <mutex>
+
 #include "allocators.h"
 #include "array.h"
 #include "circular_buffer.h"
@@ -17,15 +19,11 @@ class DebugConsole {
  public:
   DebugConsole(Allocator* allocator)
       : buffers_(allocator, kMaxLines), lines_(kMaxLines, allocator) {
-    mu_ = SDL_CreateMutex();
     SDL_GetLogOutputFunction(&log_fn_, &log_fn_userdata_);
     SDL_SetLogOutputFunction(LogWithConsole, this);
   }
 
-  ~DebugConsole() {
-    SDL_SetLogOutputFunction(log_fn_, log_fn_userdata_);
-    SDL_DestroyMutex(mu_);
-  }
+  ~DebugConsole() { SDL_SetLogOutputFunction(log_fn_, log_fn_userdata_); }
 
   template <typename... Ts>
   void Log(Ts... ts) {
@@ -57,7 +55,7 @@ class DebugConsole {
   SDL_LogOutputFunction log_fn_;
   void* log_fn_userdata_;
 
-  SDL_Mutex* mu_ = nullptr;
+  std::mutex mu_;
 };
 
 }  // namespace G

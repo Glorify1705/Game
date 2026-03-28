@@ -2,25 +2,22 @@
 #ifndef _GAME_THREAD_H
 #define _GAME_THREAD_H
 
-#include <SDL3/SDL_mutex.h>
+#include <mutex>
 
 namespace G {
 
+// RAII lock guard for std::mutex. Equivalent to std::lock_guard but
+// keeps the existing name used throughout the codebase.
 struct LockMutex {
-  explicit LockMutex(SDL_Mutex* mutex) : mu(mutex) { SDL_LockMutex(mu); }
+  explicit LockMutex(std::mutex& mutex) : mu_(mutex) { mu_.lock(); }
 
-  ~LockMutex() {
-    if (mu) SDL_UnlockMutex(mu);
-  }
+  ~LockMutex() { mu_.unlock(); }
 
-  SDL_Mutex* Release() {
-    SDL_Mutex* result = mu;
-    SDL_UnlockMutex(mu);
-    mu = nullptr;
-    return result;
-  }
+  LockMutex(const LockMutex&) = delete;
+  LockMutex& operator=(const LockMutex&) = delete;
 
-  SDL_Mutex* mu;
+ private:
+  std::mutex& mu_;
 };
 
 }  // namespace G

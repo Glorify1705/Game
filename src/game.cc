@@ -4,9 +4,12 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 #include <string_view>
+#include <thread>
 
 #include "allocators.h"
 #include "assets.h"
@@ -178,11 +181,10 @@ struct EngineModules {
         allocator_(allocator),
         hotload_allocator_(allocator, kHotReloadMemory),
         watcher_(allocator) {
-    mu = SDL_CreateMutex();
     pending_changes_.store(0);
   }
 
-  ~EngineModules() { SDL_DestroyMutex(mu); }
+  ~EngineModules() = default;
 
   static int StaticCheckChangedFiles(void* ctx) {
     auto* e = static_cast<EngineModules*>(ctx);
@@ -198,7 +200,7 @@ struct EngineModules {
     };
     while (!is_stopped()) {
       if (source_directory == nullptr) {
-        SDL_Delay(100);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         continue;
       }
 
@@ -222,7 +224,7 @@ struct EngineModules {
             WriteAssetsToDb(source_directory, db, &hotload_allocator_);
         if (result.is_error()) {
           LOG("[hotload] WriteAssetsToDb failed: ", result.error().message());
-          SDL_Delay(50);
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
           continue;
         }
         size_t written = result.release_value().written_files;
@@ -250,7 +252,8 @@ struct EngineModules {
       }
 
       // Sleep longer when idle (no events), shorter when active.
-      SDL_Delay(changes.count > 0 ? 10 : 50);
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds(changes.count > 0 ? 10 : 50));
     }
   }
 
@@ -463,7 +466,7 @@ struct EngineModules {
     ForwardEventToLua(event);
   }
 
-  SDL_Mutex* mu;
+  std::mutex mu;
   DebugConsole console;
   sqlite3* db;
   bool stopped = false;
@@ -597,7 +600,7 @@ class Game {
       last_frame = now;
       accum += frame_time;
       if (accum < kStep) {
-        SDL_Delay(1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
         continue;
       }
       PROFILE_FRAME;

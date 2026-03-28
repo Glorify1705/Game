@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 
 #include <atomic>
+#include <thread>
 
 #include "clock.h"
 #include "debug_font.h"
@@ -97,8 +98,7 @@ struct WorkerContext {
   std::atomic<size_t> thread_id_counter;
 };
 
-int ProcessWorkItems(void* ud) {
-  auto* ctx = static_cast<WorkerContext*>(ud);
+void ProcessWorkItems(WorkerContext* ctx) {
   size_t thread_idx =
       ctx->thread_id_counter.fetch_add(1, std::memory_order_relaxed);
   ArenaAllocator scratch(ctx->scratch_bufs[thread_idx], kScratchArenaSize);
@@ -174,7 +174,6 @@ int ProcessWorkItems(void* ud) {
       }
     }
   }
-  return 0;
 }
 
 class DbPacker {
@@ -803,15 +802,12 @@ class DbPacker {
     LOG("Processing ", deferred_.size(), " files with ", num_threads,
         " threads");
 
-    FixedArray<SDL_Thread*> threads(num_threads, allocator_);
+    FixedArray<std::thread> threads(num_threads, allocator_);
     for (int i = 0; i < num_threads; i++) {
-      FixedStringBuffer<32> name("Packer", i);
-      threads.Push(SDL_CreateThread(ProcessWorkItems, name.str(), &ctx));
+      threads.Push(std::thread(ProcessWorkItems, &ctx));
     }
     for (size_t i = 0; i < threads.size(); i++) {
-      int status;
-      SDL_WaitThread(threads[i], &status);
-      CHECK(status == 0, "Worker thread ", i, " failed");
+      threads[i].join();
     }
 
     for (size_t i = 0; i < deferred_.size(); i++) {

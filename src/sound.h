@@ -5,6 +5,7 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
+#include <mutex>
 
 #include "allocators.h"
 #include "array.h"
@@ -28,12 +29,9 @@ class Sound {
         pcm_alloc_(allocator),
         effect_cache_(allocator) {
     buffer_.Resize(buffer_.capacity());
-    mu_ = SDL_CreateMutex();
   }
 
-  ~Sound() {
-    if (mu_ != nullptr) SDL_DestroyMutex(mu_);
-  }
+  ~Sound() = default;
 
   using Source = uint32_t;
 
@@ -263,7 +261,7 @@ class Sound {
   };
 
   FixedArray<float> buffer_;
-  SDL_Mutex* mu_ = nullptr;
+  mutable std::mutex mu_;
   Dictionary<DbAssets::Sound> sounds_;
   static constexpr size_t kMaxStreams = 128;
   Stream streams_[kMaxStreams];

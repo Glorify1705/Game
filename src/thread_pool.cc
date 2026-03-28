@@ -7,66 +7,45 @@ namespace G {
 
 ThreadPool::ThreadPool(Allocator* allocator, size_t num_threads)
     : threads_(num_threads, allocator),
-      user_data_(num_threads, allocator),
       num_threads_(num_threads),
       work_(kMaxFunctions, allocator) {}
 
-ThreadPool::~ThreadPool() {
-  SDL_DestroyMutex(mu_);
-  SDL_DestroyCondition(cv_);
-}
+ThreadPool::~ThreadPool() = default;
 
 void ThreadPool::Queue(int (*fn)(void*), void* userdata) {
-  CHECK(mu_ != nullptr, "Thread pool not initialized");
   {
     LockMutex l(mu_);
     Work work = {fn, userdata};
     work_.Push(work);
   }
-  SDL_SignalCondition(cv_);
+  cv_.notify_one();
 }
 
 void ThreadPool::Start() {
   LOG("Starting thread pool with ", num_threads_, " threads.");
-  CHECK(mu_ == nullptr, "Thread pool initialized twice");
-  mu_ = SDL_CreateMutex();
-  cv_ = SDL_CreateCondition();
   LockMutex l(mu_);
   for (size_t i = 0; i < num_threads_; ++i) {
-    FixedStringBuffer<32> thread_name("Thread", i);
-    user_data_.Push(UserData{this, i});
-    threads_.Push(
-        SDL_CreateThread(LoopFn, thread_name.str(), &user_data_.back()));
+    threads_.Push(std::thread(&ThreadPool::Loop, this, i));
   }
 }
 
 int ThreadPool::Loop(size_t index) {
   LOG("Started thread ", index);
   while (true) {
-    SDL_LockMutex(mu_);
-    while (work_.empty() && !exit_) {
-      SDL_WaitCondition(cv_, mu_);
-    }
-    if (exit_) {
-      SDL_UnlockMutex(mu_);
-      return 0;
-    }
+    std::unique_lock<std::mutex> lock(mu_);
+    cv_.wait(lock, [this] { return !work_.empty() || exit_; });
+    if (exit_) return 0;
     Work fn = work_.Pop();
-    SDL_UnlockMutex(mu_);
+    lock.unlock();
     int result = fn.fn(fn.userdata);
-    if (result != 0) {
-      SDL_UnlockMutex(mu_);
-      return result;
-    }
+    if (result != 0) return result;
   }
   return 0;
 }
 
 void ThreadPool::Wait() {
   for (size_t i = 0; i < threads_.size(); ++i) {
-    int status;
-    SDL_WaitThread(threads_[i], &status);
-    CHECK(status == 0, "Abnormal termination of thread: ", i);
+    if (threads_[i].joinable()) threads_[i].join();
   }
 }
 
@@ -76,7 +55,7 @@ void ThreadPool::Stop() {
     LockMutex l(mu_);
     exit_ = true;
   }
-  SDL_BroadcastCondition(cv_);
+  cv_.notify_all();
 }
 
 }  // namespace G

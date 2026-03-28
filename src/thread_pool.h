@@ -2,8 +2,9 @@
 #ifndef _GAME_THREAD_POOL_H
 #define _GAME_THREAD_POOL_H
 
-#include <SDL3/SDL_mutex.h>
-#include <SDL3/SDL_thread.h>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 
 #include "array.h"
 #include "circular_buffer.h"
@@ -16,35 +17,29 @@ class ThreadPool {
 
   ~ThreadPool();
 
+  // Start all worker threads.
   void Start();
 
+  // Signal all threads to exit.
   void Stop();
 
+  // Wait for all threads to finish.
   void Wait();
 
+  // Enqueue a work item.
   void Queue(int (*fn)(void*), void* userdata);
 
  private:
-  struct UserData {
-    ThreadPool* self;
-    std::size_t index;
-  };
   struct Work {
     int (*fn)(void*);
     void* userdata;
   };
 
-  static int LoopFn(void* data) {
-    auto* in = static_cast<UserData*>(data);
-    return in->self->Loop(in->index);
-  }
-
   int Loop(size_t index);
 
-  FixedArray<SDL_Thread*> threads_;
-  FixedArray<UserData> user_data_;
-  SDL_Mutex* mu_ = nullptr;
-  SDL_Condition* cv_ = nullptr;
+  FixedArray<std::thread> threads_;
+  std::mutex mu_;
+  std::condition_variable cv_;
   size_t num_threads_;
   static constexpr size_t kMaxFunctions = 4096;
   CircularBuffer<Work> work_;
