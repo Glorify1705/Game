@@ -175,6 +175,18 @@ void Physics::DestroyHandle(Handle handle) {
   world_.DestroyBody(handle.handle);
 }
 
+void Physics::Clear() {
+  b2Body* body = world_.GetBodyList();
+  while (body != nullptr) {
+    b2Body* next = body->GetNext();
+    if (body != ground_) {
+      destroy_callback_(body->GetUserData().pointer, destroy_userdata_);
+      world_.DestroyBody(body);
+    }
+    body = next;
+  }
+}
+
 void Physics::Rotate(Handle handle, float angle) {
   auto* body = handle.handle;
   body->SetTransform(body->GetPosition(), body->GetAngle() + angle);

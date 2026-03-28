@@ -2,6 +2,8 @@
 
 #include <SDL3/SDL.h>
 
+#include <array>
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <string_view>
@@ -13,6 +15,7 @@
 #include "clock.h"
 #include "config.h"
 #include "console.h"
+#include "file_watcher.h"
 #include "filesystem.h"
 #include "input.h"
 #include "libraries/glad.h"
@@ -48,14 +51,6 @@
 #include "units.h"
 #include "vec.h"
 #include "version.h"
-
-#ifndef _WIN32
-#include <sys/inotify.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <cerrno>
-#endif
 
 namespace G {
 
@@ -108,52 +103,50 @@ IVec2 GetWindowViewport(SDL_Window* window) {
   return result;
 }
 
-// TODO: port this to windows.
-#ifdef _WIN32
-struct Filewatcher {};
-#else
-class Filewatcher {
- public:
-  explicit Filewatcher(sqlite3* /*db*/) {
-    file_descriptor_ = inotify_init1(IN_NONBLOCK);
-    CHECK(file_descriptor_ >= 0, "Failed to start inotify: ", strerror(errno));
-  }
+namespace {
 
-  ~Filewatcher() {
-    for (size_t i = 0; i < watches_count_; ++i) {
-      inotify_rm_watch(file_descriptor_, watches_[i]);
-    }
-    if (file_descriptor_ >= 0) close(file_descriptor_);
-    file_descriptor_ = -1;
-  }
-
-  void Watch(const char* directory) {
-    int watch = inotify_add_watch(file_descriptor_, directory,
-                                  IN_MODIFY | IN_CREATE | IN_DELETE);
-    CHECK(watch >= 0, "Could not add watch for ", directory, ": ",
-          strerror(errno));
-    watches_[watches_count_++] = watch;
-  }
-
-  void CheckForEvents() {
-    ssize_t length = read(file_descriptor_, events_, sizeof(events_));
-    if (length <= 0) {
-      if (errno == EAGAIN) return;
-      DIE("Failed to read file watching events: ", strerror(errno));
-    }
-    for (char* ptr = events_; ptr < events_ + length;) {
-      const auto* event = reinterpret_cast<const inotify_event*>(ptr);
-      ptr += sizeof(inotify_event) + event->len;
-    }
-  }
-
- private:
-  int file_descriptor_ = -1;
-  size_t watches_count_ = 0;
-  int watches_[1024];
-  alignas(sizeof(inotify_event)) char events_[1024 * sizeof(inotify_event)];
+// Audio file extensions checked during hot-reload to decide whether
+// sound.StopAll() is necessary.
+constexpr std::array<std::string_view, 3> kAudioExtensions = {
+    ".qoa",
+    ".ogg",
+    ".wav",
 };
-#endif
+
+// Script file extensions checked during hot-reload to decide whether
+// lua.LoadMain() + lua.Init() must re-run.
+constexpr std::array<std::string_view, 2> kScriptExtensions = {
+    ".lua",
+    ".fnl",
+};
+
+bool HasAudioExtension(const char* path) {
+  std::string_view sv(path);
+  for (auto ext : kAudioExtensions) {
+    if (HasSuffix(sv, ext)) return true;
+  }
+  return false;
+}
+
+bool HasScriptExtension(const char* path) {
+  std::string_view sv(path);
+  for (auto ext : kScriptExtensions) {
+    if (HasSuffix(sv, ext)) return true;
+  }
+  return false;
+}
+
+}  // namespace
+
+// Describes what kinds of assets changed during a hot-reload cycle.
+struct HotReloadChanges {
+  bool has_script_changes = false;
+  bool has_audio_changes = false;
+  uint32_t file_count = 0;
+  // First few changed file paths for logging.
+  static constexpr uint32_t kMaxLogFiles = 8;
+  const char* files[kMaxLogFiles] = {};
+};
 
 struct EngineModules {
   EngineModules(Slice<const char*> args, sqlite3* db, DbAssets* db_assets,
@@ -184,9 +177,9 @@ struct EngineModules {
         pool(allocator, 4),
         allocator_(allocator),
         hotload_allocator_(allocator, kHotReloadMemory),
-        watcher_(db) {
+        watcher_(allocator) {
     mu = SDL_CreateMutex();
-    SDL_SetAtomicInt(&pending_changes_, 0);
+    pending_changes_.store(0);
   }
 
   ~EngineModules() { SDL_DestroyMutex(mu); }
@@ -198,32 +191,79 @@ struct EngineModules {
   }
 
   void CheckChangedFiles() {
-    LOG("Checking files in the background");
+    LOG("Background file watcher started");
     auto is_stopped = [this] {
       LockMutex l(mu);
       return stopped;
     };
     while (!is_stopped()) {
       if (source_directory == nullptr) {
-        // Packaged mode: no source files to hot-reload.  Keep the thread
-        // alive but idle until it is stopped.
         SDL_Delay(100);
         continue;
       }
-      hotload_allocator_.Reset();
-      auto result = WriteAssetsToDb(source_directory, db, &hotload_allocator_);
-      if (result.is_error()) {
-        LOG("Hotload failed: ", result.error().message());
-        continue;
+
+      watcher_.CheckForEvents();
+      auto changes = watcher_.DrainChanges();
+
+      bool should_process = false;
+      if (changes.needs_full_rescan) {
+        LOG("[hotload] Full rescan requested");
+        should_process = true;
+      } else if (changes.count > 0) {
+        for (uint32_t i = 0; i < changes.count; ++i) {
+          LOG("[hotload] File changed: ", changes.paths[i]);
+        }
+        should_process = true;
       }
-      SDL_SetAtomicInt(&pending_changes_, result.release_value().written_files);
-      SDL_Delay(10);
+
+      if (should_process) {
+        hotload_allocator_.Reset();
+        auto result =
+            WriteAssetsToDb(source_directory, db, &hotload_allocator_);
+        if (result.is_error()) {
+          LOG("[hotload] WriteAssetsToDb failed: ", result.error().message());
+          SDL_Delay(50);
+          continue;
+        }
+        size_t written = result.release_value().written_files;
+        LOG("[hotload] WriteAssetsToDb wrote ", written, " file(s)");
+        if (written > 0) {
+          LockMutex l(mu);
+          pending_reload_.file_count = changes.count;
+          pending_reload_.has_script_changes = false;
+          pending_reload_.has_audio_changes = false;
+          if (changes.needs_full_rescan) {
+            pending_reload_.has_script_changes = true;
+            pending_reload_.has_audio_changes = true;
+          } else {
+            for (uint32_t i = 0; i < changes.count; ++i) {
+              if (HasScriptExtension(changes.paths[i])) {
+                pending_reload_.has_script_changes = true;
+              }
+              if (HasAudioExtension(changes.paths[i])) {
+                pending_reload_.has_audio_changes = true;
+              }
+            }
+          }
+          pending_changes_.store(static_cast<int>(written));
+        }
+      }
+
+      // Sleep longer when idle (no events), shorter when active.
+      SDL_Delay(changes.count > 0 ? 10 : 50);
     }
   }
 
-  int PendingChanges() { return SDL_GetAtomicInt(&pending_changes_); }
+  int PendingChanges() { return pending_changes_.load(); }
 
-  void MarkChangesAsProcessed() { SDL_SetAtomicInt(&pending_changes_, 0); }
+  // Get the description of pending changes and reset the atomic flag.
+  HotReloadChanges ConsumePendingChanges() {
+    LockMutex l(mu);
+    HotReloadChanges result = pending_reload_;
+    pending_reload_ = {};
+    pending_changes_.store(0);
+    return result;
+  }
 
   void Initialize() {
     TIMER();
@@ -270,6 +310,9 @@ struct EngineModules {
     }
     lua.LoadMain();
     lua.FlushCompilationCache();
+    if (source_directory != nullptr) {
+      watcher_.Watch(source_directory);
+    }
     pool.Start();
     pool.Queue(StaticCheckChangedFiles, this);
   }
@@ -390,9 +433,12 @@ struct EngineModules {
     }
   }
 
-  void Reload() {
+  void Reload(const HotReloadChanges& changes) {
     timers.Clear();
-    sound.StopAll();
+    if (changes.has_audio_changes || changes.has_script_changes) {
+      sound.StopAll();
+    }
+    physics.Clear();
     assets->Load();
   }
 
@@ -444,8 +490,9 @@ struct EngineModules {
   ThreadPool pool;
   Allocator* allocator_;
   ArenaAllocator hotload_allocator_;
-  Filewatcher watcher_;
-  SDL_AtomicInt pending_changes_;
+  FileWatcher watcher_;
+  std::atomic<int> pending_changes_{0};
+  HotReloadChanges pending_reload_;
 };
 
 class Game {
@@ -518,9 +565,6 @@ class Game {
                                         allocator_, opts_.source_directory);
     e_->Initialize();
     e_->lua.Init();
-    if (opts_.hotreload) {
-      e_->watcher_.Watch(opts_.source_directory);
-    }
   }
 
   void Run() {
@@ -537,11 +581,16 @@ class Game {
       if (e_->PendingChanges()) {
         PROFILE_SCOPE_N("HotReload");
         TIMER("Hotload requested");
+        auto changes = e_->ConsumePendingChanges();
         e_->lua.ClearError();
-        e_->Reload();
-        e_->lua.LoadMain();
-        e_->lua.Init();
-        e_->MarkChangesAsProcessed();
+        e_->Reload(changes);
+        if (changes.has_script_changes) {
+          e_->lua.LoadMain();
+          e_->lua.Init();
+        }
+        LOG("Hot-reload complete: ", changes.file_count, " file(s) changed",
+            changes.has_script_changes ? " (scripts)" : "",
+            changes.has_audio_changes ? " (audio)" : "");
       }
       const double now = NowInSeconds();
       const double frame_time = now - last_frame;
