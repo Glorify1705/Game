@@ -75,6 +75,8 @@ end
 
 local SCREEN_W = 1024
 local SCREEN_H = 800
+local WORLD_W = 4000
+local WORLD_H = 3000
 
 local function draw_number(n, x, y)
 	local s = tostring(n)
@@ -113,6 +115,10 @@ function G1:init()
 	self.respawning = false
 	self.particles = {}
 	self.intense_music = false
+	self.cam_x = WORLD_W / 2
+	self.cam_y = WORLD_H / 2
+	self.zoom = 1.0
+	self.target_zoom = 1.0
 	self.starfield = Starfield(SCREEN_W, SCREEN_H, self.rnd.rnd)
 
 	self:spawn_player()
@@ -136,7 +142,7 @@ function G1:init()
 end
 
 function G1:spawn_player()
-	self.player = Player(SCREEN_W / 2, SCREEN_H / 2)
+	self.player = Player(WORLD_W / 2, WORLD_H / 2)
 	self.entities:add(self.player)
 	self.respawning = false
 
@@ -177,16 +183,16 @@ function G1:screen_wrap_entity(entity)
 	local nx, ny = v.x, v.y
 	local wrapped = false
 	if v.x < -WRAP_MARGIN then
-		nx = SCREEN_W + WRAP_MARGIN
+		nx = WORLD_W + WRAP_MARGIN
 		wrapped = true
-	elseif v.x > SCREEN_W + WRAP_MARGIN then
+	elseif v.x > WORLD_W + WRAP_MARGIN then
 		nx = -WRAP_MARGIN
 		wrapped = true
 	end
 	if v.y < -WRAP_MARGIN then
-		ny = SCREEN_H + WRAP_MARGIN
+		ny = WORLD_H + WRAP_MARGIN
 		wrapped = true
-	elseif v.y > SCREEN_H + WRAP_MARGIN then
+	elseif v.y > WORLD_H + WRAP_MARGIN then
 		ny = -WRAP_MARGIN
 		wrapped = true
 	end
@@ -259,52 +265,48 @@ function G1:update_music()
 	end
 end
 
-function G1:spawn_meteor_offscreen(size, grey)
+function G1:spawn_meteor(size, grey)
 	local rng = self.rnd.rnd
-	local side = G.random.sample(rng, 1, 4)
-	local x, y
-	local margin = 80
-	if side == 1 then
-		x = G.random.sample(rng, 0, SCREEN_W)
-		y = -margin
-	elseif side == 2 then
-		x = SCREEN_W + margin
-		y = G.random.sample(rng, 0, SCREEN_H)
-	elseif side == 3 then
-		x = G.random.sample(rng, 0, SCREEN_W)
-		y = SCREEN_H + margin
-	else
-		x = -margin
-		y = G.random.sample(rng, 0, SCREEN_H)
+	local x = G.random.sample(rng, 0, WORLD_W)
+	local y = G.random.sample(rng, 0, WORLD_H)
+	-- avoid spawning right on top of the player
+	if self.player and not self.player.dead then
+		local pv = self.player.physics:position()
+		local dx = x - pv.x
+		local dy = y - pv.y
+		if dx * dx + dy * dy < 300 * 300 then
+			x = x + (dx >= 0 and 400 or -400)
+			y = y + (dy >= 0 and 400 or -400)
+		end
 	end
 
 	local m = Meteor(x, y, size, grey)
-	local cx = SCREEN_W / 2 + G.random.sample(rng, -200, 200)
-	local cy = SCREEN_H / 2 + G.random.sample(rng, -200, 200)
-	local dx = cx - x
-	local dy = cy - y
-	local dist = math.sqrt(dx * dx + dy * dy)
-	local base_force = 15 + self.wave * 2
-	if dist > 0 then
-		m:set_drift(dx / dist * base_force, dy / dist * base_force)
-	end
+	-- random gentle drift direction
+	local angle = G.random.sample(rng, 0, 628) / 100.0
+	local base_force = 10 + self.wave * 1.5
+	m:set_drift(math.cos(angle) * base_force, math.sin(angle) * base_force)
 	self.entities:add(m)
 end
 
 function G1:start_next_wave()
 	self.wave = self.wave + 1
 	self.wave_active = true
-	local num_big = self.wave + 2
-	local num_med = math.floor(self.wave / 2)
+	local num_big = self.wave * 2 + 4
+	local num_med = self.wave + 1
+	local num_small = math.floor(self.wave / 2)
 	local use_grey = self.wave > 3
 
-	for i = 1, num_big do
+	for _ = 1, num_big do
 		local grey = use_grey and G.random.sample(self.rnd.rnd, 1, 100) > 50
-		self:spawn_meteor_offscreen("big", grey)
+		self:spawn_meteor("big", grey)
 	end
-	for i = 1, num_med do
+	for _ = 1, num_med do
 		local grey = use_grey and G.random.sample(self.rnd.rnd, 1, 100) > 50
-		self:spawn_meteor_offscreen("med", grey)
+		self:spawn_meteor("med", grey)
+	end
+	for _ = 1, num_small do
+		local grey = use_grey and G.random.sample(self.rnd.rnd, 1, 100) > 50
+		self:spawn_meteor("small", grey)
 	end
 end
 
@@ -330,6 +332,18 @@ function G1:update(t, dt)
 	end
 
 	self.starfield:update(dt)
+
+	local _, wy = G.input.mouse_wheel()
+	if wy ~= 0 then
+		self.target_zoom = G.math.clamp(self.target_zoom + wy * 0.1, 0.3, 2.0)
+	end
+	self.zoom = self.zoom + (self.target_zoom - self.zoom) * math.min(1, dt * 8)
+
+	if self.player and not self.player.dead then
+		local pv = self.player.physics:position()
+		self.cam_x = self.cam_x + (pv.x - self.cam_x) * math.min(1, dt * 5)
+		self.cam_y = self.cam_y + (pv.y - self.cam_y) * math.min(1, dt * 5)
+	end
 
 	if self.state == "game_over" then
 		if G.input.is_key_pressed("return") then
@@ -437,10 +451,12 @@ end
 
 function G1:draw()
 	G.graphics.clear()
-	self.starfield:draw()
+	self.starfield:draw(self.cam_x, self.cam_y)
 
 	G.graphics.push()
-	G.graphics.translate(self.shake.x, self.shake.y)
+	G.graphics.translate(SCREEN_W / 2 + self.shake.x, SCREEN_H / 2 + self.shake.y)
+	G.graphics.scale(self.zoom, self.zoom)
+	G.graphics.translate(-self.cam_x, -self.cam_y)
 
 	self.entities:draw()
 	self:draw_particles()

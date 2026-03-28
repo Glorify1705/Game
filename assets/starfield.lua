@@ -7,24 +7,26 @@ function Starfield:new(screen_w, screen_h, rng)
 	self.screen_h = screen_h
 	self.layers = {}
 
-	self.layers[1] = { stars = {}, speed = 5, sprite = nil }
-	for i = 1, 40 do
+	-- each layer: parallax factor controls how much camera movement affects it
+	-- lower = farther away, moves less
+	self.layers[1] = { stars = {}, parallax = 0.02, sprite = nil, alpha = 120 }
+	for i = 1, 60 do
 		self.layers[1].stars[i] = {
 			x = G.random.sample(rng, 0, screen_w),
 			y = G.random.sample(rng, 0, screen_h),
 		}
 	end
 
-	self.layers[2] = { stars = {}, speed = 15, sprite = "star1" }
-	for i = 1, 20 do
+	self.layers[2] = { stars = {}, parallax = 0.05, sprite = "star1", alpha = 150 }
+	for i = 1, 30 do
 		self.layers[2].stars[i] = {
 			x = G.random.sample(rng, 0, screen_w),
 			y = G.random.sample(rng, 0, screen_h),
 		}
 	end
 
-	self.layers[3] = { stars = {}, speed = 30, sprite = "star2" }
-	for i = 1, 10 do
+	self.layers[3] = { stars = {}, parallax = 0.1, sprite = "star2", alpha = 180 }
+	for i = 1, 15 do
 		self.layers[3].stars[i] = {
 			x = G.random.sample(rng, 0, screen_w),
 			y = G.random.sample(rng, 0, screen_h),
@@ -32,28 +34,29 @@ function Starfield:new(screen_w, screen_h, rng)
 	end
 end
 
-function Starfield:update(dt)
-	for _, layer in ipairs(self.layers) do
-		for _, star in ipairs(layer.stars) do
-			star.y = star.y + layer.speed * dt
-			if star.y > self.screen_h then
-				star.y = star.y - self.screen_h
-			end
-		end
-	end
-end
+function Starfield:update(dt) end
 
-function Starfield:draw()
+function Starfield:draw(cam_x, cam_y)
+	cam_x = cam_x or 0
+	cam_y = cam_y or 0
+	local sw = self.screen_w
+	local sh = self.screen_h
 	for _, layer in ipairs(self.layers) do
+		local ox = (cam_x * layer.parallax) % sw
+		local oy = (cam_y * layer.parallax) % sh
 		if layer.sprite then
-			G.graphics.set_color(255, 255, 255, 180)
+			G.graphics.set_color(255, 255, 255, layer.alpha)
 			for _, star in ipairs(layer.stars) do
-				G.graphics.draw_sprite(layer.sprite, star.x, star.y)
+				local sx = (star.x - ox) % sw
+				local sy = (star.y - oy) % sh
+				G.graphics.draw_sprite(layer.sprite, sx, sy)
 			end
 		else
-			G.graphics.set_color(255, 255, 255, 120)
+			G.graphics.set_color(255, 255, 255, layer.alpha)
 			for _, star in ipairs(layer.stars) do
-				G.graphics.draw_circle(star.x, star.y, 1)
+				local sx = (star.x - ox) % sw
+				local sy = (star.y - oy) % sh
+				G.graphics.draw_circle(sx, sy, 1)
 			end
 		end
 	end
