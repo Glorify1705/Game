@@ -1,8 +1,8 @@
 Entity = require("entity")
-Timer = require("timer")
+local Timer = require("timer")
 
-FORCE = 50.000
-ANGLE_DELTA = 20
+local FORCE = 50.000
+local ANGLE_DELTA = 20
 
 Player = Entity:extend()
 

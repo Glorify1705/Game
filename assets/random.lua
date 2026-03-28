@@ -3,14 +3,16 @@ Object = require("classic")
 Random = Object:extend()
 
 function Random:new(...)
-	if #arg == 0 then
+	local n = select("#", ...)
+	if n == 0 then
 		self.rnd = G.random.non_deterministic()
 	else
-		self.rnd = G.random.from_seed(arg[1])
+		local seed = select(1, ...)
+		self.rnd = G.random.from_seed(seed)
 	end
 end
 
-function Random.non_deterministic()
+function Random:non_deterministic()
 	self.rnd = G.random.non_deterministic()
 end
 

@@ -103,11 +103,14 @@ end
 
 local G2 = {}
 
-function G2:init() end
+function G2:init()
+end
 
-function G2:update(t, dt) end
+function G2:update(t, dt)
+end
 
-function G2:draw() end
+function G2:draw()
+end
 
 local Game = { g = G1 }
 
