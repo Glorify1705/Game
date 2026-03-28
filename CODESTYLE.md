@@ -597,7 +597,8 @@ as they do not introduce implicit heap allocations.
   auto [x, y] = GetPosition();
   ```
 - **`std::string_view`** — non-owning string references. The default way to
-  pass strings.
+  pass strings. Prefer `std::string_view` over `const char*` when comparing
+  strings — use `==` on `string_view` instead of `strcmp`.
 - **`[[nodiscard]]`** — on functions where ignoring the return is likely a bug.
 - **`[[maybe_unused]]`** — to suppress warnings on intentionally unused
   variables (prefer commenting out parameter names instead for function
