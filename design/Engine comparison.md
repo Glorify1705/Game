@@ -317,7 +317,7 @@ Based on what's needed to ship complete games, grouped by impact:
 
 ### Tier 1 — Blocking (can't ship most games without these)
 
-1. **Camera system** — Follow target, smooth interpolation, bounds, shake, world/screen conversion
+1. ~~**Camera system** — Follow target, smooth interpolation, bounds, shake, world/screen conversion~~
 2. **Animation system** — Spritesheet frame sequences, loop/once/bounce, flip, timing
 3. **Timer / tween / easing** — Delayed callbacks, repeating timers, tweens, easing curves, springs
 4. ~~**Canvas / off-screen rendering**~~ — DONE. `new_canvas`, `set_canvas`, `draw_canvas` with auto premultiplied alpha and Y-flip.
@@ -329,8 +329,8 @@ Based on what's needed to ship complete games, grouped by impact:
 7. **Physics expansion** — Sensors, raycasting, spatial queries, kinematic bodies, more shapes
 8. **Input action binding** — Map physical buttons to game actions, support rebinding
 9. **Scene / state management** — Init/update/draw/cleanup, switching, resource cleanup
-10. ~~**Blend modes**~~ — DONE. Alpha, additive, multiply, replace.
-11. **Time scale** — Global slow-motion / pause, separate game vs real time
+10. ~~**Blend modes** — DONE. Alpha, additive, multiply, replace.~~
+11. ~~**Time scale** — Global slow-motion / pause, separate game vs real time~~
 
 ### Tier 3 — Nice to have (quality of life and polish)
 
