@@ -212,6 +212,7 @@ class BatchRenderer {
     float r, g, b, a;
   };
 
+  // Outline parameters for SDF text rendering. Color is premultiplied alpha.
   struct SDFOutline {
     float r, g, b, a;
     float thickness;
