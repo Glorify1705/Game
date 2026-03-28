@@ -4,6 +4,7 @@ local Timer = require("timer")
 local FORCE = 50.000
 local ANGLE_DELTA = 20
 local FIRE_COOLDOWN = 0.2
+local INVINCIBLE_TIME = 3.0
 
 local Player = Entity:extend()
 
@@ -13,16 +14,44 @@ function Player:new(x, y)
 	self.timer = Timer()
 	self.cooldown = { v = 0, color = { 255, 255, 255, 255 } }
 	self.fire_timer = 0
+	self.fire_cooldown = FIRE_COOLDOWN
 	self.spawn_bullet = nil
+	self.invincible = false
+	self.invincible_timer = 0
+	self.visible = true
+	self.blink_timer = 0
+	self.on_death = nil
 end
 
 function Player:set_spawn_callback(fn)
 	self.spawn_bullet = fn
 end
 
+function Player:set_death_callback(fn)
+	self.on_death = fn
+end
+
+function Player:make_invincible(duration)
+	self.invincible = true
+	self.invincible_timer = duration
+end
+
 function Player:update(dt)
 	self.timer:update(dt)
 	self.fire_timer = math.max(0, self.fire_timer - dt)
+
+	if self.invincible then
+		self.invincible_timer = self.invincible_timer - dt
+		self.blink_timer = self.blink_timer + dt
+		if self.blink_timer > 0.1 then
+			self.blink_timer = self.blink_timer - 0.1
+			self.visible = not self.visible
+		end
+		if self.invincible_timer <= 0 then
+			self.invincible = false
+			self.visible = true
+		end
+	end
 
 	if G.input.is_key_down("w") then
 		self.physics:apply_force(0, -FORCE)
@@ -38,7 +67,7 @@ function Player:update(dt)
 
 	if (G.input.is_key_pressed("space") or G.input.is_mouse_pressed(0)) and self.fire_timer <= 0 then
 		self:shoot()
-		self.fire_timer = FIRE_COOLDOWN
+		self.fire_timer = self.fire_cooldown
 	end
 end
 
@@ -54,15 +83,24 @@ function Player:shoot()
 end
 
 function Player:on_collision(other)
+	if self.invincible then return end
+	if other and other.is_bullet and other:is_bullet() then return end
 	if self.cooldown.v < 1e-8 then
 		self.health = self.health - 10
 		self.cooldown.v = 1
 		self.cooldown.color = { 255, 0, 0, 255 }
 		self.timer:tween(5, self.cooldown, { v = 0, color = { 255, 255, 255, 255 } }, "in-out-quad")
+		if self.health <= 0 then
+			self.dead = true
+			if self.on_death then
+				self.on_death()
+			end
+		end
 	end
 end
 
 function Player:draw()
+	if not self.visible then return end
 	local v = self.physics:position()
 	local angle = self.physics:angle()
 	if self.cooldown.v > 0 then

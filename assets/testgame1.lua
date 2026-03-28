@@ -87,13 +87,12 @@ end
 local G1 = {}
 
 local SCORE_VALUES = { big = 100, med = 50, small = 25 }
+local INVINCIBLE_TIME = 3.0
 
 function G1:init()
 	G.window.set_title("My awesome Lua game 1!")
 	self.entities = Entities()
 	self.timer = Timer()
-	self.player = Player(SCREEN_W / 2, SCREEN_H / 2)
-	self.entities:add(self.player)
 	self.fullscreen = false
 	self.rnd = Random()
 	self.score = 0
@@ -101,11 +100,10 @@ function G1:init()
 	self.wave = 0
 	self.wave_active = false
 	self.shake = { x = 0, y = 0 }
+	self.state = "playing"
+	self.respawning = false
 
-	self.player:set_spawn_callback(function(x, y, angle)
-		local b = Bullet(x, y, angle)
-		self.entities:add(b)
-	end)
+	self:spawn_player()
 
 	Entities:on_collision(function(a, b)
 		if a then
@@ -120,8 +118,39 @@ function G1:init()
 	G.sound.set_volume(source, 0.4)
 	G.sound.set_loop(source, true)
 	G.sound.play_source(source)
+	self.music_source = source
 
 	self:start_next_wave()
+end
+
+function G1:spawn_player()
+	self.player = Player(SCREEN_W / 2, SCREEN_H / 2)
+	self.entities:add(self.player)
+	self.respawning = false
+
+	self.player:set_spawn_callback(function(x, y, angle)
+		local b = Bullet(x, y, angle)
+		self.entities:add(b)
+	end)
+
+	self.player:set_death_callback(function()
+		self:on_player_death()
+	end)
+end
+
+function G1:on_player_death()
+	self.lives = self.lives - 1
+	self:screen_shake(12)
+	if self.lives <= 0 then
+		self.state = "game_over"
+		G.sound.play_effect("game-over.ogg")
+	else
+		self.respawning = true
+		self.timer:after(2, function()
+			self:spawn_player()
+			self.player:make_invincible(INVINCIBLE_TIME)
+		end)
+	end
 end
 
 function G1:screen_shake(intensity)
@@ -199,9 +228,14 @@ function G1:update(t, dt)
 	if G.input.is_key_pressed("r") then
 		G.hotload()
 	end
-	if G.input.is_key_pressed("c") then
-		print("Clipboard says: " .. G.system.get_clipboard())
+
+	if self.state == "game_over" then
+		if G.input.is_key_pressed("return") then
+			self:init()
+		end
+		return
 	end
+
 	self.entities:update(dt)
 
 	local dead = self.entities:collect_dead()
@@ -267,6 +301,15 @@ function G1:draw()
 	G.graphics.pop()
 
 	self:draw_hud()
+
+	if self.state == "game_over" then
+		G.graphics.set_color(200, 0, 0, 255)
+		G.graphics.print("GAME OVER", SCREEN_W / 2 - 50, SCREEN_H / 2 - 40)
+		G.graphics.set_color("white")
+		G.graphics.print("SCORE: " .. self.score, SCREEN_W / 2 - 50, SCREEN_H / 2)
+		G.graphics.print("Press ENTER to restart", SCREEN_W / 2 - 80, SCREEN_H / 2 + 30)
+	end
+
 	G.graphics.set_color("white")
 end
 
