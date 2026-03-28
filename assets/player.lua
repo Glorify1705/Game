@@ -4,6 +4,8 @@ local Timer = require("timer")
 local FORCE = 50.000
 local ANGLE_DELTA = 20
 local FIRE_COOLDOWN = 0.2
+local RECOIL = 15
+local WING_OFFSET = 18
 local INVINCIBLE_TIME = 3.0
 
 local Player = Entity:extend()
@@ -26,6 +28,7 @@ function Player:new(x, y)
 	self.shield_timer = 0
 	self.rapid_fire = false
 	self.rapid_fire_timer = 0
+	self.gun_side = 1 -- alternates between 1 (right) and -1 (left)
 end
 
 function Player:set_spawn_callback(fn)
@@ -121,8 +124,13 @@ function Player:shoot()
 	local v = self.physics:position()
 	local angle = self.physics:angle()
 	local nose_dist = 40
-	local bx = v.x + math.sin(angle) * nose_dist
-	local by = v.y - math.cos(angle) * nose_dist
+	-- offset perpendicular to ship facing for alternating wing guns
+	local side = self.gun_side * WING_OFFSET
+	local bx = v.x + math.sin(angle) * nose_dist + math.cos(angle) * side
+	local by = v.y - math.cos(angle) * nose_dist + math.sin(angle) * side
+	self.gun_side = -self.gun_side
+	-- recoil: push ship backward (opposite to firing direction)
+	self.physics:apply_force(-math.sin(angle) * RECOIL, math.cos(angle) * RECOIL)
 	G.sound.play_effect("laser.wav")
 	self.spawn_bullet(bx, by, angle)
 end
