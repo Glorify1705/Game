@@ -39,6 +39,16 @@ function Entities:draw()
 	end
 end
 
+function Entities:collect_dead()
+	local dead = {}
+	for id, entity in pairs(self.entities) do
+		if entity.dead then
+			dead[#dead + 1] = entity
+		end
+	end
+	return dead
+end
+
 function Entities:remove_dead()
 	local to_remove = {}
 	for id, entity in pairs(self.entities) do
@@ -53,6 +63,8 @@ end
 
 local G1 = {}
 
+local SCORE_VALUES = { big = 100, med = 50, small = 25 }
+
 function G1:init()
 	G.window.set_title("My awesome Lua game 1!")
 	self.entities = Entities()
@@ -63,6 +75,8 @@ function G1:init()
 	self.entities:add(Meteor(600, 600))
 	self.fullscreen = false
 	self.rnd = Random()
+	self.score = 0
+	self.shake = { x = 0, y = 0 }
 
 	self.player:set_spawn_callback(function(x, y, angle)
 		local b = Bullet(x, y, angle)
@@ -82,6 +96,12 @@ function G1:init()
 	G.sound.set_volume(source, 0.4)
 	G.sound.set_loop(source, true)
 	G.sound.play_source(source)
+end
+
+function G1:screen_shake(intensity)
+	self.shake.x = intensity
+	self.shake.y = intensity
+	self.timer:tween(0.3, self.shake, { x = 0, y = 0 }, "out-quad")
 end
 
 function G1:update(t, dt)
@@ -108,11 +128,39 @@ function G1:update(t, dt)
 		print("Clipboard says: " .. G.system.get_clipboard())
 	end
 	self.entities:update(dt)
+
+	local dead = self.entities:collect_dead()
+	local to_spawn = {}
+	for _, entity in ipairs(dead) do
+		if entity.is_meteor and entity:is_meteor() then
+			self.score = self.score + (SCORE_VALUES[entity.size] or 0)
+			local children = entity:get_split_children(self.rnd.rnd)
+			for _, c in ipairs(children) do
+				to_spawn[#to_spawn + 1] = c
+			end
+			if entity.size == "big" then
+				self:screen_shake(8)
+			elseif entity.size == "med" then
+				self:screen_shake(4)
+			end
+		end
+	end
+
 	self.entities:remove_dead()
+
+	for _, c in ipairs(to_spawn) do
+		local m = Meteor(c.x, c.y, c.size)
+		local impulse = 20
+		m.physics:apply_linear_impulse(math.cos(c.angle) * impulse, math.sin(c.angle) * impulse)
+		self.entities:add(m)
+	end
 end
 
 function G1:draw()
 	G.graphics.clear()
+	G.graphics.push()
+	G.graphics.translate(self.shake.x, self.shake.y)
+
 	local mx, my = G.input.mouse_position()
 	G.graphics.set_color("freshgreen")
 	G.graphics.draw_rect(10, 10, 300, 20)
@@ -122,6 +170,8 @@ function G1:draw()
 	G.graphics.draw_sprite("numeralX", mx, my)
 	self.entities:draw()
 	G.graphics.set_color("white")
+
+	G.graphics.pop()
 end
 
 local G2 = {}
