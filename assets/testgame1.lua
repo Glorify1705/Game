@@ -61,6 +61,16 @@ function Entities:remove_dead()
 	end
 end
 
+function Entities:count_meteors()
+	local count = 0
+	for _, entity in pairs(self.entities) do
+		if entity.is_meteor and entity:is_meteor() then
+			count = count + 1
+		end
+	end
+	return count
+end
+
 local SCREEN_W = 1024
 local SCREEN_H = 800
 
@@ -82,15 +92,14 @@ function G1:init()
 	G.window.set_title("My awesome Lua game 1!")
 	self.entities = Entities()
 	self.timer = Timer()
-	self.player = Player(100, 100)
+	self.player = Player(SCREEN_W / 2, SCREEN_H / 2)
 	self.entities:add(self.player)
-	self.entities:add(Meteor(300, 300))
-	self.entities:add(Meteor(600, 600))
 	self.fullscreen = false
 	self.rnd = Random()
 	self.score = 0
 	self.lives = 3
-	self.wave = 1
+	self.wave = 0
+	self.wave_active = false
 	self.shake = { x = 0, y = 0 }
 
 	self.player:set_spawn_callback(function(x, y, angle)
@@ -111,12 +120,63 @@ function G1:init()
 	G.sound.set_volume(source, 0.4)
 	G.sound.set_loop(source, true)
 	G.sound.play_source(source)
+
+	self:start_next_wave()
 end
 
 function G1:screen_shake(intensity)
 	self.shake.x = intensity
 	self.shake.y = intensity
 	self.timer:tween(0.3, self.shake, { x = 0, y = 0 }, "out-quad")
+end
+
+function G1:spawn_meteor_offscreen(size, grey)
+	local rng = self.rnd.rnd
+	local side = G.random.sample(rng, 1, 4)
+	local x, y
+	local margin = 80
+	if side == 1 then
+		x = G.random.sample(rng, 0, SCREEN_W)
+		y = -margin
+	elseif side == 2 then
+		x = SCREEN_W + margin
+		y = G.random.sample(rng, 0, SCREEN_H)
+	elseif side == 3 then
+		x = G.random.sample(rng, 0, SCREEN_W)
+		y = SCREEN_H + margin
+	else
+		x = -margin
+		y = G.random.sample(rng, 0, SCREEN_H)
+	end
+
+	local m = Meteor(x, y, size, grey)
+	local cx = SCREEN_W / 2 + G.random.sample(rng, -200, 200)
+	local cy = SCREEN_H / 2 + G.random.sample(rng, -200, 200)
+	local dx = cx - x
+	local dy = cy - y
+	local dist = math.sqrt(dx * dx + dy * dy)
+	local base_speed = 10 + self.wave * 2
+	if dist > 0 then
+		m.physics:apply_linear_impulse(dx / dist * base_speed, dy / dist * base_speed)
+	end
+	self.entities:add(m)
+end
+
+function G1:start_next_wave()
+	self.wave = self.wave + 1
+	self.wave_active = true
+	local num_big = self.wave + 2
+	local num_med = math.floor(self.wave / 2)
+	local use_grey = self.wave > 3
+
+	for i = 1, num_big do
+		local grey = use_grey and G.random.sample(self.rnd.rnd) > 0.5
+		self:spawn_meteor_offscreen("big", grey)
+	end
+	for i = 1, num_med do
+		local grey = use_grey and G.random.sample(self.rnd.rnd) > 0.5
+		self:spawn_meteor_offscreen("med", grey)
+	end
 end
 
 function G1:update(t, dt)
@@ -164,10 +224,18 @@ function G1:update(t, dt)
 	self.entities:remove_dead()
 
 	for _, c in ipairs(to_spawn) do
-		local m = Meteor(c.x, c.y, c.size)
+		local grey = self.wave > 3 and G.random.sample(self.rnd.rnd) > 0.5
+		local m = Meteor(c.x, c.y, c.size, grey)
 		local impulse = 20
 		m.physics:apply_linear_impulse(math.cos(c.angle) * impulse, math.sin(c.angle) * impulse)
 		self.entities:add(m)
+	end
+
+	if self.wave_active and self.entities:count_meteors() == 0 then
+		self.wave_active = false
+		self.timer:after(2, function()
+			self:start_next_wave()
+		end)
 	end
 end
 
