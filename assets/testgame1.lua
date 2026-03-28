@@ -156,7 +156,7 @@ function G1:spawn_player()
 	end)
 
 	self.player:set_damage_callback(function()
-		self:screen_shake(25, 3.5)
+		self:screen_shake(25, 2.0)
 	end)
 end
 
@@ -303,7 +303,7 @@ function G1:spawn_meteor(size, grey)
 	local m = Meteor(x, y, size, grey)
 	-- random gentle drift direction
 	local angle = G.random.sample(rng, 0, 628) / 100.0
-	local base_force = 10 + self.wave * 1.5
+	local base_force = 20 + self.wave * 3
 	m:set_drift(math.cos(angle) * base_force, math.sin(angle) * base_force)
 	self.entities:add(m)
 end
@@ -311,9 +311,9 @@ end
 function G1:start_next_wave()
 	self.wave = self.wave + 1
 	self.wave_active = true
-	local num_big = self.wave * 2 + 4
-	local num_med = self.wave + 1
-	local num_small = math.floor(self.wave / 2)
+	local num_big = self.wave * 3 + 6
+	local num_med = self.wave * 2 + 2
+	local num_small = self.wave
 	local use_grey = self.wave > 3
 
 	for _ = 1, num_big do
