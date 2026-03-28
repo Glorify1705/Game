@@ -40,7 +40,6 @@
       (G.graphics.draw_circle cx cy 30))
     (G.graphics.set_color :white)
     (G.graphics.set_canvas)
-
     ;; Pass 2: draw pass1 into pass2 with a color tint.
     (G.graphics.set_canvas g.pass2)
     (G.graphics.clear 0 0 0 0)
@@ -48,9 +47,8 @@
     (G.graphics.draw_canvas g.pass1 0 0)
     (G.graphics.set_color :white)
     ;; Draw some overlay text into pass2.
-    (G.graphics.draw_text :terminus.ttf 16 "Multi-pass!" 10 10)
+    (G.graphics.draw_text :terminus.ttf 16 :Multi-pass! 10 10)
     (G.graphics.set_canvas)
-
     ;; Alpha canvas: test semi-transparent content.
     (G.graphics.set_canvas g.alpha-canvas)
     (G.graphics.clear 0 0 0 0)
@@ -61,29 +59,24 @@
     (G.graphics.draw_rect 60 60 160 160)
     (G.graphics.set_color :white)
     (G.graphics.set_canvas)
-
     ;; Draw to screen.
     (G.graphics.clear 0.2 0.2 0.25 1)
-
     ;; Pass 1 result.
     (G.graphics.draw_text :terminus.ttf 16 "Pass 1 (shapes)" 10 20)
     (G.graphics.draw_canvas g.pass1 10 40)
-
     ;; Pass 2 result (pass1 composited with tint).
-    (G.graphics.draw_text :terminus.ttf 16 "Pass 2 (tinted + text overlay)" 320 20)
+    (G.graphics.draw_text :terminus.ttf 16 "Pass 2 (tinted + text overlay)" 320
+                          20)
     (G.graphics.draw_canvas g.pass2 320 40)
-
     ;; Alpha canvas.
     (G.graphics.draw_text :terminus.ttf 16 "Semi-transparent rects" 10 360)
     (G.graphics.draw_canvas g.alpha-canvas 10 380)
-
     ;; Blend mode info.
     (let [mode (or g.blend :alpha)]
       (G.graphics.draw_text :terminus.ttf 16
-                            (.. "Blend mode: " mode " (press 1-4 to change)")
-                            10 590))
+                            (.. "Blend mode: " mode " (press 1-4 to change)") 10
+                            590))
     (G.graphics.draw_text :terminus.ttf 16
-                          "1=alpha  2=add  3=multiply  4=replace  Q=quit"
-                          10 620)))
+                          "1=alpha  2=add  3=multiply  4=replace  Q=quit" 10 620)))
 
 Game

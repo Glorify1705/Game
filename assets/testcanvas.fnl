@@ -27,8 +27,7 @@
     (for [x 0 7]
       (when (= (% (+ x y) 2) 0)
         (G.graphics.set_color :green)
-        (G.graphics.draw_rect (* x 8) (* y 8)
-                              (+ (* x 8) 8) (+ (* y 8) 8)))))
+        (G.graphics.draw_rect (* x 8) (* y 8) (+ (* x 8) 8) (+ (* y 8) 8)))))
   ;; Animated crosshair.
   (let [cx (+ 32 (* 16 (math.cos t)))
         cy (+ 32 (* 16 (math.sin t)))]
@@ -40,7 +39,8 @@
 (fn draw-scene [canvas t]
   ;; Draw a scene with shapes into an off-screen canvas.
   (G.graphics.set_canvas canvas)
-  (G.graphics.clear 0 0 0 0) ;; transparent background
+  (G.graphics.clear 0 0 0 0)
+  ;; transparent background
   ;; Rotating square.
   (G.graphics.set_color :blue)
   (G.graphics.push)
@@ -86,11 +86,13 @@
     ;; Now draw everything to the screen.
     (G.graphics.clear 0.15 0.15 0.15 1)
     ;; Labels.
-    (G.graphics.draw_text :terminus.ttf 16 "Pixel canvas (64x64 -> 256x256, nearest)" 10 20)
+    (G.graphics.draw_text :terminus.ttf 16
+                          "Pixel canvas (64x64 -> 256x256, nearest)" 10 20)
     (G.graphics.draw_canvas g.pixel-canvas 10 40 0 256 256)
     (G.graphics.draw_text :terminus.ttf 16 "Scene canvas (400x300)" 300 20)
     (G.graphics.draw_canvas g.scene-canvas 300 40)
-    (G.graphics.draw_text :terminus.ttf 16 "Additive blend (RGB circles)" 10 330)
+    (G.graphics.draw_text :terminus.ttf 16 "Additive blend (RGB circles)" 10
+                          330)
     (G.graphics.draw_canvas g.blend-canvas 10 350)
     ;; Draw the scene canvas again at half size to test scaling.
     (G.graphics.draw_text :terminus.ttf 16 "Scene canvas (half size)" 300 360)
@@ -98,13 +100,12 @@
     ;; Canvas info.
     (let [(w h) (g.scene-canvas:dimensions)]
       (G.graphics.draw_text :terminus.ttf 16
-                            (.. "scene-canvas dimensions: " w "x" h
-                                " (width=" (g.scene-canvas:width)
-                                " height=" (g.scene-canvas:height) ")")
+                            (.. "scene-canvas dimensions: " w :x h " (width="
+                                (g.scene-canvas:width) " height="
+                                (g.scene-canvas:height) ")")
                             10 560))
     (G.graphics.draw_text :terminus.ttf 16
-                          (.. "tostring: " (tostring g.pixel-canvas))
-                          10 580)
+                          (.. "tostring: " (tostring g.pixel-canvas)) 10 580)
     (G.graphics.draw_text :terminus.ttf 16 "Press Q to quit" 10 620)))
 
 Game

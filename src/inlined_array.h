@@ -80,14 +80,10 @@ class InlinedArray {
     return data()[size() - 1];
   }
 
-  T* data() {
-    return is_heap() ? heap_.data
-                     : reinterpret_cast<T*>(inline_);
-  }
+  T* data() { return is_heap() ? heap_.data : reinterpret_cast<T*>(inline_); }
 
   const T* data() const {
-    return is_heap() ? heap_.data
-                     : reinterpret_cast<const T*>(inline_);
+    return is_heap() ? heap_.data : reinterpret_cast<const T*>(inline_);
   }
 
   size_t size() const { return size_ & kSizeMask; }
@@ -129,8 +125,8 @@ class InlinedArray {
       // Spill from inline to heap.
       size_t new_cap = N + (N >> 1);
       if (new_cap < N + 1) new_cap = N + 1;
-      T* buf = static_cast<T*>(
-          allocator_->Alloc(new_cap * sizeof(T), alignof(T)));
+      T* buf =
+          static_cast<T*>(allocator_->Alloc(new_cap * sizeof(T), alignof(T)));
       std::memcpy(buf, inline_, s * sizeof(T));
       heap_.data = buf;
       heap_.capacity = static_cast<uint32_t>(new_cap);
@@ -140,8 +136,7 @@ class InlinedArray {
       size_t old_cap = heap_.capacity;
       size_t new_cap = old_cap + (old_cap >> 1);
       heap_.data = static_cast<T*>(allocator_->Realloc(
-          heap_.data, old_cap * sizeof(T), new_cap * sizeof(T),
-          alignof(T)));
+          heap_.data, old_cap * sizeof(T), new_cap * sizeof(T), alignof(T)));
       heap_.capacity = static_cast<uint32_t>(new_cap);
     }
   }

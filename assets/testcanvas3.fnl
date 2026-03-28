@@ -24,8 +24,8 @@
     (tset p :y y)
     (tset p :dx (* speed (math.cos angle)))
     (tset p :dy (* speed (math.sin angle)))
-    (tset p :life 1.0)
-    (tset p :max-life 1.0)
+    (tset p :life 1)
+    (tset p :max-life 1)
     (tset p :active true)))
 
 (fn Game.init [self]
@@ -65,7 +65,7 @@
       (tset star :speed (+ 20 (math.random 0 80))))))
 
 (fn update-ship [ship dt]
-  (let [turn-speed 3.0]
+  (let [turn-speed 3]
     (when (G.input.is_key_down :a)
       (tset ship :angle (- ship.angle (* turn-speed dt))))
     (when (G.input.is_key_down :d)
@@ -126,27 +126,22 @@
   (update-ship self.ship dt)
   (update-particles self.particles dt)
   (set self.particle-timer
-       (spawn-engine-particles self.particles self.ship
-                               self.particle-timer dt)))
+       (spawn-engine-particles self.particles self.ship self.particle-timer dt)))
 
 (fn draw-stars [stars]
   (each [_ star (ipairs stars)]
     (let [b star.brightness]
       (G.graphics.set_color b b b 255)
-      (G.graphics.draw_rect star.x star.y
-                            (+ star.x 2) (+ star.y 2)))))
+      (G.graphics.draw_rect star.x star.y (+ star.x 2) (+ star.y 2)))))
 
 (fn draw-ship [ship]
   ;; Draw ship as a triangle pointing in its direction.
-  (let [a ship.angle
-        ;; Nose.
+  (let [a ship.angle ;; Nose.
         nx (+ ship.x (* 18 (math.cos a)))
-        ny (+ ship.y (* 18 (math.sin a)))
-        ;; Left wing.
+        ny (+ ship.y (* 18 (math.sin a))) ;; Left wing.
         la (+ a 2.5)
         lx (+ ship.x (* 14 (math.cos la)))
-        ly (+ ship.y (* 14 (math.sin la)))
-        ;; Right wing.
+        ly (+ ship.y (* 14 (math.sin la))) ;; Right wing.
         ra (- a 2.5)
         rx (+ ship.x (* 14 (math.cos ra)))
         ry (+ ship.y (* 14 (math.sin ra)))]
@@ -159,10 +154,8 @@
                             (+ ship.y (* 5 (math.sin a))) 3))
   ;; Draw sprites around the ship.
   (G.graphics.set_color :white)
-  (G.graphics.draw_sprite :playerShip1_green
-                          (+ ship.x 50) (- ship.y 30) 0)
-  (G.graphics.draw_sprite :playerShip1_green
-                          (- ship.x 80) (+ ship.y 40) 1.5))
+  (G.graphics.draw_sprite :playerShip1_green (+ ship.x 50) (- ship.y 30) 0)
+  (G.graphics.draw_sprite :playerShip1_green (- ship.x 80) (+ ship.y 40) 1.5))
 
 (fn draw-particles [particles]
   (G.graphics.set_blend_mode :add)
@@ -174,8 +167,8 @@
             b (math.floor (* p.life p.life 80))
             size (+ 1 (* p.life 3))]
         (G.graphics.set_color r g b alpha)
-        (G.graphics.draw_rect (- p.x size) (- p.y size)
-                              (+ p.x size) (+ p.y size)))))
+        (G.graphics.draw_rect (- p.x size) (- p.y size) (+ p.x size)
+                              (+ p.y size)))))
   (G.graphics.set_blend_mode :alpha))
 
 (fn draw-scene [self]
@@ -186,36 +179,30 @@
   (draw-ship self.ship)
   ;; Draw some floating text in the scene.
   (G.graphics.set_color :white)
-  (G.graphics.draw_text :terminus.ttf 20 "STARFIELD" 10 20)
+  (G.graphics.draw_text :terminus.ttf 20 :STARFIELD 10 20)
   (G.graphics.set_canvas))
 
 (fn draw-with-effect [self]
   (if (= self.effect :crt)
       (do
         (G.graphics.attach_shader :crt.frag)
-        (G.graphics.send_uniform :iResolution
-                                 (G.math.v2 self.w self.h))
+        (G.graphics.send_uniform :iResolution (G.math.v2 self.w self.h))
         (G.graphics.draw_canvas self.scene 0 0)
         (G.graphics.attach_shader))
-
       (= self.effect :pixelate)
       (do
         (G.graphics.attach_shader :pixelate.frag)
-        (G.graphics.send_uniform :pixels 300.0)
+        (G.graphics.send_uniform :pixels 300)
         (G.graphics.draw_canvas self.scene 0 0)
         (G.graphics.attach_shader))
-
       (= self.effect :vignette)
       (do
         (G.graphics.attach_shader :vignette.frag)
-        (G.graphics.send_uniform :iResolution
-                                 (G.math.v2 self.w self.h))
+        (G.graphics.send_uniform :iResolution (G.math.v2 self.w self.h))
         (G.graphics.send_uniform :intensity 0.6)
-        (G.graphics.send_uniform :warmth
-                                 (* 0.5 (math.sin self.time)))
+        (G.graphics.send_uniform :warmth (* 0.5 (math.sin self.time)))
         (G.graphics.draw_canvas self.scene 0 0)
         (G.graphics.attach_shader))
-
       (= self.effect :bloom)
       (do
         (let [(bw bh) (self.bloom-bright:dimensions)]
@@ -232,8 +219,7 @@
           (G.graphics.clear 0 0 0 0)
           (G.graphics.attach_shader :blur.frag)
           (G.graphics.send_uniform :direction (G.math.v2 1 0))
-          (G.graphics.send_uniform :texel_size
-                                   (G.math.v2 (/ 1 bw) (/ 1 bh)))
+          (G.graphics.send_uniform :texel_size (G.math.v2 (/ 1 bw) (/ 1 bh)))
           (G.graphics.draw_canvas self.bloom-bright 0 0)
           (G.graphics.attach_shader)
           (G.graphics.set_canvas)
@@ -242,8 +228,7 @@
           (G.graphics.clear 0 0 0 0)
           (G.graphics.attach_shader :blur.frag)
           (G.graphics.send_uniform :direction (G.math.v2 0 1))
-          (G.graphics.send_uniform :texel_size
-                                   (G.math.v2 (/ 1 bw) (/ 1 bh)))
+          (G.graphics.send_uniform :texel_size (G.math.v2 (/ 1 bw) (/ 1 bh)))
           (G.graphics.draw_canvas self.bloom-blur-h 0 0)
           (G.graphics.attach_shader)
           (G.graphics.set_canvas)
@@ -252,7 +237,6 @@
           (G.graphics.set_blend_mode :add)
           (G.graphics.draw_canvas self.bloom-blur-v 0 0 0 self.w self.h)
           (G.graphics.set_blend_mode :alpha)))
-
       ;; No effect — draw directly.
       (G.graphics.draw_canvas self.scene 0 0)))
 
@@ -268,7 +252,7 @@
                         (.. "Effect: " self.effect
                             "  |  1=none  2=CRT  3=pixelate  4=vignette  5=bloom")
                         10 (- self.h 40))
-  (G.graphics.draw_text :terminus.ttf 16
-                        "WASD to fly  |  Q to quit" 10 (- self.h 20)))
+  (G.graphics.draw_text :terminus.ttf 16 "WASD to fly  |  Q to quit" 10
+                        (- self.h 20)))
 
 Game

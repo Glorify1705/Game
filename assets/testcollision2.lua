@@ -18,7 +18,7 @@ local PLAYER_SPEED = 180
 local PLAYER_R = 12
 
 local query_results = {}
-local query_type = nil  -- "circle", "rect", or nil
+local query_type = nil -- "circle", "rect", or nil
 local query_cx, query_cy, query_r = 0, 0, 0
 local query_x1, query_y1, query_x2, query_y2 = 0, 0, 0, 0
 
@@ -74,10 +74,18 @@ function Game:update(t, dt)
 
 	-- Player movement with move_and_collide (stops at first hit)
 	local vx, vy = 0, 0
-	if G.input.is_key_down("w") then vy = -PLAYER_SPEED end
-	if G.input.is_key_down("s") then vy = PLAYER_SPEED end
-	if G.input.is_key_down("a") then vx = -PLAYER_SPEED end
-	if G.input.is_key_down("d") then vx = PLAYER_SPEED end
+	if G.input.is_key_down("w") then
+		vy = -PLAYER_SPEED
+	end
+	if G.input.is_key_down("s") then
+		vy = PLAYER_SPEED
+	end
+	if G.input.is_key_down("a") then
+		vx = -PLAYER_SPEED
+	end
+	if G.input.is_key_down("d") then
+		vx = PLAYER_SPEED
+	end
 
 	if vx ~= 0 and vy ~= 0 then
 		local inv = 1.0 / math.sqrt(2)
@@ -159,8 +167,7 @@ function Game:draw()
 		end
 
 		if obj.type == "aabb" then
-			G.graphics.draw_rect(obj.x - obj.w / 2, obj.y - obj.h / 2,
-				obj.x + obj.w / 2, obj.y + obj.h / 2)
+			G.graphics.draw_rect(obj.x - obj.w / 2, obj.y - obj.h / 2, obj.x + obj.w / 2, obj.y + obj.h / 2)
 		else
 			G.graphics.draw_circle(obj.x, obj.y, obj.r)
 		end
@@ -207,9 +214,7 @@ function Game:draw()
 	-- Contact info
 	if last_contact then
 		G.graphics.set_color("cyan")
-		G.graphics.draw_line(px, py,
-			px + last_contact.nx * 30,
-			py + last_contact.ny * 30)
+		G.graphics.draw_line(px, py, px + last_contact.nx * 30, py + last_contact.ny * 30)
 	end
 
 	-- HUD

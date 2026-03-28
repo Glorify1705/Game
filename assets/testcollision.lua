@@ -26,7 +26,7 @@ local PLAYER_BOX_H = 28
 
 -- Collision filter categories
 local CAT_PLAYER = 1
-local CAT_WALL   = 2
+local CAT_WALL = 2
 local CAT_TRIGGER = 4
 
 function Game:init()
@@ -45,10 +45,10 @@ function Game:init()
 
 	-- Boundary walls (static AABBs)
 	local wall_t = 16
-	self:add_wall(W / 2, wall_t / 2, W, wall_t)           -- top
-	self:add_wall(W / 2, H - wall_t / 2, W, wall_t)       -- bottom
-	self:add_wall(wall_t / 2, H / 2, wall_t, H)           -- left
-	self:add_wall(W - wall_t / 2, H / 2, wall_t, H)       -- right
+	self:add_wall(W / 2, wall_t / 2, W, wall_t) -- top
+	self:add_wall(W / 2, H - wall_t / 2, W, wall_t) -- bottom
+	self:add_wall(wall_t / 2, H / 2, wall_t, H) -- left
+	self:add_wall(W - wall_t / 2, H / 2, wall_t, H) -- right
 
 	-- Some obstacles in the middle
 	self:add_wall(200, 200, 80, 80)
@@ -74,13 +74,17 @@ function Game:init()
 	world:on_trigger_enter(function(a, b)
 		local msg = string.format("ENTER: %s <-> %s", tostring(a), tostring(b))
 		table.insert(trigger_log, 1, msg)
-		if #trigger_log > MAX_LOG then table.remove(trigger_log) end
+		if #trigger_log > MAX_LOG then
+			table.remove(trigger_log)
+		end
 	end)
 
 	world:on_trigger_exit(function(a, b)
 		local msg = string.format("EXIT:  %s <-> %s", tostring(a), tostring(b))
 		table.insert(trigger_log, 1, msg)
-		if #trigger_log > MAX_LOG then table.remove(trigger_log) end
+		if #trigger_log > MAX_LOG then
+			table.remove(trigger_log)
+		end
 	end)
 
 	raycast_hit = nil
@@ -126,10 +130,18 @@ function Game:update(t, dt)
 
 	-- Player movement
 	local vx, vy = 0, 0
-	if G.input.is_key_down("w") or G.input.is_key_down("up") then vy = -PLAYER_SPEED end
-	if G.input.is_key_down("s") or G.input.is_key_down("down") then vy = PLAYER_SPEED end
-	if G.input.is_key_down("a") or G.input.is_key_down("left") then vx = -PLAYER_SPEED end
-	if G.input.is_key_down("d") or G.input.is_key_down("right") then vx = PLAYER_SPEED end
+	if G.input.is_key_down("w") or G.input.is_key_down("up") then
+		vy = -PLAYER_SPEED
+	end
+	if G.input.is_key_down("s") or G.input.is_key_down("down") then
+		vy = PLAYER_SPEED
+	end
+	if G.input.is_key_down("a") or G.input.is_key_down("left") then
+		vx = -PLAYER_SPEED
+	end
+	if G.input.is_key_down("d") or G.input.is_key_down("right") then
+		vx = PLAYER_SPEED
+	end
 
 	-- Normalize diagonal movement
 	if vx ~= 0 and vy ~= 0 then
@@ -181,8 +193,7 @@ function Game:draw()
 	for _, ob in ipairs(obstacles) do
 		G.graphics.set_color("gray")
 		if ob.type == "aabb" then
-			G.graphics.draw_rect(ob.x - ob.w / 2, ob.y - ob.h / 2,
-				ob.x + ob.w / 2, ob.y + ob.h / 2)
+			G.graphics.draw_rect(ob.x - ob.w / 2, ob.y - ob.h / 2, ob.x + ob.w / 2, ob.y + ob.h / 2)
 		elseif ob.type == "circle" then
 			G.graphics.draw_circle(ob.x, ob.y, ob.r)
 		end
@@ -208,9 +219,12 @@ function Game:draw()
 		G.graphics.draw_circle(raycast_hit.x, raycast_hit.y, 4)
 		-- Normal
 		G.graphics.set_color("green")
-		G.graphics.draw_line(raycast_hit.x, raycast_hit.y,
+		G.graphics.draw_line(
+			raycast_hit.x,
+			raycast_hit.y,
 			raycast_hit.x + raycast_hit.nx * 20,
-			raycast_hit.y + raycast_hit.ny * 20)
+			raycast_hit.y + raycast_hit.ny * 20
+		)
 	end
 
 	-- Draw player
@@ -219,8 +233,7 @@ function Game:draw()
 	if player_is_circle then
 		G.graphics.draw_circle(px, py, PLAYER_RADIUS)
 	else
-		G.graphics.draw_rect(px - PLAYER_BOX_W / 2, py - PLAYER_BOX_H / 2,
-			px + PLAYER_BOX_W / 2, py + PLAYER_BOX_H / 2)
+		G.graphics.draw_rect(px - PLAYER_BOX_W / 2, py - PLAYER_BOX_H / 2, px + PLAYER_BOX_W / 2, py + PLAYER_BOX_H / 2)
 	end
 
 	-- Point query under mouse cursor
