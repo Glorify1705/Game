@@ -30,4 +30,10 @@ end
 
 function Entity:on_collision(other) end
 
+function Entity:destroy()
+	if self.physics then
+		self.physics:destroy()
+	end
+end
+
 return Entity

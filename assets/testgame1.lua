@@ -1,5 +1,6 @@
 local Player = require("player")
 local Meteor = require("meteor")
+local Bullet = require("bullet")
 local Timer = require("timer")
 local Random = require("random")
 local Object = require("classic")
@@ -18,6 +19,14 @@ function Entities:add(entity)
 	self.entities[entity:id()] = entity
 end
 
+function Entities:remove(id)
+	local entity = self.entities[id]
+	if entity then
+		entity:destroy()
+		self.entities[id] = nil
+	end
+end
+
 function Entities:update(dt)
 	for _, entity in pairs(self.entities) do
 		entity:update(dt)
@@ -30,10 +39,21 @@ function Entities:draw()
 	end
 end
 
+function Entities:remove_dead()
+	local to_remove = {}
+	for id, entity in pairs(self.entities) do
+		if entity.dead then
+			to_remove[#to_remove + 1] = id
+		end
+	end
+	for _, id in ipairs(to_remove) do
+		self:remove(id)
+	end
+end
+
 local G1 = {}
 
 function G1:init()
-	G.physics.create_ground()
 	G.window.set_title("My awesome Lua game 1!")
 	self.entities = Entities()
 	self.timer = Timer()
@@ -42,6 +62,13 @@ function G1:init()
 	self.entities:add(Meteor(300, 300))
 	self.entities:add(Meteor(600, 600))
 	self.fullscreen = false
+	self.rnd = Random()
+
+	self.player:set_spawn_callback(function(x, y, angle)
+		local b = Bullet(x, y, angle)
+		self.entities:add(b)
+	end)
+
 	Entities:on_collision(function(a, b)
 		if a then
 			a:on_collision(b)
@@ -50,11 +77,11 @@ function G1:init()
 			b:on_collision(a)
 		end
 	end)
+
 	local source = G.sound.add_source("music.ogg")
 	G.sound.set_volume(source, 0.4)
 	G.sound.set_loop(source, true)
 	G.sound.play_source(source)
-	self.rnd = Random()
 end
 
 function G1:update(t, dt)
@@ -74,9 +101,6 @@ function G1:update(t, dt)
 			self.fullscreen = false
 		end
 	end
-	if G.input.is_mouse_pressed(0) then
-		G.sound.play_effect("laser.wav")
-	end
 	if G.input.is_key_pressed("r") then
 		G.hotload()
 	end
@@ -84,6 +108,7 @@ function G1:update(t, dt)
 		print("Clipboard says: " .. G.system.get_clipboard())
 	end
 	self.entities:update(dt)
+	self.entities:remove_dead()
 end
 
 function G1:draw()
@@ -96,8 +121,6 @@ function G1:draw()
 	G.graphics.set_color("white")
 	G.graphics.draw_sprite("numeralX", mx, my)
 	self.entities:draw()
-	G.graphics.set_color("blue")
-	G.graphics.draw_circle(300, 300, 20)
 	G.graphics.set_color("white")
 end
 
