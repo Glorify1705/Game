@@ -22,6 +22,8 @@ function Meteor:new(x, y, size, grey)
 	self.dead = false
 	self.split_pending = false
 	self.flash_timer = 0
+	self.drift_fx = 0
+	self.drift_fy = 0
 	local sprites = grey and GREY_SPRITES[size] or SPRITES[size]
 	local sprite = sprites[math.random(#sprites)]
 	local id = "meteor" .. count
@@ -29,7 +31,13 @@ function Meteor:new(x, y, size, grey)
 	Meteor.super.new(self, x, y, 0, sprite, id)
 end
 
+function Meteor:set_drift(fx, fy)
+	self.drift_fx = fx
+	self.drift_fy = fy
+end
+
 function Meteor:update(dt)
+	self.physics:apply_force(self.drift_fx, self.drift_fy)
 	self.physics:rotate(0.2)
 	if self.flash_timer > 0 then
 		self.flash_timer = self.flash_timer - dt

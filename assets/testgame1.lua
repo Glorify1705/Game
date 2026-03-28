@@ -91,7 +91,6 @@ local G1 = {}
 local SCORE_VALUES = { big = 100, med = 50, small = 25 }
 local INVINCIBLE_TIME = 3.0
 local POWERUP_TYPES = { "shield", "rapid_fire", "heal", "score_bonus" }
-local POWERUP_DROP_CHANCE = 0.2
 local POWERUP_HUD_SPRITES = {
 	shield = "powerupBlue_shield",
 	rapid_fire = "powerupGreen_bolt",
@@ -173,7 +172,7 @@ function G1:screen_shake(intensity)
 end
 
 function G1:screen_wrap_entity(entity)
-	if not entity.physics or (entity.physics.destroyed) then return end
+	if not entity.physics or entity.physics.destroyed then return end
 	local v = entity.physics:position()
 	local nx, ny = v.x, v.y
 	local wrapped = false
@@ -285,9 +284,9 @@ function G1:spawn_meteor_offscreen(size, grey)
 	local dx = cx - x
 	local dy = cy - y
 	local dist = math.sqrt(dx * dx + dy * dy)
-	local base_speed = 10 + self.wave * 2
+	local base_force = 40 + self.wave * 5
 	if dist > 0 then
-		m.physics:apply_linear_impulse(dx / dist * base_speed, dy / dist * base_speed)
+		m:set_drift(dx / dist * base_force, dy / dist * base_force)
 	end
 	self.entities:add(m)
 end
@@ -300,11 +299,11 @@ function G1:start_next_wave()
 	local use_grey = self.wave > 3
 
 	for i = 1, num_big do
-		local grey = use_grey and G.random.sample(self.rnd.rnd) > 0.5
+		local grey = use_grey and G.random.sample(self.rnd.rnd, 1, 100) > 50
 		self:spawn_meteor_offscreen("big", grey)
 	end
 	for i = 1, num_med do
-		local grey = use_grey and G.random.sample(self.rnd.rnd) > 0.5
+		local grey = use_grey and G.random.sample(self.rnd.rnd, 1, 100) > 50
 		self:spawn_meteor_offscreen("med", grey)
 	end
 end
@@ -343,7 +342,7 @@ function G1:update(t, dt)
 	self:update_particles(dt)
 
 	for _, entity in pairs(self.entities.entities) do
-		if entity.is_player or entity.is_meteor or entity.is_bullet then
+		if entity.is_player or entity.is_meteor then
 			self:screen_wrap_entity(entity)
 		end
 	end
@@ -365,7 +364,7 @@ function G1:update(t, dt)
 			elseif entity.size == "med" then
 				self:screen_shake(4)
 			end
-			if (entity.size == "big" or entity.size == "med") and G.random.sample(self.rnd.rnd) < POWERUP_DROP_CHANCE then
+			if (entity.size == "big" or entity.size == "med") and G.random.sample(self.rnd.rnd, 1, 100) <= 20 then
 				local v = entity.physics:position()
 				local ptype = G.random.pick(self.rnd.rnd, POWERUP_TYPES)
 				powerup_spawns[#powerup_spawns + 1] = { x = v.x, y = v.y, ptype = ptype }
@@ -389,10 +388,10 @@ function G1:update(t, dt)
 	self.entities:remove_dead()
 
 	for _, c in ipairs(to_spawn) do
-		local grey = self.wave > 3 and G.random.sample(self.rnd.rnd) > 0.5
+		local grey = self.wave > 3 and G.random.sample(self.rnd.rnd, 1, 100) > 50
 		local m = Meteor(c.x, c.y, c.size, grey)
-		local impulse = 20
-		m.physics:apply_linear_impulse(math.cos(c.angle) * impulse, math.sin(c.angle) * impulse)
+		local drift = 60
+		m:set_drift(math.cos(c.angle) * drift, math.sin(c.angle) * drift)
 		self.entities:add(m)
 	end
 
