@@ -284,7 +284,7 @@ function G1:spawn_meteor_offscreen(size, grey)
 	local dx = cx - x
 	local dy = cy - y
 	local dist = math.sqrt(dx * dx + dy * dy)
-	local base_force = 40 + self.wave * 5
+	local base_force = 15 + self.wave * 2
 	if dist > 0 then
 		m:set_drift(dx / dist * base_force, dy / dist * base_force)
 	end
@@ -342,7 +342,7 @@ function G1:update(t, dt)
 	self:update_particles(dt)
 
 	for _, entity in pairs(self.entities.entities) do
-		if entity.is_player or entity.is_meteor then
+		if entity:is_player() or (entity.is_meteor and entity:is_meteor()) then
 			self:screen_wrap_entity(entity)
 		end
 	end
@@ -390,7 +390,7 @@ function G1:update(t, dt)
 	for _, c in ipairs(to_spawn) do
 		local grey = self.wave > 3 and G.random.sample(self.rnd.rnd, 1, 100) > 50
 		local m = Meteor(c.x, c.y, c.size, grey)
-		local drift = 60
+		local drift = 25
 		m:set_drift(math.cos(c.angle) * drift, math.sin(c.angle) * drift)
 		self.entities:add(m)
 	end
