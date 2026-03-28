@@ -88,6 +88,24 @@ end
 
 local G1 = {}
 
+local FONT = "ponderosa.ttf"
+local FONT_SM = 18
+local FONT_MD = 24
+local FONT_LG = 36
+
+local function text_w(size, text)
+	return G.graphics.text_dimensions(FONT, size, text)
+end
+
+local function draw_text(text, size, x, y)
+	G.graphics.draw_text(FONT, size, text, x, y)
+end
+
+local function draw_text_centered(text, size, cx, y)
+	local w = text_w(size, text)
+	G.graphics.draw_text(FONT, size, text, cx - w / 2, y)
+end
+
 local SCORE_VALUES = { big = 100, med = 50, small = 25 }
 local INVINCIBLE_TIME = 3.0
 local POWERUP_TYPES = { "shield", "rapid_fire", "heal", "score_bonus" }
@@ -103,6 +121,16 @@ local POWERUP_NAMES = {
 }
 
 function G1:init()
+	-- Clean up previous state on restart
+	if self.music_source then
+		G.sound.stop_source(self.music_source)
+	end
+	if self.entities then
+		for id, entity in pairs(self.entities.entities) do
+			entity:destroy()
+		end
+	end
+
 	G.window.set_title("My awesome Lua game 1!")
 	G.physics.create_ground(false)
 	self.entities = Entities()
@@ -295,7 +323,7 @@ function G1:draw_messages()
 		local t = m.life / m.max_life
 		local alpha = math.floor(255 * math.min(1, t * 3))
 		G.graphics.set_color(255, 255, 100, alpha)
-		G.graphics.print(m.text, self.screen_w / 2 - 40, self.screen_h / 2 - 60 - m.y_offset)
+		draw_text_centered(m.text, FONT_MD, self.screen_w / 2, self.screen_h / 2 - 60 - m.y_offset)
 	end
 	G.graphics.set_color("white")
 end
@@ -397,6 +425,52 @@ function G1:update(t, dt)
 	end
 	if G.input.is_key_pressed("r") then
 		G.hotload()
+	end
+
+	-- Debug keys
+	if G.input.is_key_pressed("1") then
+		if self.player and not self.player.dead then
+			self.player.health = math.max(0, self.player.health - 50)
+			G.camera.shake(25, 2.0)
+			if self.player.health <= 0 then
+				self.player.dead = true
+				self:on_player_death()
+			end
+		end
+	end
+	if G.input.is_key_pressed("2") then
+		for id, entity in pairs(self.entities.entities) do
+			if entity.is_meteor and entity:is_meteor() then
+				local v = entity.physics:position()
+				self:spawn_particles(v.x, v.y, 8)
+				entity.dead = true
+			end
+		end
+		self.entities:remove_dead()
+	end
+	if G.input.is_key_pressed("3") then
+		if self.player and not self.player.dead then
+			self.player.health = 100
+			self:show_message("HEALTH RESTORED")
+		end
+	end
+	if G.input.is_key_pressed("4") then
+		if self.player and not self.player.dead then
+			self.player:make_invincible(10.0)
+			self:show_message("INVINCIBLE 10s")
+		end
+	end
+	if G.input.is_key_pressed("5") then
+		self.score = self.score + 1000
+		self:show_message("+1000 SCORE")
+	end
+	if G.input.is_key_pressed("6") then
+		self.lives = self.lives + 1
+		self:show_message("+1 LIFE")
+	end
+	if G.input.is_key_pressed("7") then
+		self:start_next_wave()
+		self:show_message("WAVE " .. self.wave)
 	end
 
 	self.starfield:update(dt)
@@ -503,14 +577,14 @@ function G1:draw_hud()
 		G.graphics.draw_sprite("playerLife1_green", 350 + (i - 1) * 35, 15)
 	end
 
-	G.graphics.set_color("freshgreen")
-	G.graphics.draw_rect(10, 10, 300, 20)
 	G.graphics.set_color("neonred")
+	G.graphics.draw_rect(10, 10, 310, 30)
+	G.graphics.set_color("freshgreen")
 	local health = self.player and self.player:get_health() or 0
-	G.graphics.draw_rect(300 * health / 100, 10, 300, 20)
+	G.graphics.draw_rect(10, 10, 10 + 300 * health / 100, 30)
 
 	G.graphics.set_color("white")
-	G.graphics.print("WAVE " .. self.wave, self.screen_w / 2 - 30, 5)
+	draw_text_centered("WAVE " .. self.wave, FONT_MD, self.screen_w / 2, 5)
 
 	if self.player and not self.player.dead then
 		local pname = self.player:active_powerup_name()
@@ -659,10 +733,12 @@ function G1:draw()
 
 	if self.state == "game_over" then
 		G.graphics.set_color(200, 0, 0, 255)
-		G.graphics.print("GAME OVER", self.screen_w / 2 - 50, self.screen_h / 2 - 40)
+		local cx = self.screen_w / 2
+		local cy = self.screen_h / 2
+		draw_text_centered("GAME OVER", FONT_LG, cx, cy - 50)
 		G.graphics.set_color("white")
-		G.graphics.print("SCORE: " .. self.score, self.screen_w / 2 - 50, self.screen_h / 2)
-		G.graphics.print("Press ENTER to restart", self.screen_w / 2 - 80, self.screen_h / 2 + 30)
+		draw_text_centered("SCORE: " .. self.score, FONT_MD, cx, cy)
+		draw_text_centered("Press ENTER to restart", FONT_SM, cx, cy + 35)
 	end
 
 	G.graphics.attach_shader()
