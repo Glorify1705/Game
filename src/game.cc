@@ -4,12 +4,10 @@
 
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <mutex>
 #include <string_view>
-#include <thread>
 
 #include "allocators.h"
 #include "assets.h"
@@ -200,7 +198,7 @@ struct EngineModules {
     };
     while (!is_stopped()) {
       if (source_directory == nullptr) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        SleepMs(100);
         continue;
       }
 
@@ -224,7 +222,7 @@ struct EngineModules {
             WriteAssetsToDb(source_directory, db, &hotload_allocator_);
         if (result.is_error()) {
           LOG("[hotload] WriteAssetsToDb failed: ", result.error().message());
-          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+          SleepMs(50);
           continue;
         }
         size_t written = result.release_value().written_files;
@@ -252,8 +250,7 @@ struct EngineModules {
       }
 
       // Sleep longer when idle (no events), shorter when active.
-      std::this_thread::sleep_for(
-          std::chrono::milliseconds(changes.count > 0 ? 10 : 50));
+      SleepMs(changes.count > 0 ? 10 : 50);
     }
   }
 
@@ -600,7 +597,7 @@ class Game {
       last_frame = now;
       accum += frame_time;
       if (accum < kStep) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        SleepMs(1);
         continue;
       }
       PROFILE_FRAME;
