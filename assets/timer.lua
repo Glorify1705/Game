@@ -70,7 +70,8 @@ function Timer:update(dt)
 end
 
 function Timer:during(delay, during, after)
-	local handle = { time = 0, during = during, after = after or _nothing_, limit = delay, count = 1 }
+	local handle =
+		{ time = 0, during = during, after = after or _nothing_, limit = delay, count = 1 }
 	self.functions[handle] = true
 	return handle
 end
@@ -158,7 +159,8 @@ Timer.tween = setmetatable({
 
 	elastic = function(s, amp, period)
 		amp, period = amp and math.max(1, amp) or 1, period or 0.3
-		return (-amp * math.sin(2 * math.pi / period * (s - 1) - math.asin(1 / amp))) * 2 ^ (10 * (s - 1))
+		return (-amp * math.sin(2 * math.pi / period * (s - 1) - math.asin(1 / amp)))
+			* 2 ^ (10 * (s - 1))
 	end,
 }, {
 

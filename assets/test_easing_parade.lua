@@ -150,7 +150,11 @@ function Game:draw()
 
 	-- Footer.
 	G.graphics.set_color(100, 100, 120, 255)
-	G.graphics.print(string.format("Mode: %s   |   Space: replay   M: toggle mode   Esc: quit", self.mode), 16, wh - 24)
+	G.graphics.print(
+		string.format("Mode: %s   |   Space: replay   M: toggle mode   Esc: quit", self.mode),
+		16,
+		wh - 24
+	)
 end
 
 return Game

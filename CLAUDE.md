@@ -1,6 +1,6 @@
 # Claude Code Guidelines
 
-Follow the code style in `CODESTYLE.md` as closely as possible. When in doubt,
+Follow the code style in `CPPCODESTYLE.md` as closely as possible. When in doubt,
 defer to Google C++ Style with the Zig-flavored modifications described there
 (explicit allocators, no hidden control flow, local reasoning).
 

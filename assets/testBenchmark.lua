@@ -8,7 +8,7 @@
 
 local Game = {}
 
-local TARGET_COUNT = 500
+local target_count = 500
 local GRAVITY_Y = 300
 
 function Game:init()
@@ -23,7 +23,7 @@ function Game:init()
 	self.spawn_timer = 0
 
 	self:setup_walls()
-	self:spawn_batch(TARGET_COUNT)
+	self:spawn_batch(target_count)
 end
 
 function Game:setup_walls()
@@ -111,7 +111,7 @@ function Game:update(t, dt)
 	local counts = { 100, 300, 500, 1000, 2000 }
 	for i, n in ipairs(counts) do
 		if G.input.is_key_pressed(tostring(i)) then
-			TARGET_COUNT = n
+			target_count = n
 			self:reset()
 		end
 	end
@@ -184,9 +184,9 @@ function Game:update(t, dt)
 
 	-- Continuously spawn/remove to stress allocator.
 	self.spawn_timer = self.spawn_timer + dt
-	if self.spawn_timer > 0.1 and #self.objects < TARGET_COUNT then
+	if self.spawn_timer > 0.1 and #self.objects < target_count then
 		self.spawn_timer = 0
-		self:spawn_batch(math.min(10, TARGET_COUNT - #self.objects))
+		self:spawn_batch(math.min(10, target_count - #self.objects))
 	end
 end
 
@@ -197,7 +197,7 @@ function Game:reset()
 	self.objects = {}
 	self.particles = {}
 	self.frame = 0
-	self:spawn_batch(TARGET_COUNT)
+	self:spawn_batch(target_count)
 end
 
 function Game:draw()
@@ -247,7 +247,12 @@ function Game:draw()
 	-- HUD.
 	G.graphics.set_color(220, 220, 230, 255)
 	G.graphics.print(
-		string.format("Objects: %d   Particles: %d   Target: %d", #self.objects, #self.particles, TARGET_COUNT),
+		string.format(
+			"Objects: %d   Particles: %d   Target: %d",
+			#self.objects,
+			#self.particles,
+			target_count
+		),
 		16,
 		16
 	)

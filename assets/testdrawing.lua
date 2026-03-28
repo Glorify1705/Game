@@ -33,7 +33,14 @@ function Game:draw()
 	G.graphics.draw_circle(col_w * 1.5, y1 + (row_h - y1) / 2 + y1 / 2, 60)
 
 	G.graphics.set_color(100, 255, 100, 255)
-	G.graphics.draw_triangle(col_w * 2 + pad, row_h - pad, col_w * 2.5, y1 + pad, col_w * 3 - pad, row_h - pad)
+	G.graphics.draw_triangle(
+		col_w * 2 + pad,
+		row_h - pad,
+		col_w * 2.5,
+		y1 + pad,
+		col_w * 3 - pad,
+		row_h - pad
+	)
 
 	G.graphics.set_color(255, 200, 50, 255)
 	G.graphics.draw_ellipse(col_w * 3.5, y1 + (row_h - y1) / 2 + y1 / 2, 80, 40)
@@ -67,7 +74,13 @@ function Game:draw()
 	G.graphics.draw_rounded_rect(pad, y_off + label_h + pad, col_w - pad, y_off + row_h - pad, 20)
 
 	G.graphics.set_color(100, 200, 255, 255)
-	G.graphics.draw_rounded_rect_outline(col_w + pad, y_off + label_h + pad, col_w * 2 - pad, y_off + row_h - pad, 15)
+	G.graphics.draw_rounded_rect_outline(
+		col_w + pad,
+		y_off + label_h + pad,
+		col_w * 2 - pad,
+		y_off + row_h - pad,
+		15
+	)
 
 	-- Rotated rectangle outline
 	G.graphics.set_color(255, 150, 50, 255)

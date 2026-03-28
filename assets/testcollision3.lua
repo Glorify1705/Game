@@ -189,7 +189,12 @@ function Game:draw()
 	else
 		G.graphics.set_color(60, 60, 80, 200)
 	end
-	G.graphics.draw_rect(test_result.bx - 20, test_result.by - 20, test_result.bx + 20, test_result.by + 20)
+	G.graphics.draw_rect(
+		test_result.bx - 20,
+		test_result.by - 20,
+		test_result.bx + 20,
+		test_result.by + 20
+	)
 
 	-- Circle (follows mouse)
 	if test_result.hit then

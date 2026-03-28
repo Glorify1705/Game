@@ -233,7 +233,12 @@ function Game:draw()
 	if player_is_circle then
 		G.graphics.draw_circle(px, py, PLAYER_RADIUS)
 	else
-		G.graphics.draw_rect(px - PLAYER_BOX_W / 2, py - PLAYER_BOX_H / 2, px + PLAYER_BOX_W / 2, py + PLAYER_BOX_H / 2)
+		G.graphics.draw_rect(
+			px - PLAYER_BOX_W / 2,
+			py - PLAYER_BOX_H / 2,
+			px + PLAYER_BOX_W / 2,
+			py + PLAYER_BOX_H / 2
+		)
 	end
 
 	-- Point query under mouse cursor

@@ -1,6 +1,6 @@
-local Object = require("classic")
+Object = require("classic")
 
-local Vec2 = Object:extend()
+Vec2 = Object:extend()
 
 function Vec2:new(x, y)
 	self.x = x
@@ -36,7 +36,7 @@ function Vec2.distance2(a, b)
 end
 
 function Vec2.distance(a, b)
-	return math.sqrt(Vec2.distance(a, b))
+	return math.sqrt(Vec2.distance2(a, b))
 end
 
 function Vec2:length2()

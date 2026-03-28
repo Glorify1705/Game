@@ -167,7 +167,12 @@ function Game:draw()
 		end
 
 		if obj.type == "aabb" then
-			G.graphics.draw_rect(obj.x - obj.w / 2, obj.y - obj.h / 2, obj.x + obj.w / 2, obj.y + obj.h / 2)
+			G.graphics.draw_rect(
+				obj.x - obj.w / 2,
+				obj.y - obj.h / 2,
+				obj.x + obj.w / 2,
+				obj.y + obj.h / 2
+			)
 		else
 			G.graphics.draw_circle(obj.x, obj.y, obj.r)
 		end
