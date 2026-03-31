@@ -7,7 +7,7 @@ local LIFETIME = 1.5
 
 local count = 0
 
-function Bullet:new(x, y, angle)
+function Bullet:new(x, y, angle, world_w, world_h)
 	local id = "bullet" .. count
 	count = count + 1
 	Bullet.super.new(self, x, y, angle, "laserGreen11", id)
@@ -16,6 +16,8 @@ function Bullet:new(x, y, angle)
 	self.travel_angle = angle
 	self.dx = math.sin(angle)
 	self.dy = -math.cos(angle)
+	self.world_w = world_w
+	self.world_h = world_h
 end
 
 function Bullet:update(dt)
@@ -25,7 +27,7 @@ function Bullet:update(dt)
 		return
 	end
 	local v = self.physics:position()
-	if v.x < 0 or v.x > 4000 or v.y < 0 or v.y > 3000 then
+	if v.x < 0 or v.x > self.world_w or v.y < 0 or v.y > self.world_h then
 		self.dead = true
 		return
 	end

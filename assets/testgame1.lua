@@ -73,8 +73,8 @@ function Entities:count_meteors()
 	return count
 end
 
-local WORLD_W = 4000
-local WORLD_H = 3000
+local WORLD_W = 8000
+local WORLD_H = 6000
 
 local function draw_number(n, x, y)
 	local s = tostring(n)
@@ -184,7 +184,7 @@ function G1:spawn_player()
 	self.respawning = false
 
 	self.player:set_spawn_callback(function(x, y, angle)
-		local b = Bullet(x, y, angle)
+		local b = Bullet(x, y, angle, WORLD_W, WORLD_H)
 		self.entities:add(b)
 	end)
 
@@ -348,6 +348,65 @@ function G1:spawn_meteor(size, grey)
 	self.entities:add(m)
 end
 
+function G1:handle_debug_keys()
+	if G.input.is_key_pressed("1") then
+		if self.player and not self.player.dead then
+			self.player.health = math.max(0, self.player.health - 50)
+			G.camera.shake(25, 2.0)
+			if self.player.health <= 0 then
+				self.player.dead = true
+				self:on_player_death()
+			end
+		end
+	end
+	if G.input.is_key_pressed("2") then
+		for id, entity in pairs(self.entities.entities) do
+			if entity.is_meteor and entity:is_meteor() then
+				local v = entity.physics:position()
+				self:spawn_particles(v.x, v.y, 8)
+				entity.dead = true
+			end
+		end
+		self.entities:remove_dead()
+	end
+	if G.input.is_key_pressed("3") then
+		if self.player and not self.player.dead then
+			self.player.health = 100
+			self:show_message("HEALTH RESTORED")
+		end
+	end
+	if G.input.is_key_pressed("4") then
+		if self.player and not self.player.dead then
+			self.player:make_invincible(10.0)
+			self:show_message("INVINCIBLE 10s")
+		end
+	end
+	if G.input.is_key_pressed("5") then
+		self.score = self.score + 1000
+		self:show_message("+1000 SCORE")
+	end
+	if G.input.is_key_pressed("6") then
+		self.lives = self.lives + 1
+		self:show_message("+1 LIFE")
+	end
+	if G.input.is_key_pressed("7") then
+		self:start_next_wave()
+		self:show_message("WAVE " .. self.wave)
+	end
+	if G.input.is_key_pressed("8") then
+		self:debug_spawn_powerup("shield")
+	end
+	if G.input.is_key_pressed("9") then
+		self:debug_spawn_powerup("rapid_fire")
+	end
+	if G.input.is_key_pressed("0") then
+		self:debug_spawn_powerup("heal")
+	end
+	if G.input.is_key_pressed("-") then
+		self:debug_spawn_powerup("score_bonus")
+	end
+end
+
 function G1:debug_spawn_powerup(ptype)
 	if not self.player or self.player.dead then return end
 	local pv = self.player.physics:position()
@@ -417,63 +476,7 @@ function G1:update(t, dt)
 		G.hotload()
 	end
 
-	-- Debug keys
-	if G.input.is_key_pressed("1") then
-		if self.player and not self.player.dead then
-			self.player.health = math.max(0, self.player.health - 50)
-			G.camera.shake(25, 2.0)
-			if self.player.health <= 0 then
-				self.player.dead = true
-				self:on_player_death()
-			end
-		end
-	end
-	if G.input.is_key_pressed("2") then
-		for id, entity in pairs(self.entities.entities) do
-			if entity.is_meteor and entity:is_meteor() then
-				local v = entity.physics:position()
-				self:spawn_particles(v.x, v.y, 8)
-				entity.dead = true
-			end
-		end
-		self.entities:remove_dead()
-	end
-	if G.input.is_key_pressed("3") then
-		if self.player and not self.player.dead then
-			self.player.health = 100
-			self:show_message("HEALTH RESTORED")
-		end
-	end
-	if G.input.is_key_pressed("4") then
-		if self.player and not self.player.dead then
-			self.player:make_invincible(10.0)
-			self:show_message("INVINCIBLE 10s")
-		end
-	end
-	if G.input.is_key_pressed("5") then
-		self.score = self.score + 1000
-		self:show_message("+1000 SCORE")
-	end
-	if G.input.is_key_pressed("6") then
-		self.lives = self.lives + 1
-		self:show_message("+1 LIFE")
-	end
-	if G.input.is_key_pressed("7") then
-		self:start_next_wave()
-		self:show_message("WAVE " .. self.wave)
-	end
-	if G.input.is_key_pressed("8") then
-		self:debug_spawn_powerup("shield")
-	end
-	if G.input.is_key_pressed("9") then
-		self:debug_spawn_powerup("rapid_fire")
-	end
-	if G.input.is_key_pressed("0") then
-		self:debug_spawn_powerup("heal")
-	end
-	if G.input.is_key_pressed("-") then
-		self:debug_spawn_powerup("score_bonus")
-	end
+	self:handle_debug_keys()
 
 	self.starfield:update(dt)
 

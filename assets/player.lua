@@ -4,7 +4,7 @@ local Timer = require("timer")
 local FORCE = 50.000
 local ANGLE_DELTA = 20
 local FIRE_COOLDOWN = 0.2
-local RECOIL = 300
+local RECOIL = 800
 local WING_OFFSET = 18
 local INVINCIBLE_TIME = 3.0
 
