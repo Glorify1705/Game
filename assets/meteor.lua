@@ -1,4 +1,5 @@
 local Entity = require("entity")
+local C = require("collision_groups")
 
 local Meteor = Entity:extend()
 
@@ -28,7 +29,10 @@ function Meteor:new(x, y, size, grey)
 	local sprite = sprites[math.random(#sprites)]
 	local id = "meteor" .. count
 	count = count + 1
-	Meteor.super.new(self, x, y, 0, sprite, id)
+	Meteor.super.new(self, x, y, 0, sprite, id, {
+		category = C.METEOR,
+		mask = C.PLAYER + C.METEOR + C.BULLET,
+	})
 end
 
 function Meteor:set_drift(fx, fy)
@@ -57,12 +61,12 @@ function Meteor:draw()
 end
 
 function Meteor:on_collision(other)
-	if other and other.is_bullet and other:is_bullet() then
-		self.dead = true
-		self.flash_timer = 0.1
-		if self.size == "big" or self.size == "med" then
-			self.split_pending = true
-		end
+	if not other then return end
+	if not (other.is_bullet and other:is_bullet()) then return end
+	self.dead = true
+	self.flash_timer = 0.1
+	if self.size == "big" or self.size == "med" then
+		self.split_pending = true
 	end
 end
 

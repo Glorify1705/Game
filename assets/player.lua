@@ -1,5 +1,6 @@
 local Entity = require("entity")
 local Timer = require("timer")
+local C = require("collision_groups")
 
 local FORCE = 50.000
 local ANGLE_DELTA = 20
@@ -16,7 +17,10 @@ local DAMAGE_SPRITES = { "playerShip1_damage1", "playerShip1_damage2", "playerSh
 local Player = Entity:extend()
 
 function Player:new(x, y)
-	Player.super.new(self, x, y, 0, "playerShip1_green", "player")
+	Player.super.new(self, x, y, 0, "playerShip1_green", "player", {
+		category = C.PLAYER,
+		mask = C.METEOR + C.POWERUP,
+	})
 	self.health = 100
 	self.timer = Timer()
 	self.cooldown = { v = 0, color = { 255, 255, 255, 255 } }
@@ -157,8 +161,6 @@ end
 
 function Player:on_collision(other)
 	if self.invincible or self.dying then return end
-	if other and other.is_bullet and other:is_bullet() then return end
-	if other and other.is_powerup and other:is_powerup() then return end
 	if self.cooldown.v < 1e-8 then
 		self.health = self.health - COLLISION_DAMAGE
 		self.cooldown.v = 1

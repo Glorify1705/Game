@@ -1,4 +1,5 @@
 local Entity = require("entity")
+local C = require("collision_groups")
 
 local Bullet = Entity:extend()
 
@@ -10,7 +11,10 @@ local count = 0
 function Bullet:new(x, y, angle, world_w, world_h)
 	local id = "bullet" .. count
 	count = count + 1
-	Bullet.super.new(self, x, y, angle, "laserGreen11", id)
+	Bullet.super.new(self, x, y, angle, "laserGreen11", id, {
+		category = C.BULLET,
+		mask = C.METEOR,
+	})
 	self.dead = false
 	self.lifetime = LIFETIME
 	self.travel_angle = angle
@@ -41,8 +45,6 @@ end
 
 function Bullet:on_collision(other)
 	if not other then return end
-	if other:is_player() then return end
-	if other.is_powerup and other:is_powerup() then return end
 	self.dead = true
 end
 

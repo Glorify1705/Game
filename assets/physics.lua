@@ -1,10 +1,10 @@
-Object = require("classic")
-Vec2 = require("vector2d")
+local Object = require("classic")
+local Vec2 = require("vector2d")
 
-Physics = Object:extend()
+local Physics = Object:extend()
 
-function Physics:new(tx, ty, bx, by, angle, id)
-	self.handle = G.physics.add_box(tx, ty, bx, by, angle, id)
+function Physics:new(tx, ty, bx, by, angle, id, options)
+	self.handle = G.physics.add_box(tx, ty, bx, by, angle, id, options)
 end
 
 function Physics:position()
