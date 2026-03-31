@@ -2,6 +2,7 @@
 #ifndef _PHYSICS_H
 #define _PHYSICS_H
 
+#include <array>
 #include <string_view>
 
 #include "array.h"
@@ -138,7 +139,7 @@ class Physics final : public b2ContactListener {
   void *destroy_userdata_ = this;
 
   // Interned category names, indexed by bit position.
-  uint32_t category_handles_[16] = {};
+  std::array<uint32_t, 16> category_handles_ = {};
   int category_count_ = 0;
 };
 
