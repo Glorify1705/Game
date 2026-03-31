@@ -487,6 +487,7 @@ function G1:update(t, dt)
 	end
 	if G.input.is_key_pressed("p") then
 		self.paused = not self.paused
+		return
 	end
 	if G.input.is_key_pressed("f") then
 		if not self.fullscreen then
