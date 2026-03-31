@@ -129,17 +129,17 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* physics = Registry<Physics>::Retrieve(state);
        luaL_checktype(state, 1, LUA_TTABLE);
        int len = lua_objlen(state, 1);
-       const char* names[16];
        if (len > 16) {
          LUA_ERROR(state, "Max 16 collision categories");
          return 0;
        }
+       std::string_view names[16];
        for (int i = 1; i <= len; i++) {
          lua_rawgeti(state, 1, i);
          names[i - 1] = luaL_checkstring(state, -1);
          lua_pop(state, 1);
        }
-       physics->SetCollisionCategories(names, len);
+       physics->SetCollisionCategories(Slice<std::string_view>(names, len));
        return 0;
      }},
     {"create_ground",

@@ -26,13 +26,14 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
   world_.SetContactListener(this);
 }
 
-void Physics::SetCollisionCategories(const char** names, int count) {
-  CHECK(count <= 16, "Max 16 collision categories (got ", count, ")");
+void Physics::SetCollisionCategories(Slice<std::string_view> names) {
+  CHECK(names.size() <= 16, "Max 16 collision categories (got ", names.size(),
+        ")");
   if (category_map_) {
     allocator_->Destroy(category_map_);
   }
   category_map_ = allocator_->New<Dictionary<uint16_t>>(allocator_);
-  for (int i = 0; i < count; i++) {
+  for (size_t i = 0; i < names.size(); i++) {
     category_map_->Insert(names[i], static_cast<uint16_t>(1 << i));
   }
 }
@@ -44,9 +45,9 @@ uint16_t Physics::ResolveCategory(std::string_view name) const {
   return 0;
 }
 
-uint16_t Physics::ResolveMask(const char** names, int count) const {
+uint16_t Physics::ResolveMask(Slice<std::string_view> names) const {
   uint16_t mask = 0;
-  for (int i = 0; i < count; i++) {
+  for (size_t i = 0; i < names.size(); i++) {
     mask |= ResolveCategory(names[i]);
   }
   return mask;

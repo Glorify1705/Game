@@ -41,13 +41,13 @@ class Physics final : public b2ContactListener {
 
   // Registers named collision categories. Each name is assigned a unique bit.
   // Max 16 categories (uint16_t). Must be called before creating bodies.
-  void SetCollisionCategories(const char **names, int count);
+  void SetCollisionCategories(Slice<std::string_view> names);
 
   // Resolves a category name to its bit value. Returns 0 if not found.
   uint16_t ResolveCategory(std::string_view name) const;
 
   // Resolves a list of category names to an OR'd bitmask.
-  uint16_t ResolveMask(const char **names, int count) const;
+  uint16_t ResolveMask(Slice<std::string_view> names) const;
 
   void UpdateDimensions(IVec2 pixel_dimensions);
 
