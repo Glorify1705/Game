@@ -24,7 +24,6 @@ function Powerup:new(x, y, ptype)
 	self.y = y
 	self.vy = DRIFT_SPEED
 	self.dead = false
-	self.picked_up = false
 	self.lifetime = LIFETIME
 	self.visible = true
 	self.blink_timer = 0
@@ -41,7 +40,7 @@ function Powerup:update(dt)
 		self.dead = true
 		return
 	end
-	if self.lifetime < (LIFETIME - BLINK_START) then
+	if self.lifetime < BLINK_START then
 		self.blink_timer = self.blink_timer + dt
 		if self.blink_timer > 0.15 then
 			self.blink_timer = self.blink_timer - 0.15
@@ -58,7 +57,6 @@ function Powerup:check_pickup(player)
 	local dy = self.y - pv.y
 	if dx * dx + dy * dy < PICKUP_RADIUS * PICKUP_RADIUS then
 		self.dead = true
-		self.picked_up = true
 		G.sound.play_effect("pong-blip1.ogg")
 		return true
 	end

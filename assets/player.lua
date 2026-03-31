@@ -4,9 +4,11 @@ local Timer = require("timer")
 local FORCE = 50.000
 local ANGLE_DELTA = 20
 local FIRE_COOLDOWN = 0.2
-local RECOIL = 800
+local RECOIL = 600
 local WING_OFFSET = 18
-local INVINCIBLE_TIME = 3.0
+local NOSE_DIST = 40
+local COLLISION_DAMAGE = 10
+local POWERUP_DURATION = 5.0
 
 local Player = Entity:extend()
 
@@ -51,12 +53,12 @@ end
 function Player:apply_powerup(ptype)
 	if ptype == "shield" then
 		self.shield_active = true
-		self.shield_timer = 5.0
+		self.shield_timer = POWERUP_DURATION
 		self.invincible = true
-		self.invincible_timer = 5.0
+		self.invincible_timer = POWERUP_DURATION
 	elseif ptype == "rapid_fire" then
 		self.rapid_fire = true
-		self.rapid_fire_timer = 5.0
+		self.rapid_fire_timer = POWERUP_DURATION
 		self.fire_cooldown = FIRE_COOLDOWN / 2
 	elseif ptype == "heal" then
 		self.health = math.min(100, self.health + 25)
@@ -123,11 +125,10 @@ function Player:shoot()
 	if not self.spawn_bullet then return end
 	local v = self.physics:position()
 	local angle = self.physics:angle()
-	local nose_dist = 40
 	-- offset perpendicular to ship facing for alternating wing guns
 	local side = self.gun_side * WING_OFFSET
-	local bx = v.x + math.sin(angle) * nose_dist + math.cos(angle) * side
-	local by = v.y - math.cos(angle) * nose_dist + math.sin(angle) * side
+	local bx = v.x + math.sin(angle) * NOSE_DIST + math.cos(angle) * side
+	local by = v.y - math.cos(angle) * NOSE_DIST + math.sin(angle) * side
 	self.gun_side = -self.gun_side
 	-- recoil: push ship backward (opposite to firing direction)
 	self.physics:apply_force(-math.sin(angle) * RECOIL, math.cos(angle) * RECOIL)
@@ -140,7 +141,7 @@ function Player:on_collision(other)
 	if other and other.is_bullet and other:is_bullet() then return end
 	if other and other.is_powerup and other:is_powerup() then return end
 	if self.cooldown.v < 1e-8 then
-		self.health = self.health - 10
+		self.health = self.health - COLLISION_DAMAGE
 		self.cooldown.v = 1
 		self.cooldown.color = { 255, 0, 0, 255 }
 		self.timer:tween(5, self.cooldown, { v = 0, color = { 255, 255, 255, 255 } }, "in-out-quad")

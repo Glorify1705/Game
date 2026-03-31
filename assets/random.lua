@@ -1,6 +1,6 @@
-Object = require("classic")
+local Object = require("classic")
 
-Random = Object:extend()
+local Random = Object:extend()
 
 function Random:new(...)
 	local n = select("#", ...)

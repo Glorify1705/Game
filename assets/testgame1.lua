@@ -35,12 +35,6 @@ function Entities:update(dt)
 	end
 end
 
-function Entities:draw()
-	for _, entity in pairs(self.entities) do
-		entity:draw()
-	end
-end
-
 function Entities:collect_dead()
 	local dead = {}
 	for id, entity in pairs(self.entities) do
@@ -97,10 +91,6 @@ local function text_w(size, text)
 	return G.graphics.text_dimensions(FONT, size, text)
 end
 
-local function draw_text(text, size, x, y)
-	G.graphics.draw_text(FONT, size, text, x, y)
-end
-
 local function draw_text_centered(text, size, cx, y)
 	local w = text_w(size, text)
 	G.graphics.draw_text(FONT, size, text, cx - w / 2, y)
@@ -108,6 +98,10 @@ end
 
 local SCORE_VALUES = { big = 100, med = 50, small = 25 }
 local INVINCIBLE_TIME = 3.0
+local METEOR_SAFE_DIST = 300
+local METEOR_SAFE_PUSH = 400
+local CHILD_DRIFT = 25
+local POWERUP_DROP_CHANCE = 20
 local POWERUP_TYPES = { "shield", "rapid_fire", "heal", "score_bonus" }
 local POWERUP_HUD_SPRITES = {
 	shield = "powerupBlue_shield",
@@ -160,7 +154,7 @@ function G1:init()
 
 	self:spawn_player()
 
-	Entities:on_collision(function(a, b)
+	self.entities:on_collision(function(a, b)
 		if a then
 			a:on_collision(b)
 		end
@@ -335,9 +329,9 @@ function G1:spawn_meteor(size, grey)
 		local pv = self.player.physics:position()
 		local dx = x - pv.x
 		local dy = y - pv.y
-		if dx * dx + dy * dy < 300 * 300 then
-			x = x + (dx >= 0 and 400 or -400)
-			y = y + (dy >= 0 and 400 or -400)
+		if dx * dx + dy * dy < METEOR_SAFE_DIST * METEOR_SAFE_DIST then
+			x = x + (dx >= 0 and METEOR_SAFE_PUSH or -METEOR_SAFE_PUSH)
+			y = y + (dy >= 0 and METEOR_SAFE_PUSH or -METEOR_SAFE_PUSH)
 		end
 	end
 
@@ -476,8 +470,6 @@ function G1:update(t, dt)
 		G.hotload()
 	end
 
-	self:handle_debug_keys()
-
 	self.starfield:update(dt)
 
 	local _, wy = G.input.mouse_wheel()
@@ -494,6 +486,8 @@ function G1:update(t, dt)
 		end
 		return
 	end
+
+	self:handle_debug_keys()
 
 	self:update_messages(dt)
 	self.entities:update(dt)
@@ -541,8 +535,7 @@ function G1:update(t, dt)
 			else
 				G.camera.shake(3, 0.3)
 			end
-			if (entity.size == "big" or entity.size == "med") and G.random.sample(self.rnd.rnd, 1, 100) <= 20 then
-				local v = entity.physics:position()
+			if (entity.size == "big" or entity.size == "med") and G.random.sample(self.rnd.rnd, 1, 100) <= POWERUP_DROP_CHANCE then
 				local ptype = G.random.pick(self.rnd.rnd, POWERUP_TYPES)
 				powerup_spawns[#powerup_spawns + 1] = { x = v.x, y = v.y, ptype = ptype }
 			end
@@ -554,8 +547,7 @@ function G1:update(t, dt)
 	for _, c in ipairs(to_spawn) do
 		local grey = self.wave > 3 and G.random.sample(self.rnd.rnd, 1, 100) > 50
 		local m = Meteor(c.x, c.y, c.size, grey)
-		local drift = 25
-		m:set_drift(math.cos(c.angle) * drift, math.sin(c.angle) * drift)
+		m:set_drift(math.cos(c.angle) * CHILD_DRIFT, math.sin(c.angle) * CHILD_DRIFT)
 		self.entities:add(m)
 	end
 

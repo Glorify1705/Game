@@ -1,7 +1,7 @@
-Object = require("classic")
-Physics = require("physics")
+local Object = require("classic")
+local Physics = require("physics")
 
-Entity = Object:extend()
+local Entity = Object:extend()
 
 function Entity:new(x, y, angle, image, id)
 	self.x = x
