@@ -20,7 +20,7 @@ function Player:new(x, y)
 		collides_with = { "meteor", "powerup" },
 	})
 	self.health = 100
-	self.cooldown = { v = 0, color = { 255, 255, 255, 255 } }
+	self.cooldown = { v = 0, r = 255, g = 255, b = 255, a = 255 }
 	self.fire_timer = 0
 	self.fire_cooldown = FIRE_COOLDOWN
 	self.spawn_bullet = nil
@@ -159,8 +159,11 @@ function Player:on_collision(other)
 	if self.cooldown.v < 1e-8 then
 		self.health = self.health - COLLISION_DAMAGE
 		self.cooldown.v = 1
-		self.cooldown.color = { 255, 0, 0, 255 }
-		G.timer.tween(5, self.cooldown, { v = 0, color = { 255, 255, 255, 255 } }, "in-out-quad")
+		self.cooldown.r = 255
+		self.cooldown.g = 0
+		self.cooldown.b = 0
+		self.cooldown.a = 255
+		G.timer.tween(5, self.cooldown, { v = 0, r = 255, g = 255, b = 255, a = 255 }, "in-out-quad")
 		if self.on_damage then
 			self.on_damage()
 		end
@@ -187,7 +190,7 @@ function Player:draw()
 		return
 	end
 	if self.cooldown.v > 0 then
-		G.graphics.set_color(unpack(self.cooldown.color))
+		G.graphics.set_color(self.cooldown.r, self.cooldown.g, self.cooldown.b, self.cooldown.a)
 	end
 	G.graphics.draw_sprite(self.image, v.x, v.y, angle)
 	if self.shield_active then
