@@ -511,6 +511,15 @@ the existing command buffer.
 8. **GPU particles** -- builds on instanced rendering we already have
 9. **Render layers** -- quality-of-life for game scripts
 
+## Particle System
+
+See [[Particle system]] for the full design: engine comparison survey (Love2D,
+BYTEPATH, Godot, Unity, Impact.js), SoA data model, instanced rendering,
+PropertyRamp/ColorRamp, Lua API, hot reload integration, memory budget, and
+phased implementation plan.
+
+---
+
 ## Appendix: Engine Comparison Summary
 
 The engine's current renderer is comparable to **Raylib** in features: solid
