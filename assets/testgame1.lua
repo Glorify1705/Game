@@ -779,7 +779,7 @@ function G1:draw()
 		G.graphics.draw_rect(0, 0, self.screen_w, self.screen_h)
 		if self.confirm_quit then
 			G.graphics.set_color(255, 80, 80, 255)
-			draw_text_centered("Do you really want to quit?", FONT_LG, cx, cy - 20)
+			draw_text_centered("Quit the game?", FONT_LG, cx, cy - 20)
 			G.graphics.set_color("white")
 			draw_text_centered("Y / N", FONT_MD, cx, cy + 25)
 		else
@@ -874,7 +874,7 @@ function Menu:draw()
 		G.graphics.set_color(0, 0, 0, 150)
 		G.graphics.draw_rect(0, 0, self.screen_w, self.screen_h)
 		G.graphics.set_color(255, 80, 80, 255)
-		draw_text_centered("Do you really want to quit?", FONT_LG, cx, cy - 20)
+		draw_text_centered("Quit the game?", FONT_LG, cx, cy - 20)
 		G.graphics.set_color("white")
 		draw_text_centered("Y / N", FONT_MD, cx, cy + 25)
 	end
