@@ -468,10 +468,10 @@ static const LuaApiFunction kGraphicsLib[] = {
     {"draw_text",
      "Writes text to the screen.",
      {{"font", "Font name to use for writing text", "string"},
+      {"size", "Size in pixels to use for rendering the text", "integer"},
       {"text",
        "A string or byte buffer with the contents to render to the screen",
        "string"},
-      {"size", "Size in pixels to use for rendering the text", "integer"},
       {"x",
        "Horizontal position in screen space pixels left-to-right where to "
        "render the text",

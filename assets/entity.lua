@@ -1,7 +1,7 @@
-Object = require("classic")
-Physics = require("physics")
+local Object = require("classic")
+local Physics = require("physics")
 
-Entity = Object:extend()
+local Entity = Object:extend()
 
 function Entity:new(x, y, angle, image, id)
 	self.x = x
@@ -29,5 +29,11 @@ function Entity:is_player()
 end
 
 function Entity:on_collision(other) end
+
+function Entity:destroy()
+	if self.physics then
+		self.physics:destroy()
+	end
+end
 
 return Entity
