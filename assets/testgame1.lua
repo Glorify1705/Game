@@ -348,6 +348,16 @@ function G1:spawn_meteor(size, grey)
 	self.entities:add(m)
 end
 
+function G1:debug_spawn_powerup(ptype)
+	if not self.player or self.player.dead then return end
+	local pv = self.player.physics:position()
+	local angle = math.random() * math.pi * 2
+	local dist = 80
+	local pu = Powerup(pv.x + math.cos(angle) * dist, pv.y + math.sin(angle) * dist, ptype)
+	self.entities:add(pu)
+	self:show_message("SPAWNED " .. (POWERUP_NAMES[ptype] or ptype))
+end
+
 function G1:start_next_wave()
 	self.wave = self.wave + 1
 	self.wave_active = true
@@ -451,6 +461,18 @@ function G1:update(t, dt)
 	if G.input.is_key_pressed("7") then
 		self:start_next_wave()
 		self:show_message("WAVE " .. self.wave)
+	end
+	if G.input.is_key_pressed("8") then
+		self:debug_spawn_powerup("shield")
+	end
+	if G.input.is_key_pressed("9") then
+		self:debug_spawn_powerup("rapid_fire")
+	end
+	if G.input.is_key_pressed("0") then
+		self:debug_spawn_powerup("heal")
+	end
+	if G.input.is_key_pressed("-") then
+		self:debug_spawn_powerup("score_bonus")
 	end
 
 	self.starfield:update(dt)
