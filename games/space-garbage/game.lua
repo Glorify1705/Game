@@ -859,7 +859,7 @@ function Menu:draw()
 	self.starfield:draw(0, 0)
 
 	G.graphics.set_color(100, 200, 255, 255)
-	draw_text_centered("SHOOT CLICKER", 48, cx, cy - 120)
+	draw_text_centered("SPACE GARBAGE!", 48, cx, cy - 120)
 
 	for i, item in ipairs(self.items) do
 		local y = cy + (i - 1) * 40
@@ -887,7 +887,7 @@ end
 local Game = {}
 
 function Game:init()
-	G.window.set_title("Shoot Clicker")
+	G.window.set_title("Space Garbage!")
 	self.state = "menu"
 	Menu:init()
 end

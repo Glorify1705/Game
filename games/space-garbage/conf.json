@@ -2,13 +2,13 @@
   "width": 1024,
   "height": 800,
   "msaa_samples": 16,
-  "title": "Game Engine Tests",
+  "title": "Space Garbage!",
   "borderless": false,
   "fullscreen": false,
   "centered": true,
   "resizable": true,
   "enable_joystick": false,
   "org_name": "JPIndustries",
-  "app_name": "GameEngineTests",
+  "app_name": "SpaceGarbage",
   "version": "0.1"
 }
