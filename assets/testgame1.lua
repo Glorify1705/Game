@@ -140,6 +140,8 @@ function G1:init()
 	self.particles = {}
 	self.messages = {}
 	self.target_zoom = 1.0
+	self.paused = false
+	self.confirm_quit = false
 
 	self.screen_w, self.screen_h = G.window.dimensions()
 	self.starfield = Starfield(self.screen_w, self.screen_h, self.rnd.rnd)
@@ -466,9 +468,25 @@ function G1:update(t, dt)
 	if not G.window.has_input_focus() then
 		return
 	end
-	self.timer:update(dt)
-	if G.input.is_key_pressed("q") then
-		G.system.quit()
+
+	if self.confirm_quit then
+		if G.input.is_key_pressed("y") then
+			G.system.quit()
+		end
+		if G.input.is_key_pressed("n") or G.input.is_key_pressed("escape") then
+			self.confirm_quit = false
+			self.paused = false
+		end
+		return
+	end
+
+	if G.input.is_key_pressed("q") or G.input.is_key_pressed("escape") then
+		self.confirm_quit = true
+		self.paused = true
+		return
+	end
+	if G.input.is_key_pressed("p") then
+		self.paused = not self.paused
 	end
 	if G.input.is_key_pressed("f") then
 		if not self.fullscreen then
@@ -483,6 +501,9 @@ function G1:update(t, dt)
 		G.hotload()
 	end
 
+	if self.paused then return end
+
+	self.timer:update(dt)
 	self.starfield:update(dt)
 
 	local _, wy = G.input.mouse_wheel()
@@ -750,6 +771,24 @@ function G1:draw()
 		draw_text_centered("Press ENTER to restart", FONT_SM, cx, cy + 35)
 	end
 
+	if self.paused then
+		local cx = self.screen_w / 2
+		local cy = self.screen_h / 2
+		G.graphics.set_color(0, 0, 0, 150)
+		G.graphics.draw_rect(0, 0, self.screen_w, self.screen_h)
+		if self.confirm_quit then
+			G.graphics.set_color(255, 80, 80, 255)
+			draw_text_centered("Do you really want to quit?", FONT_LG, cx, cy - 20)
+			G.graphics.set_color("white")
+			draw_text_centered("Y / N", FONT_MD, cx, cy + 25)
+		else
+			G.graphics.set_color("white")
+			draw_text_centered("PAUSED", FONT_LG, cx, cy - 20)
+			draw_text_centered("Press P to resume", FONT_SM, cx, cy + 25)
+		end
+		G.graphics.set_color("white")
+	end
+
 	G.graphics.attach_shader()
 
 	G.graphics.set_canvas()
@@ -770,13 +809,25 @@ function Menu:init()
 	self.items = { "PLAY GAME", "QUIT" }
 	self.rnd = Random()
 	self.starfield = Starfield(self.screen_w, self.screen_h, self.rnd.rnd)
+	self.confirm_quit = false
 end
 
 function Menu:update(t, dt)
 	self.starfield:update(dt)
 
-	if G.input.is_key_pressed("q") then
-		G.system.quit()
+	if self.confirm_quit then
+		if G.input.is_key_pressed("y") then
+			G.system.quit()
+		end
+		if G.input.is_key_pressed("n") or G.input.is_key_pressed("escape") then
+			self.confirm_quit = false
+		end
+		return
+	end
+
+	if G.input.is_key_pressed("q") or G.input.is_key_pressed("escape") then
+		self.confirm_quit = true
+		return
 	end
 
 	if G.input.is_key_pressed("up") or G.input.is_key_pressed("w") then
@@ -792,7 +843,7 @@ function Menu:update(t, dt)
 		if self.selected == 1 then
 			return "play"
 		elseif self.selected == 2 then
-			G.system.quit()
+			self.confirm_quit = true
 		end
 	end
 end
@@ -816,6 +867,15 @@ function Menu:draw()
 			G.graphics.set_color(200, 200, 200, 255)
 			draw_text_centered(item, FONT_MD, cx, y)
 		end
+	end
+
+	if self.confirm_quit then
+		G.graphics.set_color(0, 0, 0, 150)
+		G.graphics.draw_rect(0, 0, self.screen_w, self.screen_h)
+		G.graphics.set_color(255, 80, 80, 255)
+		draw_text_centered("Do you really want to quit?", FONT_LG, cx, cy - 20)
+		G.graphics.set_color("white")
+		draw_text_centered("Y / N", FONT_MD, cx, cy + 25)
 	end
 
 	G.graphics.set_color("white")
