@@ -194,16 +194,27 @@ end
 function G1:on_player_death()
 	self.lives = self.lives - 1
 	G.camera.shake(12, 0.3)
+	self:show_death_message()
 	if self.lives <= 0 then
 		self.state = "game_over"
 		G.sound.play_effect("game-over.ogg")
 	else
 		self.respawning = true
-		self.timer:after(2, function()
+		self.timer:after(3, function()
 			self:spawn_player()
 			self.player:make_invincible(INVINCIBLE_TIME)
 		end)
 	end
+end
+
+function G1:show_death_message()
+	self.messages[#self.messages + 1] = {
+		text = "You died!",
+		life = 3.0,
+		max_life = 3.0,
+		y_offset = 0,
+		color = { 255, 60, 60 },
+	}
 end
 
 function G1:bake_vignette()
@@ -315,7 +326,8 @@ function G1:draw_messages()
 	for _, m in ipairs(self.messages) do
 		local t = m.life / m.max_life
 		local alpha = math.floor(255 * math.min(1, t * 3))
-		G.graphics.set_color(255, 255, 100, alpha)
+		local c = m.color or { 255, 255, 100 }
+		G.graphics.set_color(c[1], c[2], c[3], alpha)
 		draw_text_centered(m.text, FONT_MD, self.screen_w / 2, self.screen_h / 2 - 60 - m.y_offset)
 	end
 	G.graphics.set_color("white")
@@ -325,7 +337,7 @@ function G1:spawn_meteor(size, grey)
 	local rng = self.rnd.rnd
 	local x = G.random.sample(rng, 100, WORLD_W - 100)
 	local y = G.random.sample(rng, 100, WORLD_H - 100)
-	if self.player and not self.player.dead then
+	if self.player and self.player:is_alive() then
 		local pv = self.player.physics:position()
 		local dx = x - pv.x
 		local dy = y - pv.y
@@ -344,11 +356,12 @@ end
 
 function G1:handle_debug_keys()
 	if G.input.is_key_pressed("1") then
-		if self.player and not self.player.dead then
+		if self.player and self.player:is_alive() then
 			self.player.health = math.max(0, self.player.health - 50)
 			G.camera.shake(25, 2.0)
-			if self.player.health <= 0 then
-				self.player.dead = true
+			if self.player.health <= 0 and not self.player.dying then
+				self.player.dying = true
+				self.player.death_timer = 0
 				self:on_player_death()
 			end
 		end
@@ -364,13 +377,13 @@ function G1:handle_debug_keys()
 		self.entities:remove_dead()
 	end
 	if G.input.is_key_pressed("3") then
-		if self.player and not self.player.dead then
+		if self.player and self.player:is_alive() then
 			self.player.health = 100
 			self:show_message("HEALTH RESTORED")
 		end
 	end
 	if G.input.is_key_pressed("4") then
-		if self.player and not self.player.dead then
+		if self.player and self.player:is_alive() then
 			self.player:make_invincible(10.0)
 			self:show_message("INVINCIBLE 10s")
 		end
@@ -402,7 +415,7 @@ function G1:handle_debug_keys()
 end
 
 function G1:debug_spawn_powerup(ptype)
-	if not self.player or self.player.dead then return end
+	if not self.player or not self.player:is_alive() then return end
 	local pv = self.player.physics:position()
 	local angle = math.random() * math.pi * 2
 	local dist = 80
@@ -434,7 +447,7 @@ function G1:start_next_wave()
 end
 
 function G1:toroidal_camera_follow(dt)
-	if not self.player or self.player.dead then return end
+	if not self.player or not self.player:is_alive() then return end
 	local pv = self.player.physics:position()
 	local cam_x, cam_y = G.camera.get()
 	local dx = pv.x - cam_x
@@ -501,7 +514,7 @@ function G1:update(t, dt)
 
 	self:toroidal_camera_follow(dt)
 
-	if self.player and not self.player.dead then
+	if self.player and self.player:is_alive() then
 		for _, entity in pairs(self.entities.entities) do
 			if entity.is_powerup and entity:is_powerup() and entity.check_pickup then
 				if entity:check_pickup(self.player) then
@@ -582,7 +595,7 @@ function G1:draw_hud()
 	G.graphics.set_color("white")
 	draw_text_centered("WAVE " .. self.wave, FONT_MD, self.screen_w / 2, 5)
 
-	if self.player and not self.player.dead then
+	if self.player and self.player:is_alive() then
 		local pname = self.player:active_powerup_name()
 		if pname and POWERUP_HUD_SPRITES[pname] then
 			G.graphics.draw_sprite(POWERUP_HUD_SPRITES[pname], self.screen_w - 50, 50)
@@ -619,7 +632,7 @@ function G1:draw_minimap()
 		end
 	end
 
-	if self.player and not self.player.dead then
+	if self.player and self.player:is_alive() then
 		local pv = self.player.physics:position()
 		local px = mx + pv.x * sx
 		local py = my + pv.y * sy
@@ -677,7 +690,7 @@ function G1:draw_entities_wrapped()
 end
 
 function G1:draw_aim_line()
-	if not self.player or self.player.dead then return end
+	if not self.player or not self.player:is_alive() then return end
 	local v = self.player.physics:position()
 	local angle = self.player.physics:angle()
 	local dx = math.sin(angle)
@@ -708,7 +721,7 @@ function G1:draw()
 	self:draw_entities_wrapped()
 	self:draw_particles()
 
-	if self.player and not self.player.dead then
+	if self.player and self.player:is_alive() then
 		local pv = self.player.physics:position()
 		local zoom = G.camera.get_zoom()
 		local margin = self.screen_w / zoom

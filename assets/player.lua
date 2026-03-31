@@ -9,6 +9,9 @@ local WING_OFFSET = 18
 local NOSE_DIST = 40
 local COLLISION_DAMAGE = 10
 local POWERUP_DURATION = 5.0
+local DEATH_DURATION = 1.5
+local DEATH_SPIN_SPEED = 15
+local DAMAGE_SPRITES = { "playerShip1_damage1", "playerShip1_damage2", "playerShip1_damage3" }
 
 local Player = Entity:extend()
 
@@ -31,6 +34,8 @@ function Player:new(x, y)
 	self.rapid_fire = false
 	self.rapid_fire_timer = 0
 	self.gun_side = 1 -- alternates between 1 (right) and -1 (left)
+	self.dying = false
+	self.death_timer = 0
 end
 
 function Player:set_spawn_callback(fn)
@@ -73,6 +78,20 @@ end
 
 function Player:update(dt)
 	self.timer:update(dt)
+
+	if self.dying then
+		self.death_timer = self.death_timer + dt
+		self.physics:apply_torque(DEATH_SPIN_SPEED)
+		local t = self.death_timer / DEATH_DURATION
+		local sprite_idx = math.min(math.floor(t * #DAMAGE_SPRITES) + 1, #DAMAGE_SPRITES)
+		self.image = DAMAGE_SPRITES[sprite_idx]
+		if self.death_timer >= DEATH_DURATION then
+			self.dead = true
+			self.visible = false
+		end
+		return
+	end
+
 	self.fire_timer = math.max(0, self.fire_timer - dt)
 
 	if self.shield_active then
@@ -137,7 +156,7 @@ function Player:shoot()
 end
 
 function Player:on_collision(other)
-	if self.invincible then return end
+	if self.invincible or self.dying then return end
 	if other and other.is_bullet and other:is_bullet() then return end
 	if other and other.is_powerup and other:is_powerup() then return end
 	if self.cooldown.v < 1e-8 then
@@ -149,7 +168,8 @@ function Player:on_collision(other)
 			self.on_damage()
 		end
 		if self.health <= 0 then
-			self.dead = true
+			self.dying = true
+			self.death_timer = 0
 			if self.on_death then
 				self.on_death()
 			end
@@ -161,6 +181,14 @@ function Player:draw()
 	if not self.visible then return end
 	local v = self.physics:position()
 	local angle = self.physics:angle()
+	if self.dying then
+		local t = self.death_timer / DEATH_DURATION
+		local alpha = math.floor(255 * (1 - t))
+		G.graphics.set_color(255, 255, 255, alpha)
+		G.graphics.draw_sprite(self.image, v.x, v.y, angle)
+		G.graphics.set_color(255, 255, 255, 255)
+		return
+	end
 	if self.cooldown.v > 0 then
 		G.graphics.set_color(unpack(self.cooldown.color))
 	end
@@ -174,6 +202,10 @@ end
 
 function Player:is_player()
 	return true
+end
+
+function Player:is_alive()
+	return not self.dead and not self.dying
 end
 
 function Player:get_health()
