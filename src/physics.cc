@@ -17,12 +17,39 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
                  Allocator* allocator)
     : pixels_per_meter_(pixels_per_meter),
       world_dimensions_(pixel_dimensions / pixels_per_meter),
-      world_(b2Vec2(0, 0)) {
+      world_(b2Vec2(0, 0)),
+      allocator_(allocator) {
   box2d_allocator_.Alloc = Box2dAlloc;
   box2d_allocator_.Free = Box2dFree;
   box2d_allocator_.ctx = allocator;
   b2SetAllocator(&box2d_allocator_);
   world_.SetContactListener(this);
+}
+
+void Physics::SetCollisionCategories(const char** names, int count) {
+  CHECK(count <= 16, "Max 16 collision categories (got ", count, ")");
+  if (category_map_) {
+    allocator_->Destroy(category_map_);
+  }
+  category_map_ = allocator_->New<Dictionary<uint16_t>>(allocator_);
+  for (int i = 0; i < count; i++) {
+    category_map_->Insert(names[i], static_cast<uint16_t>(1 << i));
+  }
+}
+
+uint16_t Physics::ResolveCategory(std::string_view name) const {
+  if (!category_map_) return 0;
+  uint16_t bit = 0;
+  if (category_map_->Lookup(name, &bit)) return bit;
+  return 0;
+}
+
+uint16_t Physics::ResolveMask(const char** names, int count) const {
+  uint16_t mask = 0;
+  for (int i = 0; i < count; i++) {
+    mask |= ResolveCategory(names[i]);
+  }
+  return mask;
 }
 
 void Physics::CreateGround(bool walls) {
@@ -124,21 +151,22 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
   fixture.filter.categoryBits = options.category;
   fixture.filter.maskBits = options.mask;
   body->CreateFixture(&fixture);
-  if (!options.sensor) {
-    b2FrictionJointDef jd;
-    float I = body->GetInertia();
-    float mass = body->GetMass();
-    jd.bodyA = ground_;
-    jd.bodyB = body;
-    jd.localAnchorA.SetZero();
-    jd.localAnchorB = body->GetLocalCenter();
-    jd.collideConnected = true;
-    const float gravity = 10.0f;
-    const float radius = b2Sqrt(2.0f * I / mass);
-    jd.maxForce = 0.5f * mass * gravity;
-    jd.maxTorque = 0.2f * mass * radius * gravity;
-    world_.CreateJoint(&jd);
-  }
+  if (options.sensor) return Handle{body, userdata};
+  // Friction joint anchors the body to the ground to simulate top-down drag.
+  // Without it, bodies slide forever since world gravity is zero.
+  b2FrictionJointDef jd;
+  float I = body->GetInertia();
+  float mass = body->GetMass();
+  jd.bodyA = ground_;
+  jd.bodyB = body;
+  jd.localAnchorA.SetZero();
+  jd.localAnchorB = body->GetLocalCenter();
+  jd.collideConnected = true;
+  const float gravity = 10.0f;
+  const float radius = b2Sqrt(2.0f * I / mass);
+  jd.maxForce = 0.5f * mass * gravity;
+  jd.maxTorque = 0.2f * mass * radius * gravity;
+  world_.CreateJoint(&jd);
   return Handle{body, userdata};
 }
 
@@ -164,21 +192,22 @@ Physics::Handle Physics::AddCircle(FVec2 position, double radius,
   fixture.filter.categoryBits = options.category;
   fixture.filter.maskBits = options.mask;
   body->CreateFixture(&fixture);
-  if (!options.sensor) {
-    b2FrictionJointDef jd;
-    float I = body->GetInertia();
-    float mass = body->GetMass();
-    jd.bodyA = ground_;
-    jd.bodyB = body;
-    jd.localAnchorA.SetZero();
-    jd.localAnchorB = body->GetLocalCenter();
-    jd.collideConnected = true;
-    const float gravity = 10.0f;
-    const float torque_radius = b2Sqrt(2.0f * I / mass);
-    jd.maxForce = 0.5f * mass * gravity;
-    jd.maxTorque = 0.2f * mass * torque_radius * gravity;
-    world_.CreateJoint(&jd);
-  }
+  if (options.sensor) return Handle{body, userdata};
+  // Friction joint anchors the body to the ground to simulate top-down drag.
+  // Without it, bodies slide forever since world gravity is zero.
+  b2FrictionJointDef jd;
+  float I = body->GetInertia();
+  float mass = body->GetMass();
+  jd.bodyA = ground_;
+  jd.bodyB = body;
+  jd.localAnchorA.SetZero();
+  jd.localAnchorB = body->GetLocalCenter();
+  jd.collideConnected = true;
+  const float gravity = 10.0f;
+  const float torque_radius = b2Sqrt(2.0f * I / mass);
+  jd.maxForce = 0.5f * mass * gravity;
+  jd.maxTorque = 0.2f * mass * torque_radius * gravity;
+  world_.CreateJoint(&jd);
   return Handle{body, userdata};
 }
 

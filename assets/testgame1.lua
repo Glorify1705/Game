@@ -6,6 +6,7 @@ local Random = require("random")
 local Object = require("classic")
 local Starfield = require("starfield")
 local Powerup = require("powerup")
+local CollisionGroups = require("collision_groups")
 
 local Entities = Object:extend()
 
@@ -126,6 +127,7 @@ function G1:init()
 	end
 
 	G.window.set_title("My awesome Lua game 1!")
+	CollisionGroups.register()
 	G.physics.create_ground(false)
 	self.entities = Entities()
 	self.timer = Timer()

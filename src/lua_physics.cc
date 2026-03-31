@@ -6,9 +6,12 @@ namespace G {
 namespace {
 
 // Reads shape options from a Lua table at the given stack index.
+// Supports both raw numeric category/mask and string-based names:
+//   { category = "player", collides_with = {"meteor", "powerup"} }
 PhysicsShapeOptions ReadShapeOptions(lua_State* state, int index) {
   PhysicsShapeOptions opts;
   if (!lua_istable(state, index)) return opts;
+  auto* physics = Registry<Physics>::Retrieve(state);
   lua_getfield(state, index, "density");
   if (lua_isnumber(state, -1)) opts.density = lua_tonumber(state, -1);
   lua_pop(state, 1);
@@ -22,11 +25,30 @@ PhysicsShapeOptions ReadShapeOptions(lua_State* state, int index) {
   if (lua_isboolean(state, -1)) opts.sensor = lua_toboolean(state, -1);
   lua_pop(state, 1);
   lua_getfield(state, index, "category");
-  if (lua_isnumber(state, -1))
+  if (lua_isnumber(state, -1)) {
     opts.category = (uint16_t)lua_tointeger(state, -1);
+  } else if (lua_isstring(state, -1)) {
+    opts.category = physics->ResolveCategory(lua_tostring(state, -1));
+  }
   lua_pop(state, 1);
   lua_getfield(state, index, "mask");
-  if (lua_isnumber(state, -1)) opts.mask = (uint16_t)lua_tointeger(state, -1);
+  if (lua_isnumber(state, -1)) {
+    opts.mask = (uint16_t)lua_tointeger(state, -1);
+  }
+  lua_pop(state, 1);
+  lua_getfield(state, index, "collides_with");
+  if (lua_istable(state, -1)) {
+    uint16_t mask = 0;
+    int len = lua_objlen(state, -1);
+    for (int i = 1; i <= len; i++) {
+      lua_rawgeti(state, -1, i);
+      if (lua_isstring(state, -1)) {
+        mask |= physics->ResolveCategory(lua_tostring(state, -1));
+      }
+      lua_pop(state, 1);
+    }
+    opts.mask = mask;
+  }
   lua_pop(state, 1);
   return opts;
 }
@@ -97,6 +119,27 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
        physics->DestroyHandle(*handle);
+       return 0;
+     }},
+    {"set_collision_categories",
+     "Registers named collision categories for string-based filtering",
+     {{"categories", "array of category name strings (max 16)", "table"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       luaL_checktype(state, 1, LUA_TTABLE);
+       int len = lua_objlen(state, 1);
+       const char* names[16];
+       if (len > 16) {
+         LUA_ERROR(state, "Max 16 collision categories");
+         return 0;
+       }
+       for (int i = 1; i <= len; i++) {
+         lua_rawgeti(state, 1, i);
+         names[i - 1] = luaL_checkstring(state, -1);
+         lua_pop(state, 1);
+       }
+       physics->SetCollisionCategories(names, len);
        return 0;
      }},
     {"create_ground",

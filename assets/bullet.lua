@@ -1,5 +1,4 @@
 local Entity = require("entity")
-local C = require("collision_groups")
 
 local Bullet = Entity:extend()
 
@@ -12,8 +11,8 @@ function Bullet:new(x, y, angle, world_w, world_h)
 	local id = "bullet" .. count
 	count = count + 1
 	Bullet.super.new(self, x, y, angle, "laserGreen11", id, {
-		category = C.BULLET,
-		mask = C.METEOR,
+		category = "bullet",
+		collides_with = { "meteor" },
 	})
 	self.physics:set_fixed_rotation(true)
 	self.dead = false

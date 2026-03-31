@@ -1,6 +1,5 @@
 local Entity = require("entity")
 local Timer = require("timer")
-local C = require("collision_groups")
 
 local FORCE = 50.000
 local ANGLE_DELTA = 20
@@ -18,8 +17,8 @@ local Player = Entity:extend()
 
 function Player:new(x, y)
 	Player.super.new(self, x, y, 0, "playerShip1_green", "player", {
-		category = C.PLAYER,
-		mask = C.METEOR + C.POWERUP,
+		category = "player",
+		collides_with = { "meteor", "powerup" },
 	})
 	self.health = 100
 	self.timer = Timer()

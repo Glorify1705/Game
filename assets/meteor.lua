@@ -1,5 +1,4 @@
 local Entity = require("entity")
-local C = require("collision_groups")
 
 local Meteor = Entity:extend()
 
@@ -30,8 +29,8 @@ function Meteor:new(x, y, size, grey)
 	local id = "meteor" .. count
 	count = count + 1
 	Meteor.super.new(self, x, y, 0, sprite, id, {
-		category = C.METEOR,
-		mask = C.PLAYER + C.METEOR + C.BULLET,
+		category = "meteor",
+		collides_with = { "player", "meteor", "bullet" },
 	})
 end
 
