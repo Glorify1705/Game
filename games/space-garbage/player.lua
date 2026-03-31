@@ -1,5 +1,4 @@
 local Entity = require("entity")
-local Timer = require("timer")
 
 local FORCE = 50.000
 local ANGLE_DELTA = 20
@@ -21,7 +20,6 @@ function Player:new(x, y)
 		collides_with = { "meteor", "powerup" },
 	})
 	self.health = 100
-	self.timer = Timer()
 	self.cooldown = { v = 0, color = { 255, 255, 255, 255 } }
 	self.fire_timer = 0
 	self.fire_cooldown = FIRE_COOLDOWN
@@ -80,8 +78,6 @@ function Player:active_powerup_name()
 end
 
 function Player:update(dt)
-	self.timer:update(dt)
-
 	if self.dying then
 		self.death_timer = self.death_timer + dt
 		self.physics:apply_torque(DEATH_SPIN_SPEED)
@@ -164,7 +160,7 @@ function Player:on_collision(other)
 		self.health = self.health - COLLISION_DAMAGE
 		self.cooldown.v = 1
 		self.cooldown.color = { 255, 0, 0, 255 }
-		self.timer:tween(5, self.cooldown, { v = 0, color = { 255, 255, 255, 255 } }, "in-out-quad")
+		G.timer.tween(5, self.cooldown, { v = 0, color = { 255, 255, 255, 255 } }, "in-out-quad")
 		if self.on_damage then
 			self.on_damage()
 		end

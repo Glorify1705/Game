@@ -1,7 +1,6 @@
 local Player = require("player")
 local Meteor = require("meteor")
 local Bullet = require("bullet")
-local Timer = require("timer")
 local Random = require("random")
 local Object = require("classic")
 local Starfield = require("starfield")
@@ -130,7 +129,7 @@ function G1:init()
 	CollisionGroups.register()
 	G.physics.create_ground(false)
 	self.entities = Entities()
-	self.timer = Timer()
+	G.timer.cancel_all()
 	self.fullscreen = false
 	self.rnd = Random()
 	self.score = 0
@@ -204,7 +203,7 @@ function G1:on_player_death()
 		G.sound.play_effect("game-over.ogg")
 	else
 		self.respawning = true
-		self.timer:after(3, function()
+		G.timer.after(3, function()
 			self:spawn_player()
 			self.player:make_invincible(INVINCIBLE_TIME)
 		end)
@@ -506,7 +505,6 @@ function G1:update(t, dt)
 
 	if self.paused then return end
 
-	self.timer:update(dt)
 	self.starfield:update(dt)
 
 	local _, wy = G.input.mouse_wheel()
@@ -595,7 +593,7 @@ function G1:update(t, dt)
 
 	if self.wave_active and self.entities:count_meteors() == 0 then
 		self.wave_active = false
-		self.timer:after(2, function()
+		G.timer.after(2, function()
 			self:start_next_wave()
 		end)
 	end
