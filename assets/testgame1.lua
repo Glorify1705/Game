@@ -688,7 +688,7 @@ function G1:draw_entities_wrapped()
 	local zoom = G.camera.get_zoom()
 	local margin = self.screen_w / zoom
 	for _, entity in pairs(self.entities.entities) do
-		if entity.is_bullet and entity:is_bullet() then
+		if entity.category == "bullet" then
 			entity:draw()
 		else
 			local ex, ey

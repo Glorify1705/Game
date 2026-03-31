@@ -17,8 +17,7 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
                  Allocator* allocator)
     : pixels_per_meter_(pixels_per_meter),
       world_dimensions_(pixel_dimensions / pixels_per_meter),
-      world_(b2Vec2(0, 0)),
-      allocator_(allocator) {
+      world_(b2Vec2(0, 0)) {
   box2d_allocator_.Alloc = Box2dAlloc;
   box2d_allocator_.Free = Box2dFree;
   box2d_allocator_.ctx = allocator;
@@ -29,19 +28,19 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
 void Physics::SetCollisionCategories(Slice<std::string_view> names) {
   CHECK(names.size() <= 16, "Max 16 collision categories (got ", names.size(),
         ")");
-  if (category_map_) {
-    allocator_->Destroy(category_map_);
-  }
-  category_map_ = allocator_->New<Dictionary<uint16_t>>(allocator_);
+  category_count_ = static_cast<int>(names.size());
+  auto& st = StringTable::Instance();
   for (size_t i = 0; i < names.size(); i++) {
-    category_map_->Insert(names[i], static_cast<uint16_t>(1 << i));
+    category_handles_[i] = st.Intern(names[i]);
   }
 }
 
 uint16_t Physics::ResolveCategory(std::string_view name) const {
-  if (!category_map_) return 0;
-  uint16_t bit = 0;
-  if (category_map_->Lookup(name, &bit)) return bit;
+  if (category_count_ == 0) return 0;
+  uint32_t h = StringTable::Instance().Intern(name);
+  for (int i = 0; i < category_count_; i++) {
+    if (category_handles_[i] == h) return static_cast<uint16_t>(1 << i);
+  }
   return 0;
 }
 

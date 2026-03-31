@@ -6,8 +6,8 @@
 
 #include "array.h"
 #include "box2d/box2d.h"
-#include "dictionary.h"
 #include "math.h"
+#include "string_table.h"
 #include "vec.h"
 
 namespace G {
@@ -137,8 +137,9 @@ class Physics final : public b2ContactListener {
   DestroyCallback destroy_callback_ = DefaultDestroy;
   void *destroy_userdata_ = this;
 
-  Allocator *allocator_ = nullptr;
-  Dictionary<uint16_t> *category_map_ = nullptr;
+  // Interned category names, indexed by bit position.
+  uint32_t category_handles_[16] = {};
+  int category_count_ = 0;
 };
 
 }  // namespace G

@@ -5,6 +5,24 @@
 namespace G {
 namespace {
 
+// Reads a numeric field from a Lua table, returning the default if absent.
+float LuaGetNumberField(lua_State* state, int index, const char* field,
+                        float fallback) {
+  lua_getfield(state, index, field);
+  float result = lua_isnumber(state, -1) ? lua_tonumber(state, -1) : fallback;
+  lua_pop(state, 1);
+  return result;
+}
+
+// Reads a boolean field from a Lua table, returning the default if absent.
+bool LuaGetBoolField(lua_State* state, int index, const char* field,
+                     bool fallback) {
+  lua_getfield(state, index, field);
+  bool result = lua_isboolean(state, -1) ? lua_toboolean(state, -1) : fallback;
+  lua_pop(state, 1);
+  return result;
+}
+
 // Reads shape options from a Lua table at the given stack index.
 // Supports both raw numeric category/mask and string-based names:
 //   { category = "player", collides_with = {"meteor", "powerup"} }
@@ -12,18 +30,11 @@ PhysicsShapeOptions ReadShapeOptions(lua_State* state, int index) {
   PhysicsShapeOptions opts;
   if (!lua_istable(state, index)) return opts;
   auto* physics = Registry<Physics>::Retrieve(state);
-  lua_getfield(state, index, "density");
-  if (lua_isnumber(state, -1)) opts.density = lua_tonumber(state, -1);
-  lua_pop(state, 1);
-  lua_getfield(state, index, "friction");
-  if (lua_isnumber(state, -1)) opts.friction = lua_tonumber(state, -1);
-  lua_pop(state, 1);
-  lua_getfield(state, index, "restitution");
-  if (lua_isnumber(state, -1)) opts.restitution = lua_tonumber(state, -1);
-  lua_pop(state, 1);
-  lua_getfield(state, index, "sensor");
-  if (lua_isboolean(state, -1)) opts.sensor = lua_toboolean(state, -1);
-  lua_pop(state, 1);
+  opts.density = LuaGetNumberField(state, index, "density", opts.density);
+  opts.friction = LuaGetNumberField(state, index, "friction", opts.friction);
+  opts.restitution =
+      LuaGetNumberField(state, index, "restitution", opts.restitution);
+  opts.sensor = LuaGetBoolField(state, index, "sensor", opts.sensor);
   lua_getfield(state, index, "category");
   if (lua_isnumber(state, -1)) {
     opts.category = (uint16_t)lua_tointeger(state, -1);

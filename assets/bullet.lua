@@ -48,8 +48,4 @@ function Bullet:on_collision(other)
 	self.dead = true
 end
 
-function Bullet:is_bullet()
-	return true
-end
-
 return Bullet
