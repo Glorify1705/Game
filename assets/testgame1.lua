@@ -6,6 +6,7 @@ local Random = require("random")
 local Object = require("classic")
 local Starfield = require("starfield")
 local Powerup = require("powerup")
+local CollisionGroups = require("collision_groups")
 
 local Entities = Object:extend()
 
@@ -126,6 +127,7 @@ function G1:init()
 	end
 
 	G.window.set_title("My awesome Lua game 1!")
+	CollisionGroups.register()
 	G.physics.create_ground(false)
 	self.entities = Entities()
 	self.timer = Timer()
@@ -686,7 +688,7 @@ function G1:draw_entities_wrapped()
 	local zoom = G.camera.get_zoom()
 	local margin = self.screen_w / zoom
 	for _, entity in pairs(self.entities.entities) do
-		if entity.is_bullet and entity:is_bullet() then
+		if entity.category == "bullet" then
 			entity:draw()
 		else
 			local ex, ey
@@ -779,7 +781,7 @@ function G1:draw()
 		G.graphics.draw_rect(0, 0, self.screen_w, self.screen_h)
 		if self.confirm_quit then
 			G.graphics.set_color(255, 80, 80, 255)
-			draw_text_centered("Do you really want to quit?", FONT_LG, cx, cy - 20)
+			draw_text_centered("Quit the game?", FONT_LG, cx, cy - 20)
 			G.graphics.set_color("white")
 			draw_text_centered("Y / N", FONT_MD, cx, cy + 25)
 		else
@@ -874,7 +876,7 @@ function Menu:draw()
 		G.graphics.set_color(0, 0, 0, 150)
 		G.graphics.draw_rect(0, 0, self.screen_w, self.screen_h)
 		G.graphics.set_color(255, 80, 80, 255)
-		draw_text_centered("Do you really want to quit?", FONT_LG, cx, cy - 20)
+		draw_text_centered("Quit the game?", FONT_LG, cx, cy - 20)
 		G.graphics.set_color("white")
 		draw_text_centered("Y / N", FONT_MD, cx, cy + 25)
 	end

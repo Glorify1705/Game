@@ -25,6 +25,33 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
   world_.SetContactListener(this);
 }
 
+void Physics::SetCollisionCategories(Slice<std::string_view> names) {
+  CHECK(names.size() <= 16, "Max 16 collision categories (got ", names.size(),
+        ")");
+  category_count_ = static_cast<int>(names.size());
+  auto& st = StringTable::Instance();
+  for (size_t i = 0; i < names.size(); i++) {
+    category_handles_[i] = st.Intern(names[i]);
+  }
+}
+
+uint16_t Physics::ResolveCategory(std::string_view name) const {
+  if (category_count_ == 0) return 0;
+  uint32_t h = StringTable::Instance().Intern(name);
+  for (int i = 0; i < category_count_; i++) {
+    if (category_handles_[i] == h) return static_cast<uint16_t>(1 << i);
+  }
+  return 0;
+}
+
+uint16_t Physics::ResolveMask(Slice<std::string_view> names) const {
+  uint16_t mask = 0;
+  for (size_t i = 0; i < names.size(); i++) {
+    mask |= ResolveCategory(names[i]);
+  }
+  return mask;
+}
+
 void Physics::CreateGround(bool walls) {
   walls_ = walls;
   if (ground_ != nullptr) {
@@ -103,7 +130,8 @@ void Physics::SetEndContactCallback(ContactCallback callback, void* userdata) {
 }
 
 Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
-                                uintptr_t userdata) {
+                                uintptr_t userdata,
+                                PhysicsShapeOptions options) {
   CHECK(ground_, "create_ground() must be called before add_box()");
   const b2Vec2 tl = To(top_left);
   const b2Vec2 br = To(bottom_right);
@@ -116,9 +144,16 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
   b2Body* body = world_.CreateBody(&def);
   b2FixtureDef fixture;
   fixture.shape = &box;
-  fixture.density = 2.0f;
-  fixture.friction = 0.3f;
+  fixture.density = options.density;
+  fixture.friction = options.friction;
+  fixture.restitution = options.restitution;
+  fixture.isSensor = options.sensor;
+  fixture.filter.categoryBits = options.category;
+  fixture.filter.maskBits = options.mask;
   body->CreateFixture(&fixture);
+  if (options.sensor) return Handle{body, userdata};
+  // Friction joint anchors the body to the ground to simulate top-down drag.
+  // Without it, bodies slide forever since world gravity is zero.
   b2FrictionJointDef jd;
   float I = body->GetInertia();
   float mass = body->GetMass();
@@ -136,7 +171,8 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
 }
 
 Physics::Handle Physics::AddCircle(FVec2 position, double radius,
-                                   uintptr_t userdata) {
+                                   uintptr_t userdata,
+                                   PhysicsShapeOptions options) {
   CHECK(ground_, "create_ground() must be called before add_circle()");
   const b2Vec2 p = To(position);
   b2BodyDef def;
@@ -149,9 +185,16 @@ Physics::Handle Physics::AddCircle(FVec2 position, double radius,
   b2Body* body = world_.CreateBody(&def);
   b2FixtureDef fixture;
   fixture.shape = &circle;
-  fixture.density = 2.0f;
-  fixture.friction = 0.3f;
+  fixture.density = options.density;
+  fixture.friction = options.friction;
+  fixture.restitution = options.restitution;
+  fixture.isSensor = options.sensor;
+  fixture.filter.categoryBits = options.category;
+  fixture.filter.maskBits = options.mask;
   body->CreateFixture(&fixture);
+  if (options.sensor) return Handle{body, userdata};
+  // Friction joint anchors the body to the ground to simulate top-down drag.
+  // Without it, bodies slide forever since world gravity is zero.
   b2FrictionJointDef jd;
   float I = body->GetInertia();
   float mass = body->GetMass();
@@ -236,6 +279,14 @@ float Physics::GetAngularVelocity(Handle handle) const {
 
 void Physics::SetAngularVelocity(Handle handle, float v) {
   handle.handle->SetAngularVelocity(v);
+}
+
+void Physics::SetFixedRotation(Handle handle, bool fixed) {
+  handle.handle->SetFixedRotation(fixed);
+}
+
+bool Physics::GetFixedRotation(Handle handle) const {
+  return handle.handle->IsFixedRotation();
 }
 
 FVec2 Physics::From(b2Vec2 v) const {

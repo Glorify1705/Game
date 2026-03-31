@@ -10,7 +10,11 @@ local count = 0
 function Bullet:new(x, y, angle, world_w, world_h)
 	local id = "bullet" .. count
 	count = count + 1
-	Bullet.super.new(self, x, y, angle, "laserGreen11", id)
+	Bullet.super.new(self, x, y, angle, "laserGreen11", id, {
+		category = "bullet",
+		collides_with = { "meteor" },
+	})
+	self.physics:set_fixed_rotation(true)
 	self.dead = false
 	self.lifetime = LIFETIME
 	self.travel_angle = angle
@@ -41,13 +45,7 @@ end
 
 function Bullet:on_collision(other)
 	if not other then return end
-	if other:is_player() then return end
-	if other.is_powerup and other:is_powerup() then return end
 	self.dead = true
-end
-
-function Bullet:is_bullet()
-	return true
 end
 
 return Bullet
