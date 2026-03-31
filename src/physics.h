@@ -9,6 +9,16 @@
 
 namespace G {
 
+// Options for shape creation. Controls material, filtering, and sensing.
+struct PhysicsShapeOptions {
+  float density = 2.0f;
+  float friction = 0.3f;
+  float restitution = 0.0f;
+  bool sensor = false;
+  uint16_t category = 0x0001;
+  uint16_t mask = 0xFFFF;
+};
+
 class Physics final : public b2ContactListener {
  public:
   inline static constexpr float kPixelsPerMeter = 60;
@@ -37,8 +47,9 @@ class Physics final : public b2ContactListener {
   void EndContact(b2Contact *);
 
   Handle AddBox(FVec2 top_left, FVec2 top_right, float angle,
-                uintptr_t userdata);
-  Handle AddCircle(FVec2 position, double radius, uintptr_t userdata);
+                uintptr_t userdata, PhysicsShapeOptions options = {});
+  Handle AddCircle(FVec2 position, double radius, uintptr_t userdata,
+                   PhysicsShapeOptions options = {});
 
   void DestroyHandle(Handle handle);
 

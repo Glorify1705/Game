@@ -103,7 +103,8 @@ void Physics::SetEndContactCallback(ContactCallback callback, void* userdata) {
 }
 
 Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
-                                uintptr_t userdata) {
+                                uintptr_t userdata,
+                                PhysicsShapeOptions options) {
   CHECK(ground_, "create_ground() must be called before add_box()");
   const b2Vec2 tl = To(top_left);
   const b2Vec2 br = To(bottom_right);
@@ -116,27 +117,34 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
   b2Body* body = world_.CreateBody(&def);
   b2FixtureDef fixture;
   fixture.shape = &box;
-  fixture.density = 2.0f;
-  fixture.friction = 0.3f;
+  fixture.density = options.density;
+  fixture.friction = options.friction;
+  fixture.restitution = options.restitution;
+  fixture.isSensor = options.sensor;
+  fixture.filter.categoryBits = options.category;
+  fixture.filter.maskBits = options.mask;
   body->CreateFixture(&fixture);
-  b2FrictionJointDef jd;
-  float I = body->GetInertia();
-  float mass = body->GetMass();
-  jd.bodyA = ground_;
-  jd.bodyB = body;
-  jd.localAnchorA.SetZero();
-  jd.localAnchorB = body->GetLocalCenter();
-  jd.collideConnected = true;
-  const float gravity = 10.0f;
-  const float radius = b2Sqrt(2.0f * I / mass);
-  jd.maxForce = 0.5f * mass * gravity;
-  jd.maxTorque = 0.2f * mass * radius * gravity;
-  world_.CreateJoint(&jd);
+  if (!options.sensor) {
+    b2FrictionJointDef jd;
+    float I = body->GetInertia();
+    float mass = body->GetMass();
+    jd.bodyA = ground_;
+    jd.bodyB = body;
+    jd.localAnchorA.SetZero();
+    jd.localAnchorB = body->GetLocalCenter();
+    jd.collideConnected = true;
+    const float gravity = 10.0f;
+    const float radius = b2Sqrt(2.0f * I / mass);
+    jd.maxForce = 0.5f * mass * gravity;
+    jd.maxTorque = 0.2f * mass * radius * gravity;
+    world_.CreateJoint(&jd);
+  }
   return Handle{body, userdata};
 }
 
 Physics::Handle Physics::AddCircle(FVec2 position, double radius,
-                                   uintptr_t userdata) {
+                                   uintptr_t userdata,
+                                   PhysicsShapeOptions options) {
   CHECK(ground_, "create_ground() must be called before add_circle()");
   const b2Vec2 p = To(position);
   b2BodyDef def;
@@ -149,22 +157,28 @@ Physics::Handle Physics::AddCircle(FVec2 position, double radius,
   b2Body* body = world_.CreateBody(&def);
   b2FixtureDef fixture;
   fixture.shape = &circle;
-  fixture.density = 2.0f;
-  fixture.friction = 0.3f;
+  fixture.density = options.density;
+  fixture.friction = options.friction;
+  fixture.restitution = options.restitution;
+  fixture.isSensor = options.sensor;
+  fixture.filter.categoryBits = options.category;
+  fixture.filter.maskBits = options.mask;
   body->CreateFixture(&fixture);
-  b2FrictionJointDef jd;
-  float I = body->GetInertia();
-  float mass = body->GetMass();
-  jd.bodyA = ground_;
-  jd.bodyB = body;
-  jd.localAnchorA.SetZero();
-  jd.localAnchorB = body->GetLocalCenter();
-  jd.collideConnected = true;
-  const float gravity = 10.0f;
-  const float torque_radius = b2Sqrt(2.0f * I / mass);
-  jd.maxForce = 0.5f * mass * gravity;
-  jd.maxTorque = 0.2f * mass * torque_radius * gravity;
-  world_.CreateJoint(&jd);
+  if (!options.sensor) {
+    b2FrictionJointDef jd;
+    float I = body->GetInertia();
+    float mass = body->GetMass();
+    jd.bodyA = ground_;
+    jd.bodyB = body;
+    jd.localAnchorA.SetZero();
+    jd.localAnchorB = body->GetLocalCenter();
+    jd.collideConnected = true;
+    const float gravity = 10.0f;
+    const float torque_radius = b2Sqrt(2.0f * I / mass);
+    jd.maxForce = 0.5f * mass * gravity;
+    jd.maxTorque = 0.2f * mass * torque_radius * gravity;
+    world_.CreateJoint(&jd);
+  }
   return Handle{body, userdata};
 }
 

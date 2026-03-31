@@ -5,6 +5,32 @@
 namespace G {
 namespace {
 
+// Reads shape options from a Lua table at the given stack index.
+PhysicsShapeOptions ReadShapeOptions(lua_State* state, int index) {
+  PhysicsShapeOptions opts;
+  if (!lua_istable(state, index)) return opts;
+  lua_getfield(state, index, "density");
+  if (lua_isnumber(state, -1)) opts.density = lua_tonumber(state, -1);
+  lua_pop(state, 1);
+  lua_getfield(state, index, "friction");
+  if (lua_isnumber(state, -1)) opts.friction = lua_tonumber(state, -1);
+  lua_pop(state, 1);
+  lua_getfield(state, index, "restitution");
+  if (lua_isnumber(state, -1)) opts.restitution = lua_tonumber(state, -1);
+  lua_pop(state, 1);
+  lua_getfield(state, index, "sensor");
+  if (lua_isboolean(state, -1)) opts.sensor = lua_toboolean(state, -1);
+  lua_pop(state, 1);
+  lua_getfield(state, index, "category");
+  if (lua_isnumber(state, -1))
+    opts.category = (uint16_t)lua_tointeger(state, -1);
+  lua_pop(state, 1);
+  lua_getfield(state, index, "mask");
+  if (lua_isnumber(state, -1)) opts.mask = (uint16_t)lua_tointeger(state, -1);
+  lua_pop(state, 1);
+  return opts;
+}
+
 const struct LuaApiFunction kPhysicsLib[] = {
     {"add_box",
      "Adds a dynamic box body to the physics world",
@@ -13,7 +39,11 @@ const struct LuaApiFunction kPhysicsLib[] = {
       {"bx", "bottom-right x", "number"},
       {"by", "bottom-right y", "number"},
       {"angle", "rotation in radians", "number"},
-      {"callback", "collision callback function", "function"}},
+      {"callback", "collision callback function", "function"},
+      {"options",
+       "optional table: density, friction, restitution, sensor, "
+       "category, mask",
+       "table"}},
      {{"handle", "a physics handle for the new body", "physics_handle"}},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
@@ -22,13 +52,14 @@ const struct LuaApiFunction kPhysicsLib[] = {
        const float bx = luaL_checknumber(state, 3);
        const float by = luaL_checknumber(state, 4);
        const float angle = luaL_checknumber(state, 5);
+       PhysicsShapeOptions opts = ReadShapeOptions(state, 7);
        auto* handle = static_cast<Physics::Handle*>(
            lua_newuserdata(state, sizeof(Physics::Handle)));
        luaL_getmetatable(state, "physics_handle");
        lua_setmetatable(state, -2);
        lua_pushvalue(state, 6);
        *handle = physics->AddBox(FVec(tx, ty), FVec(bx, by), angle,
-                                 luaL_ref(state, LUA_REGISTRYINDEX));
+                                 luaL_ref(state, LUA_REGISTRYINDEX), opts);
        return 1;
      }},
     {"add_circle",
@@ -36,20 +67,25 @@ const struct LuaApiFunction kPhysicsLib[] = {
      {{"tx", "center x", "number"},
       {"ty", "center y", "number"},
       {"radius", "the circle radius", "number"},
-      {"callback", "collision callback function", "function"}},
+      {"callback", "collision callback function", "function"},
+      {"options",
+       "optional table: density, friction, restitution, sensor, "
+       "category, mask",
+       "table"}},
      {{"handle", "a physics handle for the new body", "physics_handle"}},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
        const float tx = luaL_checknumber(state, 1);
        const float ty = luaL_checknumber(state, 2);
        const float radius = luaL_checknumber(state, 3);
+       PhysicsShapeOptions opts = ReadShapeOptions(state, 5);
        auto* handle = static_cast<Physics::Handle*>(
            lua_newuserdata(state, sizeof(Physics::Handle)));
        luaL_getmetatable(state, "physics_handle");
        lua_setmetatable(state, -2);
        lua_pushvalue(state, 4);
        *handle = physics->AddCircle(FVec(tx, ty), radius,
-                                    luaL_ref(state, LUA_REGISTRYINDEX));
+                                    luaL_ref(state, LUA_REGISTRYINDEX), opts);
        return 1;
      }},
     {"destroy_handle",
