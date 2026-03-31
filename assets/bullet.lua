@@ -15,6 +15,7 @@ function Bullet:new(x, y, angle, world_w, world_h)
 		category = C.BULLET,
 		mask = C.METEOR,
 	})
+	self.physics:set_fixed_rotation(true)
 	self.dead = false
 	self.lifetime = LIFETIME
 	self.travel_angle = angle

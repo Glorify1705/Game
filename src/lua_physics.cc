@@ -299,6 +299,30 @@ const struct LuaApiFunction kPhysicsLib[] = {
        const float omega = luaL_checknumber(state, 2);
        physics->SetAngularVelocity(*handle, omega);
        return 0;
+     }},
+    {"set_fixed_rotation",
+     "Prevents or allows a physics body from rotating",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"fixed", "true to lock rotation", "boolean"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const bool fixed = lua_toboolean(state, 2);
+       physics->SetFixedRotation(*handle, fixed);
+       return 0;
+     }},
+    {"get_fixed_rotation",
+     "Returns whether a physics body has fixed rotation",
+     {{"handle", "the physics handle", "physics_handle"}},
+     {{"fixed", "true if rotation is locked", "boolean"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       lua_pushboolean(state, physics->GetFixedRotation(*handle));
+       return 1;
      }}};
 
 }  // namespace

@@ -83,6 +83,12 @@ class Physics final : public b2ContactListener {
   // Sets the angular velocity in radians/s.
   void SetAngularVelocity(Handle handle, float v);
 
+  // Prevents a body from rotating. Useful for bullets and characters.
+  void SetFixedRotation(Handle handle, bool fixed);
+
+  // Returns whether the body has fixed rotation.
+  bool GetFixedRotation(Handle handle) const;
+
   // Creates a static ground body. If walls is true, adds edge fixtures
   // around the screen perimeter.
   void CreateGround(bool walls = true);

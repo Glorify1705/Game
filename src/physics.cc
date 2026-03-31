@@ -252,6 +252,14 @@ void Physics::SetAngularVelocity(Handle handle, float v) {
   handle.handle->SetAngularVelocity(v);
 }
 
+void Physics::SetFixedRotation(Handle handle, bool fixed) {
+  handle.handle->SetFixedRotation(fixed);
+}
+
+bool Physics::GetFixedRotation(Handle handle) const {
+  return handle.handle->IsFixedRotation();
+}
+
 FVec2 Physics::From(b2Vec2 v) const {
   return FVec(v.x, v.y) * pixels_per_meter_;
 }

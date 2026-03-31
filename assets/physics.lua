@@ -62,4 +62,12 @@ function Physics:set_angular_velocity(omega)
 	G.physics.set_angular_velocity(self.handle, omega)
 end
 
+function Physics:set_fixed_rotation(fixed)
+	G.physics.set_fixed_rotation(self.handle, fixed)
+end
+
+function Physics:get_fixed_rotation()
+	return G.physics.get_fixed_rotation(self.handle)
+end
+
 return Physics
