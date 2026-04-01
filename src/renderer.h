@@ -33,6 +33,28 @@ struct Canvas {
   int width, height;    // Dimensions of the canvas in pixels.
 };
 
+// Per-frame rendering statistics populated by BatchRenderer::Render().
+struct FrameStats {
+  int draw_calls = 0;
+  int vertices = 0;
+  int commands = 0;
+  // Per-reason flush breakdown.
+  int flush_texture = 0;
+  int flush_transform = 0;
+  int flush_shader = 0;
+  int flush_blend = 0;
+  int flush_canvas = 0;
+  int flush_line_end = 0;
+  int flush_other = 0;
+  // Redundant flushes avoided by state filtering.
+  int redundant_texture = 0;
+  int redundant_transform = 0;
+  int redundant_shader = 0;
+  int redundant_blend = 0;
+  int redundant_line_width = 0;
+  int redundant_sdf_outline = 0;
+};
+
 class BatchRenderer {
  public:
   BatchRenderer(IVec2 viewport, Shaders* shaders, Allocator* allocator);
@@ -54,6 +76,8 @@ class BatchRenderer {
   }
 
   void ClearTexture() { SetActiveTexture(noop_texture_); }
+
+  size_t noop_texture() const { return noop_texture_; }
 
   void SetActiveColor(const Color& color) {
     AddCommand(kSetColor, SetColor{color});
@@ -161,6 +185,8 @@ class BatchRenderer {
   GLuint GetRenderTarget() const { return render_target_; }
 
   void Render(Allocator* scratch);
+
+  const FrameStats& GetFrameStats() const { return frame_stats_; }
 
   struct Screenshot {
     size_t width, height;
@@ -338,6 +364,7 @@ class BatchRenderer {
   size_t pos_ = 0;
   float frame_time_ = 0;
   uint32_t current_shader_ = 0;
+  FrameStats frame_stats_;
   FixedArray<QueueEntry> commands_;
   FixedArray<GLuint> tex_;
   Shaders* shaders_;
@@ -541,6 +568,18 @@ class Renderer {
   float line_width_;
   Color outline_color_;
   float outline_thickness_ = 0.0f;
+  // Tier 2 dedup: last texture unit emitted to the batch renderer.
+  // Prevents redundant kSetTexture commands at the source.
+  size_t last_texture_ = 0;
+
+  void SetTextureDedup(size_t texture_unit) {
+    if (texture_unit != last_texture_) {
+      renderer_->SetActiveTexture(texture_unit);
+      last_texture_ = texture_unit;
+    }
+  }
+
+  void ClearTextureDedup() { SetTextureDedup(renderer_->noop_texture()); }
 
   Allocator* allocator_;
   BatchRenderer* renderer_;

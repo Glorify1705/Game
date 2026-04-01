@@ -715,7 +715,13 @@ class Game {
     if (debug_ && stats_.samples() > 0) {
       FixedStringBuffer<kMaxLogLineLength> log;
       log.AllowTruncation();
+      const auto& fs = e_->batch_renderer.GetFrameStats();
       log.Append("FPS: ", (1000.0 / stats_.avg()), " Stats = ", stats_,
+                 "\nDraw calls: ", fs.draw_calls, "  Vertices: ", fs.vertices,
+                 "  Commands: ", fs.commands,
+                 "\nRedundant skipped: tex=", fs.redundant_texture,
+                 " xform=", fs.redundant_transform,
+                 " shader=", fs.redundant_shader,
                  "\nLua memory usage: ", (e_->lua.MemoryUsage() / 1024.0f));
       const IVec2 dims =
           e_->renderer.TextDimensions("debug_font.ttf", 16, log.str());

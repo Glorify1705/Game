@@ -574,15 +574,19 @@ void BatchRenderer::Render(Allocator* scratch) {
     }
     shaders_->SetUniformSilent("global_color", color.ToFloat());
   };
+  uint32_t current_shader_handle = current_shader_;
   set_program_state("pre_pass");
   // Render batches by finding changes to the OpenGL context.
-  int render_calls = 0;
+  FrameStats stats = {};
   size_t indices_start = 0;
   size_t indices_end = 0;
   GLuint texture_unit = 0;
   FMat4x4 transform = FMat4x4::Identity();
   GLint primitives = GL_TRIANGLES;
   float line_width = 2.5;
+  BlendMode blend_mode = BLEND_ALPHA;
+  float sdf_thickness = 0.0f;
+  float sdf_r = 0, sdf_g = 0, sdf_b = 0, sdf_a = 0;
   GLuint current_fbo = render_target_;
   int current_viewport_w = viewport_.x;
   int current_viewport_h = viewport_.y;
@@ -606,9 +610,10 @@ void BatchRenderer::Render(Allocator* scratch) {
       OPENGL_CALL(glDrawElementsInstanced(
           primitives, indices_end - indices_start, GL_UNSIGNED_INT,
           reinterpret_cast<void*>(indices_start_ptr), 1));
-      render_calls++;
+      stats.draw_calls++;
       indices_start = indices_end;
     };
+    stats.commands++;
     switch (Command c; it.Read(&c)) {
       case kRenderQuad:
         if (primitives != GL_TRIANGLES) flush();
@@ -629,25 +634,48 @@ void BatchRenderer::Render(Allocator* scratch) {
         break;
       case kEndLine:
         flush();
+        stats.flush_line_end++;
         break;
       case kSetTransform:
+        if (c.set_transform.transform == transform) {
+          stats.redundant_transform++;
+          break;
+        }
         flush();
+        stats.flush_transform++;
         transform = c.set_transform.transform;
         break;
       case kSetTexture:
+        if (c.set_texture.texture_unit == texture_unit) {
+          stats.redundant_texture++;
+          break;
+        }
         flush();
+        stats.flush_texture++;
         texture_unit = c.set_texture.texture_unit;
         break;
       case kSetShader:
+        if (c.set_shader.shader_handle == current_shader_handle) {
+          stats.redundant_shader++;
+          break;
+        }
         flush();
+        stats.flush_shader++;
+        current_shader_handle = c.set_shader.shader_handle;
         set_program_state(StringByHandle(c.set_shader.shader_handle));
         break;
       case kSetLineWidth:
+        if (c.set_line_width.width == line_width) {
+          stats.redundant_line_width++;
+          break;
+        }
         flush();
+        stats.flush_other++;
         line_width = c.set_line_width.width;
         break;
       case kSetCanvas:
         flush();
+        stats.flush_canvas++;
         OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, c.set_canvas.fbo));
         OPENGL_CALL(glViewport(0, 0, c.set_canvas.width, c.set_canvas.height));
         current_fbo = c.set_canvas.fbo;
@@ -655,7 +683,13 @@ void BatchRenderer::Render(Allocator* scratch) {
         current_viewport_h = c.set_canvas.height;
         break;
       case kSetBlendMode:
+        if (c.set_blend_mode.mode == blend_mode) {
+          stats.redundant_blend++;
+          break;
+        }
         flush();
+        stats.flush_blend++;
+        blend_mode = c.set_blend_mode.mode;
         switch (c.set_blend_mode.mode) {
           case BLEND_ALPHA:
             OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
@@ -676,6 +710,7 @@ void BatchRenderer::Render(Allocator* scratch) {
         break;
       case kClearColor:
         flush();
+        stats.flush_other++;
         OPENGL_CALL(glClearColor(c.clear_color.r, c.clear_color.g,
                                  c.clear_color.b, c.clear_color.a));
         // Clear stencil alongside color so each clear() resets mask state.
@@ -687,7 +722,19 @@ void BatchRenderer::Render(Allocator* scratch) {
         color = c.set_color.color;
         break;
       case kSetSDFOutline:
+        if (c.sdf_outline.thickness == sdf_thickness &&
+            c.sdf_outline.r == sdf_r && c.sdf_outline.g == sdf_g &&
+            c.sdf_outline.b == sdf_b && c.sdf_outline.a == sdf_a) {
+          stats.redundant_sdf_outline++;
+          break;
+        }
         flush();
+        stats.flush_other++;
+        sdf_thickness = c.sdf_outline.thickness;
+        sdf_r = c.sdf_outline.r;
+        sdf_g = c.sdf_outline.g;
+        sdf_b = c.sdf_outline.b;
+        sdf_a = c.sdf_outline.a;
         shaders_->SetUniformSilentF("u_outline_thickness",
                                     c.sdf_outline.thickness);
         shaders_->SetUniformSilent("u_outline_color",
@@ -696,6 +743,7 @@ void BatchRenderer::Render(Allocator* scratch) {
         break;
       case kSetScissor:
         flush();
+        stats.flush_other++;
         OPENGL_CALL(glEnable(GL_SCISSOR_TEST));
         // OpenGL scissor Y is bottom-up; convert from top-left origin.
         OPENGL_CALL(
@@ -705,10 +753,12 @@ void BatchRenderer::Render(Allocator* scratch) {
         break;
       case kClearScissor:
         flush();
+        stats.flush_other++;
         OPENGL_CALL(glDisable(GL_SCISSOR_TEST));
         break;
       case kBeginStencilWrite:
         flush();
+        stats.flush_other++;
         OPENGL_CALL(glEnable(GL_STENCIL_TEST));
         OPENGL_CALL(glStencilFunc(GL_ALWAYS, c.begin_stencil_write.ref, 0xFF));
         OPENGL_CALL(
@@ -719,12 +769,14 @@ void BatchRenderer::Render(Allocator* scratch) {
         break;
       case kEndStencilWrite:
         flush();
+        stats.flush_other++;
         OPENGL_CALL(glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE));
         OPENGL_CALL(glStencilMask(0x00));
         OPENGL_CALL(glDisable(GL_STENCIL_TEST));
         break;
       case kSetStencilTest:
         flush();
+        stats.flush_other++;
         OPENGL_CALL(glEnable(GL_STENCIL_TEST));
         OPENGL_CALL(glStencilFunc(c.set_stencil_test.compare,
                                   c.set_stencil_test.ref, 0xFF));
@@ -733,6 +785,7 @@ void BatchRenderer::Render(Allocator* scratch) {
         break;
       case kClearStencilTest:
         flush();
+        stats.flush_other++;
         OPENGL_CALL(glDisable(GL_STENCIL_TEST));
         break;
       case kDone:
@@ -764,9 +817,21 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
-  render_calls++;
-  PROFILE_COUNTER("Draw Calls", render_calls);
+  stats.draw_calls++;
+  stats.vertices = static_cast<int>(vertices_count);
+  PROFILE_COUNTER("Draw Calls", stats.draw_calls);
   PROFILE_COUNTER("Vertices", static_cast<double>(vertices_count));
+  PROFILE_COUNTER("Flush: Texture", stats.flush_texture);
+  PROFILE_COUNTER("Flush: Transform", stats.flush_transform);
+  PROFILE_COUNTER("Flush: Shader", stats.flush_shader);
+  PROFILE_COUNTER("Flush: Blend Mode", stats.flush_blend);
+  PROFILE_COUNTER("Flush: Canvas", stats.flush_canvas);
+  PROFILE_COUNTER("Flush: Line End", stats.flush_line_end);
+  PROFILE_COUNTER("Flush: Other", stats.flush_other);
+  PROFILE_COUNTER("Redundant: Texture", stats.redundant_texture);
+  PROFILE_COUNTER("Redundant: Transform", stats.redundant_transform);
+  PROFILE_COUNTER("Redundant: Shader", stats.redundant_shader);
+  frame_stats_ = stats;
 }
 
 BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
@@ -820,6 +885,7 @@ void Renderer::ClearForFrame() {
   transform_stack_.Push(FMat4x4::Identity());
   ApplyTransform(FMat4x4::Identity());
   SetColor(Color::White());
+  last_texture_ = 0;
 }
 
 void Renderer::Push() { transform_stack_.Push(transform_stack_.back()); }
@@ -895,7 +961,7 @@ ErrorOr<void> Renderer::DrawSprite(const DbAssets::Sprite& sprite,
   CHECK(textures_table_.Lookup(spritesheet->name, &texture_index),
         "No spritesheet texture for ", sprite.name, "(spritesheet ",
         spritesheet->name, ")");
-  renderer_->SetActiveTexture(textures_[texture_index]);
+  SetTextureDedup(textures_[texture_index]);
   const float x = sprite.x, y = sprite.y, w = sprite.width, h = sprite.height;
   const FVec2 p0(position - FVec(w / 2.0, h / 2.0));
   const FVec2 p1(position + FVec(w / 2.0, h / 2.0));
@@ -921,7 +987,7 @@ ErrorOr<void> Renderer::DrawImage(const DbAssets::Image& image, FVec2 position,
   uint32_t texture_index;
   CHECK(textures_table_.Lookup(image.name, &texture_index),
         "No spritesheet texture for image ", image.name);
-  renderer_->SetActiveTexture(textures_[texture_index]);
+  SetTextureDedup(textures_[texture_index]);
   const float w = image.width, h = image.height;
   const FVec2 p0(position - FVec(w / 2.0, h / 2.0));
   const FVec2 p1(position + FVec(w / 2.0, h / 2.0));
@@ -932,14 +998,14 @@ ErrorOr<void> Renderer::DrawImage(const DbAssets::Image& image, FVec2 position,
 }
 
 void Renderer::DrawRect(FVec2 top_left, FVec2 bottom_right, float angle) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   const FVec2 center = (top_left + bottom_right) / 2;
   renderer_->PushQuad(top_left, bottom_right, FVec(0, 0), FVec(1, 1),
                       /*origin=*/center, angle);
 }
 
 void Renderer::DrawLine(FVec2 p0, FVec2 p1) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   renderer_->BeginLine();
   FVec2 ps[2] = {p0, p1};
   renderer_->PushLinePoints(ps, 2);
@@ -947,19 +1013,19 @@ void Renderer::DrawLine(FVec2 p0, FVec2 p1) {
 }
 
 void Renderer::DrawLines(const FVec2* ps, size_t n) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   renderer_->BeginLine();
   renderer_->PushLinePoints(ps, n);
   renderer_->FinishLine();
 }
 
 void Renderer::DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   renderer_->PushTriangle(p1, p2, p3, FVec(0, 0), FVec(1, 0), FVec(1, 1));
 }
 
 void Renderer::DrawCircle(FVec2 center, float radius) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   constexpr size_t kTriangles = 22;
   auto for_index = [&](int index) {
     const int i = index % kTriangles;
@@ -975,7 +1041,7 @@ void Renderer::DrawCircle(FVec2 center, float radius) {
 
 void Renderer::DrawRectOutline(FVec2 top_left, FVec2 bottom_right,
                                float angle) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   FVec2 corners[4] = {
       top_left,
       FVec(bottom_right.x, top_left.y),
@@ -1000,7 +1066,7 @@ void Renderer::DrawRectOutline(FVec2 top_left, FVec2 bottom_right,
 }
 
 void Renderer::DrawCircleOutline(FVec2 center, float radius) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   constexpr size_t kSegments = 32;
   constexpr double kAngle = (2.0 * M_PI) / kSegments;
   FVec2 points[kSegments + 1];
@@ -1015,7 +1081,7 @@ void Renderer::DrawCircleOutline(FVec2 center, float radius) {
 }
 
 void Renderer::DrawTriangleOutline(FVec2 p1, FVec2 p2, FVec2 p3) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   FVec2 loop[4] = {p1, p2, p3, p1};
   renderer_->BeginLine();
   renderer_->PushLinePoints(loop, 4);
@@ -1023,7 +1089,7 @@ void Renderer::DrawTriangleOutline(FVec2 p1, FVec2 p2, FVec2 p3) {
 }
 
 void Renderer::DrawEllipse(FVec2 center, float rx, float ry) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   constexpr size_t kTriangles = 32;
   auto for_index = [&](size_t index) {
     const size_t i = index % kTriangles;
@@ -1038,7 +1104,7 @@ void Renderer::DrawEllipse(FVec2 center, float rx, float ry) {
 }
 
 void Renderer::DrawEllipseOutline(FVec2 center, float rx, float ry) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   constexpr size_t kSegments = 32;
   constexpr double kAngle = (2.0 * M_PI) / kSegments;
   FVec2 points[kSegments + 1];
@@ -1054,7 +1120,7 @@ void Renderer::DrawEllipseOutline(FVec2 center, float rx, float ry) {
 
 void Renderer::DrawRoundedRect(FVec2 top_left, FVec2 bottom_right,
                                float radius) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   const float x1 = top_left.x;
   const float y1 = top_left.y;
   const float x2 = bottom_right.x;
@@ -1099,7 +1165,7 @@ void Renderer::DrawRoundedRect(FVec2 top_left, FVec2 bottom_right,
 
 void Renderer::DrawRoundedRectOutline(FVec2 top_left, FVec2 bottom_right,
                                       float radius) {
-  renderer_->ClearTexture();
+  ClearTextureDedup();
   const float x1 = top_left.x;
   const float y1 = top_left.y;
   const float x2 = bottom_right.x;
@@ -1385,7 +1451,7 @@ void Renderer::DrawText(std::string_view font_name, uint32_t size,
   renderer_->SetShaderProgram("sdf");
   const FVec4 oc = outline_color_.ToFloat();
   renderer_->SetSDFOutline(oc.x, oc.y, oc.z, oc.w, outline_thickness_);
-  renderer_->SetActiveTexture(info->texture);
+  SetTextureDedup(info->texture);
   const Color color = color_;
   FVec2 p = position;
   const float pixel_scale = size / info->pixel_height;
@@ -1684,7 +1750,7 @@ void Renderer::DrawTextColored(std::string_view font_name, uint32_t size,
   renderer_->SetShaderProgram("sdf");
   const FVec4 oc = outline_color_.ToFloat();
   renderer_->SetSDFOutline(oc.x, oc.y, oc.z, oc.w, outline_thickness_);
-  renderer_->SetActiveTexture(info->texture);
+  SetTextureDedup(info->texture);
   const Color saved_color = color_;
 
   if (max_width <= 0) {
