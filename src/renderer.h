@@ -573,10 +573,9 @@ class Renderer {
   size_t last_texture_ = 0;
 
   void SetTextureDedup(size_t texture_unit) {
-    if (texture_unit != last_texture_) {
-      renderer_->SetActiveTexture(texture_unit);
-      last_texture_ = texture_unit;
-    }
+    if (texture_unit == last_texture_) return;
+    renderer_->SetActiveTexture(texture_unit);
+    last_texture_ = texture_unit;
   }
 
   void ClearTextureDedup() { SetTextureDedup(renderer_->noop_texture()); }
