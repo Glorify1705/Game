@@ -460,22 +460,272 @@ end
 **Phase 1:** CPU update + instanced draw (medium effort, big improvement)
 **Phase 2:** Compute shader update (high effort, massive scale)
 
-#### 3.3 Render Layers / Sort Order
+#### 3.3 Render Layers / Sort Order (Sort Keys)
 
-A lightweight layer system so users don't have to manually order draw calls:
+##### The Problem
 
-```lua
-G.graphics.set_layer(0)   -- background
-draw_tilemap()
-G.graphics.set_layer(5)   -- entities
-draw_entities()
-G.graphics.set_layer(10)  -- foreground / UI
-draw_ui()
+The current renderer draws everything in submission order. If a game draws
+background tiles, then entities, then UI, the script author must ensure those
+calls happen in exactly that order. Interleaving breaks visual layering *and*
+batching: a background circle drawn between two entity sprites forces a texture
+flush even though the sprites share a spritesheet.
+
+There is no depth buffer (we call `glDisable(GL_DEPTH_TEST)`) because 2D games
+rely on painter's algorithm -- draw back-to-front. What we need is a way for
+scripts to declare *intent* ("this belongs on the background layer") and let the
+renderer sort for optimal batching within that constraint.
+
+##### Sort Key Design
+
+Each draw command gets a 64-bit sort key that encodes draw order priority:
+
+```
+ 63        48 47      32 31    24 23    16 15              0
+ ┌──────────┬──────────┬────────┬────────┬─────────────────┐
+ │  layer   │  depth   │ shader │texture │  sequence       │
+ │ (16 bit) │ (16 bit) │ (8 bit)│ (8 bit)│  (16 bit)       │
+ └──────────┴──────────┴────────┴────────┴─────────────────┘
 ```
 
-Internally, the batch renderer can sort commands by layer before flushing
-(stable sort to preserve order within a layer). This is a modest extension to
-the existing command buffer.
+**layer** (bits 63-48, 16 bits): User-assigned render layer. Higher layers
+draw on top. Range 0-65535, default 0. This is the primary sort axis -- draws
+on different layers never reorder relative to each other.
+
+**depth** (bits 47-32, 16 bits): Sub-layer ordering within a layer. Defaults
+to a monotonically increasing counter (preserving submission order). Scripts
+can override this for explicit front-to-back or back-to-front control within
+a layer. Range 0-65535.
+
+**shader** (bits 31-24, 8 bits): Shader program index. Grouping by shader
+minimizes the most expensive state change (`set_program_state` queries
+attribute locations and binds VBO offsets). Supports up to 256 distinct
+shaders, which is well beyond what a 2D engine needs.
+
+**texture** (bits 23-16, 8 bits): Texture unit index. Grouping by texture
+after shader eliminates most remaining flushes. 256 slots covers the
+spritesheet + font textures + canvas textures comfortably.
+
+**sequence** (bits 15-0, 16 bits): Submission order within the same
+layer/depth/shader/texture group. Preserves relative draw order for
+overlapping transparent geometry that shares all other key fields. This is
+what makes the sort stable.
+
+**Why this bit layout:** Layers dominate because they encode the user's
+explicit visual ordering. Within a layer, depth lets scripts control overlap.
+Within the same depth, we sort by GPU state (shader > texture) to minimize
+flushes. Shader switches are more expensive than texture binds, so shader
+gets higher bits. Sequence is the tiebreaker that preserves submission order.
+
+##### Lua API
+
+```lua
+-- Layer control
+G.graphics.set_layer(layer)         -- set current layer (0-65535)
+G.graphics.set_depth(depth)         -- set depth within layer (0-65535)
+
+-- Convenience constants (games define their own)
+LAYER_BG     = 0
+LAYER_WORLD  = 100
+LAYER_FX     = 200
+LAYER_UI     = 1000
+```
+
+Typical usage in a game:
+
+```lua
+function draw()
+    G.graphics.set_layer(LAYER_BG)
+    draw_starfield()         -- circles + sprites, freely interleaved
+
+    G.graphics.set_layer(LAYER_WORLD)
+    draw_entities()          -- meteors, bullets, player
+
+    G.graphics.set_layer(LAYER_FX)
+    draw_particles()         -- explosions, thrust
+
+    G.graphics.set_layer(LAYER_UI)
+    draw_hud()               -- health bar, score, minimap
+end
+```
+
+The game can draw in any order -- `draw_hud()` before `draw_starfield()` would
+produce the same visual result. The renderer sorts by sort key before flushing.
+
+`set_depth()` is for fine control within a layer:
+
+```lua
+G.graphics.set_layer(LAYER_WORLD)
+for _, entity in ipairs(entities) do
+    G.graphics.set_depth(entity.y)   -- y-sort for top-down games
+    entity:draw()
+end
+```
+
+##### C++ Implementation
+
+**Step 1: Add sort key state to Renderer.**
+
+```cpp
+// In Renderer class:
+uint16_t current_layer_ = 0;
+uint16_t current_depth_ = 0;
+uint16_t sequence_ = 0;   // auto-incrementing per frame
+```
+
+**Step 2: Stamp each QueueEntry with a sort key.**
+
+Extend `QueueEntry` from 32 bits to 96 bits (or use a parallel array):
+
+```cpp
+struct QueueEntry {
+    uint32_t type : 12;
+    uint32_t count : 20;
+    uint64_t sort_key;
+};
+```
+
+When a draw command (kRenderQuad, kRenderTrig, kStartLine) is queued, compute:
+
+```cpp
+uint64_t sort_key =
+    (uint64_t(current_layer_)  << 48) |
+    (uint64_t(current_depth_)  << 32) |
+    (uint64_t(shader_index)    << 24) |
+    (uint64_t(texture_index)   << 16) |
+    (uint64_t(sequence_++));
+```
+
+State-change commands (kSetTexture, kSetShader, etc.) don't get independent
+sort keys -- they are *attached* to the draw commands they precede. This is
+important: we don't sort individual state changes, we sort draw groups.
+
+**Step 3: Group commands into sortable draw groups.**
+
+A "draw group" is a run of state-change commands followed by one or more
+geometry commands. During recording, track group boundaries:
+
+```cpp
+struct DrawGroup {
+    uint64_t sort_key;      // key of the first geometry command
+    uint32_t cmd_start;     // index into command buffer
+    uint32_t cmd_count;     // number of commands in this group
+};
+```
+
+At frame end, before `Render()`, sort `DrawGroup`s by `sort_key` and replay
+commands in sorted order. State changes within a group stay in their original
+relative order.
+
+**Step 4: Sort and render.**
+
+```cpp
+void BatchRenderer::Render() {
+    // 1. Build draw groups from command buffer
+    // 2. Sort groups by sort_key
+    // 3. Iterate sorted groups, executing commands in order
+    //    (with Tier 1 redundant state filtering applied)
+}
+```
+
+The sort is `std::stable_sort` on draw groups, not individual commands. A
+typical frame has ~50-200 draw groups (one per distinct draw call site), so
+the sort is negligible cost.
+
+##### Interaction with Existing Features
+
+**Transforms:** Transform commands (push/pop/translate) are per-group state.
+When draw groups are reordered, their associated transforms move with them.
+This means each group must capture its full transform state, not rely on
+incremental push/pop. Two approaches:
+
+- **Eager:** When recording a draw group, snapshot the current transform
+  matrix into the group. Replace push/pop/translate within the group with a
+  single kSetTransform using the snapshot. This simplifies sorting but
+  changes how transforms compose.
+- **Lazy (recommended initially):** Keep push/pop as-is. Only sort draw
+  groups that are within the *same* transform scope (no push/pop crossings).
+  Groups separated by push/pop are in different scopes and maintain their
+  relative order within a scope. This is less optimal for batching but is
+  safe and preserves existing transform behavior.
+
+**Scissor and stencil:** These are "barrier" commands -- they define regions
+where reordering is not safe. Draw groups before a scissor/stencil change
+must not reorder past it. Implementation: assign barrier commands a sort key
+that forces them to their original position (e.g., set layer = current layer,
+depth = current sequence, to prevent reordering across barriers).
+
+**Canvas switches:** `kSetCanvas` is a hard barrier. No draw group should
+sort across a canvas boundary. Each canvas scope is sorted independently.
+
+**Blend mode:** Currently in the sort key as part of shader/texture grouping.
+If two draw groups within the same layer use different blend modes, they sort
+by blend mode (could be added as bits 15-8, shifting sequence down to 7-0, or
+kept as a secondary sort after texture). For most 2D games, blend mode
+changes are rare within a layer.
+
+##### Comparison with Other Engines
+
+**Godot 2D:** Uses a `canvas_item` system where each node has a z-index
+(-4096 to 4096) and optional z-relative flag. Items are sorted by z-index,
+then by tree order within the same z. Y-sort is an opt-in mode per node.
+Godot batches by material (shader + texture + blend) within the sorted order.
+Our layer/depth system is similar but simpler -- no scene tree, just flat
+numeric keys.
+
+**Love2D:** No built-in sort. Love2D relies on the user to submit draws in
+order. The `SpriteBatch` class lets you manually batch same-texture sprites.
+Our approach is strictly better -- automatic batching with user-controlled
+layering.
+
+**Raylib:** No sort or layer system. Pure immediate mode, draws in submission
+order. No batching across draw calls (each `DrawTexture*` is its own draw
+call unless using `rlDrawRenderBatchActive`).
+
+**Cocos2d-x:** Uses `globalZOrder` (float) for sorting. Nodes with the same
+z-order render in tree order. Auto-batching groups consecutive draws with the
+same texture/shader/blend into one call. Very similar to our proposal.
+
+**MonoGame/XNA:** `SpriteBatch.Begin()` accepts a `SpriteSortMode`:
+`Deferred` (submission order), `BackToFront`, `FrontToBack`, `Texture`
+(sort by texture for batching). Our sort key effectively combines `Texture`
+sorting with layer-based ordering -- the best of both modes.
+
+##### Phased Implementation
+
+**Phase 1 (low effort):** Add `set_layer()` and `set_depth()` to the Lua API.
+Store layer/depth in the Renderer. Stamp sort keys on draw commands. Do NOT
+sort yet -- just record the keys. This lets games start using the API
+immediately with no rendering behavior change.
+
+**Phase 2 (medium effort):** Implement draw group extraction and sorting.
+Initially, only sort within "safe" regions (between canvas/stencil/scissor
+barriers). Verify that Tier 1 redundant state filtering still works after
+reordering (it should, since filtering happens at render time, after sorting).
+
+**Phase 3 (medium effort):** Handle transform scopes. Implement eager
+transform snapshotting for draw groups, eliminating push/pop overhead and
+enabling full cross-scope reordering. This is where the biggest batching
+wins come from -- entity sprites from different transform scopes can now
+batch together if they share the same texture.
+
+##### Expected Impact
+
+Using the testgame1 (Space Garbage!) draw call breakdown as a reference:
+
+- **Starfield:** 3 sub-layers (circles, star1 sprites, star2 sprites)
+  currently interleaved with the entity layer. With sort keys, all 60
+  circles batch into 1 draw call, all 45 star sprites batch into 1-2 draw
+  calls. Saves ~100 flushes.
+- **Entities:** All meteor sprites on the same spritesheet batch together
+  regardless of wrapping transforms (Phase 3). ~15 meteors -> 1 draw call
+  instead of ~45.
+- **Particles + aim line:** All circles batch together across both systems.
+  Saves ~30-200 flushes depending on particle count.
+- **HUD:** Score digits, lives icons batch into 1 draw call. Text calls
+  group their shader switches.
+
+Combined with Tier 1 redundant state filtering, sort keys should reduce the
+~193 draw calls to approximately 10-15.
 
 ---
 
