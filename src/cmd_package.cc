@@ -5,6 +5,7 @@
 #include "cli.h"
 #include "config.h"
 #include "error.h"
+#include "executor.h"
 #include "filesystem.h"
 #include "libraries/sqlite3.h"
 #include "logging.h"
@@ -85,7 +86,11 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
 
   ArenaAllocator packer_arena(allocator, Megabytes(512));
   LOG("Packing assets from ", source_directory);
-  MUST(WriteAssetsToDb(source_directory, db, &packer_arena));
+  ThreadPoolExecutor executor(&packer_arena,
+                              ThreadPoolExecutor::NumDefaultThreads());
+  executor.Start();
+  MUST(WriteAssetsToDb(source_directory, db, &packer_arena, &executor));
+  executor.Shutdown();
   sqlite3_close(db);
 
   // Copy the engine binary.

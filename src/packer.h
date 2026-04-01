@@ -7,6 +7,7 @@
 #include "allocators.h"
 #include "assets.h"
 #include "error.h"
+#include "executor.h"
 #include "libraries/sqlite3.h"
 
 namespace G {
@@ -19,7 +20,8 @@ struct AssetWriteResult {
 };
 
 ErrorOr<AssetWriteResult> WriteAssetsToDb(const char* source_directory,
-                                          sqlite3* db, Allocator* allocator);
+                                          sqlite3* db, Allocator* allocator,
+                                          Executor* executor);
 
 void InitializeAssetDb(sqlite3* db);
 

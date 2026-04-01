@@ -8,6 +8,7 @@
 #include "dictionary.h"
 #include "easing.h"
 #include "error.h"
+#include "executor.h"
 #include "gmock/gmock-matchers.h"
 #include "gtest/gtest-matchers.h"
 #include "inlined_array.h"
@@ -1278,6 +1279,101 @@ TEST(Easing, InOutSymmetry) {
   for (EasingType type : inout) {
     EXPECT_NEAR(Ease(type, 0.5f), 0.5f, 1e-4f) << "Easing " << type;
   }
+}
+
+TEST(InlineExecutor, SubmitRunsSynchronously) {
+  InlineExecutor exec;
+  int result = 0;
+  Task task;
+  task.fn = [](void* ud) { *static_cast<int*>(ud) = 42; };
+  task.userdata = &result;
+  task.cleanup = nullptr;
+  exec.Submit(&task);
+  EXPECT_EQ(result, 42);
+  EXPECT_TRUE(task.done.load());
+}
+
+TEST(InlineExecutor, CleanupIsCalled) {
+  InlineExecutor exec;
+  int cleanup_count = 0;
+  Task task;
+  task.fn = [](void*) {};
+  task.userdata = &cleanup_count;
+  task.cleanup = [](void* ud) { ++*static_cast<int*>(ud); };
+  exec.Submit(&task);
+  EXPECT_EQ(cleanup_count, 1);
+}
+
+TEST(InlineExecutor, ParallelForRunsSequentially) {
+  InlineExecutor exec;
+  int sum = 0;
+  exec.ParallelFor(
+      10, 1,
+      [](int start, int end, void* ctx) {
+        auto* s = static_cast<int*>(ctx);
+        for (int i = start; i < end; ++i) *s += i;
+      },
+      &sum);
+  EXPECT_EQ(sum, 45);
+}
+
+TEST(ThreadPoolExecutor, SubmitAndWait) {
+  ThreadPoolExecutor pool(SystemAllocator::Instance(), 2);
+  pool.Start();
+  std::atomic<int> result{0};
+  Task task;
+  task.fn = [](void* ud) {
+    static_cast<std::atomic<int>*>(ud)->store(42, std::memory_order_relaxed);
+  };
+  task.userdata = &result;
+  task.cleanup = nullptr;
+  pool.Submit(&task);
+  pool.Wait(&task);
+  EXPECT_EQ(result.load(), 42);
+  pool.Shutdown();
+}
+
+TEST(ThreadPoolExecutor, ParallelForSum) {
+  ThreadPoolExecutor pool(SystemAllocator::Instance(), 4);
+  pool.Start();
+  constexpr int kN = 10000;
+  int data[kN];
+  for (int i = 0; i < kN; ++i) data[i] = i;
+
+  std::atomic<int> sum{0};
+  struct Ctx {
+    int* data;
+    std::atomic<int>* sum;
+  };
+  Ctx ctx{data, &sum};
+
+  pool.ParallelFor(
+      kN, /*min_batch=*/100,
+      [](int start, int end, void* ud) {
+        auto* c = static_cast<Ctx*>(ud);
+        int local = 0;
+        for (int i = start; i < end; ++i) local += c->data[i];
+        c->sum->fetch_add(local, std::memory_order_relaxed);
+      },
+      &ctx);
+  EXPECT_EQ(sum.load(), kN * (kN - 1) / 2);
+  pool.Shutdown();
+}
+
+TEST(ThreadPoolExecutor, ParallelForWithZeroCount) {
+  ThreadPoolExecutor pool(SystemAllocator::Instance(), 2);
+  pool.Start();
+  bool called = false;
+  pool.ParallelFor(
+      0, 1, [](int, int, void* ud) { *static_cast<bool*>(ud) = true; },
+      &called);
+  EXPECT_FALSE(called);
+  pool.Shutdown();
+}
+
+TEST(ThreadPoolExecutor, NumDefaultThreads) {
+  size_t n = ThreadPoolExecutor::NumDefaultThreads();
+  EXPECT_GE(n, 1u);
 }
 
 }  // namespace G

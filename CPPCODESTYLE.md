@@ -678,6 +678,21 @@ formatting for runtime string building. Use `StrCat`, `StrAppend`,
 `StringBuffer`, or `FixedStringBuffer`. `std::ostream& operator<<` overloads
 are fine for debug output and test assertions.
 
+### Raw Thread Creation
+
+Do not create threads directly with `std::thread`, `pthread_create`, or
+`SDL_CreateThread`. All concurrent work must go through the `Executor`
+interface (`executor.h`):
+
+- Use `executor->Submit(&task)` for async work.
+- Use `executor->ParallelFor(...)` for data-parallel loops.
+- Use `InlineExecutor` in tests and single-threaded code paths.
+
+The engine creates a single `ThreadPoolExecutor` at startup. Subsystems that
+need concurrency accept an `Executor*` parameter, the same way they accept an
+`Allocator*`. This prevents uncoordinated thread creation and
+oversubscription.
+
 ---
 
 ## Error Handling

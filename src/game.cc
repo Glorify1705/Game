@@ -16,6 +16,7 @@
 #include "clock.h"
 #include "config.h"
 #include "console.h"
+#include "executor.h"
 #include "file_watcher.h"
 #include "filesystem.h"
 #include "input.h"
@@ -48,7 +49,6 @@
 #include "sqlite3.h"
 #include "stats.h"
 #include "stringlib.h"
-#include "thread_pool.h"
 #include "timer.h"
 #include "units.h"
 #include "vec.h"
@@ -188,7 +188,7 @@ struct EngineModules {
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)),
-        pool(allocator, 4),
+        pool(allocator, ThreadPoolExecutor::NumDefaultThreads()),
         allocator_(allocator),
         hotload_allocator_(allocator, kHotReloadMemory),
         watcher_(allocator) {
@@ -197,10 +197,9 @@ struct EngineModules {
 
   ~EngineModules() = default;
 
-  static int StaticCheckChangedFiles(void* ctx) {
+  static void StaticCheckChangedFiles(void* ctx) {
     auto* e = static_cast<EngineModules*>(ctx);
     e->CheckChangedFiles();
-    return 0;
   }
 
   void CheckChangedFiles() {
@@ -232,7 +231,7 @@ struct EngineModules {
       if (should_process) {
         hotload_allocator_.Reset();
         auto result =
-            WriteAssetsToDb(source_directory, db, &hotload_allocator_);
+            WriteAssetsToDb(source_directory, db, &hotload_allocator_, &pool);
         if (result.is_error()) {
           LOG("[hotload] WriteAssetsToDb failed: ", result.error().message());
           SleepMs(50);
@@ -328,7 +327,10 @@ struct EngineModules {
       watcher_.Watch(source_directory);
     }
     pool.Start();
-    pool.Queue(StaticCheckChangedFiles, this);
+    watcher_task_.fn = StaticCheckChangedFiles;
+    watcher_task_.userdata = this;
+    watcher_task_.cleanup = nullptr;
+    pool.Submit(&watcher_task_);
   }
 
   void RegisterLoaders() {
@@ -396,8 +398,7 @@ struct EngineModules {
       LockMutex l(mu);
       stopped = true;
     }
-    pool.Stop();
-    pool.Wait();
+    pool.Shutdown();
   }
 
   void StartFrame() {
@@ -501,12 +502,13 @@ struct EngineModules {
   TimerSystem timers;
   Physics physics;
   ArenaAllocator frame_allocator;
-  ThreadPool pool;
+  ThreadPoolExecutor pool;
   Allocator* allocator_;
   ArenaAllocator hotload_allocator_;
   FileWatcher watcher_;
   std::atomic<int> pending_changes_{0};
   HotReloadChanges pending_reload_;
+  Task watcher_task_{};
 };
 
 class Game {
@@ -524,7 +526,9 @@ class Game {
     {
       TIMER("Getting assets");
       if (opts.source_directory != nullptr) {
-        MUST(WriteAssetsToDb(opts.source_directory, db_, allocator_));
+        InlineExecutor inline_executor;
+        MUST(WriteAssetsToDb(opts.source_directory, db_, allocator_,
+                             &inline_executor));
       }
       db_assets_ = allocator_->New<DbAssets>(db_, allocator_);
     }
