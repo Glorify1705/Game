@@ -1024,18 +1024,34 @@ void Renderer::DrawTriangle(FVec2 p1, FVec2 p2, FVec2 p3) {
   renderer_->PushTriangle(p1, p2, p3, FVec(0, 0), FVec(1, 0), FVec(1, 1));
 }
 
+// Pre-computed unit circle vertices. Indexed by segment, stores (cos, sin).
+template <size_t N>
+struct UnitCircle {
+  struct Point {
+    float x, y;
+  };
+  Point v[N + 1];  // v[N] == v[0] for wraparound.
+  UnitCircle() {
+    constexpr double kAngle = (2.0 * M_PI) / N;
+    for (size_t i = 0; i < N; ++i) {
+      v[i].x = static_cast<float>(std::cos(kAngle * i));
+      v[i].y = static_cast<float>(std::sin(kAngle * i));
+    }
+    v[N] = v[0];
+  }
+};
+
+static const UnitCircle<22> kCircle22;
+static const UnitCircle<32> kCircle32;
+
 void Renderer::DrawCircle(FVec2 center, float radius) {
   ClearTextureDedup();
-  constexpr size_t kTriangles = 22;
-  auto for_index = [&](int index) {
-    const int i = index % kTriangles;
-    constexpr double kAngle = (2.0 * M_PI) / kTriangles;
-    return FVec(center.x + radius * std::cos(kAngle * i),
-                center.y + radius * std::sin(kAngle * i));
-  };
-  for (size_t i = 0; i < kTriangles; ++i) {
-    renderer_->PushTriangle(center, for_index(i), for_index(i + 1), FVec(0, 0),
-                            FVec(1, 0), FVec(1, 1));
+  for (size_t i = 0; i < 22; ++i) {
+    const FVec2 p0(center.x + radius * kCircle22.v[i].x,
+                   center.y + radius * kCircle22.v[i].y);
+    const FVec2 p1(center.x + radius * kCircle22.v[i + 1].x,
+                   center.y + radius * kCircle22.v[i + 1].y);
+    renderer_->PushTriangle(center, p0, p1, FVec(0, 0), FVec(1, 0), FVec(1, 1));
   }
 }
 
@@ -1068,12 +1084,10 @@ void Renderer::DrawRectOutline(FVec2 top_left, FVec2 bottom_right,
 void Renderer::DrawCircleOutline(FVec2 center, float radius) {
   ClearTextureDedup();
   constexpr size_t kSegments = 32;
-  constexpr double kAngle = (2.0 * M_PI) / kSegments;
   FVec2 points[kSegments + 1];
   for (size_t i = 0; i <= kSegments; ++i) {
-    const size_t idx = i % kSegments;
-    points[i] = FVec(center.x + radius * std::cos(kAngle * idx),
-                     center.y + radius * std::sin(kAngle * idx));
+    points[i] = FVec(center.x + radius * kCircle32.v[i].x,
+                     center.y + radius * kCircle32.v[i].y);
   }
   renderer_->BeginLine();
   renderer_->PushLinePoints(points, kSegments + 1);
@@ -1090,28 +1104,22 @@ void Renderer::DrawTriangleOutline(FVec2 p1, FVec2 p2, FVec2 p3) {
 
 void Renderer::DrawEllipse(FVec2 center, float rx, float ry) {
   ClearTextureDedup();
-  constexpr size_t kTriangles = 32;
-  auto for_index = [&](size_t index) {
-    const size_t i = index % kTriangles;
-    constexpr double kAngle = (2.0 * M_PI) / kTriangles;
-    return FVec(center.x + rx * std::cos(kAngle * i),
-                center.y + ry * std::sin(kAngle * i));
-  };
-  for (size_t i = 0; i < kTriangles; ++i) {
-    renderer_->PushTriangle(center, for_index(i), for_index(i + 1), FVec(0, 0),
-                            FVec(1, 0), FVec(1, 1));
+  for (size_t i = 0; i < 32; ++i) {
+    const FVec2 p0(center.x + rx * kCircle32.v[i].x,
+                   center.y + ry * kCircle32.v[i].y);
+    const FVec2 p1(center.x + rx * kCircle32.v[i + 1].x,
+                   center.y + ry * kCircle32.v[i + 1].y);
+    renderer_->PushTriangle(center, p0, p1, FVec(0, 0), FVec(1, 0), FVec(1, 1));
   }
 }
 
 void Renderer::DrawEllipseOutline(FVec2 center, float rx, float ry) {
   ClearTextureDedup();
   constexpr size_t kSegments = 32;
-  constexpr double kAngle = (2.0 * M_PI) / kSegments;
   FVec2 points[kSegments + 1];
   for (size_t i = 0; i <= kSegments; ++i) {
-    const size_t idx = i % kSegments;
-    points[i] = FVec(center.x + rx * std::cos(kAngle * idx),
-                     center.y + ry * std::sin(kAngle * idx));
+    points[i] = FVec(center.x + rx * kCircle32.v[i].x,
+                     center.y + ry * kCircle32.v[i].y);
   }
   renderer_->BeginLine();
   renderer_->PushLinePoints(points, kSegments + 1);

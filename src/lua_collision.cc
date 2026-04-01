@@ -201,8 +201,69 @@ int CollisionWorldGetUserdata(lua_State* state) {
   return 1;
 }
 
+// Registry key for the contact table pool.
+static const char kContactPoolKey = 'C';
+
+// Maximum number of reusable contact tables in the pool.
+static constexpr int kContactPoolSize = 128;
+
+// Creates a single contact table with all keys pre-set to 0/nil.
+void CreateContactTemplate(lua_State* state) {
+  lua_createtable(state, 0, 6);
+  lua_pushnil(state);
+  lua_setfield(state, -2, "other");
+  lua_pushnumber(state, 0);
+  lua_setfield(state, -2, "nx");
+  lua_pushnumber(state, 0);
+  lua_setfield(state, -2, "ny");
+  lua_pushnumber(state, 0);
+  lua_setfield(state, -2, "depth");
+  lua_pushnumber(state, 0);
+  lua_setfield(state, -2, "tx");
+  lua_pushnumber(state, 0);
+  lua_setfield(state, -2, "ty");
+}
+
+// Returns the pool table (a Lua array of pre-allocated contact tables).
+// Creates it on first use.
+void PushContactPool(lua_State* state) {
+  lua_pushlightuserdata(state, (void*)&kContactPoolKey);
+  lua_rawget(state, LUA_REGISTRYINDEX);
+  if (lua_isnil(state, -1)) {
+    lua_pop(state, 1);
+    // Create pool: array of kContactPoolSize pre-allocated contact tables.
+    lua_createtable(state, kContactPoolSize, 0);
+    for (int i = 0; i < kContactPoolSize; ++i) {
+      CreateContactTemplate(state);
+      lua_rawseti(state, -2, i + 1);
+    }
+    // Store in registry.
+    lua_pushlightuserdata(state, (void*)&kContactPoolKey);
+    lua_pushvalue(state, -2);
+    lua_rawset(state, LUA_REGISTRYINDEX);
+  }
+}
+
+// Overwrites fields of an existing contact table (keys already exist,
+// so lua_setfield hits the fast path — no newkey/resize).
+void FillContact(lua_State* state, int table_idx,
+                 const CollisionWorld::Contact& c) {
+  PushHandle(state, c.other);
+  lua_setfield(state, table_idx, "other");
+  lua_pushnumber(state, c.normal.x);
+  lua_setfield(state, table_idx, "nx");
+  lua_pushnumber(state, c.normal.y);
+  lua_setfield(state, table_idx, "ny");
+  lua_pushnumber(state, c.depth);
+  lua_setfield(state, table_idx, "depth");
+  lua_pushnumber(state, c.point.x);
+  lua_setfield(state, table_idx, "tx");
+  lua_pushnumber(state, c.point.y);
+  lua_setfield(state, table_idx, "ty");
+}
+
 void PushContact(lua_State* state, const CollisionWorld::Contact& c) {
-  lua_createtable(state, 0, 7);
+  lua_createtable(state, 0, 6);
   PushHandle(state, c.other);
   lua_setfield(state, -2, "other");
   lua_pushnumber(state, c.normal.x);
@@ -219,11 +280,31 @@ void PushContact(lua_State* state, const CollisionWorld::Contact& c) {
 
 void PushContacts(lua_State* state, const CollisionWorld::Contact* contacts,
                   uint32_t count) {
-  lua_createtable(state, count, 0);
-  for (uint32_t i = 0; i < count; ++i) {
-    PushContact(state, contacts[i]);
-    lua_rawseti(state, -2, i + 1);
+  if (count == 0) {
+    lua_createtable(state, 0, 0);
+    return;
   }
+  // Get the pool of reusable contact tables.
+  PushContactPool(state);  // stack: pool
+  int pool_idx = lua_gettop(state);
+
+  lua_createtable(state, count, 0);  // stack: pool, result
+  int result_idx = lua_gettop(state);
+
+  for (uint32_t i = 0; i < count; ++i) {
+    if (static_cast<int>(i) < kContactPoolSize) {
+      // Reuse a pre-allocated contact table from the pool.
+      lua_rawgeti(state, pool_idx, i + 1);  // stack: pool, result, contact
+      FillContact(state, lua_gettop(state), contacts[i]);
+    } else {
+      // Overflow: allocate a fresh table.
+      PushContact(state, contacts[i]);
+    }
+    lua_rawseti(state, result_idx, i + 1);  // stack: pool, result
+  }
+
+  // Remove pool from stack, leaving only result.
+  lua_remove(state, pool_idx);
 }
 
 int CollisionWorldMoveAndSlide(lua_State* state) {
