@@ -62,6 +62,7 @@ end
 function Meteor:on_collision(other)
 	if not other then return end
 	if other.category ~= "bullet" then return end
+	G.sound.play_effect("meteor-explosion.wav")
 	self.dead = true
 	self.flash_timer = 0.1
 	if self.size == "big" or self.size == "med" then

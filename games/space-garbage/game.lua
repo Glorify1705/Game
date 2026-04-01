@@ -198,6 +198,7 @@ function G1:on_player_death()
 	self.lives = self.lives - 1
 	G.camera.shake(12, 0.3)
 	self:show_death_message()
+	G.sound.play_effect("death.wav")
 	if self.lives <= 0 then
 		self.state = "game_over"
 		G.sound.play_effect("game-over.ogg")
@@ -844,7 +845,7 @@ function Menu:update(t, dt)
 		if self.selected == 1 then
 			return "play"
 		elseif self.selected == 2 then
-			self.confirm_quit = true
+			G.system.quit()
 		end
 	end
 end

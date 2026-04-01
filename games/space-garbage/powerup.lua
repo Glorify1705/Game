@@ -57,7 +57,7 @@ function Powerup:check_pickup(player)
 	local dy = self.y - pv.y
 	if dx * dx + dy * dy < PICKUP_RADIUS * PICKUP_RADIUS then
 		self.dead = true
-		G.sound.play_effect("pong-blip1.ogg")
+		G.sound.play_effect("powerup.wav")
 		return true
 	end
 	return false
