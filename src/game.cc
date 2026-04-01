@@ -641,7 +641,11 @@ class Game {
           }
           if (event.type == SDL_EVENT_KEY_DOWN &&
               e_->keyboard.IsDown(SDL_SCANCODE_F11)) {
+#ifdef GAME_WITH_PROFILING
             GetProfiler()->ToggleRecording();
+#else
+            LOG("Profiling is disabled (build with -DENABLE_PROFILING=ON)");
+#endif
           }
         }
       }
