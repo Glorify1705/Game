@@ -247,6 +247,9 @@ class Lua {
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }
 
+  // Returns the underlying Lua state (for REPL evaluation).
+  lua_State* state() const { return state_; }
+
   Stats AllocatorStats() { return allocator_stats_; };
 
   Allocator* allocator() const { return allocator_; }

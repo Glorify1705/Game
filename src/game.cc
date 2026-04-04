@@ -43,6 +43,7 @@
 #include "platform.h"
 #include "profiler.h"
 #include "renderer.h"
+#include "repl.h"
 #include "shaders.h"
 #include "sound.h"
 #include "sqlite3.h"
@@ -329,6 +330,10 @@ struct EngineModules {
     }
     pool.Start();
     pool.Queue(StaticCheckChangedFiles, this);
+    if (config->repl_enabled && source_directory != nullptr) {
+      repl_server.Init(config->repl_port, allocator_);
+      repl_server.Start();
+    }
   }
 
   void RegisterLoaders() {
@@ -392,6 +397,7 @@ struct EngineModules {
   }
 
   void Deinitialize() {
+    repl_server.Stop();
     {
       LockMutex l(mu);
       stopped = true;
@@ -502,6 +508,7 @@ struct EngineModules {
   Physics physics;
   ArenaAllocator frame_allocator;
   ThreadPool pool;
+  ReplServer repl_server;
   Allocator* allocator_;
   ArenaAllocator hotload_allocator_;
   FileWatcher watcher_;
@@ -660,6 +667,10 @@ class Game {
         }
       }
       e_->batch_renderer.SetFrameTime(static_cast<float>(t));
+      if (e_->repl_server.running()) {
+        PROFILE_SCOPE_N("REPL::ProcessQueue");
+        e_->repl_server.ProcessQueue(e_->lua.state(), &stats_);
+      }
       {
         PROFILE_SCOPE_N("Render");
         Render();

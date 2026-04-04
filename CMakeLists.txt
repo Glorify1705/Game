@@ -112,6 +112,8 @@ set(ENGINE_SRCS
     "src/lua_math.cc"
     "src/physics.cc"
     "src/profiler.cc"
+    "src/repl.cc"
+    "src/repl_socket.cc"
     "src/qoa.cc"
     "src/renderer.cc"
     "src/shaders.cc"
@@ -216,7 +218,8 @@ target_link_libraries(
           lua
           mimalloc-static
           double-conversion
-          OpenGL::GL)
+          OpenGL::GL
+          $<$<PLATFORM_ID:Windows>:ws2_32>)
 
 if(WIN32)
   add_custom_command(
