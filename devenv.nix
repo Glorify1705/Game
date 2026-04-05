@@ -75,6 +75,7 @@ in
   enterShell = ''
     export CC="${pkgs.clang}/bin/clang";
     export CXX="${pkgs.clang}/bin/clang++";
+    export CMAKE_PREFIX_PATH="${pkgs.elfutils.dev}:${pkgs.elfutils.out}:$CMAKE_PREFIX_PATH";
   '';
 
   scripts."game-build" = {

@@ -52,8 +52,15 @@ find_package(OpenGL REQUIRED)
 find_package(SDL3 REQUIRED CONFIG)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  include(FindPkgConfig)
-  pkg_check_modules(LIBDW IMPORTED_TARGET libdw)
+  find_library(LIBDW_LIBRARY dw)
+  find_path(LIBDW_INCLUDE_DIR NAMES "elfutils/libdw.h")
+  if(LIBDW_LIBRARY AND LIBDW_INCLUDE_DIR)
+    set(LIBDW_FOUND TRUE)
+    message(STATUS "Found libdw: ${LIBDW_LIBRARY}")
+  else()
+    set(LIBDW_FOUND FALSE)
+    message(STATUS "libdw not found, stack traces will show addresses only")
+  endif()
 endif()
 
 # Write Nix-implicit include dirs for standalone tools (clang-include-cleaner).
@@ -143,13 +150,6 @@ set(ENGINE_SRCS
 set_source_files_properties(${VENDORED_SRCS} PROPERTIES SKIP_LINTING ON)
 set_source_files_properties("libraries/stb_image_write.cc" PROPERTIES
     COMPILE_OPTIONS "-Wno-missing-field-initializers")
-if(LIBDW_FOUND)
-  set_source_files_properties("libraries/backward.cpp" PROPERTIES
-      COMPILE_DEFINITIONS "BACKWARD_HAS_DW=1")
-  set_source_files_properties("libraries/backward.cpp" PROPERTIES
-      INCLUDE_DIRECTORIES "${LIBDW_INCLUDE_DIRS}")
-endif()
-
 set(GAME_SRCS ${VENDORED_SRCS} ${ENGINE_SRCS})
 
 configure_file(src/version.h.in version.h)
@@ -207,6 +207,11 @@ target_compile_definitions(Game PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
 )
 
+if(LIBDW_FOUND)
+  target_compile_definitions(Game PRIVATE BACKWARD_HAS_DW=1)
+  target_include_directories(Game SYSTEM PRIVATE "${LIBDW_INCLUDE_DIR}")
+endif()
+
 if(ENABLE_PROFILING)
     target_compile_definitions(Game PRIVATE GAME_WITH_PROFILING)
 endif()
@@ -229,7 +234,7 @@ target_link_libraries(
           mimalloc-static
           double-conversion
           OpenGL::GL
-          $<$<BOOL:${LIBDW_FOUND}>:${LIBDW_LIBRARIES}>)
+          $<$<BOOL:${LIBDW_FOUND}>:${LIBDW_LIBRARY}>)
 
 if(WIN32)
   add_custom_command(
