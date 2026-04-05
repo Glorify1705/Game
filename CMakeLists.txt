@@ -186,7 +186,7 @@ set(MSVC_FLAGS /W4 /WX /DGAME_WITH_ASSERTS /O2 /DEBUG /NDEBUG)
 
 target_compile_options(Game PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
-    $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1>
+    $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls>
     $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
 )
 
