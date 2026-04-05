@@ -320,7 +320,7 @@ void FileWatcher::Stop() {
 #endif
 
 void FileWatcher::PushToDebounce(const char* relative_path) {
-  const double now = NowInSeconds();
+  const Time now = Now();
   const uint32_t handle = StringIntern(relative_path);
 
   // Check if this file is already in the debounce queue.
@@ -361,16 +361,16 @@ FileWatcher::ChangedFiles FileWatcher::DrainChanges() {
     return result;
   }
 
-  const double now = NowInSeconds();
+  const Time now = Now();
   uint32_t remaining = 0;
 
   for (uint32_t i = 0; i < debounce_count_; ++i) {
-    const double since_last = now - debounce_entries_[i].last_event_time;
-    const double since_first = now - debounce_entries_[i].first_event_time;
+    const Duration since_last = now - debounce_entries_[i].last_event_time;
+    const Duration since_first = now - debounce_entries_[i].first_event_time;
 
     // File has settled (no events for settle period) or has exceeded the
     // maximum delay from its first event.
-    if (since_last >= kSettlePeriodSec || since_first >= kMaxDelaySec) {
+    if (since_last >= kSettlePeriod || since_first >= kMaxDelay) {
       if (result.count < kMaxDrainResults) {
         // Interned strings have stable pointers — no copy needed.
         auto sv = StringByHandle(debounce_entries_[i].path_handle);

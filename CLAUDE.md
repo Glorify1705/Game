@@ -67,8 +67,9 @@ All engine code lives under `src/` in namespace `G`. Major subsystems:
 - **Data structures** (header-only): `vec.h`, `mat.h`, `allocators.h`,
   `array.h`, `dictionary.h`, `circular_buffer.h`, `segmented_list.h`,
   `inlined_array.h`
-- **Utilities**: `stringlib.cc`, `string_table.cc`, `logging.cc`, `stats.cc`,
-  `thread_pool.cc`
+- **Threading**: `executor.cc` (Executor interface, ThreadPoolExecutor,
+  InlineExecutor)
+- **Utilities**: `stringlib.cc`, `string_table.cc`, `logging.cc`, `stats.cc`
 
 ## Key Conventions
 

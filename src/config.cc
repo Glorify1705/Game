@@ -90,8 +90,7 @@ ErrorOr<void> LoadConfigFromFile(const char* path, GameConfig* config,
   long size = ftell(f);
   fseek(f, 0, SEEK_SET);
   char* contents = static_cast<char*>(allocator->Alloc(size + 1, 1));
-  size_t read_bytes = fread(contents, 1, size, f);
-  (void)read_bytes;
+  [[maybe_unused]] size_t read_bytes = fread(contents, 1, size, f);
   contents[size] = '\0';
   fclose(f);
   LoadConfig(std::string_view(contents, size), config, allocator);

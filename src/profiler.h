@@ -71,12 +71,12 @@ Profiler* GetProfiler();
 class ProfileZone {
  public:
   ProfileZone(std::string_view name, std::string_view category)
-      : name_(name), category_(category), start_(NowInSeconds()) {}
+      : name_(name), category_(category), start_(Now()) {}
 
   ~ProfileZone() {
     Profiler* p = GetProfiler();
     if (p->recording()) {
-      p->AddEvent(name_, category_, start_, NowInSeconds() - start_,
+      p->AddEvent(name_, category_, NowInSeconds(), ToSeconds(Now() - start_),
                   /*tid=*/0);
     }
   }
@@ -84,7 +84,7 @@ class ProfileZone {
  private:
   std::string_view name_;
   std::string_view category_;
-  double start_;
+  Time start_;
 };
 
 }  // namespace G

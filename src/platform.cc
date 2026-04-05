@@ -127,9 +127,8 @@ ErrorOr<void> CopyFile(const char* src, const char* dst) {
   return {};
 }
 
-ErrorOr<void> MakeExecutable(const char* path) {
+ErrorOr<void> MakeExecutable([[maybe_unused]] const char* path) {
 #ifdef _WIN32
-  (void)path;
   return {};
 #else
   if (chmod(path, 0755) != 0) return Error::Errno(errno);

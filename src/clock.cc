@@ -1,11 +1,9 @@
 #include "clock.h"
 
-#include <SDL3/SDL.h>
-
 namespace G {
 
-double NowInSeconds() {
-  return (SDL_GetPerformanceCounter() * 1.0) / SDL_GetPerformanceFrequency();
-}
+Time Now() { return Clock::now(); }
+
+double NowInSeconds() { return ToSeconds(Now().time_since_epoch()); }
 
 }  // namespace G

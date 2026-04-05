@@ -2,28 +2,44 @@
 #ifndef _GAME_CLOCK_H
 #define _GAME_CLOCK_H
 
+#include <chrono>
+
 #include "logging.h"
 #include "stringlib.h"
 
 namespace G {
 
+// Aliases for std::chrono types. Monotonic clock unaffected by system time.
+using Clock = std::chrono::steady_clock;
+using Time = Clock::time_point;
+using Duration = Clock::duration;
+
+// Current monotonic time.
+Time Now();
+
+// Current monotonic time as seconds (convenience for arithmetic).
 double NowInSeconds();
+
+// Convert a duration to seconds.
+inline double ToSeconds(Duration d) {
+  return std::chrono::duration<double>(d).count();
+}
 
 class LogTimer {
  public:
   using Buf = FixedStringBuffer<kMaxLogLineLength>;
 
   LogTimer(const char* file, int line, const char* func, Buf&& buf = {})
-      : file_(file), line_(line), func_(func), start_(NowInSeconds()) {
+      : file_(file), line_(line), func_(func), start_(Now()) {
     auto s = buf.piece();
     std::memcpy(buf_, s.data(), s.size());
     buf_[s.size()] = '\0';
   }
 
   ~LogTimer() {
-    const double time = NowInSeconds() - start_;
-    Log(file_, line_, buf_[0] == '\0' ? func_ : "", buf_, " elapsed ",
-        1000.0 * time, "ms");
+    const double ms = ToSeconds(Now() - start_) * 1000.0;
+    Log(file_, line_, buf_[0] == '\0' ? func_ : "", buf_, " elapsed ", ms,
+        "ms");
   }
 
  private:
@@ -33,7 +49,7 @@ class LogTimer {
 
   char buf_[kMaxLogLineLength + 1];
 
-  double start_;
+  Time start_;
 };
 
 #define INTERNAL_ID_I1(x, y) x##y

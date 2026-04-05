@@ -16,6 +16,7 @@
 #include "clock.h"
 #include "config.h"
 #include "console.h"
+#include "executor.h"
 #include "file_watcher.h"
 #include "filesystem.h"
 #include "input.h"
@@ -48,7 +49,7 @@
 #include "sqlite3.h"
 #include "stats.h"
 #include "stringlib.h"
-#include "thread_pool.h"
+#include "thread.h"
 #include "timer.h"
 #include "units.h"
 #include "vec.h"
@@ -188,7 +189,7 @@ struct EngineModules {
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
         frame_allocator(allocator, Megabytes(128)),
-        pool(allocator, 4),
+        pool(allocator, ThreadPoolExecutor::NumDefaultThreads()),
         allocator_(allocator),
         hotload_allocator_(allocator, kHotReloadMemory),
         watcher_(allocator) {
@@ -197,13 +198,14 @@ struct EngineModules {
 
   ~EngineModules() = default;
 
-  static int StaticCheckChangedFiles(void* ctx) {
+  static bool StaticCheckChangedFiles(void* ctx) {
     auto* e = static_cast<EngineModules*>(ctx);
     e->CheckChangedFiles();
-    return 0;
+    return true;
   }
 
   void CheckChangedFiles() {
+    SetCurrentThreadName("file-watcher");
     LOG("Background file watcher started");
     auto is_stopped = [this] {
       LockMutex l(mu);
@@ -232,7 +234,7 @@ struct EngineModules {
       if (should_process) {
         hotload_allocator_.Reset();
         auto result =
-            WriteAssetsToDb(source_directory, db, &hotload_allocator_);
+            WriteAssetsToDb(source_directory, db, &hotload_allocator_, &pool);
         if (result.is_error()) {
           LOG("[hotload] WriteAssetsToDb failed: ", result.error().message());
           SleepMs(50);
@@ -328,7 +330,10 @@ struct EngineModules {
       watcher_.Watch(source_directory);
     }
     pool.Start();
-    pool.Queue(StaticCheckChangedFiles, this);
+    watcher_task_.fn = StaticCheckChangedFiles;
+    watcher_task_.userdata = this;
+    watcher_task_.cleanup = nullptr;
+    pool.Submit(&watcher_task_);
   }
 
   void RegisterLoaders() {
@@ -396,8 +401,7 @@ struct EngineModules {
       LockMutex l(mu);
       stopped = true;
     }
-    pool.Stop();
-    pool.Wait();
+    pool.Shutdown();
   }
 
   void StartFrame() {
@@ -501,12 +505,13 @@ struct EngineModules {
   TimerSystem timers;
   Physics physics;
   ArenaAllocator frame_allocator;
-  ThreadPool pool;
+  ThreadPoolExecutor pool;
   Allocator* allocator_;
   ArenaAllocator hotload_allocator_;
   FileWatcher watcher_;
   std::atomic<int> pending_changes_{0};
   HotReloadChanges pending_reload_;
+  Task watcher_task_;
 };
 
 class Game {
@@ -524,7 +529,9 @@ class Game {
     {
       TIMER("Getting assets");
       if (opts.source_directory != nullptr) {
-        MUST(WriteAssetsToDb(opts.source_directory, db_, allocator_));
+        InlineExecutor inline_executor;
+        MUST(WriteAssetsToDb(opts.source_directory, db_, allocator_,
+                             &inline_executor));
       }
       db_assets_ = allocator_->New<DbAssets>(db_, allocator_);
     }
@@ -583,7 +590,7 @@ class Game {
 
   void Run() {
     SDL_ResumeAudioDevice(audio_device_);
-    double last_frame = NowInSeconds();
+    Time last_frame = Now();
     constexpr double kStep = TimeStepInSeconds();
     double t = 0, real_t = 0, accum = 0;
     for (;;) {
@@ -606,8 +613,8 @@ class Game {
             changes.has_script_changes ? " (scripts)" : "",
             changes.has_audio_changes ? " (audio)" : "");
       }
-      const double now = NowInSeconds();
-      const double frame_time = now - last_frame;
+      const Time now = Now();
+      const double frame_time = ToSeconds(now - last_frame);
       last_frame = now;
       accum += frame_time;
       if (accum < kStep) {
@@ -615,7 +622,7 @@ class Game {
         continue;
       }
       PROFILE_FRAME;
-      const auto frame_start = NowInSeconds();
+      const Time frame_start = Now();
       {
         PROFILE_SCOPE_N("StartFrame");
         e_->StartFrame();
@@ -665,9 +672,9 @@ class Game {
         Render();
       }
       PROFILE_COUNTER("Frame Time (ms)",
-                      (NowInSeconds() - frame_start) * 1000.0);
+                      ToSeconds(Now() - frame_start) * 1000.0);
       PROFILE_COUNTER("Lua Memory (KB)", e_->lua.MemoryUsage() / 1024.0);
-      stats_.AddSample((NowInSeconds() - frame_start) * 1000.0);
+      stats_.AddSample(ToSeconds(Now() - frame_start) * 1000.0);
     }
   }
 
@@ -816,6 +823,11 @@ class Game {
                                           SDL_AudioStream* stream,
                                           int additional_amount,
                                           int /*total_amount*/) {
+    static bool named = false;
+    if (!named) {
+      SetCurrentThreadName("audio");
+      named = true;
+    }
     auto* game = static_cast<Game*>(userdata);
     const int total_floats = additional_amount / (int)sizeof(float);
     const int clamped =

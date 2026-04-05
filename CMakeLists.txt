@@ -120,7 +120,7 @@ set(ENGINE_SRCS
     "src/string_table.cc"
     "src/stringlib.cc"
     "src/timer.cc"
-    "src/thread_pool.cc"
+    "src/executor.cc"
     "src/transformations.cc"
     "src/json.cc"
     "src/xml.cc"
@@ -232,6 +232,7 @@ enable_testing()
 
 set(TEST_SRCS "src/stringlib.cc" "src/stats.cc" "src/string_table.cc"
               "src/logging.cc" "src/collision.cc" "src/collision_world.cc"
+              "src/executor.cc"
               "tests/test.cc")
 
 add_executable(Tests "${TEST_SRCS}")

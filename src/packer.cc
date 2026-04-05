@@ -3,7 +3,6 @@
 #include <SDL3/SDL.h>
 
 #include <atomic>
-#include <thread>
 
 #include "clock.h"
 #include "debug_font.h"
@@ -19,8 +18,8 @@
 #include "qoa.h"
 #include "schema.sql.h"
 #include "src/allocators.h"
+#include "src/executor.h"
 #include "src/stringlib.h"
-#include "src/thread.h"
 #include "src/units.h"
 #include "xml.h"
 
@@ -182,9 +181,10 @@ class DbPacker {
     size_t size;
   };
 
-  explicit DbPacker(sqlite3* db, Allocator* allocator)
+  DbPacker(sqlite3* db, Allocator* allocator, Executor* executor)
       : db_(db),
         allocator_(allocator),
+        executor_(executor),
         scratch_(allocator, Megabytes(64)),
         checksums_(allocator),
         deferred_(allocator) {}
@@ -802,13 +802,13 @@ class DbPacker {
     LOG("Processing ", deferred_.size(), " files with ", num_threads,
         " threads");
 
-    FixedArray<std::thread> threads(num_threads, allocator_);
-    for (int i = 0; i < num_threads; i++) {
-      threads.Push(std::thread(ProcessWorkItems, &ctx));
-    }
-    for (size_t i = 0; i < threads.size(); i++) {
-      threads[i].join();
-    }
+    executor_->ParallelFor(
+        num_threads, /*min_batch=*/1,
+        [](int /*start*/, int /*end*/, void* ud) {
+          auto* c = static_cast<WorkerContext*>(ud);
+          ProcessWorkItems(c);
+        },
+        &ctx);
 
     for (size_t i = 0; i < deferred_.size(); i++) {
       WorkItem& item = deferred_[i];
@@ -853,6 +853,7 @@ class DbPacker {
  private:
   sqlite3* db_ = nullptr;
   Allocator* allocator_ = nullptr;
+  Executor* executor_ = nullptr;
   ArenaAllocator scratch_;
   Dictionary<DbAssets::ChecksumType> checksums_;
   DynArray<WorkItem> deferred_;
@@ -869,14 +870,15 @@ ErrorOr<DbAssets*> ReadAssetsFromDb(sqlite3* db, Allocator* allocator,
 }
 
 ErrorOr<AssetWriteResult> WriteAssetsToDb(const char* source_directory,
-                                          sqlite3* db, Allocator* allocator) {
+                                          sqlite3* db, Allocator* allocator,
+                                          Executor* executor) {
   if (!PHYSFS_mount(source_directory, "/assets", 1)) {
     LOG("Failed to mount directory ", source_directory, ": ",
         PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
     return Error::Message("failed to mount asset directory");
   }
   sqlite3_exec(db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
-  DbPacker packer(db, allocator);
+  DbPacker packer(db, allocator, executor);
   packer.LoadChecksums();
   auto result = packer.HandleFiles();
   sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
