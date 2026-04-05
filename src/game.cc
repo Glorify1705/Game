@@ -511,7 +511,7 @@ struct EngineModules {
   FileWatcher watcher_;
   std::atomic<int> pending_changes_{0};
   HotReloadChanges pending_reload_;
-  Task watcher_task_{};
+  Task watcher_task_;
 };
 
 class Game {
