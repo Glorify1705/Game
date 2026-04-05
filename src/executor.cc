@@ -104,12 +104,11 @@ void ThreadPoolExecutor::Submit(Task* task) {
 void ThreadPoolExecutor::Wait(Task* task) {
   // Check deadline for deadlock diagnosis.
   const auto deadline = task->deadline;
-  const bool has_deadline = deadline != std::chrono::steady_clock::time_point{};
+  const bool has_deadline = deadline != Time{};
   bool warned = false;
 
   while (task->state.load(std::memory_order_acquire) == TaskState::kPending) {
-    if (has_deadline && !warned &&
-        std::chrono::steady_clock::now() > deadline) {
+    if (has_deadline && !warned && Clock::now() > deadline) {
       LOG("WARNING: task exceeded its deadline — possible deadlock");
       warned = true;
     }

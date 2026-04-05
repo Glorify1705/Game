@@ -2,10 +2,17 @@
 #ifndef _GAME_CLOCK_H
 #define _GAME_CLOCK_H
 
+#include <chrono>
+
 #include "logging.h"
 #include "stringlib.h"
 
 namespace G {
+
+// Aliases for std::chrono types. Monotonic clock unaffected by system time.
+using Clock = std::chrono::steady_clock;
+using Time = Clock::time_point;
+using Duration = Clock::duration;
 
 double NowInSeconds();
 

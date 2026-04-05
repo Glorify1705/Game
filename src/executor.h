@@ -3,7 +3,6 @@
 #define _GAME_EXECUTOR_H
 
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -11,6 +10,7 @@
 #include "allocators.h"
 #include "array.h"
 #include "circular_buffer.h"
+#include "clock.h"
 
 namespace G {
 
@@ -35,7 +35,7 @@ struct Task {
   void (*cleanup)(void* userdata);
   // Optional deadline. If non-zero, Wait() will log a warning when the
   // deadline is exceeded to help diagnose deadlocks.
-  std::chrono::steady_clock::time_point deadline{};
+  Time deadline{};
   // Set by the executor when the task finishes.
   std::atomic<TaskState> state{TaskState::kPending};
 };
