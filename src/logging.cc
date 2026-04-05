@@ -2,6 +2,10 @@
 
 #include <cstdio>
 
+#ifdef GAME_WITH_ASSERTS
+#include "libraries/backward.hpp"
+#endif
+
 namespace G {
 namespace {
 
@@ -49,6 +53,13 @@ void SetLogSink(LogSink sink) { g_LogSink = sink; }
 void SetCrashHandler(CrashHandler handler) { g_CrashHandler = handler; }
 
 [[noreturn]] void Crash(const char* message) {
+#ifdef GAME_WITH_ASSERTS
+  backward::StackTrace st;
+  st.load_here(32);
+  backward::Printer p;
+  p.snippet = false;
+  p.print(st, stderr);
+#endif
   g_CrashHandler(message);
   std::abort();
 }

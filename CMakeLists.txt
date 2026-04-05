@@ -51,6 +51,11 @@ set(PHYSFS_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 find_package(OpenGL REQUIRED)
 find_package(SDL3 REQUIRED CONFIG)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  include(FindPkgConfig)
+  pkg_check_modules(LIBDW IMPORTED_TARGET libdw)
+endif()
+
 # Write Nix-implicit include dirs for standalone tools (clang-include-cleaner).
 # CMake strips these from compile_commands.json, so tools need them explicitly.
 string(REPLACE ";" "\n" _implicit_dirs "${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}")
@@ -78,7 +83,8 @@ set(VENDORED_SRCS
     "libraries/stb_rect_pack.cc"
     "libraries/stb_truetype.cc"
     "libraries/stb_image_write.cc"
-    "libraries/stb_vorbis.cc")
+    "libraries/stb_vorbis.cc"
+    "libraries/backward.cpp")
 
 set(ENGINE_SRCS
     "src/assets.cc"
@@ -137,6 +143,12 @@ set(ENGINE_SRCS
 set_source_files_properties(${VENDORED_SRCS} PROPERTIES SKIP_LINTING ON)
 set_source_files_properties("libraries/stb_image_write.cc" PROPERTIES
     COMPILE_OPTIONS "-Wno-missing-field-initializers")
+if(LIBDW_FOUND)
+  set_source_files_properties("libraries/backward.cpp" PROPERTIES
+      COMPILE_DEFINITIONS "BACKWARD_HAS_DW=1")
+  set_source_files_properties("libraries/backward.cpp" PROPERTIES
+      INCLUDE_DIRECTORIES "${LIBDW_INCLUDE_DIRS}")
+endif()
 
 set(GAME_SRCS ${VENDORED_SRCS} ${ENGINE_SRCS})
 
@@ -216,7 +228,8 @@ target_link_libraries(
           lua
           mimalloc-static
           double-conversion
-          OpenGL::GL)
+          OpenGL::GL
+          $<$<BOOL:${LIBDW_FOUND}>:${LIBDW_LIBRARIES}>)
 
 if(WIN32)
   add_custom_command(

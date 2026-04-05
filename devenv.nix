@@ -40,6 +40,7 @@ in
     ccls
     clang
     clang-tools
+    elfutils
     cmake
     ffmpeg
     fnlfmt
