@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include "allocators.h"
+#include "clock.h"
 #include "string_table.h"
 #include "stringlib.h"
 
@@ -63,15 +64,15 @@ class FileWatcher {
   struct DebounceEntry {
     // Interned handle for the relative path of the changed file.
     uint32_t path_handle;
-    // Time of the first event for this file (seconds).
-    double first_event_time;
-    // Time of the most recent event for this file (seconds).
-    double last_event_time;
+    // Time of the first event for this file.
+    Time first_event_time;
+    // Time of the most recent event for this file.
+    Time last_event_time;
   };
 
   // Debounce parameters.
-  static constexpr double kSettlePeriodSec = 0.1;  // 100ms
-  static constexpr double kMaxDelaySec = 0.5;      // 500ms
+  static constexpr Duration kSettlePeriod = std::chrono::milliseconds(100);
+  static constexpr Duration kMaxDelay = std::chrono::milliseconds(500);
   static constexpr uint32_t kMaxDebounceEntries = 256;
   static constexpr uint32_t kMaxDrainResults = 64;
 

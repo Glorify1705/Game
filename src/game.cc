@@ -590,7 +590,7 @@ class Game {
 
   void Run() {
     SDL_ResumeAudioDevice(audio_device_);
-    double last_frame = NowInSeconds();
+    Time last_frame = Now();
     constexpr double kStep = TimeStepInSeconds();
     double t = 0, real_t = 0, accum = 0;
     for (;;) {
@@ -613,8 +613,8 @@ class Game {
             changes.has_script_changes ? " (scripts)" : "",
             changes.has_audio_changes ? " (audio)" : "");
       }
-      const double now = NowInSeconds();
-      const double frame_time = now - last_frame;
+      const Time now = Now();
+      const double frame_time = ToSeconds(now - last_frame);
       last_frame = now;
       accum += frame_time;
       if (accum < kStep) {
@@ -622,7 +622,7 @@ class Game {
         continue;
       }
       PROFILE_FRAME;
-      const auto frame_start = NowInSeconds();
+      const Time frame_start = Now();
       {
         PROFILE_SCOPE_N("StartFrame");
         e_->StartFrame();
@@ -668,9 +668,9 @@ class Game {
         Render();
       }
       PROFILE_COUNTER("Frame Time (ms)",
-                      (NowInSeconds() - frame_start) * 1000.0);
+                      ToSeconds(Now() - frame_start) * 1000.0);
       PROFILE_COUNTER("Lua Memory (KB)", e_->lua.MemoryUsage() / 1024.0);
-      stats_.AddSample((NowInSeconds() - frame_start) * 1000.0);
+      stats_.AddSample(ToSeconds(Now() - frame_start) * 1000.0);
     }
   }
 
