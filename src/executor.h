@@ -3,6 +3,7 @@
 #define _GAME_EXECUTOR_H
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -13,20 +14,30 @@
 
 namespace G {
 
+// Completion state for a Task.
+enum class TaskState : uint8_t {
+  kPending,    // Not yet started or still running.
+  kSucceeded,  // fn returned true.
+  kFailed,     // fn returned false.
+};
+
 // A unit of work submitted to an Executor.
 // Allocated by the caller (stack, arena, or system allocator).
 // Must remain valid until the executor signals completion.
 struct Task {
-  // Function to execute on a worker thread.
-  void (*fn)(void* userdata);
+  // Function to execute on a worker thread. Returns true on success, false on
+  // failure.
+  bool (*fn)(void* userdata);
   // Caller-provided context passed to fn.
   void* userdata;
-  // Optional cleanup called after fn completes on the same thread.
-  // May be null.
+  // Optional cleanup called after fn completes (regardless of success or
+  // failure) on the same thread. May be null.
   void (*cleanup)(void* userdata);
-  // Set to true by the executor when the task completes.
-  // Callers polling via Wait() should initialize this to false.
-  std::atomic<bool> done{false};
+  // Optional deadline. If non-zero, Wait() will log a warning when the
+  // deadline is exceeded to help diagnose deadlocks.
+  std::chrono::steady_clock::time_point deadline{};
+  // Set by the executor when the task finishes.
+  std::atomic<TaskState> state{TaskState::kPending};
 };
 
 // Abstract interface for running work. Subsystems accept Executor* the same
@@ -45,8 +56,12 @@ class Executor {
                            void (*fn)(int start, int end, void* ctx),
                            void* ctx) = 0;
 
-  // Block until a previously submitted task completes.
+  // Block until a previously submitted task completes. Logs a warning if
+  // the task's deadline is exceeded.
   virtual void Wait(Task* task) = 0;
+
+  // Return true if the task has completed, false otherwise. Non-blocking.
+  virtual bool TryWait(Task* task) = 0;
 };
 
 // Runs all work synchronously on the calling thread. Zero overhead.
@@ -58,6 +73,7 @@ class InlineExecutor : public Executor {
                    void (*fn)(int start, int end, void* ctx),
                    void* ctx) override;
   void Wait(Task* task) override;
+  bool TryWait(Task* task) override;
 };
 
 // Thread pool executor with per-thread queues and work stealing.
@@ -84,6 +100,7 @@ class ThreadPoolExecutor : public Executor {
                    void (*fn)(int start, int end, void* ctx),
                    void* ctx) override;
   void Wait(Task* task) override;
+  bool TryWait(Task* task) override;
 
   // Number of worker threads.
   size_t num_threads() const { return num_threads_; }

@@ -1,40 +1,18 @@
 #include "executor.h"
 
-#include <cstdio>
-
 #include "logging.h"
+#include "stringlib.h"
 #include "thread.h"
-
-#if defined(__linux__)
-#include <pthread.h>
-#elif defined(__APPLE__)
-#include <pthread.h>
-#elif defined(_WIN32)
-#include <windows.h>
-#endif
 
 namespace G {
 
 namespace {
 
-void SetCurrentThreadName(const char* name) {
-#if defined(__linux__)
-  pthread_setname_np(pthread_self(), name);
-#elif defined(__APPLE__)
-  pthread_setname_np(name);
-#elif defined(_WIN32)
-  wchar_t wname[16];
-  size_t i = 0;
-  for (; name[i] && i < 15; ++i) wname[i] = static_cast<wchar_t>(name[i]);
-  wname[i] = 0;
-  SetThreadDescription(GetCurrentThread(), wname);
-#endif
-}
-
 void RunTask(Task* task) {
-  task->fn(task->userdata);
+  bool ok = task->fn(task->userdata);
   if (task->cleanup) task->cleanup(task->userdata);
-  task->done.store(true, std::memory_order_release);
+  task->state.store(ok ? TaskState::kSucceeded : TaskState::kFailed,
+                    std::memory_order_release);
 }
 
 }  // namespace
@@ -43,14 +21,15 @@ void RunTask(Task* task) {
 
 void InlineExecutor::Submit(Task* task) { RunTask(task); }
 
-void InlineExecutor::ParallelFor(int count, int min_batch,
+void InlineExecutor::ParallelFor(int count, int /*min_batch*/,
                                  void (*fn)(int start, int end, void* ctx),
                                  void* ctx) {
-  (void)min_batch;
   if (count > 0) fn(0, count, ctx);
 }
 
 void InlineExecutor::Wait(Task* /*task*/) {}
+
+bool InlineExecutor::TryWait(Task* /*task*/) { return true; }
 
 // ThreadPoolExecutor
 
@@ -76,7 +55,7 @@ ThreadPoolExecutor::~ThreadPoolExecutor() {
 }
 
 size_t ThreadPoolExecutor::NumDefaultThreads() {
-  unsigned n = std::thread::hardware_concurrency();
+  const size_t n = std::thread::hardware_concurrency();
   return n > 1 ? n - 1 : 1;
 }
 
@@ -100,17 +79,16 @@ void ThreadPoolExecutor::Shutdown() {
 }
 
 void ThreadPoolExecutor::Submit(Task* task) {
-  task->done.store(false, std::memory_order_relaxed);
+  task->state.store(TaskState::kPending, std::memory_order_relaxed);
   size_t idx =
       next_queue_.fetch_add(1, std::memory_order_relaxed) % num_threads_;
 
   // Try each queue with try_lock, fall back to blocking on the target queue.
   for (size_t attempt = 0; attempt < num_threads_; ++attempt) {
     size_t q = (idx + attempt) % num_threads_;
-    std::unique_lock<std::mutex> lock(queues_[q]->mu, std::try_to_lock);
+    LockMutex lock = LockMutex::TryLock(queues_[q]->mu);
     if (lock.owns_lock()) {
       queues_[q]->queue.Push(task);
-      lock.unlock();
       wake_cv_.notify_one();
       return;
     }
@@ -124,7 +102,17 @@ void ThreadPoolExecutor::Submit(Task* task) {
 }
 
 void ThreadPoolExecutor::Wait(Task* task) {
-  while (!task->done.load(std::memory_order_acquire)) {
+  // Check deadline for deadlock diagnosis.
+  const auto deadline = task->deadline;
+  const bool has_deadline = deadline != std::chrono::steady_clock::time_point{};
+  bool warned = false;
+
+  while (task->state.load(std::memory_order_acquire) == TaskState::kPending) {
+    if (has_deadline && !warned &&
+        std::chrono::steady_clock::now() > deadline) {
+      LOG("WARNING: task exceeded its deadline — possible deadlock");
+      warned = true;
+    }
     // Help process work while waiting.
     bool did_work = false;
     for (size_t i = 0; i < num_threads_; ++i) {
@@ -135,6 +123,17 @@ void ThreadPoolExecutor::Wait(Task* task) {
     }
     if (!did_work) std::this_thread::yield();
   }
+}
+
+bool ThreadPoolExecutor::TryWait(Task* task) {
+  if (task->state.load(std::memory_order_acquire) != TaskState::kPending) {
+    return true;
+  }
+  // Try to help with one item before giving up.
+  for (size_t i = 0; i < num_threads_; ++i) {
+    if (TryRunOne(i)) break;
+  }
+  return task->state.load(std::memory_order_acquire) != TaskState::kPending;
 }
 
 void ThreadPoolExecutor::ParallelFor(int count, int min_batch,
@@ -181,6 +180,7 @@ void ThreadPoolExecutor::ParallelFor(int count, int min_batch,
       p->fn(start, end, p->ctx);
       p->completed.fetch_add(1, std::memory_order_release);
     }
+    return true;
   };
 
   // Submit tasks to workers. Caller also participates.
@@ -193,7 +193,7 @@ void ThreadPoolExecutor::ParallelFor(int count, int min_batch,
     tasks[i].fn = batch_worker;
     tasks[i].userdata = &pctx;
     tasks[i].cleanup = nullptr;
-    tasks[i].done.store(false, std::memory_order_relaxed);
+    tasks[i].state.store(TaskState::kPending, std::memory_order_relaxed);
 
     size_t idx =
         next_queue_.fetch_add(1, std::memory_order_relaxed) % num_threads_;
@@ -207,11 +207,12 @@ void ThreadPoolExecutor::ParallelFor(int count, int min_batch,
   // Caller thread also processes batches.
   batch_worker(&pctx);
 
-  // Wait for all submitted tasks to complete. We check task.done rather than
+  // Wait for all submitted tasks to complete. We check task.state rather than
   // the completed counter to ensure workers have fully finished with the
   // stack-allocated Task structs before we return.
   for (int i = 0; i < tasks_to_submit; ++i) {
-    while (!tasks[i].done.load(std::memory_order_acquire)) {
+    while (tasks[i].state.load(std::memory_order_acquire) ==
+           TaskState::kPending) {
       bool did_work = false;
       for (size_t q = 0; q < num_threads_; ++q) {
         if (TryRunOne(q)) {
@@ -227,7 +228,7 @@ void ThreadPoolExecutor::ParallelFor(int count, int min_batch,
 bool ThreadPoolExecutor::TryRunOne(size_t index) {
   Task* task;
   {
-    std::unique_lock<std::mutex> lock(queues_[index]->mu, std::try_to_lock);
+    LockMutex lock = LockMutex::TryLock(queues_[index]->mu);
     if (!lock.owns_lock() || queues_[index]->queue.empty()) return false;
     task = queues_[index]->queue.Pop();
   }
@@ -237,17 +238,16 @@ bool ThreadPoolExecutor::TryRunOne(size_t index) {
 
 bool ThreadPoolExecutor::HasPendingWork() {
   for (size_t i = 0; i < num_threads_; ++i) {
-    std::unique_lock<std::mutex> lock(queues_[i]->mu, std::try_to_lock);
+    LockMutex lock = LockMutex::TryLock(queues_[i]->mu);
     if (lock.owns_lock() && !queues_[i]->queue.empty()) return true;
   }
   return false;
 }
 
 void ThreadPoolExecutor::WorkerLoop(size_t index) {
-  char name[16];
-  snprintf(name, sizeof(name), "pool-%zu", index);
-  SetCurrentThreadName(name);
-  LOG("Started worker thread ", name);
+  FixedStringBuffer<16> name("pool-", index);
+  SetCurrentThreadName(name.str());
+  LOG("Started worker thread ", name.str());
 
   while (true) {
     // Try own queue first, then steal from others.

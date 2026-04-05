@@ -804,10 +804,8 @@ class DbPacker {
 
     executor_->ParallelFor(
         num_threads, /*min_batch=*/1,
-        [](int start, int end, void* ud) {
+        [](int /*start*/, int /*end*/, void* ud) {
           auto* c = static_cast<WorkerContext*>(ud);
-          (void)start;
-          (void)end;
           ProcessWorkItems(c);
         },
         &ctx);

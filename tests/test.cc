@@ -1285,23 +1285,58 @@ TEST(InlineExecutor, SubmitRunsSynchronously) {
   InlineExecutor exec;
   int result = 0;
   Task task;
-  task.fn = [](void* ud) { *static_cast<int*>(ud) = 42; };
+  task.fn = [](void* ud) {
+    *static_cast<int*>(ud) = 42;
+    return true;
+  };
   task.userdata = &result;
   task.cleanup = nullptr;
   exec.Submit(&task);
   EXPECT_EQ(result, 42);
-  EXPECT_TRUE(task.done.load());
+  EXPECT_EQ(task.state.load(), TaskState::kSucceeded);
+}
+
+TEST(InlineExecutor, FailedTaskState) {
+  InlineExecutor exec;
+  Task task;
+  task.fn = [](void*) { return false; };
+  task.userdata = nullptr;
+  task.cleanup = nullptr;
+  exec.Submit(&task);
+  EXPECT_EQ(task.state.load(), TaskState::kFailed);
+}
+
+TEST(InlineExecutor, CleanupIsCalledOnFailure) {
+  InlineExecutor exec;
+  int cleanup_count = 0;
+  Task task;
+  task.fn = [](void*) { return false; };
+  task.userdata = &cleanup_count;
+  task.cleanup = [](void* ud) { ++*static_cast<int*>(ud); };
+  exec.Submit(&task);
+  EXPECT_EQ(cleanup_count, 1);
+  EXPECT_EQ(task.state.load(), TaskState::kFailed);
 }
 
 TEST(InlineExecutor, CleanupIsCalled) {
   InlineExecutor exec;
   int cleanup_count = 0;
   Task task;
-  task.fn = [](void*) {};
+  task.fn = [](void*) { return true; };
   task.userdata = &cleanup_count;
   task.cleanup = [](void* ud) { ++*static_cast<int*>(ud); };
   exec.Submit(&task);
   EXPECT_EQ(cleanup_count, 1);
+}
+
+TEST(InlineExecutor, TryWaitAlwaysTrue) {
+  InlineExecutor exec;
+  Task task;
+  task.fn = [](void*) { return true; };
+  task.userdata = nullptr;
+  task.cleanup = nullptr;
+  exec.Submit(&task);
+  EXPECT_TRUE(exec.TryWait(&task));
 }
 
 TEST(InlineExecutor, ParallelForRunsSequentially) {
@@ -1324,6 +1359,7 @@ TEST(ThreadPoolExecutor, SubmitAndWait) {
   Task task;
   task.fn = [](void* ud) {
     static_cast<std::atomic<int>*>(ud)->store(42, std::memory_order_relaxed);
+    return true;
   };
   task.userdata = &result;
   task.cleanup = nullptr;

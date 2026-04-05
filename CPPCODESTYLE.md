@@ -601,8 +601,9 @@ as they do not introduce implicit heap allocations.
   strings — use `==` on `string_view` instead of `strcmp`.
 - **`[[nodiscard]]`** — on functions where ignoring the return is likely a bug.
 - **`[[maybe_unused]]`** — to suppress warnings on intentionally unused
-  variables (prefer commenting out parameter names instead for function
-  parameters).
+  variables or conditionally-used parameters (e.g. `#ifdef` branches). For
+  unconditionally unused function parameters, prefer commenting out the name
+  instead (e.g. `int /*start*/`). Do not use `(void)param;` casts.
 - **`[[noreturn]]`** — on functions like `Crash()`.
 - **Fold expressions** — for variadic template parameter packs.
 - **Inline variables** — `inline static constexpr` for constants in headers.
@@ -1273,7 +1274,8 @@ memory errors in custom allocators.
 
 All warnings are errors. Fix warnings, don't suppress them (except
 `-Wno-unused-parameter` which is allowed because callback signatures often
-have unused params).
+have unused params). For unused parameters, comment out the name
+(`int /*start*/`) rather than casting to `(void)`.
 
 ### Debug / Development Builds
 

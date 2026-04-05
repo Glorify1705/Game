@@ -49,6 +49,7 @@
 #include "sqlite3.h"
 #include "stats.h"
 #include "stringlib.h"
+#include "thread.h"
 #include "timer.h"
 #include "units.h"
 #include "vec.h"
@@ -197,12 +198,14 @@ struct EngineModules {
 
   ~EngineModules() = default;
 
-  static void StaticCheckChangedFiles(void* ctx) {
+  static bool StaticCheckChangedFiles(void* ctx) {
     auto* e = static_cast<EngineModules*>(ctx);
     e->CheckChangedFiles();
+    return true;
   }
 
   void CheckChangedFiles() {
+    SetCurrentThreadName("file-watcher");
     LOG("Background file watcher started");
     auto is_stopped = [this] {
       LockMutex l(mu);
@@ -810,6 +813,11 @@ class Game {
                                           SDL_AudioStream* stream,
                                           int additional_amount,
                                           int /*total_amount*/) {
+    static bool named = false;
+    if (!named) {
+      SetCurrentThreadName("audio");
+      named = true;
+    }
     auto* game = static_cast<Game*>(userdata);
     const int total_floats = additional_amount / (int)sizeof(float);
     const int clamped =

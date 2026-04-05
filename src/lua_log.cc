@@ -95,11 +95,9 @@ constexpr struct luaL_Reg kLogLib[] = {
 
 }  // namespace
 
-void AddLogLibrary(Lua* lua) {
+void AddLogLibrary([[maybe_unused]] Lua* lua) {
 #ifdef GAME_WITH_ASSERTS
   lua->AddLibrary("log", kLogLib);
-#else
-  (void)lua;
 #endif
 }
 
