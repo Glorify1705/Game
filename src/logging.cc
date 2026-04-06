@@ -79,8 +79,8 @@ void PrintStackTrace(backward::StackTrace& st) {
   std::abort();
 }
 
-#ifdef GAME_WITH_ASSERTS
 void InstallSignalHandlers() {
+#ifdef GAME_WITH_ASSERTS
   const int signals[] = {SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSEGV, SIGTRAP};
   for (int sig : signals) {
     struct sigaction action;
@@ -110,8 +110,8 @@ void InstallSignalHandlers() {
     };
     sigaction(sig, &action, nullptr);
   }
-}
 #endif
+}
 
 #ifdef GAME_WITH_ASSERTS
 void SetChannelLevel(LogChannel channel, LogLevel level) {
