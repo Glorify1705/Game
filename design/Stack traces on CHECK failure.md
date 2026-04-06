@@ -34,7 +34,7 @@ before calling `g_CrashHandler`.
 A single-header library (~4500 lines) that captures and resolves stack traces
 on Linux, macOS, and Windows.
 
-- **Files to vendor:** 1 header (`backward.hpp`) + 1 trivial `.cpp`
+- **Files to vendor:** 1 header (`backward.h`) + 1 trivial `.cpp`
 - **Compilation:** One translation unit, ~1-3 seconds
 - **Symbol resolution:**
   - Linux: uses libdw (elfutils) or libbfd for file:line. Falls back to
@@ -96,15 +96,15 @@ uses libbacktrace internally when available anyway.
 
 ```
 libraries/backward-cpp/
-  backward.hpp
-  backward.cpp
+  backward.h
+  backward.cc
 ```
 
 **Add a `PrintStackTrace()` function** in `logging.cc` (or a new
 `stacktrace.cc`):
 
 ```cpp
-#include "backward.hpp"
+#include "backward.h"
 
 namespace G {
 
@@ -133,11 +133,11 @@ void PrintStackTrace() {
 ```
 
 Stack traces are debug-only (`GAME_WITH_ASSERTS`). Release builds have zero
-overhead -- backward.hpp is never included.
+overhead -- backward.h is never included.
 
 ### Build Changes
 
-- Compile `backward.cpp` only in debug/assert builds (guard with
+- Compile `backward.cc` only in debug/assert builds (guard with
   `GAME_WITH_ASSERTS` in CMakeLists.txt)
 - On Linux: link against `libdw` for file:line resolution. Already available in
   the Nix devenv via elfutils. Without it, traces still work but show only

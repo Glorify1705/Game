@@ -91,7 +91,7 @@ set(VENDORED_SRCS
     "libraries/stb_truetype.cc"
     "libraries/stb_image_write.cc"
     "libraries/stb_vorbis.cc"
-    "libraries/backward.cpp")
+    "libraries/backward.cc")
 
 set(ENGINE_SRCS
     "src/assets.cc"
@@ -209,7 +209,9 @@ target_compile_definitions(Game PRIVATE
 
 if(LIBDW_FOUND)
   target_compile_definitions(Game PRIVATE BACKWARD_HAS_DW=1)
-  target_include_directories(Game SYSTEM PRIVATE "${LIBDW_INCLUDE_DIR}")
+  # Force the include path even if CMake considers it "implicit" (Nix strips
+  # implicit -isystem flags from compile commands, but backward.h needs dwarf.h).
+  target_compile_options(Game PRIVATE "SHELL:-isystem ${LIBDW_INCLUDE_DIR}")
 endif()
 
 if(ENABLE_PROFILING)

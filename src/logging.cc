@@ -3,7 +3,7 @@
 #include <cstdio>
 
 #ifdef GAME_WITH_ASSERTS
-#include "libraries/backward.hpp"
+#include "libraries/backward.h"
 #endif
 
 namespace G {
