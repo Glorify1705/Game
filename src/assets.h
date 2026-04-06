@@ -9,6 +9,7 @@
 
 #include "array.h"
 #include "dictionary.h"
+#include "error.h"
 #include "logging.h"
 #include "sqlite3.h"
 
@@ -107,57 +108,50 @@ class DbAssets {
 
   void Load();
 
-  void RegisterShaderLoad(void (*load)(DbAssets::Shader* shader,
-                                       StringBuffer* err, void* ud),
+  void RegisterShaderLoad(ErrorOr<void> (*load)(DbAssets::Shader*, void*),
                           void* ud) {
     shader_loader_.fn = load;
     shader_loader_.ud = ud;
   }
 
-  void RegisterScriptLoad(void (*load)(DbAssets::Script* script,
-                                       StringBuffer* err, void* ud),
+  void RegisterScriptLoad(ErrorOr<void> (*load)(DbAssets::Script*, void*),
                           void* ud) {
     script_loader_.fn = load;
     script_loader_.ud = ud;
   }
 
-  void RegisterImageLoad(void (*load)(DbAssets::Image* image, StringBuffer* err,
-                                      void* ud),
+  void RegisterImageLoad(ErrorOr<void> (*load)(DbAssets::Image*, void*),
                          void* ud) {
     image_loader_.fn = load;
     image_loader_.ud = ud;
   }
 
-  void RegisterSpritesheetLoad(void (*load)(DbAssets::Spritesheet* script,
-                                            StringBuffer* err, void* ud),
+  void RegisterSpritesheetLoad(ErrorOr<void> (*load)(DbAssets::Spritesheet*,
+                                                     void*),
                                void* ud) {
     spritesheet_loader_.fn = load;
     spritesheet_loader_.ud = ud;
   }
 
-  void RegisterSpriteLoad(void (*load)(DbAssets::Sprite* sprite,
-                                       StringBuffer* err, void* ud),
+  void RegisterSpriteLoad(ErrorOr<void> (*load)(DbAssets::Sprite*, void*),
                           void* ud) {
     sprite_loader_.fn = load;
     sprite_loader_.ud = ud;
   }
 
-  void RegisterSoundLoad(void (*load)(DbAssets::Sound* sound, StringBuffer* err,
-                                      void* ud),
+  void RegisterSoundLoad(ErrorOr<void> (*load)(DbAssets::Sound*, void*),
                          void* ud) {
     sound_loader_.fn = load;
     sound_loader_.ud = ud;
   }
 
-  void RegisterFontLoad(void (*load)(DbAssets::Font* sound, StringBuffer* err,
-                                     void* ud),
+  void RegisterFontLoad(ErrorOr<void> (*load)(DbAssets::Font*, void*),
                         void* ud) {
     font_loader_.fn = load;
     font_loader_.ud = ud;
   }
 
-  void RegisterTextLoad(void (*load)(DbAssets::TextFile* text_file,
-                                     StringBuffer* err, void* ud),
+  void RegisterTextLoad(ErrorOr<void> (*load)(DbAssets::TextFile*, void*),
                         void* ud) {
     text_file_loader_.fn = load;
     text_file_loader_.ud = ud;
@@ -170,8 +164,7 @@ class DbAssets {
  private:
   template <typename T>
   struct LoadFn {
-    char err[kMaxLogLineLength];
-    void (*fn)(T*, StringBuffer*, void*) = nullptr;
+    ErrorOr<void> (*fn)(T*, void*) = nullptr;
     void* ud;
 
     void Load(T* ptr) {
@@ -179,10 +172,10 @@ class DbAssets {
         LOG("Skipping loading asset ", ptr->name);
         return;
       }
-      StringBuffer buf(err, kMaxLogLineLength);
-      fn(ptr, &buf, ud);
-      if (!buf.empty()) {
-        ELOG("Failed to load asset ", ptr->name, ": ", buf.piece());
+      auto result = fn(ptr, ud);
+      if (result.is_error()) {
+        ELOG("Failed to load asset ", ptr->name, ": ",
+             result.error().message());
       }
     }
   };

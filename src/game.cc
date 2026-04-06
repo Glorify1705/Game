@@ -338,61 +338,64 @@ struct EngineModules {
 
   void RegisterLoaders() {
     assets->RegisterShaderLoad(
-        [](DbAssets::Shader* shader, StringBuffer* /*err*/, void* ud) {
+        [](DbAssets::Shader* shader, void* ud) -> ErrorOr<void> {
           auto* self = static_cast<EngineModules*>(ud);
           auto result = self->shaders.Load(*shader);
           if (result.is_error()) {
-            LOG("Shader load failed: ", result.error().message());
             self->lua.SetError(result.error().file(), result.error().line(),
                                result.error().message());
-            return;
+            return result.release_error();
           }
+          return {};
         },
         this);
     assets->RegisterScriptLoad(
-        [](DbAssets::Script* script, StringBuffer* /*err*/, void* ud) {
+        [](DbAssets::Script* script, void* ud) -> ErrorOr<void> {
           auto* self = static_cast<EngineModules*>(ud);
           self->lua.LoadScript(*script);
+          return {};
         },
         this);
     assets->RegisterImageLoad(
-        [](DbAssets::Image* image, StringBuffer* /*err*/, void* ud) {
+        [](DbAssets::Image* image, void* ud) -> ErrorOr<void> {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadImage(*image);
+          return {};
         },
         this);
     assets->RegisterSpritesheetLoad(
-        [](DbAssets::Spritesheet* spritesheet, StringBuffer* err, void* ud) {
+        [](DbAssets::Spritesheet* spritesheet, void* ud) -> ErrorOr<void> {
           auto* self = static_cast<EngineModules*>(ud);
-          auto result = self->renderer.LoadSpritesheet(*spritesheet);
-          if (result.is_error()) err->Append(result.error().message());
+          return self->renderer.LoadSpritesheet(*spritesheet);
         },
         this);
     assets->RegisterSpriteLoad(
-        [](DbAssets::Sprite* sprite, StringBuffer* err, void* ud) {
+        [](DbAssets::Sprite* sprite, void* ud) -> ErrorOr<void> {
           auto* self = static_cast<EngineModules*>(ud);
-          auto result = self->renderer.LoadSprite(*sprite);
-          if (result.is_error()) err->Append(result.error().message());
+          return self->renderer.LoadSprite(*sprite);
         },
         this);
     assets->RegisterSoundLoad(
-        [](DbAssets::Sound* sound, StringBuffer* /*err*/, void* ud) {
+        [](DbAssets::Sound* sound, void* ud) -> ErrorOr<void> {
           auto* self = static_cast<EngineModules*>(ud);
           self->sound.LoadSound(*sound);
+          return {};
         },
         this);
     assets->RegisterFontLoad(
-        [](DbAssets::Font* font, StringBuffer* /*err*/, void* ud) {
+        [](DbAssets::Font* font, void* ud) -> ErrorOr<void> {
           auto* self = static_cast<EngineModules*>(ud);
           self->renderer.LoadFont(*font);
+          return {};
         },
         this);
     assets->RegisterTextLoad(
-        [](DbAssets::TextFile* text_file, StringBuffer* /*err*/, void* ud) {
+        [](DbAssets::TextFile* text_file, void* ud) -> ErrorOr<void> {
           auto* self = static_cast<EngineModules*>(ud);
           self->text_files_.Push(*text_file);
           self->text_files_table_.Insert(text_file->name,
                                          &self->text_files_.back());
+          return {};
         },
         this);
   }
