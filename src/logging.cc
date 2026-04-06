@@ -58,9 +58,9 @@ void SetCrashHandler(CrashHandler handler) { g_CrashHandler = handler; }
   st.load_here(32);
   backward::TraceResolver resolver;
   resolver.load_stacktrace(st);
-  fprintf(stderr, "Stack trace (most recent call last):\n");
-  for (size_t i = st.size(); i > 0; --i) {
-    backward::ResolvedTrace trace = resolver.resolve(st[i - 1]);
+  fprintf(stderr, "Stack trace (most recent call first):\n");
+  for (size_t i = 0; i < st.size(); ++i) {
+    backward::ResolvedTrace trace = resolver.resolve(st[i]);
     if (trace.source.filename.empty()) continue;
     std::string_view file = TrimPath(trace.source.filename);
     fprintf(stderr, "  [%.*s:%u] %s\n", static_cast<int>(file.size()),
