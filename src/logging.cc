@@ -81,7 +81,7 @@ void PrintStackTrace(backward::StackTrace& st) {
 
 void InstallSignalHandlers() {
 #ifdef GAME_WITH_ASSERTS
-  const int signals[] = {SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSEGV, SIGTRAP};
+  const int signals[] = {SIGBUS, SIGFPE, SIGILL, SIGSEGV};
   for (int sig : signals) {
     struct sigaction action;
     memset(&action, 0, sizeof action);
