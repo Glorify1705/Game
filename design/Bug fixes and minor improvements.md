@@ -16,8 +16,8 @@ No known bugs at this time. Previous items were fixed or the files were removed.
 
 - [x] Add `override` to `Physics::BeginContact` and `Physics::EndContact`
 - [x] Add error handling to `ParseVersionFromString` in `src/config.cc`
-- [x] Remove stale TODO comments in `src/renderer.cc` (error handling was
-  already present via CHECK macros)
+- [x] Return errors gracefully from `LoadSprite`/`LoadSpritesheet` instead of
+  CHECK-crashing (uses `ErrorOr<void>`, errors logged via `LoadFn::Load`)
 - [ ] Change `uint8_t*` signatures in `src/packer.cc` to use `Slice` (has
   TODO at line 308)
 - [x] Remove dead `G2` module in `assets/testgame1.lua` (file removed)

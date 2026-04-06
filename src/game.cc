@@ -362,16 +362,17 @@ struct EngineModules {
         },
         this);
     assets->RegisterSpritesheetLoad(
-        [](DbAssets::Spritesheet* spritesheet, StringBuffer* /*err*/,
-           void* ud) {
+        [](DbAssets::Spritesheet* spritesheet, StringBuffer* err, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
-          self->renderer.LoadSpritesheet(*spritesheet);
+          auto result = self->renderer.LoadSpritesheet(*spritesheet);
+          if (result.is_error()) err->Append(result.error().message());
         },
         this);
     assets->RegisterSpriteLoad(
-        [](DbAssets::Sprite* sprite, StringBuffer* /*err*/, void* ud) {
+        [](DbAssets::Sprite* sprite, StringBuffer* err, void* ud) {
           auto* self = static_cast<EngineModules*>(ud);
-          self->renderer.LoadSprite(*sprite);
+          auto result = self->renderer.LoadSprite(*sprite);
+          if (result.is_error()) err->Append(result.error().message());
         },
         this);
     assets->RegisterSoundLoad(

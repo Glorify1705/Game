@@ -909,11 +909,13 @@ float Renderer::SetLineWidth(float width) {
   return result;
 }
 
-void Renderer::LoadSprite(const DbAssets::Sprite& sprite) {
-  CHECK(textures_table_.Contains(sprite.spritesheet), "Unknown sprite sheet ",
-        sprite.spritesheet);
+ErrorOr<void> Renderer::LoadSprite(const DbAssets::Sprite& sprite) {
+  if (!textures_table_.Contains(sprite.spritesheet)) {
+    return Error::Message("unknown spritesheet for sprite");
+  }
   loaded_sprites_.Push(sprite);
   loaded_sprites_table_.Insert(sprite.name, &loaded_sprites_.back());
+  return {};
 }
 
 void Renderer::LoadImage(const DbAssets::Image& image) {
@@ -926,18 +928,20 @@ void Renderer::LoadImage(const DbAssets::Image& image) {
   loaded_images_table_.Insert(image.name, &loaded_images_.back());
 }
 
-void Renderer::LoadSpritesheet(const DbAssets::Spritesheet& spritesheet) {
+ErrorOr<void> Renderer::LoadSpritesheet(
+    const DbAssets::Spritesheet& spritesheet) {
   DbAssets::Image* image;
-  CHECK(loaded_images_table_.Lookup(spritesheet.image, &image), "No image ",
-        spritesheet.image, " for spritesheet ", spritesheet.name);
+  if (!loaded_images_table_.Lookup(spritesheet.image, &image) ||
+      image == nullptr) {
+    return Error::Message("unknown image for spritesheet");
+  }
   LOG("Loading texture ", spritesheet.name);
-  CHECK(image != nullptr, "Unknown image ", spritesheet.image,
-        " for spritesheet ", spritesheet.name);
   textures_table_.Insert(spritesheet.name, textures_.size());
   textures_.Push(renderer_->LoadTexture(*image));
   loaded_spritesheets_.Push(spritesheet);
   loaded_spritesheets_table_.Insert(spritesheet.name,
                                     &loaded_spritesheets_.back());
+  return {};
 }
 
 ErrorOr<void> Renderer::DrawSprite(std::string_view sprite_name, FVec2 position,
