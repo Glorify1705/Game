@@ -51,6 +51,18 @@ set(PHYSFS_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 find_package(OpenGL REQUIRED)
 find_package(SDL3 REQUIRED CONFIG)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  find_library(LIBDW_LIBRARY dw)
+  find_path(LIBDW_INCLUDE_DIR NAMES "elfutils/libdw.h")
+  if(LIBDW_LIBRARY AND LIBDW_INCLUDE_DIR)
+    set(LIBDW_FOUND TRUE)
+    message(STATUS "Found libdw: ${LIBDW_LIBRARY}")
+  else()
+    set(LIBDW_FOUND FALSE)
+    message(STATUS "libdw not found, stack traces will show addresses only")
+  endif()
+endif()
+
 # Write Nix-implicit include dirs for standalone tools (clang-include-cleaner).
 # CMake strips these from compile_commands.json, so tools need them explicitly.
 string(REPLACE ";" "\n" _implicit_dirs "${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}")
@@ -78,7 +90,8 @@ set(VENDORED_SRCS
     "libraries/stb_rect_pack.cc"
     "libraries/stb_truetype.cc"
     "libraries/stb_image_write.cc"
-    "libraries/stb_vorbis.cc")
+    "libraries/stb_vorbis.cc"
+    "libraries/backward.cc")
 
 set(ENGINE_SRCS
     "src/assets.cc"
@@ -137,7 +150,6 @@ set(ENGINE_SRCS
 set_source_files_properties(${VENDORED_SRCS} PROPERTIES SKIP_LINTING ON)
 set_source_files_properties("libraries/stb_image_write.cc" PROPERTIES
     COMPILE_OPTIONS "-Wno-missing-field-initializers")
-
 set(GAME_SRCS ${VENDORED_SRCS} ${ENGINE_SRCS})
 
 configure_file(src/version.h.in version.h)
@@ -174,7 +186,7 @@ set(MSVC_FLAGS /W4 /WX /DGAME_WITH_ASSERTS /O2 /DEBUG /NDEBUG)
 
 target_compile_options(Game PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
-    $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1>
+    $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
     $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
 )
 
@@ -194,6 +206,13 @@ endif()
 target_compile_definitions(Game PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
 )
+
+if(LIBDW_FOUND)
+  target_compile_definitions(Game PRIVATE BACKWARD_HAS_DW=1)
+  # Force the include path even if CMake considers it "implicit" (Nix strips
+  # implicit -isystem flags from compile commands, but backward.h needs dwarf.h).
+  target_compile_options(Game PRIVATE "SHELL:-isystem ${LIBDW_INCLUDE_DIR}")
+endif()
 
 if(ENABLE_PROFILING)
     target_compile_definitions(Game PRIVATE GAME_WITH_PROFILING)
@@ -216,7 +235,8 @@ target_link_libraries(
           lua
           mimalloc-static
           double-conversion
-          OpenGL::GL)
+          OpenGL::GL
+          $<$<BOOL:${LIBDW_FOUND}>:${LIBDW_LIBRARY}>)
 
 if(WIN32)
   add_custom_command(

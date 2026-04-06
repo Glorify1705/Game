@@ -68,6 +68,10 @@ void SetCrashHandler(CrashHandler sink);
 // Crashes the binary.
 [[noreturn]] void Crash(const char* message);
 
+// Installs signal handlers for SIGSEGV, SIGBUS, SIGFPE, etc. that print a
+// stack trace before crashing. No-op in release builds. Call once at startup.
+void InstallSignalHandlers();
+
 // Gets the function for logging messages.
 LogSink SetCrashHandler();
 
