@@ -1,3 +1,8 @@
+---
+status: in-review
+tags: [debugging, lua, repl]
+---
+
 # REPL and Live Interaction
 
 The engine already supports Fennel (a Lisp that compiles to Lua) and has file-watching hot reload. But there is no way to evaluate code interactively against the running game — you must save a file, wait for the watcher to detect it, and the entire Lua state reinitializes (`LoadMain` + `Init`). This document proposes a REPL system that allows evaluating arbitrary Lua/Fennel expressions against the live game state, from a browser, a terminal, or an LLM agent.

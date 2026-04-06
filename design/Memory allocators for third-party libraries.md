@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [memory, allocators]
+---
+
 # Memory Allocators for Third-Party Libraries
 
 ## Problem

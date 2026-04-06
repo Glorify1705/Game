@@ -1,3 +1,8 @@
+---
+status: in-design
+tags: [testing, input]
+---
+
 # Test Input System
 
 ## 1. Problem statement

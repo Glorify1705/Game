@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [renderer, fonts]
+---
+
 # Font System
 
 This document describes how the engine loads, rasterizes, and renders text, identifies bugs and limitations in the current implementation, compares the approach against Love2D and other 2D engines, and proposes improvements.

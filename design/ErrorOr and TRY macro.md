@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [error-handling, core]
+---
+
 # ErrorOr\<T\> and TRY Macro — Zig-Style Error Handling in C++
 
 ## Motivation

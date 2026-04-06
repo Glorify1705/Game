@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [reference, comparison]
+---
+
 # Engine Comparison: Feature Gap Analysis
 
 This document compares our engine against three reference 2D game engines — **Love2D**, **high_impact**, and **Anchor** — to identify missing features needed to ship complete videogames.

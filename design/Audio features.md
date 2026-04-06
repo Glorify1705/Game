@@ -1,3 +1,8 @@
+---
+status: partially-implemented
+tags: [audio, lua-api]
+---
+
 # Audio Features: Looping, Pause/Resume, Pitch, and Panning
 
 **Status**: Implemented in PR #22.

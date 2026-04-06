@@ -1,3 +1,7 @@
+---
+status: implemented
+tags: [renderer, shaders]
+---
 
 ## Problem
 

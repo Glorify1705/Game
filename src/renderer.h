@@ -385,9 +385,9 @@ class Renderer {
   void ClearForFrame();
   void FlushFrame() { renderer_->Finish(); }
 
-  void LoadSprite(const DbAssets::Sprite& sprite);
+  ErrorOr<void> LoadSprite(const DbAssets::Sprite& sprite);
   void LoadImage(const DbAssets::Image& image);
-  void LoadSpritesheet(const DbAssets::Spritesheet& sprite);
+  ErrorOr<void> LoadSpritesheet(const DbAssets::Spritesheet& sprite);
   void LoadFont(const DbAssets::Font& font);
 
   ErrorOr<void> DrawSprite(std::string_view sprite_name, FVec2 position,

@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [cli, workflow]
+---
+
 # CLI Workflow
 
 The engine currently has an ad-hoc CLI interface: the `Game` binary takes positional arguments that are either a SQLite database path, a source directory + database path pair, or nothing. This is confusing, hard to discover, and tightly couples development and distribution into a single code path. This document proposes restructuring the engine into a proper CLI tool with explicit subcommands.

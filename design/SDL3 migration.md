@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [sdl, migration, core]
+---
+
 # SDL3 Migration
 
 ## Current State

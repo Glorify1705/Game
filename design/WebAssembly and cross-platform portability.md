@@ -1,3 +1,8 @@
+---
+status: in-design
+tags: [wasm, portability]
+---
+
 # WebAssembly and Cross-Platform Portability
 
 ## Motivation

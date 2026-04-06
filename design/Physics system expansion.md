@@ -1,3 +1,7 @@
+---
+status: partially-implemented
+tags: [physics, lua-api]
+---
 
 # Physics System Expansion
 

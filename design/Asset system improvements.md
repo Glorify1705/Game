@@ -1,3 +1,8 @@
+---
+status: in-design
+tags: [assets, packaging]
+---
+
 # Asset System Improvements
 
 ## Current system

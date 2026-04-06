@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [debugging, strings]
+---
+
 # Debug Printing Consolidation
 
 ## Problem

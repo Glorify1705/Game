@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [gameplay, animation, lua-api]
+---
+
 # Animation System
 
 A sprite animation system for frame-based animations from spritesheets, with

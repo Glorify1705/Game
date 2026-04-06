@@ -181,6 +181,9 @@ class DbAssets {
       }
       StringBuffer buf(err, kMaxLogLineLength);
       fn(ptr, &buf, ud);
+      if (!buf.empty()) {
+        ELOG("Failed to load asset ", ptr->name, ": ", buf.piece());
+      }
     }
   };
 

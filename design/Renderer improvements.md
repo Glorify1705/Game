@@ -1,3 +1,8 @@
+---
+status: partially-implemented
+tags: [renderer, graphics]
+---
+
 # Renderer Improvements
 
 ## Background: Scissor and Stencil

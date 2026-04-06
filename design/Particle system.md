@@ -1,3 +1,8 @@
+---
+status: in-design
+tags: [renderer, particles, lua-api]
+---
+
 # Particle System Design
 
 ## What Is a Particle System?

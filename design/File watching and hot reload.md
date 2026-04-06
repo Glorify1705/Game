@@ -1,3 +1,7 @@
+---
+status: implemented
+tags: [hot-reload, filesystem]
+---
 
 # File Watching and Hot Reload
 

@@ -1,3 +1,8 @@
+---
+status: in-design
+tags: [lua, performance]
+---
+
 # Migrating from Lua 5.1 to LuaJIT
 
 **Status: Postponed.** After analysis, the migration is not worth the added complexity at this time. The engine's Lua scripts are primarily glue code that dispatches to C++ — the JIT would accelerate very little of the actual frame time. The build complexity, single-maintainer risk, and debugging downsides outweigh the speculative performance benefit. Revisit if profiling shows Lua execution as a bottleneck.
