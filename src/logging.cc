@@ -56,9 +56,16 @@ void SetCrashHandler(CrashHandler handler) { g_CrashHandler = handler; }
 #ifdef GAME_WITH_ASSERTS
   backward::StackTrace st;
   st.load_here(32);
-  backward::Printer p;
-  p.snippet = false;
-  p.print(st, stderr);
+  backward::TraceResolver resolver;
+  resolver.load_stacktrace(st);
+  fprintf(stderr, "Stack trace (most recent call last):\n");
+  for (size_t i = st.size(); i > 0; --i) {
+    backward::ResolvedTrace trace = resolver.resolve(st[i - 1]);
+    if (trace.source.filename.empty()) continue;
+    std::string_view file = TrimPath(trace.source.filename);
+    fprintf(stderr, "  [%.*s:%u] %s\n", static_cast<int>(file.size()),
+            file.data(), trace.source.line, trace.source.function.c_str());
+  }
 #endif
   g_CrashHandler(message);
   std::abort();
