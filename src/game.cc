@@ -978,6 +978,9 @@ void RunGame(const GameOptions& opts, sqlite3* db) {
 }
 
 int Main(int argc, const char* argv[]) {
+#ifdef GAME_WITH_ASSERTS
+  InstallSignalHandlers();
+#endif
   // Top-level arena for CLI subcommand memory.
   auto* cli_buf = static_cast<uint8_t*>(malloc(Megabytes(512)));
   ArenaAllocator cli_arena(cli_buf, Megabytes(512));

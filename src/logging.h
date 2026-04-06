@@ -68,6 +68,12 @@ void SetCrashHandler(CrashHandler sink);
 // Crashes the binary.
 [[noreturn]] void Crash(const char* message);
 
+#ifdef GAME_WITH_ASSERTS
+// Installs signal handlers for SIGSEGV, SIGBUS, SIGFPE, etc. that print a
+// stack trace before crashing. Call once at startup.
+void InstallSignalHandlers();
+#endif
+
 // Gets the function for logging messages.
 LogSink SetCrashHandler();
 

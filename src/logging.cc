@@ -52,10 +52,8 @@ void SetLogSink(LogSink sink) { g_LogSink = sink; }
 
 void SetCrashHandler(CrashHandler handler) { g_CrashHandler = handler; }
 
-[[noreturn]] void Crash(const char* message) {
 #ifdef GAME_WITH_ASSERTS
-  backward::StackTrace st;
-  st.load_here(32);
+void PrintStackTrace(backward::StackTrace& st) {
   backward::TraceResolver resolver;
   resolver.load_stacktrace(st);
   fprintf(stderr, "Stack trace (most recent call first):\n");
@@ -68,10 +66,52 @@ void SetCrashHandler(CrashHandler handler) { g_CrashHandler = handler; }
     fprintf(stderr, "  [%.*s:%u] %s\n", static_cast<int>(file.size()),
             file.data(), trace.source.line, trace.object_function.c_str());
   }
+}
+#endif
+
+[[noreturn]] void Crash(const char* message) {
+#ifdef GAME_WITH_ASSERTS
+  backward::StackTrace st;
+  st.load_here(32);
+  PrintStackTrace(st);
 #endif
   g_CrashHandler(message);
   std::abort();
 }
+
+#ifdef GAME_WITH_ASSERTS
+void InstallSignalHandlers() {
+  const int signals[] = {SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSEGV, SIGTRAP};
+  for (int sig : signals) {
+    struct sigaction action;
+    memset(&action, 0, sizeof action);
+    action.sa_flags = static_cast<int>(SA_SIGINFO | SA_NODEFER | SA_RESETHAND);
+    sigfillset(&action.sa_mask);
+    sigdelset(&action.sa_mask, sig);
+    action.sa_sigaction = [](int signo, siginfo_t* /*info*/, void* ctx) {
+      ucontext_t* uctx = static_cast<ucontext_t*>(ctx);
+      backward::StackTrace st;
+      void* error_addr = nullptr;
+#ifdef REG_RIP
+      error_addr = reinterpret_cast<void*>(uctx->uc_mcontext.gregs[REG_RIP]);
+#elif defined(REG_EIP)
+      error_addr = reinterpret_cast<void*>(uctx->uc_mcontext.gregs[REG_EIP]);
+#elif defined(__aarch64__)
+      error_addr = reinterpret_cast<void*>(uctx->uc_mcontext.pc);
+#endif
+      if (error_addr) {
+        st.load_from(error_addr, /*depth=*/32, reinterpret_cast<void*>(uctx));
+      } else {
+        st.load_here(/*depth=*/32, reinterpret_cast<void*>(uctx));
+      }
+      fprintf(stderr, "Signal: %s (%d)\n", strsignal(signo), signo);
+      PrintStackTrace(st);
+      raise(signo);
+    };
+    sigaction(sig, &action, nullptr);
+  }
+}
+#endif
 
 #ifdef GAME_WITH_ASSERTS
 void SetChannelLevel(LogChannel channel, LogLevel level) {
