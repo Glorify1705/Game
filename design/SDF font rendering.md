@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [renderer, fonts, sdf]
+---
+
 # SDF Font Rendering
 
 This document describes what Signed Distance Field (SDF) rendering is, how it works, and how to implement it in the engine's font system.

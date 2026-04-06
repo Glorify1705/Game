@@ -1,3 +1,8 @@
+---
+status: in-design
+tags: [networking, multiplayer]
+---
+
 # Networking Support
 
 **Status: Under consideration.**

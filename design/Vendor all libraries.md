@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [build, dependencies]
+---
+
 # Vendor All Libraries
 
 ## Motivation

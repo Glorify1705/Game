@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [packaging, assets]
+---
+
 # Single-file packaging
 
 Append the asset database to the engine binary itself, producing a single executable file that is the entire game. The player downloads one file, runs it, done.

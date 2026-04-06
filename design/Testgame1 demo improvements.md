@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [demo, gameplay]
+---
+
 # Testgame1 Demo Improvements
 
 ## Current State

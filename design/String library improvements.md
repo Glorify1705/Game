@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [core, strings]
+---
+
 # String Library Improvements
 
 ## Problem

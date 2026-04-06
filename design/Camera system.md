@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [camera, lua-api]
+---
+
 # Camera System
 
 A 2D camera abstraction for scrolling, following targets, and screen effects.

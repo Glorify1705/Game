@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [threading, core]
+---
+
 # Thread Pool and Executor
 
 ## Glossary

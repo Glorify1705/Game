@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [debugging, logging]
+---
+
 # Stack Traces on CHECK Failure
 
 ## Problem

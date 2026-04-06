@@ -1,3 +1,8 @@
+---
+status: partially-implemented
+tags: [audio, hot-reload]
+---
+
 # Sound System Hot Reload
 
 Hot reload is one of the engine's key features. This document analyzes how the sound system interacts with it today, what's broken, and how to improve it incrementally.

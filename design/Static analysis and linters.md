@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [tooling, static-analysis]
+---
+
 # Static Analysis and Linters
 
 ## Problem

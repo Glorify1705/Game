@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [lua, tooling, lsp]
+---
+
 # Lua API for LSP and LLMs
 
 ## Problem

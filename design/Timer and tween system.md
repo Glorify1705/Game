@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [gameplay, lua-api]
+---
+
 # Timer and Tween System
 
 Delayed callbacks, repeating timers, tweens with easing, cooldowns, and spring

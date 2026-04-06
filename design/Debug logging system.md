@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [logging, debugging]
+---
+
 # Debug Logging System
 
 ## Problem

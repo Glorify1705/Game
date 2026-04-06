@@ -1,3 +1,8 @@
+---
+status: in-design
+tags: [audio, memory]
+---
+
 # Sound Stream Free List
 
 ## Problem

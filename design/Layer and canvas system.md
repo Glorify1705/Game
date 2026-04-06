@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [renderer, canvas]
+---
+
 # Layer and Canvas System
 
 This document describes the current framebuffer architecture, compares canvas/render-target approaches across 2D engines, identifies issues and missing capabilities, and proposes a layer and canvas system for the engine.

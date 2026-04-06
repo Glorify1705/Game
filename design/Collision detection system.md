@@ -1,3 +1,7 @@
+---
+status: implemented
+tags: [physics, collision]
+---
 
 # Collision Detection System
 

@@ -1,3 +1,8 @@
+---
+status: implemented
+tags: [renderer, performance]
+---
+
 # Draw Call Optimization
 
 ## Problem Statement
