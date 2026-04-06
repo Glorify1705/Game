@@ -910,7 +910,6 @@ float Renderer::SetLineWidth(float width) {
 }
 
 void Renderer::LoadSprite(const DbAssets::Sprite& sprite) {
-  // TODO: error handling.
   CHECK(textures_table_.Contains(sprite.spritesheet), "Unknown sprite sheet ",
         sprite.spritesheet);
   loaded_sprites_.Push(sprite);
@@ -929,7 +928,6 @@ void Renderer::LoadImage(const DbAssets::Image& image) {
 
 void Renderer::LoadSpritesheet(const DbAssets::Spritesheet& spritesheet) {
   DbAssets::Image* image;
-  // TODO: error handling.
   CHECK(loaded_images_table_.Lookup(spritesheet.image, &image), "No image ",
         spritesheet.image, " for spritesheet ", spritesheet.name);
   LOG("Loading texture ", spritesheet.name);

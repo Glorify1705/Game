@@ -17,8 +17,9 @@ void CopyString(std::string_view s, char* dst, size_t cap) {
 }
 
 void ParseVersionFromString(const char* str, GameConfig* config) {
-  // TODO: error handling.
-  std::sscanf(str, "%d.%d", &config->version.major, &config->version.minor);
+  int matched =
+      std::sscanf(str, "%d.%d", &config->version.major, &config->version.minor);
+  CHECK(matched == 2, "invalid version string: ", str);
 }
 
 }  // namespace

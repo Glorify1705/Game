@@ -10,28 +10,17 @@ design doc. Sourced from TASKS.md, TODO comments, and codebase audit.
 
 ## Bugs
 
-- [ ] Fix infinite recursion in `assets/vector2d.lua:39` — `Vec2.distance`
-  calls itself instead of `Vec2.distance2`
-- [ ] Fix `assets/random.lua:7` — uses deprecated Lua 5.0 `arg` table; use
-  explicit parameter instead
-- [ ] Fix `assets/random.lua:13` — `Random.non_deterministic()` references
-  `self` but is not a method (missing colon)
-- [ ] Fix global variables in `assets/player.lua:4-5` — `FORCE` and
-  `ANGLE_DELTA` pollute global namespace, should be `local`
+No known bugs at this time. Previous items were fixed or the files were removed.
 
 ## Code Quality
 
-- [ ] Add `override` to `Physics::BeginContact` and `Physics::EndContact` in
-  `src/physics.h:66-67`
-- [ ] Add error handling to `ParseVersionFromString` in `src/config.cc:20`
-  (has TODO)
-- [ ] Add error handling to `LoadImageFromMemory` in `src/renderer.cc:914`
-  (has TODO)
-- [ ] Add error handling to `LoadFontFromMemory` in `src/renderer.cc:933`
-  (has TODO)
+- [x] Add `override` to `Physics::BeginContact` and `Physics::EndContact`
+- [x] Add error handling to `ParseVersionFromString` in `src/config.cc`
+- [x] Remove stale TODO comments in `src/renderer.cc` (error handling was
+  already present via CHECK macros)
 - [ ] Change `uint8_t*` signatures in `src/packer.cc` to use `Slice` (has
   TODO at line 308)
-- [ ] Remove dead `G2` module in `assets/testgame1.lua:102-108`
+- [x] Remove dead `G2` module in `assets/testgame1.lua` (file removed)
 - [ ] Check arena allocation return values for null in critical paths (e.g.
   `BatchRenderer` constructor)
 - [ ] Support ANSI escape codes properly in text measurement

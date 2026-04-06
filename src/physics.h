@@ -63,8 +63,8 @@ class Physics final : public b2ContactListener {
   void Update(float dt);
   void SetOrigin(FVec2 origin);
 
-  void BeginContact(b2Contact *c);
-  void EndContact(b2Contact *);
+  void BeginContact(b2Contact *c) override;
+  void EndContact(b2Contact *) override;
 
   Handle AddBox(FVec2 top_left, FVec2 top_right, float angle,
                 uintptr_t userdata, PhysicsShapeOptions options = {});
