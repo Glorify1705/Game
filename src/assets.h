@@ -106,53 +106,48 @@ class DbAssets {
         checksums_map_(allocator),
         checksums_(1 << 20, allocator) {}
 
+  // Callback type for asset loaders. Returns an error on failure.
+  template <typename T>
+  using LoadCallback = ErrorOr<void> (*)(T*, void*);
+
   void Load();
 
-  void RegisterShaderLoad(ErrorOr<void> (*load)(DbAssets::Shader*, void*),
-                          void* ud) {
+  void RegisterShaderLoad(LoadCallback<Shader> load, void* ud) {
     shader_loader_.fn = load;
     shader_loader_.ud = ud;
   }
 
-  void RegisterScriptLoad(ErrorOr<void> (*load)(DbAssets::Script*, void*),
-                          void* ud) {
+  void RegisterScriptLoad(LoadCallback<Script> load, void* ud) {
     script_loader_.fn = load;
     script_loader_.ud = ud;
   }
 
-  void RegisterImageLoad(ErrorOr<void> (*load)(DbAssets::Image*, void*),
-                         void* ud) {
+  void RegisterImageLoad(LoadCallback<Image> load, void* ud) {
     image_loader_.fn = load;
     image_loader_.ud = ud;
   }
 
-  void RegisterSpritesheetLoad(ErrorOr<void> (*load)(DbAssets::Spritesheet*,
-                                                     void*),
-                               void* ud) {
+  void RegisterSpritesheetLoad(LoadCallback<Spritesheet> load, void* ud) {
     spritesheet_loader_.fn = load;
     spritesheet_loader_.ud = ud;
   }
 
-  void RegisterSpriteLoad(ErrorOr<void> (*load)(DbAssets::Sprite*, void*),
-                          void* ud) {
+  void RegisterSpriteLoad(LoadCallback<Sprite> load, void* ud) {
     sprite_loader_.fn = load;
     sprite_loader_.ud = ud;
   }
 
-  void RegisterSoundLoad(ErrorOr<void> (*load)(DbAssets::Sound*, void*),
-                         void* ud) {
+  void RegisterSoundLoad(LoadCallback<Sound> load, void* ud) {
     sound_loader_.fn = load;
     sound_loader_.ud = ud;
   }
 
-  void RegisterFontLoad(ErrorOr<void> (*load)(DbAssets::Font*, void*),
-                        void* ud) {
+  void RegisterFontLoad(LoadCallback<Font> load, void* ud) {
     font_loader_.fn = load;
     font_loader_.ud = ud;
   }
 
-  void RegisterTextLoad(ErrorOr<void> (*load)(DbAssets::TextFile*, void*),
-                        void* ud) {
+  void RegisterTextLoad(LoadCallback<TextFile> load, void* ud) {
     text_file_loader_.fn = load;
     text_file_loader_.ud = ud;
   }
@@ -164,7 +159,7 @@ class DbAssets {
  private:
   template <typename T>
   struct LoadFn {
-    ErrorOr<void> (*fn)(T*, void*) = nullptr;
+    LoadCallback<T> fn = nullptr;
     void* ud;
 
     void Load(T* ptr) {
