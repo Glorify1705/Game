@@ -63,9 +63,10 @@ void SetCrashHandler(CrashHandler handler) { g_CrashHandler = handler; }
     backward::ResolvedTrace trace = resolver.resolve(st[i]);
     if (trace.source.filename.empty()) continue;
     std::string_view file = TrimPath(trace.source.filename);
-    if (file == "backward.h" || file == "logging.cc") continue;
+    if (file == "backward.h" || file == "logging.cc" || file == "logging.h")
+      continue;
     fprintf(stderr, "  [%.*s:%u] %s\n", static_cast<int>(file.size()),
-            file.data(), trace.source.line, trace.source.function.c_str());
+            file.data(), trace.source.line, trace.object_function.c_str());
   }
 #endif
   g_CrashHandler(message);
