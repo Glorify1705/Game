@@ -4934,16 +4934,13 @@ package.preload["fennel.parser"] = package.preload["fennel.parser"]
 							("expected whitespace before opening delimiter " .. string.char(b))
 						)
 					end
-					return table.insert(
-						stack,
-						{
-							bytestart = byteindex,
-							closer = delims[b],
-							col = (col - 1),
-							filename = filename,
-							line = line,
-						}
-					)
+					return table.insert(stack, {
+						bytestart = byteindex,
+						closer = delims[b],
+						col = (col - 1),
+						filename = filename,
+						line = line,
+					})
 				end
 				local function close_list(list)
 					return dispatch(setmetatable(list, getmetatable(utils.list())))
@@ -5899,9 +5896,8 @@ package.preload["fennel.view"] = package.preload["fennel.view"]
 			local esc_newline_3f = (
 				(len < 2)
 				or (
-					getopt(options, "escape-newlines?") and (
-						len < (options["line-length"] - indent)
-					)
+					getopt(options, "escape-newlines?")
+					and (len < (options["line-length"] - indent))
 				)
 			)
 			local byte_escape = (getopt(options, "byte-escape") or default_byte_escape)
