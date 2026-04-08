@@ -16,7 +16,6 @@ extern "C" {
 #include "clock.h"
 #include "libraries/sqlite3.h"
 #include "mat.h"
-#include "stats.h"
 #include "stringlib.h"
 #include "vec.h"
 
@@ -247,8 +246,6 @@ class Lua {
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }
 
-  Stats AllocatorStats() { return allocator_stats_; };
-
   Allocator* allocator() const { return allocator_; }
 
   // Checks whether there is a permanent error.
@@ -393,8 +390,6 @@ class Lua {
 
   FixedStringBuffer<1024> error_;
   std::jmp_buf on_error_buf_;
-
-  Stats allocator_stats_;
 
   struct CachedScript {
     DbAssets::ChecksumType checksum;

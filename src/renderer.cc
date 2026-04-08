@@ -44,52 +44,39 @@ constexpr uint64_t kSDFCacheVersion = 1;
 
 constexpr size_t kCommandMemory = 1 << 24;
 
+// Size of each command in command_buffer_: sizeof rounded up to
+// alignof(Command) so every command starts on a Command-aligned offset.
+// This lets CommandIterator::Read return a const Command* directly into
+// the buffer without a memcpy. The hot iterator path is a single load
+// from a constexpr table instead of a 22-case switch.
 constexpr size_t BatchRenderer::SizeOfCommand(CommandType t) {
-  switch (t) {
-    case kRenderQuad:
-      return sizeof(RenderQuad);
-    case kRenderTrig:
-      return sizeof(RenderTriangle);
-    case kStartLine:
-      return sizeof(StartLine);
-    case kAddLinePoint:
-      return sizeof(AddLinePoint);
-    case kEndLine:
-      return sizeof(EndLine);
-    case kSetTexture:
-      return sizeof(SetTexture);
-    case kSetColor:
-      return sizeof(SetColor);
-    case kSetTransform:
-      return sizeof(SetTransform);
-    case kSetShader:
-      return sizeof(SetShader);
-    case kSetLineWidth:
-      return sizeof(SetLineWidth);
-    case kSetCanvas:
-      return sizeof(SetCanvas);
-    case kSetBlendMode:
-      return sizeof(SetBlendMode);
-    case kClearColor:
-      return sizeof(ClearColor);
-    case kSetSDFOutline:
-      return sizeof(SDFOutline);
-    case kSetScissor:
-      return sizeof(SetScissorRect);
-    case kClearScissor:
-      return sizeof(ClearScissorRect);
-    case kBeginStencilWrite:
-      return sizeof(BeginStencilWriteCmd);
-    case kEndStencilWrite:
-      return sizeof(EndStencilWriteCmd);
-    case kSetStencilTest:
-      return sizeof(SetStencilTestCmd);
-    case kClearStencilTest:
-      return sizeof(ClearStencilTestCmd);
-    case kDone:
-      return 0;
-  }
-  return 0;
+  constexpr auto kAlign = alignof(Command);
+  constexpr auto r = [](size_t s) { return (s + kAlign - 1) & ~(kAlign - 1); };
+  constexpr size_t kSizes[] = {
+      0,  // unused, CommandType is 1-indexed
+      r(sizeof(RenderQuad)),
+      r(sizeof(RenderTriangle)),
+      r(sizeof(StartLine)),
+      r(sizeof(AddLinePoint)),
+      r(sizeof(EndLine)),
+      r(sizeof(SetTexture)),
+      r(sizeof(SetColor)),
+      r(sizeof(SetTransform)),
+      r(sizeof(SetShader)),
+      r(sizeof(SetLineWidth)),
+      r(sizeof(SetCanvas)),
+      r(sizeof(SetBlendMode)),
+      r(sizeof(ClearColor)),
+      r(sizeof(SDFOutline)),
+      r(sizeof(SetScissorRect)),
+      r(sizeof(ClearScissorRect)),
+      r(sizeof(BeginStencilWriteCmd)),
+      r(sizeof(EndStencilWriteCmd)),
+      r(sizeof(SetStencilTestCmd)),
+      r(sizeof(ClearStencilTestCmd)),
+      0,  // kDone
+  };
+  return kSizes[t];
 }
 
 constexpr std::string_view BatchRenderer::CommandName(CommandType t) {
@@ -147,7 +134,12 @@ class BatchRenderer::CommandIterator {
     remaining_ = commands_->empty() ? 0 : (*commands_)[0].count;
   }
 
-  CommandType Read(Command* p) {
+  // Returns the next command's type and sets *out to a pointer directly
+  // into the command buffer. The storage is valid until the iterator
+  // advances past this command. Commands are laid out at offsets that
+  // are multiples of alignof(Command) (see SizeOfCommand), so the cast
+  // is alignment-safe.
+  CommandType Read(const Command** out) {
     if (i_ == commands_->size()) return kDone;
     if (remaining_ == 0) {
       i_++;
@@ -157,9 +149,8 @@ class BatchRenderer::CommandIterator {
     const QueueEntry& e = (*commands_)[i_];
     remaining_--;
     const auto type = static_cast<CommandType>(e.type);
-    size_t size = SizeOfCommand(type);
-    std::memcpy(p, &buffer_[pos_], size);
-    pos_ += size;
+    *out = reinterpret_cast<const Command*>(&buffer_[pos_]);
+    pos_ += SizeOfCommand(type);
     return type;
   }
 
@@ -175,7 +166,14 @@ void BatchRenderer::AddCommand(CommandType command, uint32_t count,
                                const void* data, size_t size) {
   if (command != kDone) {
     std::memcpy(&command_buffer_[pos_], data, size);
-    pos_ += size;
+    // Advance by the actual byte count written, rounded up to
+    // alignof(Command), so the next command starts on a Command-aligned
+    // offset (CommandIterator::Read returns pointers directly into this
+    // buffer and assumes alignment). `size` is per-call total bytes:
+    // `count * sizeof(T)` for batched multi-element commands like
+    // PushLinePoints, so we can't use SizeOfCommand here.
+    constexpr size_t kAlign = alignof(Command);
+    pos_ += (size + kAlign - 1) & ~(kAlign - 1);
   }
   if (commands_.empty() || commands_.back().type != command ||
       commands_.back().count == kMaxCount) {
@@ -433,7 +431,8 @@ void BatchRenderer::Render(Allocator* scratch) {
   // Compute size of data.
   size_t vertices_count = 0, indices_count = 0;
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
-    switch (Command c; it.Read(&c)) {
+    const Command* c;
+    switch (it.Read(&c)) {
       case kRenderQuad:
         vertices_count += 4;
         indices_count += 6;
@@ -457,9 +456,10 @@ void BatchRenderer::Render(Allocator* scratch) {
   Color color = Color::White();
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
     size_t current = vertices.size();
-    switch (Command c; it.Read(&c)) {
+    const Command* c;
+    switch (it.Read(&c)) {
       case kRenderQuad: {
-        const RenderQuad& q = c.quad;
+        const RenderQuad& q = c->quad;
         vertices.Push({.position = FVec(q.p0.x, q.p1.y),
                        .tex_coords = FVec(q.q0.x, q.q1.y),
                        .origin = q.origin,
@@ -485,7 +485,7 @@ void BatchRenderer::Render(Allocator* scratch) {
         }
       }; break;
       case kRenderTrig: {
-        const RenderTriangle& t = c.triangle;
+        const RenderTriangle& t = c->triangle;
         vertices.Push({.position = FVec(t.p0.x, t.p0.y),
                        .tex_coords = t.q0,
                        .origin = FVec(0, 0),
@@ -506,7 +506,7 @@ void BatchRenderer::Render(Allocator* scratch) {
         }
       }; break;
       case kAddLinePoint: {
-        const AddLinePoint& l = c.add_line_point;
+        const AddLinePoint& l = c->add_line_point;
         vertices.Push({.position = l.p0,
                        .tex_coords = FVec(0, 0),
                        .origin = FVec(0, 0),
@@ -515,7 +515,7 @@ void BatchRenderer::Render(Allocator* scratch) {
         indices.Push(current);
       }; break;
       case kSetColor:
-        color = c.set_color.color;
+        color = c->set_color.color;
         break;
       default:
         // Other commands do not add vertices.
@@ -590,6 +590,7 @@ void BatchRenderer::Render(Allocator* scratch) {
   GLuint current_fbo = render_target_;
   int current_viewport_w = viewport_.x;
   int current_viewport_h = viewport_.y;
+  const Command* c;
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
     auto flush = [&] {
       if (indices_start == indices_end) return;
@@ -614,7 +615,7 @@ void BatchRenderer::Render(Allocator* scratch) {
       indices_start = indices_end;
     };
     stats.commands++;
-    switch (Command c; it.Read(&c)) {
+    switch (it.Read(&c)) {
       case kRenderQuad:
         if (primitives != GL_TRIANGLES) flush();
         primitives = GL_TRIANGLES;
@@ -637,60 +638,61 @@ void BatchRenderer::Render(Allocator* scratch) {
         stats.flush_line_end++;
         break;
       case kSetTransform:
-        if (c.set_transform.transform == transform) {
+        if (c->set_transform.transform == transform) {
           stats.redundant_transform++;
           break;
         }
         flush();
         stats.flush_transform++;
-        transform = c.set_transform.transform;
+        transform = c->set_transform.transform;
         break;
       case kSetTexture:
-        if (c.set_texture.texture_unit == texture_unit) {
+        if (c->set_texture.texture_unit == texture_unit) {
           stats.redundant_texture++;
           break;
         }
         flush();
         stats.flush_texture++;
-        texture_unit = c.set_texture.texture_unit;
+        texture_unit = c->set_texture.texture_unit;
         break;
       case kSetShader:
-        if (c.set_shader.shader_handle == current_shader_handle) {
+        if (c->set_shader.shader_handle == current_shader_handle) {
           stats.redundant_shader++;
           break;
         }
         flush();
         stats.flush_shader++;
-        current_shader_handle = c.set_shader.shader_handle;
-        set_program_state(StringByHandle(c.set_shader.shader_handle));
+        current_shader_handle = c->set_shader.shader_handle;
+        set_program_state(StringByHandle(c->set_shader.shader_handle));
         break;
       case kSetLineWidth:
-        if (c.set_line_width.width == line_width) {
+        if (c->set_line_width.width == line_width) {
           stats.redundant_line_width++;
           break;
         }
         flush();
         stats.flush_other++;
-        line_width = c.set_line_width.width;
+        line_width = c->set_line_width.width;
         break;
       case kSetCanvas:
         flush();
         stats.flush_canvas++;
-        OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, c.set_canvas.fbo));
-        OPENGL_CALL(glViewport(0, 0, c.set_canvas.width, c.set_canvas.height));
-        current_fbo = c.set_canvas.fbo;
-        current_viewport_w = c.set_canvas.width;
-        current_viewport_h = c.set_canvas.height;
+        OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, c->set_canvas.fbo));
+        OPENGL_CALL(
+            glViewport(0, 0, c->set_canvas.width, c->set_canvas.height));
+        current_fbo = c->set_canvas.fbo;
+        current_viewport_w = c->set_canvas.width;
+        current_viewport_h = c->set_canvas.height;
         break;
       case kSetBlendMode:
-        if (c.set_blend_mode.mode == blend_mode) {
+        if (c->set_blend_mode.mode == blend_mode) {
           stats.redundant_blend++;
           break;
         }
         flush();
         stats.flush_blend++;
-        blend_mode = c.set_blend_mode.mode;
-        switch (c.set_blend_mode.mode) {
+        blend_mode = c->set_blend_mode.mode;
+        switch (c->set_blend_mode.mode) {
           case BLEND_ALPHA:
             OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
             break;
@@ -711,35 +713,35 @@ void BatchRenderer::Render(Allocator* scratch) {
       case kClearColor:
         flush();
         stats.flush_other++;
-        OPENGL_CALL(glClearColor(c.clear_color.r, c.clear_color.g,
-                                 c.clear_color.b, c.clear_color.a));
+        OPENGL_CALL(glClearColor(c->clear_color.r, c->clear_color.g,
+                                 c->clear_color.b, c->clear_color.a));
         // Clear stencil alongside color so each clear() resets mask state.
         OPENGL_CALL(glStencilMask(0xFF));
         OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT));
         OPENGL_CALL(glStencilMask(0x00));
         break;
       case kSetColor:
-        color = c.set_color.color;
+        color = c->set_color.color;
         break;
       case kSetSDFOutline:
-        if (c.sdf_outline.thickness == sdf_thickness &&
-            c.sdf_outline.r == sdf_r && c.sdf_outline.g == sdf_g &&
-            c.sdf_outline.b == sdf_b && c.sdf_outline.a == sdf_a) {
+        if (c->sdf_outline.thickness == sdf_thickness &&
+            c->sdf_outline.r == sdf_r && c->sdf_outline.g == sdf_g &&
+            c->sdf_outline.b == sdf_b && c->sdf_outline.a == sdf_a) {
           stats.redundant_sdf_outline++;
           break;
         }
         flush();
         stats.flush_other++;
-        sdf_thickness = c.sdf_outline.thickness;
-        sdf_r = c.sdf_outline.r;
-        sdf_g = c.sdf_outline.g;
-        sdf_b = c.sdf_outline.b;
-        sdf_a = c.sdf_outline.a;
+        sdf_thickness = c->sdf_outline.thickness;
+        sdf_r = c->sdf_outline.r;
+        sdf_g = c->sdf_outline.g;
+        sdf_b = c->sdf_outline.b;
+        sdf_a = c->sdf_outline.a;
         shaders_->SetUniformSilentF("u_outline_thickness",
-                                    c.sdf_outline.thickness);
+                                    c->sdf_outline.thickness);
         shaders_->SetUniformSilent("u_outline_color",
-                                   FVec(c.sdf_outline.r, c.sdf_outline.g,
-                                        c.sdf_outline.b, c.sdf_outline.a));
+                                   FVec(c->sdf_outline.r, c->sdf_outline.g,
+                                        c->sdf_outline.b, c->sdf_outline.a));
         break;
       case kSetScissor:
         flush();
@@ -747,9 +749,9 @@ void BatchRenderer::Render(Allocator* scratch) {
         OPENGL_CALL(glEnable(GL_SCISSOR_TEST));
         // OpenGL scissor Y is bottom-up; convert from top-left origin.
         OPENGL_CALL(
-            glScissor(c.set_scissor.x,
-                      current_viewport_h - c.set_scissor.y - c.set_scissor.h,
-                      c.set_scissor.w, c.set_scissor.h));
+            glScissor(c->set_scissor.x,
+                      current_viewport_h - c->set_scissor.y - c->set_scissor.h,
+                      c->set_scissor.w, c->set_scissor.h));
         break;
       case kClearScissor:
         flush();
@@ -760,9 +762,9 @@ void BatchRenderer::Render(Allocator* scratch) {
         flush();
         stats.flush_other++;
         OPENGL_CALL(glEnable(GL_STENCIL_TEST));
-        OPENGL_CALL(glStencilFunc(GL_ALWAYS, c.begin_stencil_write.ref, 0xFF));
+        OPENGL_CALL(glStencilFunc(GL_ALWAYS, c->begin_stencil_write.ref, 0xFF));
         OPENGL_CALL(
-            glStencilOp(GL_KEEP, GL_KEEP, c.begin_stencil_write.action));
+            glStencilOp(GL_KEEP, GL_KEEP, c->begin_stencil_write.action));
         OPENGL_CALL(glStencilMask(0xFF));
         // Disable color writes so stencil geometry is invisible.
         OPENGL_CALL(glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE));
@@ -778,8 +780,8 @@ void BatchRenderer::Render(Allocator* scratch) {
         flush();
         stats.flush_other++;
         OPENGL_CALL(glEnable(GL_STENCIL_TEST));
-        OPENGL_CALL(glStencilFunc(c.set_stencil_test.compare,
-                                  c.set_stencil_test.ref, 0xFF));
+        OPENGL_CALL(glStencilFunc(c->set_stencil_test.compare,
+                                  c->set_stencil_test.ref, 0xFF));
         OPENGL_CALL(glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP));
         OPENGL_CALL(glStencilMask(0x00));
         break;
