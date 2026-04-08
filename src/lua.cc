@@ -183,7 +183,6 @@ void AddBasicLibs(lua_State* state) {
 }  // namespace
 
 void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
-  allocator_stats_.AddSample(nsize);
   if (nsize == 0) {
     if (ptr != nullptr) allocator_->Dealloc(ptr, osize);
     return nullptr;
