@@ -36,7 +36,6 @@ in
 {
 
   packages = with pkgs; [
-    sdl3
     ccls
     clang
     clang-tools
@@ -55,9 +54,10 @@ in
     lua51Packages.lua
     mesa
     ninja
-    pprof
     python3
     renderdoc
+    samply
+    sdl3
     sqlite
     sqlitebrowser
     stylua
@@ -151,6 +151,28 @@ in
   scripts."game-sanitize" = {
     exec = ''
       cmake -DENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug -G Ninja -S . -B build && cmake --build build --target Game
+    '';
+  };
+
+  # CPU sampling profiler.  Builds a RelWithDebInfo binary in build-profile/
+  # (separate from the default Debug build so it doesn't stomp on it), runs
+  # testBenchmark under samply with --clean so asset packing is included in
+  # the capture, and opens the result in Firefox Profiler.
+  # Pass a duration in seconds as $1 (default 10).
+  #
+  # RelWithDebInfo is required: the Debug build uses -O1 -fno-inline, which
+  # makes trivial accessors (FVec ctor, FixedArray::Push, operator[]) show
+  # up as fake hotspots and buries the real ones.
+  scripts."game-samply" = {
+    exec = ''
+      DURATION=''${1:-10}
+      cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -G Ninja -S . -B build-profile \
+        && cmake --build build-profile --target Game || exit 1
+      echo "Recording for ''${DURATION}s — running testBenchmark --clean (RelWithDebInfo)…"
+      samply record --save-only --unstable-presymbolicate -o build-profile/samply.json.gz -- \
+        timeout --signal=INT --kill-after=3 "''${DURATION}" ./build-profile/game run assets -- testBenchmark || true
+      echo "Opening capture in Firefox Profiler…"
+      samply load build-profile/samply.json.gz
     '';
   };
 

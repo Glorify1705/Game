@@ -34,6 +34,7 @@ tags: [index]
 | [Font system](Font%20system.md) | renderer, fonts | SDF atlas, alignment, wrapping, outlines, kerning, ANSI escapes |
 | [SDF font rendering](SDF%20font%20rendering.md) | renderer, fonts, sdf | SDF generation, shader, caching, outline support |
 | [Vendor all libraries](Vendor%20all%20libraries.md) | build, dependencies | All libraries vendored directly, no git submodules |
+| [CPU sampling profiler](CPU%20sampling%20profiler.md) | profiling, performance, tooling | samply-based CPU profiling in devenv (`game-samply` script) |
 
 ## Partially Implemented
 
