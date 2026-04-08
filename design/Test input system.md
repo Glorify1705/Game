@@ -15,6 +15,20 @@ There is no way to programmatically test a game built with this engine. The only
 
 We need a system that injects synthetic inputs identical to real SDL inputs, driven by a script, so that a game can be tested automatically.
 
+### Cross-engine evidence
+
+Looking at the [Engine comparison](Engine%20comparison.md), test infrastructure is the strongest signal in the cross-engine survey. Two of the six comparison engines have first-class support, in two complementary shapes:
+
+- **Raylib's automation events** (`rcore.c`): a binary record/replay format. `StartAutomationEventRecording()` captures every input event into a flat array of `{frame, type, params[4]}` structs; `LoadAutomationEventList(file)` + `PlayAutomationEvent(event)` replays them deterministically. The whole system is a few hundred lines of C with no external dependency.
+- **libGDX's `HeadlessApplication`**: a backend that instantiates the entire framework — `Gdx.files`, `Gdx.app`, `Gdx.input`, the main loop — without a window, OpenGL context, or audio device. JUnit tests instantiate it in `@BeforeEach`, feed events into the `InputProcessor` directly, run N frames, and assert on game state.
+
+Neither Love2D, high_impact, Anchor, nor Carimbo have anything in this space. The other industry references are:
+
+- **Godot**: `Input.action_press("jump")` injects synthetic actions; the `GUT` plugin builds a unit-test framework on top.
+- **Unity**: `InputTestFixture` from the Input System package replays event streams at the C# level.
+
+The right design for us is **the union** of Raylib's and libGDX's approaches: a coroutine-based test scripting API for in-process integration tests (the bulk of the value), a Raylib-style flat binary record/replay format for capturing real play sessions (no protobuf dependency, ~30 lines of code), and a libGDX-style headless mode so the whole thing can run in CI without a display server or audio hardware.
+
 ## 2. Architecture overview
 
 ### Current input pipeline
@@ -304,13 +318,26 @@ game run . --test --test-seed 42
 
 ## 8. Comparison with other engines
 
-| Engine | Approach | Built-in? |
-|---|---|---|
-| **Love2D** | No test input injection. Tests mock `love.keyboard` or use external tools. | No |
-| **Godot** | `InputEventAction` and `Input.action_press()` inject synthetic inputs. Has `GUT` (Godot Unit Testing) framework. | Partial (input injection yes, test framework via plugin) |
-| **Unity** | `UnityEngine.Input` can be mocked. The Input System package has `InputTestFixture` for synthetic events at the C# level. | Yes (Input System package) |
+| Engine | Input injection | Record/replay | Headless mode |
+|---|---|---|---|
+| **Love2D** | None — tests mock `love.keyboard` or use external tools. | None | None |
+| **high_impact** | None | None | None |
+| **Anchor** | None | None | None |
+| **Carimbo** | None | None | None |
+| **Raylib** | None directly, but the automation events system covers replay. | **`AutomationEventList`** — `Start/StopAutomationEventRecording`, `LoadAutomationEventList(file)`, `PlayAutomationEvent(event)`. Flat binary format `{frame, type, params[4]}`, ~few hundred lines of C, no dependency. | None |
+| **libGDX** | Feed events directly into `InputProcessor` from JUnit. | None built in. | **`HeadlessApplication`** — full framework backend with no window/GL/audio, used in JUnit tests via `@BeforeEach`. |
+| **Godot** (industry ref) | `Input.action_press()` injects synthetic actions. `GUT` plugin builds a test framework on top. | None | `--headless` flag. |
+| **Unity** (industry ref) | `InputTestFixture` from the Input System package replays event streams at the C# level. | None | Batch mode (`-batchmode`). |
 
-Our approach is most similar to Godot's: direct injection into the input state, with a coroutine-based scripting API on top. The coroutine model is simpler than callback-based test frameworks since test scripts read linearly.
+**The gap our design fills.** No comparison engine has all three of: (a) a high-level coroutine-style scripting API for writing tests, (b) record/replay of real play sessions, and (c) headless execution. Raylib has the cleanest replay format; libGDX has the cleanest headless backend; Godot has the cleanest input-injection ergonomics. Our design composes them: a coroutine-based `G.test.*` API on top, Raylib's binary format underneath for record/replay, libGDX's headless pattern for CI.
+
+The coroutine model is the differentiator — none of the engines above have it. Test scripts read linearly:
+
+```lua
+G.test.press("space"); G.test.wait_frames(10); G.test.assert(player.y < 300)
+```
+
+versus the callback/event-stream patterns in libGDX or Unity. This pairs naturally with our existing Lua scripting story.
 
 ## 9. Input recording and replay
 
@@ -328,73 +355,77 @@ The test API should support recording real inputs from a play session and replay
 
 During recording, the engine intercepts all events in `HandleEvent` and appends them to a buffer with the current frame number. The recording captures the frame-relative timing, not wall-clock time, so replays are deterministic.
 
-### Serialization format: Protobuf
+### Serialization format: Raylib-style flat binary
 
-Protobuf is a natural fit for the structured, versioned binary data. The schema:
+Raylib's `AutomationEvent` is the model. A single event is a fixed-size POD with a frame number, an event type tag, and four integer parameters — enough to encode every input we care about without union/oneof machinery:
 
-```protobuf
-syntax = "proto3";
+```cpp
+// In src/test_recording.h
+struct InputEvent {
+  uint32_t frame;       // frame number when the event occurred
+  uint32_t type;        // EventType enum below
+  int32_t  params[4];   // type-specific payload
+};
 
-message KeyEvent {
-  uint32 scancode = 1;
-  bool down = 2;  // true = keydown, false = keyup
-}
-
-message MouseMoveEvent {
-  float x = 1;
-  float y = 2;
-}
-
-message MouseButtonEvent {
-  uint32 button = 1;
-  bool down = 2;
-}
-
-message MouseWheelEvent {
-  float dx = 1;
-  float dy = 2;
-}
-
-message ControllerButtonEvent {
-  uint32 button = 1;
-  bool down = 2;
-  uint32 controller_id = 3;
-}
-
-message ControllerAxisEvent {
-  uint32 axis = 1;
-  int32 value = 2;
-  uint32 controller_id = 3;
-}
-
-message InputEvent {
-  uint32 frame = 1;
-  oneof event {
-    KeyEvent key = 2;
-    MouseMoveEvent mouse_move = 3;
-    MouseButtonEvent mouse_button = 4;
-    MouseWheelEvent mouse_wheel = 5;
-    ControllerButtonEvent controller_button = 6;
-    ControllerAxisEvent controller_axis = 7;
-  }
-}
-
-message InputRecording {
-  repeated InputEvent events = 1;
-}
+enum EventType : uint32_t {
+  EVT_KEY_DOWN          = 1,  // params[0] = SDL_Scancode
+  EVT_KEY_UP            = 2,  // params[0] = SDL_Scancode
+  EVT_TEXT_INPUT        = 3,  // params[0..3] = first 4 UTF-32 codepoints; longer text split across events
+  EVT_MOUSE_MOVE        = 4,  // params[0] = x, params[1] = y (pixel coords)
+  EVT_MOUSE_DOWN        = 5,  // params[0] = button
+  EVT_MOUSE_UP          = 6,  // params[0] = button
+  EVT_MOUSE_WHEEL       = 7,  // params[0] = dx*1000, params[1] = dy*1000 (fixed-point)
+  EVT_CONTROLLER_DOWN   = 8,  // params[0] = button, params[1] = controller_id
+  EVT_CONTROLLER_UP     = 9,  // params[0] = button, params[1] = controller_id
+  EVT_CONTROLLER_AXIS   = 10, // params[0] = axis, params[1] = value, params[2] = controller_id
+};
 ```
 
-**Dependency note**: Protobuf is not currently in the project. Adding it requires:
-- Adding `protobuf` (or `protobuf-lite`) as a dependency in `CMakeLists.txt`
-- Running `protoc` to generate C++ code from the `.proto` file
-- This is **future work** — the initial implementation can use a simpler binary format or skip recording/replay entirely.
+The on-disk file is a tiny header followed by a packed array of `InputEvent`:
 
-## 10. Future work
+```
+Magic     : 4 bytes  "GTI1"  (Game Test Input v1)
+Version   : uint32   1
+EventCount: uint32   N
+Events    : InputEvent[N]   // 24 bytes each
+```
 
-- **Screenshot diffing against golden images**: Compare `G.test.screenshot()` output against saved reference images, with a configurable pixel tolerance. Fail the test if the diff exceeds threshold.
-- **Visual regression CI pipeline**: Automated pipeline that runs tests, captures screenshots, and compares against golden images stored in the repo.
-- **Headless rendering**: Run tests with an offscreen framebuffer (EGL or osmesa) so CI doesn't need a display server.
-- **Test discovery**: Multiple test functions (`test_movement`, `test_combat`, etc.) run sequentially or in parallel.
+Total cost: ~30 lines of C++ to read/write, no dependency, no codegen step, fully versioned via the magic+version header. This is what `G.test.start_recording()` writes and what `G.test.replay(data)` reads.
+
+Replay is dead simple: keep an index into the event array, and on each frame, while `events[i].frame == current_frame`, dispatch `events[i]` through the same `Inject*` methods used by the coroutine API, then advance `i`.
+
+## 10. Headless mode
+
+libGDX's `HeadlessApplication` is the cleanest reference: same backend interface as the desktop one, but with stub implementations for windowing, GL, and audio. Tests instantiate it in `@BeforeEach` and run the full main loop in-process.
+
+For our engine, headless mode is activated by `--headless` on the CLI. When set, `SdlInit` skips:
+
+- `SDL_INIT_VIDEO` — no window, no GL context, no swap.
+- `SDL_INIT_AUDIO` — no audio device, no callback thread. Sound calls become no-ops at the `Sound` layer.
+- `SDL_INIT_GAMECONTROLLER` — no real controllers. Synthetic controller input still works through `Inject*`.
+
+The renderer stays linked but its draw calls become no-ops (a `headless_` flag short-circuits `Renderer::Flush`). `G.test.screenshot()` is unavailable in headless mode and asserts if called — visual regression testing requires a GL context, so use `--test` without `--headless` for those.
+
+The frame loop replaces real-time `accum` with a fixed advance: each iteration advances exactly one `Update(t, kStep)` and resumes the test coroutine once. No `SDL_Delay`, no vsync wait. A 600-frame test that would take 10 wall-clock seconds runs in ~50 ms.
+
+This is what makes the system CI-friendly: no display server, no audio hardware, no real time. `game run . --test --headless` is the standard CI invocation.
+
+## 11. Implementation phases
+
+The design above covers a lot of surface area. Reasonable phasing:
+
+1. **Phase 1 — Coroutine API + injection** (the bulk of the value). `--test` flag, `G.test.press/wait_frames/assert`, the `Inject*` C++ methods, exit-code semantics. No headless, no recording.
+2. **Phase 2 — Headless mode**. `--headless` flag, stub `SdlInit`, no-op renderer/audio paths. Enables CI integration.
+3. **Phase 3 — Record/replay**. `G.test.start_recording`/`stop_recording`/`replay`, the flat binary format, the read/write helpers. Useful for capturing real play sessions and turning them into regression tests.
+4. **Phase 4 — Screenshot diffing**. Reference images, pixel-tolerance comparison, golden-image storage convention.
+
+Each phase is independently shippable.
+
+## 12. Future work
+
+- **Visual regression CI pipeline**: Automated pipeline that runs tests, captures screenshots, and compares against golden images stored in the repo. Builds on phase 4.
+- **Test discovery**: Multiple test functions (`test_movement`, `test_combat`, etc.) run sequentially in one process, with per-test setup/teardown and a summary at the end.
+- **Network mocking**: When the networking subsystem lands, provide a deterministic in-process loopback so multiplayer flows can be tested headless.
 
 ## Key files referenced
 

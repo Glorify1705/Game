@@ -15,7 +15,7 @@ tags: [index]
 | [Debug logging system](Debug%20logging%20system.md) | logging, debugging | Leveled logging with channels, compile-time filtering, custom sinks |
 | [Debug printing consolidation](Debug%20printing%20consolidation.md) | debugging, strings | Unified AppendToString API for type-safe string formatting |
 | [Draw call optimization](Draw%20call%20optimization.md) | renderer, performance | Redundant state filtering and texture dedup to reduce draw calls |
-| [Engine comparison](Engine%20comparison.md) | reference, comparison | Feature gap analysis vs Love2D, high_impact, Anchor |
+| [Engine comparison](Engine%20comparison.md) | reference, comparison | Feature gap analysis vs Love2D, high_impact, Anchor, Carimbo, Raylib, libGDX |
 | [ErrorOr and TRY macro](ErrorOr%20and%20TRY%20macro.md) | error-handling, core | Result type with TRY macro for propagating errors without exceptions |
 | [File watching and hot reload](File%20watching%20and%20hot%20reload.md) | hot-reload, filesystem | Background file watcher with debounced hot-reload |
 | [Layer and canvas system](Layer%20and%20canvas%20system.md) | renderer, canvas | Off-screen render targets with blend modes and premultiplied alpha |
@@ -70,8 +70,9 @@ tags: [index]
 
 ## Prioritized Roadmap
 
-Based on the [Engine comparison](Engine%20comparison.md), prioritized by what
-makes the engine stand out and what's needed to ship complete games.
+Based on the [Engine comparison](Engine%20comparison.md) (six reference engines:
+Love2D, high_impact, Anchor, Carimbo, Raylib, libGDX), prioritized by what makes
+the engine stand out and what's needed to ship complete games.
 
 **Engine differentiators** (things no comparison engine has): hot reload, Fennel
 scripting, CLI tooling, SDF fonts, SQLite asset pipeline, type stubs for IDE,
@@ -94,9 +95,10 @@ The biggest remaining gaps from the engine comparison.
 
 | Feature | Rationale |
 |---------|-----------|
-| [Save and persistence](Save%20and%20persistence.md) | Namespaced SQLite KV store for save data, settings, and achievements. Carimbo is the only comparison engine with built-in persistence — shipping any non-trivial game requires this. |
-| Math utilities | Lerp (especially framerate-independent), distance, angle, direction, noise. Used in virtually every game script. |
-| Text layout | Word wrap and alignment (L/C/R). Required for dialogue, UI, menus. Love2D's `printf` with alignment is the model. |
+| [Save and persistence](Save%20and%20persistence.md) | Namespaced SQLite KV store for save data, settings, and achievements. Carimbo is the only comparison engine with built-in achievements; libGDX's `Preferences` is the closest equivalent KV API. Shipping any non-trivial game requires this. |
+| [Test input system](Test%20input%20system.md) | Automated testing of game logic via synthetic input injection. Promoted from P4 — Raylib's input automation events and libGDX's `HeadlessApplication` together make automated testability the strongest cross-engine signal in the comparison. Pairs naturally with our existing CI story. |
+| Math utilities | Lerp (especially framerate-independent), distance, angle, direction, noise. Used in virtually every game script. libGDX's `Interpolation` and Carimbo's `Vec2` sol2 binding are the references. |
+| Text layout | Word wrap and alignment (L/C/R). Required for dialogue, UI, menus. Love2D's `printf` with alignment and libGDX's `GlyphLayout` + `Label.setWrap` are the models. |
 
 ### P2 — Strengthen differentiators
 
@@ -114,7 +116,7 @@ Reaching more platforms multiplies the value of everything above.
 
 | Document | Rationale |
 |----------|-----------|
-| [WebAssembly and cross-platform portability](WebAssembly%20and%20cross-platform%20portability.md) | Instant sharing via browser. high_impact and Anchor both have this — it's the most impactful platform gap. |
+| [WebAssembly and cross-platform portability](WebAssembly%20and%20cross-platform%20portability.md) | Instant sharing via browser. high_impact, Anchor, Carimbo (WASM-first), Raylib, and libGDX (via GWT) all ship to the web — it's the biggest remaining platform gap. |
 
 ### P4 — Future
 
@@ -127,4 +129,3 @@ Valuable but not blocking. Build these when a specific game needs them.
 | [AI utilities](AI%20utilities.md) | Only needed for games with AI agents. |
 | [LuaJIT Migration](LuaJIT%20Migration.md) | Performance optimization. Current Lua 5.1 is adequate for most games. |
 | [Asset system improvements](Asset%20system%20improvements.md) | Current SQLite system works. ZIP+index is an optimization for large games. |
-| [Test input system](Test%20input%20system.md) | Automated testing infrastructure. Important long-term, not blocking. |
