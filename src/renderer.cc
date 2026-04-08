@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "bits.h"
 #include "clock.h"
 #include "defer.h"
 #include "image.h"
@@ -51,29 +52,28 @@ constexpr size_t kCommandMemory = 1 << 24;
 // from a constexpr table instead of a 22-case switch.
 constexpr size_t BatchRenderer::SizeOfCommand(CommandType t) {
   constexpr auto kAlign = alignof(Command);
-  constexpr auto r = [](size_t s) { return (s + kAlign - 1) & ~(kAlign - 1); };
   constexpr size_t kSizes[] = {
       0,  // unused, CommandType is 1-indexed
-      r(sizeof(RenderQuad)),
-      r(sizeof(RenderTriangle)),
-      r(sizeof(StartLine)),
-      r(sizeof(AddLinePoint)),
-      r(sizeof(EndLine)),
-      r(sizeof(SetTexture)),
-      r(sizeof(SetColor)),
-      r(sizeof(SetTransform)),
-      r(sizeof(SetShader)),
-      r(sizeof(SetLineWidth)),
-      r(sizeof(SetCanvas)),
-      r(sizeof(SetBlendMode)),
-      r(sizeof(ClearColor)),
-      r(sizeof(SDFOutline)),
-      r(sizeof(SetScissorRect)),
-      r(sizeof(ClearScissorRect)),
-      r(sizeof(BeginStencilWriteCmd)),
-      r(sizeof(EndStencilWriteCmd)),
-      r(sizeof(SetStencilTestCmd)),
-      r(sizeof(ClearStencilTestCmd)),
+      Align(sizeof(RenderQuad), kAlign),
+      Align(sizeof(RenderTriangle), kAlign),
+      Align(sizeof(StartLine), kAlign),
+      Align(sizeof(AddLinePoint), kAlign),
+      Align(sizeof(EndLine), kAlign),
+      Align(sizeof(SetTexture), kAlign),
+      Align(sizeof(SetColor), kAlign),
+      Align(sizeof(SetTransform), kAlign),
+      Align(sizeof(SetShader), kAlign),
+      Align(sizeof(SetLineWidth), kAlign),
+      Align(sizeof(SetCanvas), kAlign),
+      Align(sizeof(SetBlendMode), kAlign),
+      Align(sizeof(ClearColor), kAlign),
+      Align(sizeof(SDFOutline), kAlign),
+      Align(sizeof(SetScissorRect), kAlign),
+      Align(sizeof(ClearScissorRect), kAlign),
+      Align(sizeof(BeginStencilWriteCmd), kAlign),
+      Align(sizeof(EndStencilWriteCmd), kAlign),
+      Align(sizeof(SetStencilTestCmd), kAlign),
+      Align(sizeof(ClearStencilTestCmd), kAlign),
       0,  // kDone
   };
   return kSizes[t];
@@ -172,8 +172,7 @@ void BatchRenderer::AddCommand(CommandType command, uint32_t count,
     // buffer and assumes alignment). `size` is per-call total bytes:
     // `count * sizeof(T)` for batched multi-element commands like
     // PushLinePoints, so we can't use SizeOfCommand here.
-    constexpr size_t kAlign = alignof(Command);
-    pos_ += (size + kAlign - 1) & ~(kAlign - 1);
+    pos_ += Align(size, alignof(Command));
   }
   if (commands_.empty() || commands_.back().type != command ||
       commands_.back().count == kMaxCount) {
