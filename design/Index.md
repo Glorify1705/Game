@@ -63,6 +63,7 @@ tags: [index]
 | [LuaJIT Migration](LuaJIT%20Migration.md) | lua, performance | Migration from Lua 5.1 to LuaJIT with WASM fallback |
 | [Networking](Networking.md) | networking, multiplayer | ENet reliable UDP for client/server multiplayer |
 | [Particle system](Particle%20system.md) | renderer, particles, lua-api | CPU particle system with PropertyRamp and instanced rendering |
+| [Save and persistence](Save%20and%20persistence.md) | persistence, save, achievements, lua-api | Namespaced SQLite KV store for save data, settings, achievements |
 | [Sound stream free list](Sound%20stream%20free%20list.md) | audio, memory | Free list allocator to prevent sound slot exhaustion |
 | [Test input system](Test%20input%20system.md) | testing, input | Synthetic input injection for automated testing |
 | [WebAssembly and cross-platform portability](WebAssembly%20and%20cross-platform%20portability.md) | wasm, portability | Emscripten/WASM support with main loop refactoring |
@@ -93,6 +94,7 @@ The biggest remaining gaps from the engine comparison.
 
 | Feature | Rationale |
 |---------|-----------|
+| [Save and persistence](Save%20and%20persistence.md) | Namespaced SQLite KV store for save data, settings, and achievements. Carimbo is the only comparison engine with built-in persistence — shipping any non-trivial game requires this. |
 | Math utilities | Lerp (especially framerate-independent), distance, angle, direction, noise. Used in virtually every game script. |
 | Text layout | Word wrap and alignment (L/C/R). Required for dialogue, UI, menus. Love2D's `printf` with alignment is the model. |
 
