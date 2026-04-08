@@ -1,5 +1,5 @@
 ---
-status: in-design
+status: in-progress
 tags: [core, architecture, refactor, hot-reload]
 ---
 
@@ -283,19 +283,68 @@ unchanged from the current design.
 This is a pure refactor with no behavior changes. Do it in stages so each
 PR is reviewable:
 
-1. **Extract `sdl_init.h/cc`** — Move SDL/GL/audio init out of `Game`.
-   Mechanical move, no logic changes.
-2. **Extract `hot_reload.h/cc`** — Pull watcher thread, mutex, pending
-   changes into `HotReloadManager`. Wire it up from `Game::Run()`.
-3. **Rename `EngineModules` → `Engine`**, move to `engine.h/cc`. Absorb
-   `RegisterLoaders()` into `Initialize()`. Move text file storage into
-   `DbAssets`.
-4. **Flatten `Game` into `RunGame()`** — `Game` class is no longer needed
-   once SDL context is a plain struct and engine is `Engine`. The main loop
-   lives in `RunGame()` directly.
-5. **Clean up** — Remove dead code, audit include dependencies.
+1. **[DONE, PR #57]** **Extract `sdl_init.h/cc`** — Moved SDL/GL/audio init
+   out of `Game` into a standalone module. `SdlContext` struct bundles
+   window, GL context, audio stream, and device ID. Audio constants
+   (`kAudioChannels`, `kAudioSampleRate`, `kAudioBufFloats`) moved to
+   `sdl_init.h`. The `StaticAudioCallback` stays in `game.cc` because it
+   accesses `Game::e_->sound` and `audio_buf_`. PhysFS init/deinit stays
+   in `game.cc` — it's orthogonal to SDL.
+2. **[DONE, PR #58]** **Extract `hot_reload.h/cc`** — Pulled file watcher
+   background task, change detection, and hot-reload arena out of
+   `EngineModules` into a standalone `HotReloadManager` class.
+   `HotReloadChanges`, `kHotReloadMemory`, and audio/script extension
+   helpers moved alongside. `EngineModules::Initialize()` now ends with
+   `pool.Start(); hot_reload.Start();`, `Deinitialize()` is
+   `hot_reload.Stop(); pool.Shutdown();`. Main loop polls
+   `e_->hot_reload.PendingChanges()` / `ConsumePendingChanges()`.
+   `Reload()` (subsystem-side reset) intentionally stayed on
+   `EngineModules` for Step 3. Same PR also flattened
+   `CheckChangedFiles` using early-continue and extracted
+   `DescribePendingReload` / `LogChanges` helpers.
+3. **[TODO]** **Rename `EngineModules` → `Engine`**, move to
+   `engine.h/cc`. Absorb `RegisterLoaders()` into `Initialize()`. Move
+   text file storage (`text_files_table_`, `text_files_`) into
+   `DbAssets` — it's asset data, not engine state. Move `Reload()` here
+   too (currently the last piece of hot-reload state in `EngineModules`).
+4. **[TODO]** **Flatten `Game` into `RunGame()`** — `Game` class is no
+   longer needed once SDL context is a plain struct (already done) and
+   engine is `Engine`. The main loop lives in `RunGame()` directly. This
+   also lets us move `HotReloadManager` ownership out of `Engine` into
+   `RunGame()` per the original design sketch, so `Engine` knows nothing
+   about hot-reload.
+5. **[TODO]** **Clean up** — Remove dead code, audit include
+   dependencies (clang-include-cleaner pass), drop now-unused forwards.
 
 Each step should build and pass tests independently.
+
+### Progress snapshot (2026-04-07)
+
+| File | Before | After Step 1 | After Step 2 |
+|------|-------:|-------------:|-------------:|
+| `src/game.cc` | 1019 | 787 | 656 |
+| `src/sdl_init.{h,cc}` | — | 52 + 254 | 52 + 254 |
+| `src/hot_reload.{h,cc}` | — | — | 71 + 169 |
+
+Things that intentionally did **not** move and are waiting for the
+later steps:
+
+- **`EngineModules::Reload()`** — still handles `timers.Clear()`,
+  `sound.StopAll()`, `physics.Clear()`, `assets->Load()`. Moves in
+  Step 3 (rename to `Engine::Reload`) and may dissolve further in
+  Step 4 when the main loop can call subsystem methods directly.
+- **`text_files_table_` / `text_files_`** on `EngineModules` — still
+  populated via the `RegisterTextLoad` lambda. Belongs in `DbAssets`.
+- **`RegisterLoaders()`** — still a separate method; should be folded
+  into `Initialize()`.
+- **`Game` class in `game.cc`** — still wraps ctor/dtor around PhysFS,
+  SDL, and `EngineModules`. Step 4 dissolves this into a straight-line
+  `RunGame()` that constructs the parts explicitly and owns the main
+  loop body that currently lives in `Game::Run()`.
+- **Loader-registration boilerplate** (8 lambdas casting `void*` to
+  `EngineModules*`) — addressed minimally in Step 3 (cast target
+  becomes `Engine*`). The listener-interface variant from §5 above is
+  explicitly not planned.
 
 ## What This Does NOT Change
 
