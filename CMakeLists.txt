@@ -223,12 +223,6 @@ endif()
 set_source_files_properties(libraries/sqlite3.c PROPERTIES
     COMPILE_DEFINITIONS SQLITE_ENABLE_MEMSYS5)
 
-add_custom_target(
-  Run
-  COMMAND "${CMAKE_CURRENT_BINARY_DIR}/game" run "${PROJECT_SOURCE_DIR}/assets"
-  DEPENDS Game
-  VERBATIM COMMAND_EXPAND_LISTS)
-
 target_link_libraries(
   Game
   PRIVATE SDL3::SDL3

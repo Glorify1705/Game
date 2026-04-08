@@ -78,103 +78,22 @@ in
     export CMAKE_PREFIX_PATH="${pkgs.elfutils.dev}:${pkgs.elfutils.out}:$CMAKE_PREFIX_PATH";
   '';
 
-  scripts."game-build" = {
-    exec = "cmake -G Ninja -S . -B build && cmake --build build --target Game";
-  };
-
-  scripts."game-run" = {
-    exec = "cmake -G Ninja -S . -B build && cmake --build build --target Run";
-  };
-
-  scripts."game-clean" = {
-    exec = "rm -rf build/*";
-  };
-
-  scripts."game-test" = {
-    exec = ''
-      cmake -DCMAKE_BUILD_TYPE=Debug -G Ninja -S . -B build && cmake --build build --target Tests
-    '';
-  };
-
-  scripts."game-open-db" = {
-    exec = "${pkgs.sqlitebrowser}/bin/sqlitebrowser build/assets.sqlite3";
-  };
-
-  scripts."game-reset-db" = {
-    exec = ''
-      rm -rf build/assets.sqlite3
-      ${pkgs.sqlite}/bin/sqlite3 build/assets.sqlite3 < src/schema.sql
-    '';
-  };
-
-  scripts."game-format" = {
-    exec = ''
-      ${pkgs.clang-tools}/bin/clang-format -i src/* tests/*
-      for f in assets/*.fnl; do ${pkgs.fnlfmt}/bin/fnlfmt --fix "$f"; done
-      ${pkgs.stylua}/bin/stylua assets/*.lua
-    '';
-  };
-
-  scripts."game-profile" = {
-    exec = ''
-      cmake -DENABLE_PROFILING=ON -G Ninja -S . -B build \
-      && cmake --build build --target Game \
-      && ./build/game run assets -- testBenchmark
-    '';
-  };
-
-  scripts."game-debug" = {
-    exec = ''
-      ${pkgs.gf}/bin/gf2 --args ./build/Game assets ./build/assets.sqlite3
-    '';
-  };
-
-  scripts."game-tidy" = {
-    exec = ''
-      cmake -DENABLE_CLANG_TIDY=ON -G Ninja -S . -B build && cmake --build build --target Game
-    '';
-  };
-
-  scripts."game-include-cleaner" = {
-    exec = ''
-      cmake -G Ninja -S . -B build > /dev/null 2>&1
-      EXTRA_ARGS=()
-      while IFS= read -r dir; do
-        [ -n "$dir" ] && EXTRA_ARGS+=(--extra-arg="-isystem$dir")
-      done < build/implicit_include_dirs.txt
-      for f in src/*.cc; do
-        clang-include-cleaner --print=changes --disable-insert -p build "''${EXTRA_ARGS[@]}" "$f" 2>/dev/null
-      done
-    '';
-  };
-
-  scripts."game-sanitize" = {
-    exec = ''
-      cmake -DENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug -G Ninja -S . -B build && cmake --build build --target Game
-    '';
-  };
-
-  # CPU sampling profiler.  Builds a RelWithDebInfo binary in build-profile/
-  # (separate from the default Debug build so it doesn't stomp on it), runs
-  # testBenchmark under samply with --clean so asset packing is included in
-  # the capture, and opens the result in Firefox Profiler.
-  # Pass a duration in seconds as $1 (default 10).
-  #
-  # RelWithDebInfo is required: the Debug build uses -O1 -fno-inline, which
-  # makes trivial accessors (FVec ctor, FixedArray::Push, operator[]) show
-  # up as fake hotspots and buries the real ones.
-  scripts."game-samply" = {
-    exec = ''
-      DURATION=''${1:-10}
-      cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -G Ninja -S . -B build-profile \
-        && cmake --build build-profile --target Game || exit 1
-      echo "Recording for ''${DURATION}s — running testBenchmark --clean (RelWithDebInfo)…"
-      samply record --save-only --unstable-presymbolicate -o build-profile/samply.json.gz -- \
-        timeout --signal=INT --kill-after=3 "''${DURATION}" ./build-profile/game run assets -- testBenchmark || true
-      echo "Opening capture in Firefox Profiler…"
-      samply load build-profile/samply.json.gz
-    '';
-  };
+  # Each script is a thin wrapper that execs the corresponding file under
+  # scripts/. Keeping the bodies out of devenv.nix means editing a script
+  # doesn't force a full shell re-evaluation.
+  scripts."game-build".exec            = ''exec "$DEVENV_ROOT/scripts/game-build.sh" "$@"'';
+  scripts."game-run".exec              = ''exec "$DEVENV_ROOT/scripts/game-run.sh" "$@"'';
+  scripts."game-clean".exec            = ''exec "$DEVENV_ROOT/scripts/game-clean.sh" "$@"'';
+  scripts."game-test".exec             = ''exec "$DEVENV_ROOT/scripts/game-test.sh" "$@"'';
+  scripts."game-open-db".exec          = ''exec "$DEVENV_ROOT/scripts/game-open-db.sh" "$@"'';
+  scripts."game-reset-db".exec         = ''exec "$DEVENV_ROOT/scripts/game-reset-db.sh" "$@"'';
+  scripts."game-format".exec           = ''exec "$DEVENV_ROOT/scripts/game-format.sh" "$@"'';
+  scripts."game-profile".exec          = ''exec "$DEVENV_ROOT/scripts/game-profile.sh" "$@"'';
+  scripts."game-debug".exec            = ''exec "$DEVENV_ROOT/scripts/game-debug.sh" "$@"'';
+  scripts."game-tidy".exec             = ''exec "$DEVENV_ROOT/scripts/game-tidy.sh" "$@"'';
+  scripts."game-include-cleaner".exec  = ''exec "$DEVENV_ROOT/scripts/game-include-cleaner.sh" "$@"'';
+  scripts."game-sanitize".exec         = ''exec "$DEVENV_ROOT/scripts/game-sanitize.sh" "$@"'';
+  scripts."game-samply".exec           = ''exec "$DEVENV_ROOT/scripts/game-samply.sh" "$@"'';
 
   git-hooks.hooks = {
     clang-format.enable = true;
