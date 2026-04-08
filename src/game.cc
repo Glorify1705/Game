@@ -2,11 +2,8 @@
 
 #include <SDL3/SDL.h>
 
-#include <array>
-#include <atomic>
 #include <cstdint>
 #include <cstring>
-#include <mutex>
 #include <string_view>
 
 #include "allocators.h"
@@ -17,8 +14,8 @@
 #include "config.h"
 #include "console.h"
 #include "executor.h"
-#include "file_watcher.h"
 #include "filesystem.h"
+#include "hot_reload.h"
 #include "input.h"
 #include "libraries/stb_image_write.h"
 #include "logging.h"
@@ -58,52 +55,6 @@
 namespace G {
 
 constexpr size_t kEngineMemory = Gigabytes(4);
-constexpr size_t kHotReloadMemory = Megabytes(128);
-
-namespace {
-
-// Audio file extensions checked during hot-reload to decide whether
-// sound.StopAll() is necessary.
-constexpr std::array<std::string_view, 3> kAudioExtensions = {
-    ".qoa",
-    ".ogg",
-    ".wav",
-};
-
-// Script file extensions checked during hot-reload to decide whether
-// lua.LoadMain() + lua.Init() must re-run.
-constexpr std::array<std::string_view, 2> kScriptExtensions = {
-    ".lua",
-    ".fnl",
-};
-
-bool HasAudioExtension(const char* path) {
-  std::string_view sv(path);
-  for (auto ext : kAudioExtensions) {
-    if (HasSuffix(sv, ext)) return true;
-  }
-  return false;
-}
-
-bool HasScriptExtension(const char* path) {
-  std::string_view sv(path);
-  for (auto ext : kScriptExtensions) {
-    if (HasSuffix(sv, ext)) return true;
-  }
-  return false;
-}
-
-}  // namespace
-
-// Describes what kinds of assets changed during a hot-reload cycle.
-struct HotReloadChanges {
-  bool has_script_changes = false;
-  bool has_audio_changes = false;
-  uint32_t file_count = 0;
-  // First few changed file paths for logging.
-  static constexpr uint32_t kMaxLogFiles = 8;
-  const char* files[kMaxLogFiles] = {};
-};
 
 struct EngineModules {
   EngineModules(Slice<const char*> args, sqlite3* db, DbAssets* db_assets,
@@ -113,7 +64,6 @@ struct EngineModules {
       : console(allocator),
         db(db),
         assets(db_assets),
-        source_directory(source_directory),
         config(&config),
         filesystem(allocator),
         window(sdl_window),
@@ -133,94 +83,9 @@ struct EngineModules {
         frame_allocator(allocator, Megabytes(128)),
         pool(allocator, ThreadPoolExecutor::NumDefaultThreads()),
         allocator_(allocator),
-        hotload_allocator_(allocator, kHotReloadMemory),
-        watcher_(allocator) {
-    pending_changes_.store(0);
-  }
+        hot_reload(source_directory, db, &pool, allocator) {}
 
   ~EngineModules() = default;
-
-  static bool StaticCheckChangedFiles(void* ctx) {
-    auto* e = static_cast<EngineModules*>(ctx);
-    e->CheckChangedFiles();
-    return true;
-  }
-
-  void CheckChangedFiles() {
-    SetCurrentThreadName("file-watcher");
-    LOG("Background file watcher started");
-    auto is_stopped = [this] {
-      LockMutex l(mu);
-      return stopped;
-    };
-    while (!is_stopped()) {
-      if (source_directory == nullptr) {
-        SleepMs(100);
-        continue;
-      }
-
-      watcher_.CheckForEvents();
-      auto changes = watcher_.DrainChanges();
-
-      bool should_process = false;
-      if (changes.needs_full_rescan) {
-        LOG("[hotload] Full rescan requested");
-        should_process = true;
-      } else if (changes.count > 0) {
-        for (uint32_t i = 0; i < changes.count; ++i) {
-          LOG("[hotload] File changed: ", changes.paths[i]);
-        }
-        should_process = true;
-      }
-
-      if (should_process) {
-        hotload_allocator_.Reset();
-        auto result =
-            WriteAssetsToDb(source_directory, db, &hotload_allocator_, &pool);
-        if (result.is_error()) {
-          LOG("[hotload] WriteAssetsToDb failed: ", result.error().message());
-          SleepMs(50);
-          continue;
-        }
-        size_t written = result.release_value().written_files;
-        LOG("[hotload] WriteAssetsToDb wrote ", written, " file(s)");
-        if (written > 0) {
-          LockMutex l(mu);
-          pending_reload_.file_count = changes.count;
-          pending_reload_.has_script_changes = false;
-          pending_reload_.has_audio_changes = false;
-          if (changes.needs_full_rescan) {
-            pending_reload_.has_script_changes = true;
-            pending_reload_.has_audio_changes = true;
-          } else {
-            for (uint32_t i = 0; i < changes.count; ++i) {
-              if (HasScriptExtension(changes.paths[i])) {
-                pending_reload_.has_script_changes = true;
-              }
-              if (HasAudioExtension(changes.paths[i])) {
-                pending_reload_.has_audio_changes = true;
-              }
-            }
-          }
-          pending_changes_.store(static_cast<int>(written));
-        }
-      }
-
-      // Sleep longer when idle (no events), shorter when active.
-      SleepMs(changes.count > 0 ? 10 : 50);
-    }
-  }
-
-  int PendingChanges() { return pending_changes_.load(); }
-
-  // Get the description of pending changes and reset the atomic flag.
-  HotReloadChanges ConsumePendingChanges() {
-    LockMutex l(mu);
-    HotReloadChanges result = pending_reload_;
-    pending_reload_ = {};
-    pending_changes_.store(0);
-    return result;
-  }
 
   void Initialize() {
     TIMER();
@@ -268,14 +133,8 @@ struct EngineModules {
     }
     lua.LoadMain();
     lua.FlushCompilationCache();
-    if (source_directory != nullptr) {
-      watcher_.Watch(source_directory);
-    }
     pool.Start();
-    watcher_task_.fn = StaticCheckChangedFiles;
-    watcher_task_.userdata = this;
-    watcher_task_.cleanup = nullptr;
-    pool.Submit(&watcher_task_);
+    hot_reload.Start();
   }
 
   void RegisterLoaders() {
@@ -343,10 +202,7 @@ struct EngineModules {
   }
 
   void Deinitialize() {
-    {
-      LockMutex l(mu);
-      stopped = true;
-    }
+    hot_reload.Stop();
     pool.Shutdown();
   }
 
@@ -427,12 +283,9 @@ struct EngineModules {
     ForwardEventToLua(event);
   }
 
-  std::mutex mu;
   DebugConsole console;
   sqlite3* db;
-  bool stopped = false;
   DbAssets* assets;
-  const char* const source_directory;
   const GameConfig* config = nullptr;
   Filesystem filesystem;
   SDL_Window* window;
@@ -453,11 +306,7 @@ struct EngineModules {
   ArenaAllocator frame_allocator;
   ThreadPoolExecutor pool;
   Allocator* allocator_;
-  ArenaAllocator hotload_allocator_;
-  FileWatcher watcher_;
-  std::atomic<int> pending_changes_{0};
-  HotReloadChanges pending_reload_;
-  Task watcher_task_;
+  HotReloadManager hot_reload;
 };
 
 class Game {
@@ -535,10 +384,10 @@ class Game {
         e_->lua.Stop();
         return;
       }
-      if (e_->PendingChanges()) {
+      if (e_->hot_reload.PendingChanges()) {
         PROFILE_SCOPE_N("HotReload");
         TIMER("Hotload requested");
-        auto changes = e_->ConsumePendingChanges();
+        auto changes = e_->hot_reload.ConsumePendingChanges();
         e_->lua.ClearError();
         e_->Reload(changes);
         if (changes.has_script_changes) {
