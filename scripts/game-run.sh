@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# game-run: Build and launch the engine via the `Run` CMake target.
+# game-run: Build the engine and launch it against the example assets.
 #
-# The `Run` target is defined in CMakeLists.txt and invokes the built
-# binary against the example assets with hot-reload enabled.
+# Configures `build/`, builds the `Game` target, then invokes the
+# resulting CLI directly: `./build/game run assets`. Previously this
+# went through a custom CMake `Run` target, but the CLI now exposes
+# the same workflow (with hot-reload), so the indirection is no
+# longer needed.
 #
 # Arguments: none.
 set -euo pipefail
 cmake -G Ninja -S . -B build
-cmake --build build --target Run
+cmake --build build --target Game
+./build/game run assets
