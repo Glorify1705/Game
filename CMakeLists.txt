@@ -127,6 +127,7 @@ set(ENGINE_SRCS
     "src/profiler.cc"
     "src/qoa.cc"
     "src/renderer.cc"
+    "src/sdl_init.cc"
     "src/shaders.cc"
     "src/sound.cc"
     "src/stats.cc"
