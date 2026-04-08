@@ -68,6 +68,12 @@ tags: [index]
 | [Test input system](Test%20input%20system.md) | testing, input | Synthetic input injection for automated testing |
 | [WebAssembly and cross-platform portability](WebAssembly%20and%20cross-platform%20portability.md) | wasm, portability | Emscripten/WASM support with main loop refactoring |
 
+## Parking Lot
+
+| Document | Tags | Summary |
+|----------|------|---------|
+| [Potential features](Potential%20features.md) | parking-lot, ideas | Features discussed but deferred until a real use case justifies them |
+
 ## Prioritized Roadmap
 
 Based on the [Engine comparison](Engine%20comparison.md) (six reference engines:
@@ -93,12 +99,12 @@ closes gaps cheaply and adds polish.
 
 The biggest remaining gaps from the engine comparison.
 
-| Feature | Rationale |
-|---------|-----------|
-| [Save and persistence](Save%20and%20persistence.md) | Namespaced SQLite KV store for save data, settings, and achievements. Carimbo is the only comparison engine with built-in achievements; libGDX's `Preferences` is the closest equivalent KV API. Shipping any non-trivial game requires this. |
-| [Test input system](Test%20input%20system.md) | Automated testing of game logic via synthetic input injection. Promoted from P4 — Raylib's input automation events and libGDX's `HeadlessApplication` together make automated testability the strongest cross-engine signal in the comparison. Pairs naturally with our existing CI story. |
-| Math utilities | Lerp (especially framerate-independent), distance, angle, direction, noise. Used in virtually every game script. libGDX's `Interpolation` and Carimbo's `Vec2` sol2 binding are the references. |
-| Text layout | Word wrap and alignment (L/C/R). Required for dialogue, UI, menus. Love2D's `printf` with alignment and libGDX's `GlyphLayout` + `Label.setWrap` are the models. |
+| Feature                                             | Rationale                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Save and persistence](Save%20and%20persistence.md) | Namespaced SQLite KV store for save data, settings, and achievements. Carimbo is the only comparison engine with built-in achievements; libGDX's `Preferences` is the closest equivalent KV API. Shipping any non-trivial game requires this.                                              |
+| [Test input system](Test%20input%20system.md)       | Automated testing of game logic via synthetic input injection. Promoted from P4 — Raylib's input automation events and libGDX's `HeadlessApplication` together make automated testability the strongest cross-engine signal in the comparison. Pairs naturally with our existing CI story. |
+| Math utilities                                      | Lerp (especially framerate-independent), distance, angle, direction, noise. Used in virtually every game script. libGDX's `Interpolation` and Carimbo's `Vec2` sol2 binding are the references.                                                                                            |
+| Text layout                                         | Word wrap and alignment (L/C/R). Required for dialogue, UI, menus. Love2D's `printf` with alignment and libGDX's `GlyphLayout` + `Label.setWrap` are the models.                                                                                                                           |
 
 ### P2 — Strengthen differentiators
 
