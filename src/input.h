@@ -42,9 +42,9 @@ class Keyboard {
 
   bool IsReleased(const PressConditions& p) const {
     if (previous_pressed_[p.code] && !pressed_[p.code]) {
-      return true;
+      return !p.mods || (previous_mods_ & p.mods);
     }
-    return !(mods_ & p.mods);
+    return false;
   }
 
   bool IsPressed(const PressConditions& p) const {
