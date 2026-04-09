@@ -35,6 +35,7 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
   const char* source_directory = ".";
   bool hotreload = true;
   bool clean = false;
+  bool test_mode = false;
   Slice<const char*> game_args;
 
   // Parse arguments: game run [dir] [--flags] [-- game-args...]
@@ -48,6 +49,9 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
       hotreload = false;
     } else if (arg == "--clean") {
       clean = true;
+    } else if (arg == "--test") {
+      test_mode = true;
+      hotreload = false;
     } else if (arg[0] != '-') {
       source_directory = args[i];
     }
@@ -104,11 +108,11 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
   GameOptions opts;
   opts.source_directory = source_directory;
   opts.hotreload = hotreload;
+  opts.test_mode = test_mode;
   opts.args = game_args;
   opts.all_args = args;
 
-  RunGame(opts, db);
-  return 0;
+  return RunGame(opts, db);
 }
 
 int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
@@ -151,8 +155,7 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
   opts.args = game_args;
   opts.all_args = args;
 
-  RunGame(opts, db);
-  return 0;
+  return RunGame(opts, db);
 }
 
 bool PackagedGameExists(const char* argv0) {

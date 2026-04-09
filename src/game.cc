@@ -33,6 +33,7 @@
 #include "lua_random.h"
 #include "lua_sound.h"
 #include "lua_system.h"
+#include "lua_test.h"
 #include "lua_timer.h"
 #include "mimalloc_allocator.h"
 #include "packer.h"
@@ -119,6 +120,7 @@ struct EngineModules {
     AddSystemLibrary(&lua);
     AddAssetsLibrary(&lua);
     AddCollisionLibrary(&lua);
+    AddTestLibrary(&lua);
     AddTimerLibrary(&lua);
     lua.BuildCompilationCache();
     RegisterLoaders();
@@ -369,8 +371,16 @@ class Game {
                                         /*audio_buffer_samples=*/8192,
                                         sdl_.window, allocator_,
                                         opts_.source_directory);
+    if (opts_.test_mode) {
+      e_->keyboard.SetTestMode(true);
+      e_->mouse.SetTestMode(true);
+      e_->controllers.SetTestMode(true);
+    }
     e_->Initialize();
     e_->lua.Init();
+    if (opts_.test_mode) {
+      e_->lua.StartTestCoroutine();
+    }
   }
 
   void Run() {
@@ -441,14 +451,26 @@ class Game {
           }
         }
       }
+      if (opts_.test_mode) {
+        e_->lua.ResumeTestCoroutine();
+      }
       {
         PROFILE_SCOPE_N("Update");
-        while (accum >= kStep) {
+        if (opts_.test_mode) {
+          // In test mode, run exactly one Update per frame for determinism.
           const double scaled_dt = kStep * e_->lua.TimeScale();
           Update(t, real_t, scaled_dt, kStep);
           t += scaled_dt;
           real_t += kStep;
-          accum -= kStep;
+          accum = 0;
+        } else {
+          while (accum >= kStep) {
+            const double scaled_dt = kStep * e_->lua.TimeScale();
+            Update(t, real_t, scaled_dt, kStep);
+            t += scaled_dt;
+            real_t += kStep;
+            accum -= kStep;
+          }
         }
       }
       e_->batch_renderer.SetFrameTime(static_cast<float>(t));
@@ -541,6 +563,8 @@ class Game {
     }
   }
 
+  int TestExitCode() const { return e_->lua.TestExitCode(); }
+
  private:
   void TakeScreenshotToClipboard() {
     const char* write_dir = PHYSFS_getWriteDir();
@@ -602,7 +626,7 @@ class Game {
   Stats stats_;
 };
 
-void RunGame(const GameOptions& opts, sqlite3* db) {
+int RunGame(const GameOptions& opts, sqlite3* db) {
   // Heap-allocated and never freed: the MimallocAllocator inside Game registers
   // an arena via mi_manage_os_memory_ex with no unregister API, so the backing
   // memory must outlive mimalloc's mi_process_done arena purge at process exit.
@@ -615,7 +639,9 @@ void RunGame(const GameOptions& opts, sqlite3* db) {
   auto* g = allocator->New<Game>(opts, db, allocator);
   g->Init();
   g->Run();
+  int exit_code = opts.test_mode ? g->TestExitCode() : 0;
   allocator->Destroy(g);
+  return exit_code;
 }
 
 int Main(int argc, const char* argv[]) {

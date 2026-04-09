@@ -246,6 +246,22 @@ class Lua {
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }
 
+  // Looks up `_Game.test_inputs`, creates a Lua coroutine bound to it, and
+  // anchors it in the registry so it isn't collected. No-op if `test_inputs`
+  // is missing or not a function. Must be called after `Init()`.
+  void StartTestCoroutine();
+
+  // Resumes the test coroutine for one step. Sets stopped_ + test_exit_code_
+  // when the coroutine finishes (0 on success, 1 on error). No-op if no
+  // coroutine is active.
+  void ResumeTestCoroutine();
+
+  // True if a test coroutine has been started and has not yet finished.
+  bool TestCoroutineActive() const { return test_co_ != nullptr; }
+
+  // Exit code reported when the test coroutine ends. 0 = success, 1 = error.
+  int TestExitCode() const { return test_exit_code_; }
+
   Allocator* allocator() const { return allocator_; }
 
   // Checks whether there is a permanent error.
@@ -318,6 +334,7 @@ class Lua {
   friend void AddCollisionLibrary(Lua* lua);
   friend void AddCameraLibrary(Lua* lua);
   friend void AddTimerLibrary(Lua* lua);
+  friend void AddTestLibrary(Lua* lua);
 
  private:
   int LoadLuaAsset(std::string_view filename, std::string_view script_contents,
@@ -415,6 +432,12 @@ class Lua {
   float time_scale_ = 1.0f;
 
   bool hotload_requested_ = false;
+
+  lua_State* test_co_ = nullptr;
+  int test_co_ref_ = LUA_NOREF;
+  int test_exit_code_ = 0;
+  int test_co_wait_frames_ = 0;
+  bool test_co_first_resume_ = true;
 };
 
 }  // namespace G

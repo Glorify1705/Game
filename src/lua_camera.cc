@@ -205,7 +205,8 @@ const struct LuaApiFunction kCameraLib[] = {
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       FVec2 mouse = Mouse::GetPosition();
+       auto* mouse_input = Registry<Mouse>::Retrieve(state);
+       FVec2 mouse = mouse_input->GetPosition();
        IVec2 vp = renderer->viewport();
        FVec2 world = camera->ToWorld(mouse, FVec2(vp.x, vp.y));
        lua_pushnumber(state, world.x);

@@ -16,6 +16,7 @@
 #include "lua_random.h"
 #include "lua_sound.h"
 #include "lua_system.h"
+#include "lua_test.h"
 #include "mimalloc_allocator.h"
 #include "platform.h"
 #include "units.h"
@@ -57,6 +58,7 @@ int CmdStubs(Slice<const char*> args, Allocator* allocator) {
   AddSoundLibrary(&lua);
   AddSystemLibrary(&lua);
   AddAssetsLibrary(&lua);
+  AddTestLibrary(&lua);
   lua.GenerateLuaLSStubs(output);
   printf("Wrote LuaLS stubs to %s\n", output);
   return 0;
