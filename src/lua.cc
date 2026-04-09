@@ -1173,22 +1173,30 @@ void Lua::StartTestCoroutine() {
     Stop();
     return;
   }
-  // Stack: _Game, test_inputs
+  // Create a new coroutine and anchor it in the registry so it survives GC,
+  // then seed its stack with `test_inputs` and `_Game` (which becomes the
+  // implicit `self` argument on the first resume). lua_xmove transfers
+  // values between threads owned by the same Lua state.
+  //
+  // Stack at this point: _Game, test_inputs
   test_co_ = lua_newthread(state_);
   // Stack: _Game, test_inputs, thread
   test_co_ref_ = luaL_ref(state_, LUA_REGISTRYINDEX);
   // Stack: _Game, test_inputs
-  // Move test_inputs and _Game (self) to the new thread.
-  lua_xmove(state_, test_co_, 1);  // moves test_inputs
-  // Stack here: _Game
+  lua_xmove(state_, test_co_, 1);
+  // Stack: _Game
   lua_pushvalue(state_, -1);
-  lua_xmove(state_, test_co_, 1);  // moves _Game (self)
-  lua_pop(state_, 1);              // pop original _Game
+  lua_xmove(state_, test_co_, 1);
+  lua_pop(state_, 1);
   // test_co_ stack now: test_inputs, self
 }
 
 void Lua::ResumeTestCoroutine() {
   if (test_co_ == nullptr) return;
+  // If anything in the engine has errored since the last resume (a script
+  // failed to load, hot-reload blew up, etc.), the coroutine can no longer
+  // make progress. Tear it down, mark the test as failed, and ask the engine
+  // to stop so RunGame returns the failure exit code.
   if (!error_.empty()) {
     test_exit_code_ = 1;
     luaL_unref(state_, LUA_REGISTRYINDEX, test_co_ref_);

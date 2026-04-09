@@ -433,10 +433,20 @@ class Lua {
 
   bool hotload_requested_ = false;
 
+  // Coroutine running _Game.test_inputs in test mode. nullptr when test
+  // mode is disabled or after the coroutine has finished or errored.
   lua_State* test_co_ = nullptr;
+  // Registry reference that keeps test_co_ alive across GC cycles. Released
+  // (back to LUA_NOREF) when the coroutine finishes.
   int test_co_ref_ = LUA_NOREF;
+  // Exit code reported by RunGame when --test is used: 0 on coroutine
+  // success, 1 if it errored or the engine quit before it finished.
   int test_exit_code_ = 0;
+  // Frames remaining before the next ResumeTestCoroutine actually resumes.
+  // Set from the value passed to lua_yield (e.g. by G.test.wait_frames).
   int test_co_wait_frames_ = 0;
+  // True until the first lua_resume call. The first resume passes `self`
+  // (the _Game module) as an argument; subsequent resumes pass none.
   bool test_co_first_resume_ = true;
 };
 

@@ -145,11 +145,9 @@ const struct LuaApiFunction kTestLib[] = {
       {"msg?", "optional failure message", "string"}},
      {},
      [](lua_State* state) {
-       if (!lua_toboolean(state, 1)) {
-         const char* msg = luaL_optstring(state, 2, "test assertion failed");
-         return luaL_error(state, "%s", msg);
-       }
-       return 0;
+       if (lua_toboolean(state, 1)) return 0;
+       const char* msg = luaL_optstring(state, 2, "test assertion failed");
+       return luaL_error(state, "%s", msg);
      }},
 };
 
