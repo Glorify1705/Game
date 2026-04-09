@@ -15,6 +15,7 @@
 ---@field system G.system
 ---@field clock G.clock
 ---@field assets G.assets
+---@field test G.test
 G = {}
 
 ---@class G.data
@@ -194,11 +195,11 @@ function G.graphics.print(text, x, y) end
 
 ---Writes text to the screen.
 ---@param font string Font name to use for writing text
----@param text string A string or byte buffer with the contents to render to the screen
 ---@param size integer Size in pixels to use for rendering the text
+---@param text string A string or byte buffer with the contents to render to the screen
 ---@param x number Horizontal position in screen space pixels left-to-right where to render the text
 ---@param y number Vertical position in screen space pixels top-to-bottom where to render the text
-function G.graphics.draw_text(font, text, size, x, y) end
+function G.graphics.draw_text(font, size, text, x, y) end
 
 ---Returns the dimensions for a text rendered with a given font and size
 ---@param font string Font name to use for writing text
@@ -519,23 +520,29 @@ G.physics = {}
 ---@param by number bottom-right y
 ---@param angle number rotation in radians
 ---@param callback function collision callback function
+---@param options table optional table: density, friction, restitution, sensor, category, mask
 ---@return physics_handle handle a physics handle for the new body
-function G.physics.add_box(tx, ty, bx, by, angle, callback) end
+function G.physics.add_box(tx, ty, bx, by, angle, callback, options) end
 
 ---Adds a dynamic circle body to the physics world
 ---@param tx number center x
 ---@param ty number center y
 ---@param radius number the circle radius
 ---@param callback function collision callback function
+---@param options table optional table: density, friction, restitution, sensor, category, mask
 ---@return physics_handle handle a physics handle for the new body
-function G.physics.add_circle(tx, ty, radius, callback) end
+function G.physics.add_circle(tx, ty, radius, callback, options) end
 
 ---Destroys a physics body
 ---@param handle physics_handle the physics handle to destroy
 function G.physics.destroy_handle(handle) end
 
----Creates a static ground body. If walls is false, no screen boundary edges are created.
----@param walls? boolean if true (default), add edge walls around the screen perimeter
+---Registers named collision categories for string-based filtering
+---@param categories table array of category name strings (max 16)
+function G.physics.set_collision_categories(categories) end
+
+---Creates a static ground body
+---@param walls boolean if true, add edge walls around the screen (default true)
 function G.physics.create_ground(walls) end
 
 ---Sets a global callback invoked when two bodies begin contact
@@ -547,6 +554,12 @@ function G.physics.set_collision_callback(callback) end
 ---@return number x x position
 ---@return number y y position
 function G.physics.position(handle) end
+
+---Teleports a physics body to a new position
+---@param handle physics_handle the physics handle
+---@param x number new x position
+---@param y number new y position
+function G.physics.set_position(handle, x, y) end
 
 ---Returns the rotation angle of a physics body in radians
 ---@param handle physics_handle the physics handle
@@ -574,6 +587,58 @@ function G.physics.apply_force(handle, x, y) end
 ---@param handle physics_handle the physics handle
 ---@param torque number the torque value
 function G.physics.apply_torque(handle, torque) end
+
+---Returns the linear velocity of a physics body in pixels/s
+---@param handle physics_handle the physics handle
+---@return number vx x velocity
+---@return number vy y velocity
+function G.physics.linear_velocity(handle) end
+
+---Sets the linear velocity of a physics body in pixels/s
+---@param handle physics_handle the physics handle
+---@param vx number x velocity
+---@param vy number y velocity
+function G.physics.set_linear_velocity(handle, vx, vy) end
+
+---Returns the angular velocity of a physics body in rad/s
+---@param handle physics_handle the physics handle
+---@return number omega angular velocity
+function G.physics.angular_velocity(handle) end
+
+---Sets the angular velocity of a physics body in rad/s
+---@param handle physics_handle the physics handle
+---@param omega number angular velocity
+function G.physics.set_angular_velocity(handle, omega) end
+
+---Sets the linear damping (drag) of a physics body
+---@param handle physics_handle the physics handle
+---@param damping number damping coefficient (>= 0)
+function G.physics.set_linear_damping(handle, damping) end
+
+---Sets the angular damping (rotational drag) of a physics body
+---@param handle physics_handle the physics handle
+---@param damping number damping coefficient (>= 0)
+function G.physics.set_angular_damping(handle, damping) end
+
+---Scales the effect of world gravity on a physics body
+---@param handle physics_handle the physics handle
+---@param scale number gravity multiplier (0 = none, 1 = normal)
+function G.physics.set_gravity_scale(handle, scale) end
+
+---Enables continuous collision detection (CCD) for a fast-moving body
+---@param handle physics_handle the physics handle
+---@param bullet boolean true to enable CCD
+function G.physics.set_bullet(handle, bullet) end
+
+---Prevents or allows a physics body from rotating
+---@param handle physics_handle the physics handle
+---@param fixed boolean true to lock rotation
+function G.physics.set_fixed_rotation(handle, fixed) end
+
+---Returns whether a physics body has fixed rotation
+---@param handle physics_handle the physics handle
+---@return boolean fixed true if rotation is locked
+function G.physics.get_fixed_rotation(handle) end
 
 ---@class G.random
 G.random = {}
@@ -752,6 +817,65 @@ function G.assets.list_images() end
 ---Returns a list with all sprites
 ---@return table result A list with width, height, x, y position and spritesheet name of all sprites.
 function G.assets.list_sprites() end
+
+---@class G.test
+G.test = {}
+
+---Injects a key-down event for the named key.
+---@param key string the key name
+function G.test.key_down(key) end
+
+---Injects a key-up event for the named key.
+---@param key string the key name
+function G.test.key_up(key) end
+
+---Injects a mouse-button-down event. Buttons: 0=left, 1=middle, 2=right.
+---@param button number mouse button index
+function G.test.mouse_down(button) end
+
+---Injects a mouse-button-up event.
+---@param button number mouse button index
+function G.test.mouse_up(button) end
+
+---Sets the synthetic mouse position.
+---@param x number x coordinate
+---@param y number y coordinate
+function G.test.mouse_move(x, y) end
+
+---Adds to the synthetic mouse wheel delta for this frame.
+---@param dx number horizontal scroll
+---@param dy number vertical scroll
+function G.test.mouse_wheel(dx, dy) end
+
+---Injects a controller button-down event by name.
+---@param button string the controller button name
+function G.test.controller_down(button) end
+
+---Injects a controller button-up event by name.
+---@param button string the controller button name
+function G.test.controller_up(button) end
+
+---Sets a synthetic controller axis or trigger value.
+---@param axis string the axis or trigger name
+---@param value number the axis position
+function G.test.controller_axis(axis, value) end
+
+---Yields the test coroutine for the given number of frames.
+---@param n number number of frames to wait
+function G.test.wait_frames(n) end
+
+---Yields the test coroutine until the given number of seconds has elapsed (rounded up to whole frames).
+---@param seconds number duration to wait
+function G.test.wait_seconds(seconds) end
+
+---Returns true if the engine is running under --test (a test coroutine is driving input).
+---@return boolean active whether test mode is active
+function G.test.is_active() end
+
+---Errors out the test coroutine if the condition is false.
+---@param cond boolean condition
+---@param msg? string optional failure message
+function G.test.assert_true(cond, msg?) end
 
 ---A binary data buffer
 ---@class byte_buffer

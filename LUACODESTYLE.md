@@ -395,12 +395,12 @@ local w, h = G.window.dimensions()
 G.window.set_title("My Game")
 
 -- Physics
-local handle = G.physics.new_body(world, "dynamic", x, y)
+local handle = G.physics.add_circle(x, y, radius, userdata)
 G.physics.apply_force(handle, fx, fy)
 
 -- Sound
 G.sound.play_effect("explosion")
-G.sound.play_music("theme")
+G.sound.play("theme")
 
 -- Collision
 local world = G.collision.new_world(cell_size)
