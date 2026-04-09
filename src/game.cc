@@ -388,6 +388,7 @@ class Game {
     Time last_frame = Now();
     constexpr double kStep = TimeStepInSeconds();
     double t = 0, real_t = 0, accum = 0;
+    bool first_update_done = false;
     for (;;) {
       if (e_->lua.Stopped()) return;
       if (e_->lua.HasError() && e_->keyboard.IsDown(SDL_SCANCODE_Q)) {
@@ -457,9 +458,12 @@ class Game {
       // Pause simulation while the window lacks keyboard focus. Rendering and
       // event polling continue so the window redraws and focus events are
       // still picked up. Test mode drives its own update cadence and is
-      // excluded.
-      const bool paused = !opts_.test_mode && (SDL_GetWindowFlags(sdl_.window) &
-                                               SDL_WINDOW_INPUT_FOCUS) == 0;
+      // excluded. The first update is never paused: games may legitimately
+      // start unfocused (launched from a terminal) and `draw` commonly
+      // depends on state that `update` must set at least once.
+      const bool paused =
+          !opts_.test_mode && first_update_done &&
+          (SDL_GetWindowFlags(sdl_.window) & SDL_WINDOW_INPUT_FOCUS) == 0;
       if (paused) accum = 0;
       {
         PROFILE_SCOPE_N("Update");
@@ -480,6 +484,7 @@ class Game {
           }
         }
       }
+      first_update_done = true;
       e_->batch_renderer.SetFrameTime(static_cast<float>(t));
       {
         PROFILE_SCOPE_N("Render");
