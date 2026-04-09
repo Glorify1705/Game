@@ -546,7 +546,7 @@ function G.physics.create_ground(walls) end
 
 ---Sets a global callback invoked when two bodies begin contact
 ---@param callback function function called with two collision callbacks
-function G.physics.set_collision_callback(callback) end
+function G.physics.on_begin_contact(callback) end
 
 ---Returns the position of a physics body
 ---@param handle physics_handle the physics handle

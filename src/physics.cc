@@ -180,8 +180,11 @@ Physics::Handle Physics::AddCircle(FVec2 position, double radius,
   def.position.Set(p.x, p.y);
   def.userData.pointer = userdata;
   b2CircleShape circle;
-  circle.m_p = def.position;
-  circle.m_radius = radius;
+  // m_p is the circle's center in body-local space; the body itself is
+  // already positioned at `def.position`, so the local offset is zero.
+  // Radius is in meters, but the Lua API takes pixels — convert.
+  circle.m_p = b2Vec2(0, 0);
+  circle.m_radius = static_cast<float>(radius) / pixels_per_meter_;
   b2Body* body = world_.CreateBody(&def);
   b2FixtureDef fixture;
   fixture.shape = &circle;

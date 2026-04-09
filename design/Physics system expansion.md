@@ -95,7 +95,7 @@ src/lua_physics.cc   207 lines   Lua bindings (11 functions)
 | `physics.add_circle(x, y, radius, cb)` | Create dynamic circle |
 | `physics.destroy_handle(h)` | Destroy body |
 | `physics.create_ground()` | Create static boundary walls |
-| `physics.set_collision_callback(fn)` | Global begin-contact callback |
+| `physics.on_begin_contact(fn)` | Global begin-contact callback |
 | `physics.position(h)` | Get position (x, y) |
 | `physics.angle(h)` | Get angle (radians) |
 | `physics.rotate(h, angle)` | Add rotation delta |
@@ -1046,7 +1046,7 @@ raycasts.
 ### What `games/space-garbage` currently uses
 
 The demo game exercises only the legacy `G.physics` surface: `add_box`,
-`create_ground`, `set_collision_callback`, plus `apply_force`,
+`create_ground`, `on_begin_contact`, plus `apply_force`,
 `apply_torque`, `apply_linear_impulse`, `rotate`, `position`, `angle`, and
 the velocity/damping helpers added during the test-input coroutine work.
 It uses four named categories (`player`, `meteor`, `bullet`, `powerup`) and

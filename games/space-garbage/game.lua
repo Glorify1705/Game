@@ -14,7 +14,7 @@ function Entities:new()
 end
 
 function Entities:on_collision(fn)
-	G.physics.set_collision_callback(fn)
+	G.physics.on_begin_contact(fn)
 end
 
 function Entities:add(entity)

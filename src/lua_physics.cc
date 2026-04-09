@@ -167,7 +167,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
        physics->CreateGround(walls);
        return 0;
      }},
-    {"set_collision_callback",
+    {"on_begin_contact",
      "Sets a global callback invoked when two bodies begin contact",
      {{"callback", "function called with two collision callbacks", "function"}},
      {},
@@ -187,6 +187,46 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* context = allocator->BraceInit<CollisionContext>(
            state, luaL_ref(state, LUA_REGISTRYINDEX), allocator);
        physics->SetBeginContactCallback(
+           [](uintptr_t lhs, uintptr_t rhs, void* userdata) {
+             auto* context = reinterpret_cast<CollisionContext*>(userdata);
+             lua_rawgeti(context->state, LUA_REGISTRYINDEX,
+                         context->func_index);
+             if (lhs != 0) {
+               lua_rawgeti(context->state, LUA_REGISTRYINDEX, lhs);
+             } else {
+               lua_pushnil(context->state);
+             }
+             if (rhs != 0) {
+               lua_rawgeti(context->state, LUA_REGISTRYINDEX, rhs);
+             } else {
+               lua_pushnil(context->state);
+             }
+             lua_call(context->state, 2, 0);
+           },
+           context);
+       return 0;
+     }},
+    {"on_end_contact",
+     "Sets a global callback invoked when two bodies stop touching. Fires "
+     "for sensor exits as well as regular contacts.",
+     {{"callback", "function called with the two userdata values", "function"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       if (lua_gettop(state) != 1) {
+         LUA_ERROR(state, "Must pass a function as end collision callback");
+         return 0;
+       }
+       struct CollisionContext {
+         lua_State* state;
+         int func_index;
+         Allocator* allocator;
+       };
+       lua_pushvalue(state, 1);
+       auto* allocator = Registry<Lua>::Retrieve(state)->allocator();
+       auto* context = allocator->BraceInit<CollisionContext>(
+           state, luaL_ref(state, LUA_REGISTRYINDEX), allocator);
+       physics->SetEndContactCallback(
            [](uintptr_t lhs, uintptr_t rhs, void* userdata) {
              auto* context = reinterpret_cast<CollisionContext*>(userdata);
              lua_rawgeti(context->state, LUA_REGISTRYINDEX,
