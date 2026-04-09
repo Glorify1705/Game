@@ -18,6 +18,7 @@ local player
 local sensors = {}
 local enter_count = 0
 local exit_count = 0
+local frame = 0
 local active_overlaps = 0
 local event_log = {}
 local MAX_LOG = 6
@@ -40,7 +41,10 @@ function Game:init()
 	G.window.set_title("Sensor Test")
 	local W, H = G.window.dimensions()
 
-	G.physics.create_ground(true)
+	-- No screen-edge walls: their userdata is 0 (-> nil in the callback)
+	-- and they would generate a constant stream of contact events whenever
+	-- the ship grazed them, drowning out the actual sensor traffic.
+	G.physics.create_ground(false)
 
 	-- Player: dynamic circle, no sensor. Userdata is a table so the
 	-- callback can identify it by `kind`.
@@ -50,6 +54,11 @@ function Game:init()
 		handle = G.physics.add_circle(W / 2, H / 2, SHIP_RADIUS, player_ud),
 	}
 	G.physics.set_linear_damping(player.handle, 6)
+	do
+		local px, py = G.physics.position(player.handle)
+		print(string.format("[testsensors] ship requested=%.0f,%.0f actual=%.1f,%.1f r=%d",
+			W / 2, H / 2, px, py, SHIP_RADIUS))
+	end
 
 	-- Three sensors at fixed positions. Sensors are dynamic bodies with
 	-- options.sensor=true; they skip the friction joint and don't push
@@ -71,6 +80,11 @@ function Game:init()
 	add_sensor("zone-A", W * 0.25, H * 0.35, 70, { 80, 200, 255 })
 	add_sensor("zone-B", W * 0.75, H * 0.35, 90, { 255, 180, 80 })
 	add_sensor("zone-C", W * 0.50, H * 0.75, 60, { 180, 255, 120 })
+	for _, s in ipairs(sensors) do
+		local px, py = G.physics.position(s.handle)
+		print(string.format("[testsensors] sensor %s requested=%.0f,%.0f actual=%.1f,%.1f r=%d",
+			s.name, s.x, s.y, px, py, s.r))
+	end
 
 	-- Lookup table from userdata identity to sensor entry, so we can
 	-- toggle the visual highlight on enter/exit.
@@ -80,27 +94,46 @@ function Game:init()
 	end
 
 	G.physics.set_collision_callback(function(a, b)
+		local msg = string.format("ENTER %s <-> %s (frame=%d)", describe(a), describe(b), frame)
+		print("[testsensors] " .. msg)
+		-- Defensive: ignore contacts where either side has no userdata
+		-- (e.g. ground/wall edges from create_ground).
+		if a == nil or b == nil then
+			return
+		end
 		enter_count = enter_count + 1
 		active_overlaps = active_overlaps + 1
 		local s = sensor_by_ud[a] or sensor_by_ud[b]
 		if s then
 			s.overlapping = true
 		end
-		log_event(string.format("ENTER %s <-> %s", describe(a), describe(b)))
+		log_event(msg)
 	end)
 
 	G.physics.set_end_collision_callback(function(a, b)
+		local msg = string.format("EXIT  %s <-> %s (frame=%d)", describe(a), describe(b), frame)
+		print("[testsensors] " .. msg)
+		if a == nil or b == nil then
+			return
+		end
 		exit_count = exit_count + 1
 		active_overlaps = math.max(0, active_overlaps - 1)
 		local s = sensor_by_ud[a] or sensor_by_ud[b]
 		if s then
 			s.overlapping = false
 		end
-		log_event(string.format("EXIT  %s <-> %s", describe(a), describe(b)))
+		log_event(msg)
 	end)
 end
 
 function Game:update(t, dt)
+	frame = frame + 1
+	if frame % 60 == 0 then
+		local px, py = G.physics.position(player.handle)
+		local vx, vy = G.physics.linear_velocity(player.handle)
+		print(string.format("[testsensors] frame=%d pos=%.1f,%.1f vel=%.2f,%.2f",
+			frame, px, py, vx, vy))
+	end
 	if G.input.is_key_pressed("q") then
 		G.system.quit()
 		return
