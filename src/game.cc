@@ -454,6 +454,13 @@ class Game {
       if (opts_.test_mode) {
         e_->lua.ResumeTestCoroutine();
       }
+      // Pause simulation while the window lacks keyboard focus. Rendering and
+      // event polling continue so the window redraws and focus events are
+      // still picked up. Test mode drives its own update cadence and is
+      // excluded.
+      const bool paused = !opts_.test_mode && (SDL_GetWindowFlags(sdl_.window) &
+                                               SDL_WINDOW_INPUT_FOCUS) == 0;
+      if (paused) accum = 0;
       {
         PROFILE_SCOPE_N("Update");
         if (opts_.test_mode) {

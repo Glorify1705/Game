@@ -354,6 +354,58 @@ const struct LuaApiFunction kPhysicsLib[] = {
        physics->SetAngularVelocity(*handle, omega);
        return 0;
      }},
+    {"set_linear_damping",
+     "Sets the linear damping (drag) of a physics body",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"damping", "damping coefficient (>= 0)", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float damping = luaL_checknumber(state, 2);
+       physics->SetLinearDamping(*handle, damping);
+       return 0;
+     }},
+    {"set_angular_damping",
+     "Sets the angular damping (rotational drag) of a physics body",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"damping", "damping coefficient (>= 0)", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float damping = luaL_checknumber(state, 2);
+       physics->SetAngularDamping(*handle, damping);
+       return 0;
+     }},
+    {"set_gravity_scale",
+     "Scales the effect of world gravity on a physics body",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"scale", "gravity multiplier (0 = none, 1 = normal)", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float scale = luaL_checknumber(state, 2);
+       physics->SetGravityScale(*handle, scale);
+       return 0;
+     }},
+    {"set_bullet",
+     "Enables continuous collision detection (CCD) for a fast-moving body",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"bullet", "true to enable CCD", "boolean"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const bool bullet = lua_toboolean(state, 2);
+       physics->SetBullet(*handle, bullet);
+       return 0;
+     }},
     {"set_fixed_rotation",
      "Prevents or allows a physics body from rotating",
      {{"handle", "the physics handle", "physics_handle"},
