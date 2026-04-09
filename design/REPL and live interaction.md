@@ -386,7 +386,7 @@ For a localhost-only dev tool, the simplest correct approach is best:
 
 3. **WebSocket handshake + framing** (~200 lines) — SHA-1 + base64 for the handshake, frame encode/decode for messages. Server-to-client frames are unmasked (per RFC 6455). Client-to-server frames are masked (browser requirement) — we XOR with the 4-byte mask.
 
-4. **JSON parsing** — Use the engine's existing `FixedStringBuffer` for building JSON responses. For parsing incoming JSON, a minimal recursive-descent parser (~200 lines) suffices for our restricted message format (flat objects with string/number/boolean values only). Alternatively, vendor a single-header JSON library.
+4. **JSON parsing** — Use the vendored yyjson library for both parsing incoming messages and building responses. yyjson is the engine's single JSON path (see [Switching to yyjson](Switching%20to%20yyjson.md)) and replaces the earlier handwritten parser in `src/json.cc`. The REPL uses the same arena-backed `yyjson_alc` adapter as the rest of the engine, so message parsing allocates from a per-request scratch arena that is reset between messages.
 
 Total: ~700–1000 lines of new code, zero external dependencies, complete control.
 
@@ -394,33 +394,33 @@ Total: ~700–1000 lines of new code, zero external dependencies, complete contr
 
 ### JSON parsing
 
-The engine already has a complete JSON parser in `src/json.h` / `src/json.cc`. It supports all JSON types (objects, arrays, strings, numbers, booleans, null), handles escape sequences including `\uXXXX` Unicode, and uses the engine's allocator interface:
+The engine vendors **yyjson** as its single JSON dependency (see
+[Switching to yyjson](Switching%20to%20yyjson.md) for the rationale and
+allocator wiring). The REPL parses and emits messages through the same
+path used by the asset packer, `G.filesystem.load_json`, and the save
+store.
+
+For incoming messages, the REPL uses an arena-backed `yyjson_alc` that is
+reset between requests:
 
 ```cpp
-ErrorOr<JsonValue*> ParseJson(std::string_view input, Allocator* allocator);
+ArenaAllocator request_arena(scratch_buf, sizeof(scratch_buf));
+yyjson_alc alc = MakeYyjsonAlc(&request_arena);
+
+yyjson_doc* doc = yyjson_read_opts(line.data(), line.size(),
+                                   YYJSON_READ_NOFLAG, &alc, nullptr);
+if (!doc) { /* send error response */ return; }
+yyjson_val* root = yyjson_doc_get_root(doc);
+int id = (int)yyjson_get_num(yyjson_obj_get(root, "id"));
+const char* op = yyjson_get_str(yyjson_obj_get(root, "op"));
+const char* code = yyjson_get_str(yyjson_obj_get(root, "code"));
+// No yyjson_doc_free needed — arena is reset wholesale.
 ```
 
-The parser returns `ErrorOr`, so malformed messages from clients are handled cleanly. String values are zero-copy (pointing into the input buffer) when no escape sequences are present. Object lookup is via `operator[]` which returns a null sentinel for missing keys — no crashes on unexpected messages. This is exactly what we need for parsing incoming NDJSON requests:
-
-```cpp
-auto result = ParseJson(line, allocator);
-if (result.is_error()) { /* send error response */ return; }
-const auto& msg = *result.value();
-int id = static_cast<int>(msg["id"].GetNumber());
-std::string_view op = msg["op"].GetString();
-std::string_view code = msg["code"].GetString();  // returns "" if missing
-```
-
-For building JSON responses, the engine's `FixedStringBuffer` is sufficient. REPL responses are simple flat objects:
-
-```cpp
-FixedStringBuffer<8192> buf;
-buf.Append("{\"id\":", request_id, ",\"type\":\"result\",\"ok\":true,\"value\":\"");
-buf.Append(EscapeJsonString(result));
-buf.Append("\"}\n");
-```
-
-A small `EscapeJsonString` helper (~30 lines) handles quoting `"`, `\`, newlines, and control characters in result values. No new dependencies needed.
+For outgoing responses, the REPL uses `yyjson_mut_doc_new(&alc)` against
+the same arena and writes the result with `yyjson_mut_write_opts`. No
+manual escape helper, no `FixedStringBuffer` JSON path — the library
+handles `\u` escapes, control characters, and number formatting correctly.
 
 ### Platform socket details
 

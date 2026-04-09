@@ -58,6 +58,7 @@ enumerate "all achievements" or "all save slots" cheaply.
 | Reuse vendored sqlite3 | No new library to vendor, link, or integrate with the allocator hierarchy |
 | Engine uses explicit allocators | Save DB must take an `Allocator*` and route through it, not touch system malloc |
 | Lua 5.1 scripting | API must map cleanly to a `luaL_Reg` table; values must be representable in Lua 5.1 (no bit64) |
+| One JSON path | Save serialization, `G.filesystem.load_json`, REPL message parsing, and asset packer all share one vendored library (yyjson) |
 | Hot reload friendly | Save state must survive Lua hot reload — handle lives in C++ |
 | No exceptions, no RTTI | Error handling via `ErrorOr` / `CHECK` |
 | Small in-memory footprint | Save DB rarely exceeds a few hundred KB even for large games |
@@ -147,45 +148,90 @@ G.save.flush()
 ### Value types
 
 The set/get functions accept and return any Lua value representable on the
-stack:
+stack. Tables are encoded as JSON; scalars are stored in a form that
+round-trips back to the same Lua type:
 
 | Lua type | Wire encoding | Notes |
 |---|---|---|
 | `nil` | Same as deleting the row | `set(ns, key, nil)` ≡ `delete(ns, key)` |
-| `boolean` | 1 byte | `0x00` false, `0x01` true |
-| `number` | 8 bytes | IEEE 754 double, little-endian |
-| `string` | length-prefixed bytes | Binary safe |
-| `table` | Recursive encoding | Arrays and maps; keys must be strings or numbers |
+| `boolean` | JSON `true` / `false` | |
+| `number` | JSON number | IEEE 754 double, same as Lua 5.1's only number type |
+| `string` | JSON string | UTF-8 only; not binary safe (use `set_bytes` for raw bytes) |
+| `table` | JSON object or array | Keys must be strings or contiguous integer indices |
 
-The serialization format is an engine-internal binary format (we control both
-ends; no need for MessagePack). The only hard requirements are:
+Tables are encoded with the engine's vendored JSON library (see
+[Switching to yyjson](Switching%20to%20yyjson.md)). The same library handles
+`G.filesystem.load_json` / `save_json` and the asset packer's Aseprite
+import, so there is exactly one JSON path in the codebase.
+
+**Hard requirements:**
 
 - **Round-trip fidelity**: `get(set(x))` returns `x` for any supported type.
-- **Versioned header**: a one-byte format tag at the start of each blob so
-  future format changes can migrate forward.
+  Booleans stay booleans, numbers stay numbers, tables come back with the
+  same shape.
 - **Cycle rejection**: setting a table that contains itself is a `CHECK`
-  failure, not silent infinite recursion.
+  failure, not silent infinite recursion. yyjson's writer detects cycles
+  for us.
 
 Functions, userdata, threads, and metatables are explicitly not serializable
 and produce a `CHECK` failure at `set` time. This matches Lua's own
 expectations around persistence.
 
-### Why a built-in serializer
+#### Raw bytes escape hatch
 
-We could accept only strings and leave serialization to Lua code (letting
-games bring their own `bitser`, `binser`, or JSON library). We do not, for two
-reasons:
+JSON strings are not binary-safe — embedded NULs and non-UTF-8 sequences
+break the encoding. Games that need to store raw bytes (a screenshot
+thumbnail, a packed struct, a network message) use a separate API:
 
-1. **Uniformity**. If every game invents its own save format, the save files
-   can't be inspected by engine tooling (`game save dump`, `game save diff`).
-2. **The common case is scalars**. Achievements, settings, high scores,
-   unlock flags, and statistics are all booleans, integers, or short strings.
-   Requiring users to call `serialize(true)` → `"true"` → `G.save.set(...)` is
-   boilerplate for the 90% case.
+```lua
+G.save.set_bytes("save", "thumbnail", screenshot_bytes)
+local bytes = G.save.get_bytes("save", "thumbnail")  -- byte_buffer or nil
+```
 
-Games that want a foreign format (e.g. to share save files with a web
-version) can serialize to a string themselves and call `G.save.set(ns, key,
-serialized_string)`.
+`set_bytes` / `get_bytes` write the blob column directly with no encoding
+wrapper, so the value is opaque to the JSON path. The blob is tagged with a
+single leading byte (`0x00` for "JSON-encoded value", `0x01` for "raw bytes")
+so a `get` against a `set_bytes` row returns an error rather than trying to
+parse binary as JSON.
+
+### Why JSON
+
+The earlier draft of this doc proposed an engine-internal binary serializer
+(~200 lines). Folding that work into the existing JSON dependency is a
+better trade for several reasons:
+
+1. **One serialization format in the engine, not two.** The asset packer
+   already needs JSON for Aseprite spritesheets, and `G.filesystem.load_json`
+   / `save_json` are already declared (just unimplemented). Adding a custom
+   binary format would mean shipping, testing, and documenting two
+   serializers when one suffices.
+2. **Inspectable saves for free.** `game save dump` becomes a
+   one-liner: read the blob, print as JSON. No custom decoder, no hex view,
+   no format-tag parsing. `game save diff` between two save files becomes
+   feasible without writing engine-side tooling.
+3. **No migration story to invent.** A custom format needs a versioned
+   header and forward-migration logic. JSON is self-describing — schema
+   changes are handled in game code where they belong.
+4. **Web export compatibility.** A game that ships both desktop and web
+   builds gets save-file portability for free. Browser JS can read the
+   exact same blob with `JSON.parse`.
+5. **The common case stays cheap.** Scalars (achievements, settings,
+   booleans) encode to a handful of bytes either way. JSON's overhead
+   compared to a packed binary format only matters for large nested tables,
+   and the design explicitly says large saves are out of scope.
+
+What we give up by choosing JSON:
+
+- **Binary-safe strings.** Mitigated by the `set_bytes` / `get_bytes`
+  escape hatch above.
+- **Numeric table keys other than 1..N.** JSON object keys are strings.
+  Sparse integer-keyed tables would have to stringify their keys; in
+  practice the only common case (sequential arrays) maps to JSON arrays
+  and works as expected.
+- **Float bit-exactness.** yyjson uses round-trip-safe float formatting
+  (same as the printf `%.17g` family), so `get(set(x)) == x` holds for
+  finite doubles. NaN and infinities are not representable in JSON and
+  produce a `CHECK` failure at `set` time.
 
 ## Platform save directory
 
@@ -386,8 +432,8 @@ Scope control matters. These are explicitly out of scope:
 - **Schema migration** — the engine does not understand game save schemas
   and cannot migrate them. If a game changes its save format between
   versions, the game's Lua code must read the old format, transform it, and
-  write the new format. The built-in serializer's version tag helps with
-  this on the engine side only.
+  write the new format. JSON's self-describing nature makes this easier
+  than a binary format would have, but it's still game-side work.
 - **Multi-process locking** — SQLite handles intra-process concurrency via
   WAL. If two instances of the game run simultaneously (e.g. user launches
   the game twice), SQLite's file locking will serialize their writes but we
@@ -430,14 +476,23 @@ in generated type stubs with parameter names and docs.
 Lua tests in `assets/test_save.lua`, exercised by the existing Lua test
 harness.
 
-### Step 4: Serializer
+### Step 4: Lua ↔ JSON glue
 
-The Lua ↔ blob serializer lives in `src/lua_save.cc` (or a private helper
-file). It's a small amount of code — under 200 lines — since we only need
-5 types and controlled recursion. No external library.
+The encode and decode helpers live in `src/lua_save.cc` (or a private
+helper file shared with `lua_filesystem.cc`'s `load_json`/`save_json`). The
+encoder walks a Lua table and emits yyjson nodes; the decoder walks a
+yyjson document and pushes Lua values. Both routes use the engine's arena
+allocator via `yyjson_alc` — see
+[Switching to yyjson](Switching%20to%20yyjson.md) for the wiring details.
+
+This step depends on yyjson being vendored first. If the yyjson migration
+is not yet done, this step blocks until it is — there is intentionally no
+fallback to a hand-written serializer.
 
 Tests: every supported type round-trips; every unsupported type (function,
-userdata, thread, cyclic table) fails with a clear error message.
+userdata, thread, cyclic table) fails with a clear error message;
+`set_bytes` / `get_bytes` round-trip raw binary; mixing `set` and
+`set_bytes` on the same key returns the right error.
 
 ### Step 5: CLI `save` subcommand
 
@@ -498,5 +553,6 @@ gives new users a copy-paste example.
 - [SQLite WITHOUT ROWID](https://www.sqlite.org/withoutrowid.html)
 - [SQLite WAL mode](https://www.sqlite.org/wal.html)
 - [Memory allocators for third-party libraries](Memory%20allocators%20for%20third-party%20libraries.md) — existing memsys5 setup we reuse
+- [Switching to yyjson](Switching%20to%20yyjson.md) — the JSON library that powers save serialization
 - [Single-file packaging](Single-file%20packaging.md) — why save data lives outside the packaged binary
 - [Engine comparison](Engine%20comparison.md) — section 14 (Save / Persistence / Achievements)
