@@ -39,3 +39,4 @@ ignore*
 .gdb_history
 .obsidian
 worktrees/
+workbench
