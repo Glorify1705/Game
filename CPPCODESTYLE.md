@@ -212,9 +212,10 @@ Naming follows Google style with some refinements observed in this codebase.
 
 ### Namespaces
 
-- **Namespace names:** Short, often single letter for the project root —
-  `G`. Internal implementation namespaces use `internal_` prefix —
-  `internal_strings`, `internal_dictionary`.
+- **Namespace names:** All engine code lives in the single project namespace
+  `G`. Avoid adding any other named namespace — see the Namespaces section.
+  The rare internal header namespace uses the `internal_` prefix
+  (`internal_strings`).
 
 ### Macros
 
@@ -345,8 +346,12 @@ independently useful, split them.
 
 ## Namespaces
 
-All game engine code lives in `namespace G`. Do not add nested namespaces for
-organizational purposes — a flat structure inside `G` is fine.
+All game engine code lives in `namespace G`. **Avoid adding any other named
+namespace.** A flat structure inside `G` is strongly preferred: no nested
+namespaces for organizational grouping, no `detail` / `impl` sub-namespaces
+for header internals, no per-subsystem wrappers. If you feel the urge to add
+one, reach for a different tool first — name-prefix the symbols, put them in
+an anonymous namespace in a `.cc`, or make them private members of a class.
 
 ```cpp
 namespace G {
@@ -354,17 +359,14 @@ namespace G {
 }  // namespace G
 ```
 
-Use `namespace internal_foo` (named with `internal_` prefix) for
-implementation details that need to be in a header but should not be called by
-user code:
+The only acceptable exceptions are:
 
-```cpp
-namespace G {
-namespace internal_strings {
-// Implementation details for string library.
-}  // namespace internal_strings
-}  // namespace G
-```
+- `namespace {}` (anonymous) in `.cc` files for file-local helpers — see
+  below.
+- `namespace internal_foo` (with the `internal_` prefix) **only** when a
+  header genuinely must expose implementation details that callers must not
+  touch, and hiding them any other way is impractical. Prefer not to need
+  this.
 
 Use anonymous namespaces in `.cc` files for file-local helpers.
 **Never** use `static` for file-local functions — always use an anonymous
@@ -610,8 +612,6 @@ as they do not introduce implicit heap allocations.
 - **`constexpr` if/else** — compute values at compile time wherever possible.
 - **Class template argument deduction (CTAD)** — when it makes code clearer:
   `ArrayView(ptr, size)` instead of `ArrayView<T>(ptr, size)`.
-- **Nested namespaces** — `namespace G::internal_foo { }` is cleaner than
-  nesting.
 - **`std::optional`** — stack-only, no allocation. Fine for return types.
 
 ### Avoid
