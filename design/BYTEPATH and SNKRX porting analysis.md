@@ -123,7 +123,7 @@ Legend for **Status**:
 | Love2D call | Used by | Our equivalent | Status | Notes |
 |---|---|---|---|---|
 | `isDown`, `keypressed`, `keyreleased` | Both | `G.input.is_key_down`, `is_key_pressed` | OK | |
-| `textinput` (for name entry) | BYTEPATH | — | Gap | Text input for save slot names. Effort: S (SDL_TEXTINPUT passthrough). |
+| `textinput` (for name entry) | BYTEPATH | `_Game:textinput(input)` callback | OK | Engine dispatches `SDL_EVENT_TEXT_INPUT` to the game module's `textinput` method. |
 | Mouse position, buttons, wheel | Both | `G.input.mouse_position`, `mouse_wheel`, `is_mouse_pressed` | OK | |
 | `love.mouse.setCursor`, `newCursor` | SNKRX | — | **Gap** | SNKRX swaps cursor to a custom crosshair. Depends on `ImageData` gap. Effort: S once ImageData exists. |
 | `love.mouse.setVisible` | Both | — | Gap (nice) | Effort: S. |
@@ -194,6 +194,8 @@ out to already exist in the engine (or shipped in a follow-up PR):
 - **Engine-side pause on focus loss** — the main loop now zeroes the
   fixed-step accumulator when the window lacks keyboard focus, so games no
   longer need to early-return from `update()`.
+- **`textinput` event** — games already receive SDL text input via the
+  `_Game:textinput(input)` callback; no API work needed.
 
 ### Tier 2 — Critical, medium effort
 
@@ -213,7 +215,6 @@ out to already exist in the engine (or shipped in a follow-up PR):
 |---|---|---|
 | `ImageData` object + CPU texture upload | M | Needed for `setCursor` from image and procedural particle textures. Not critical — a static PNG cursor would also work. |
 | `setCursor` / `setVisible` | S | Depends on ImageData unless we accept a pre-baked cursor asset. |
-| `textinput` event | S | Name entry for saves. Fall back to hardcoded name if skipped. |
 | `love.math.noise` | S | Could be baked at asset-pipeline time. |
 | `createDirectory` | S | Trivial after save-dir work. |
 
@@ -240,7 +241,7 @@ Assuming we want to unblock *both* games in roughly the right order:
 4. **Rendering gap-fill**: polygon/arc/points primitives, stencil, `printf`,
    subtract blend mode. These are all independent and can land in any order;
    SNKRX's stencil work is the one that unlocks the most visible polish.
-5. **Input polish**: `textinput`, cursor set/hide.
+5. **Input polish**: cursor set/hide.
 6. **`ImageData` + procedural textures.** Lowest priority — neither game
    would *break* with static cursor assets.
 
