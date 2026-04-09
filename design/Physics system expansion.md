@@ -995,6 +995,149 @@ The auto-friction-joint behavior for `add_box`/`add_circle` is preserved
 regardless of mode. New bodies created via `new_body` get auto-friction-joints
 only when `physics.set_mode("topdown")` is active.
 
+## Game-driven requirements
+
+The original sections of this document argued for the physics expansion from
+first principles and from engine-survey parity. This section grounds the plan
+in *actual* games we care about supporting: the two a327ex titles analysed in
+[[BYTEPATH and SNKRX porting analysis]] and the in-tree demo game
+`games/space-garbage`. Where the first-principles plan and the game-driven
+requirements disagree, the game-driven requirements should win — we'd rather
+ship the joints SNKRX needs than the joints that round out a feature matrix.
+
+### What BYTEPATH demands
+
+BYTEPATH uses Windfield, which is a thin Box2D wrapper with named collision
+classes. Its physics surface is narrow:
+
+- Dynamic bodies only, with circular and rectangular shapes.
+- Per-body linear/angular damping, fixed rotation, bullet flag.
+- `beginContact` and `endContact` on sensors (aggro zones around enemies).
+- `distance` and `rope` joints for tethered attacks and chained projectiles.
+- Raycast against the world for target-finding.
+- Per-fixture collision categories (hitboxes vs hurtboxes on the same body).
+
+Every one of these is already in the proposed Phase 1/2 API. BYTEPATH does
+**not** need kinematic bodies, wheel joints, prismatic joints, or pre-/post-
+solve callbacks. If scheduling forces us to cut scope, those four can slide
+to a later phase without blocking BYTEPATH.
+
+### What SNKRX demands
+
+SNKRX is the more physics-intensive of the two and defines the minimum bar
+for a "real" physics expansion:
+
+- **Revolute joints** are load-bearing: the player snake is a chain of
+  circular bodies connected by revolute joints with soft limits. Without
+  revolute joints we cannot port SNKRX at all.
+- **Polygon and chain shapes** for arena walls and obstacles.
+- **Sensors with begin- and end-contact callbacks.** Enemies flip state
+  when entering/leaving sensor rings; missing `endContact` leaves them
+  stuck.
+- **Per-fixture filters.** Each link in the snake has different collision
+  rules from its neighbours.
+- **Linear/angular damping tuning** per-body for the chain's trailing feel.
+- **`setBullet`** on fast projectiles to prevent tunnelling.
+
+SNKRX does not use pre-/post-solve callbacks, mouse joints, wheel joints,
+gear joints, friction joints, or the motor joint. It does not need world
+raycasts.
+
+### What `games/space-garbage` currently uses
+
+The demo game exercises only the legacy `G.physics` surface: `add_box`,
+`create_ground`, `set_collision_callback`, plus `apply_force`,
+`apply_torque`, `apply_linear_impulse`, `rotate`, `position`, `angle`, and
+the velocity/damping helpers added during the test-input coroutine work.
+It uses four named categories (`player`, `meteor`, `bullet`, `powerup`) and
+a single begin-contact callback.
+
+Notable quirks:
+
+- Every entity is a box, including the triangular player ship and the
+  (visually) round meteors. Collisions are noticeably loose on the ship's
+  nose and on meteors at glancing angles.
+- The powerup entity does **not** use physics at all. It manually distance-
+  checks against the player in `Powerup:check_pickup`. A sensor fixture
+  would eliminate the bespoke check and let powerups be queried via the
+  normal contact callback.
+- Meteors drift through `apply_force` every frame because the world has
+  zero gravity and because `set_linear_velocity` landed only recently.
+- The player calls `apply_torque` for steering even though a kinematic-
+  style `set_angular_velocity` would be a better fit for the tight arcade
+  handling.
+- All physics happens on an 8000×6000 toroidal world that Lua wraps
+  manually. Box2D itself is blissfully unaware of the wrapping.
+
+### What space-garbage would improve with the expanded API
+
+Concrete improvements unlocked by Phase 1/2 of this document:
+
+1. **Polygon ship hull.** Replace the player's bounding box with a 5–8
+   vertex convex polygon matching the sprite silhouette. Meteors can stay
+   as circles (via `new_circle`) for better glancing-collision behaviour.
+   Estimated code change: ~20 lines in `player.lua` and `meteor.lua`.
+2. **Sensor-based powerups.** Give each powerup a circular sensor fixture
+   and react via the collision callback. Deletes
+   `Powerup:check_pickup` and the per-frame sweep in `G1:update`.
+3. **Material properties per shape.** The ship should be heavier than
+   bullets, meteors should have higher restitution than the ship, and the
+   ground should have proper friction rather than the current
+   auto-friction-joint hack.
+4. **`endContact` on bullet sensors.** Bullets currently self-destruct on
+   begin-contact. With `endContact` we could implement piercing powerups
+   (bullet lingers until it leaves the target volume) cleanly.
+5. **`set_bullet(true)` on bullets.** Space-garbage bullets travel fast
+   enough that tunnelling is a latent bug; flagging them as Box2D bullets
+   fixes it with no Lua code change.
+6. **Damping on drifting meteors** instead of per-frame `apply_force`. This
+   both matches Box2D idioms and lets `set_linear_velocity` work without
+   being immediately overwritten.
+7. **Raycast for the aim line.** The player currently draws a dotted aim
+   line of fixed length. A physics raycast to the nearest meteor along
+   that ray would let us snap the line to real targets and draw a tiny
+   reticle at the hit point.
+8. **Compound player body.** If we want the wing guns to have their own
+   hitboxes (e.g. for a future shield shape that only covers the front),
+   a single body with multiple fixtures is the right shape.
+
+None of these are blockers — space-garbage ships today — but they serve as
+validation targets: after Phase 1/2 lands, we should port space-garbage to
+the new API as a regression test for both ergonomics and behaviour.
+
+### Phase re-prioritisation
+
+Cross-referencing the three games above against the original Phase 1–4
+plan suggests a small re-ordering:
+
+- **Phase 1 stays as-is** (body/shape split, material properties,
+  polygon/edge/chain, damping/mass, world config). All three games need
+  this; nothing can ship without it.
+- **Phase 2 should lead with `endContact`, sensors, revolute joints, and
+  per-fixture filters** — the SNKRX minimum. Distance and rope joints
+  follow for BYTEPATH. Weld, prismatic, wheel, gear, friction, and motor
+  joints can move later in Phase 2 or into a Phase 2.5; they are needed
+  for the Siege/Wheelie test games but not for any real game we're
+  tracking.
+- **Phase 3** (raycast, world queries, pre-/post-solve, contact filtering
+  callbacks) keeps raycast at the top because BYTEPATH and space-garbage
+  both want it. Pre-/post-solve remains low priority — neither real game
+  uses them.
+- **Phase 4** (debug draw) is unchanged in importance but becomes *more*
+  valuable now that real games will be stressing the system: porting
+  space-garbage to the new API is much safer with debug rendering of
+  polygon hulls.
+
+### Test game status
+
+The originally proposed "Siege" and "Wheelie" test games remain useful
+because together they exercise every joint type, every body type, and both
+callback paths. However, **porting `games/space-garbage` to the new API is
+now the primary Phase 1/2 acceptance test**, because it is real game code
+we already ship, already exercise, and already have bugs in. Siege and
+Wheelie become Phase 2/3 exercises — valuable for coverage but no longer
+the first thing we build.
+
 ## Test games
 
 ### Test game 1: Angry Birds clone ("Siege")
