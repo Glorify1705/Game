@@ -518,17 +518,15 @@ class DbPacker {
     yyjson_arr_foreach(sprites, idx, max, sprite) {
       sprite_count++;
 
-      yyjson_val* name_val = yyjson_obj_get(sprite, "name");
-      const char* name_data = yyjson_get_str(name_val);
-      const size_t name_size = yyjson_get_len(name_val);
-      sprite_name_length += name_size;
+      std::string_view name = YyjsonStrView(yyjson_obj_get(sprite, "name"));
+      sprite_name_length += name.size();
 
       const uint32_t x = yyjson_get_int(yyjson_obj_get(sprite, "x"));
       const uint32_t y = yyjson_get_int(yyjson_obj_get(sprite, "y"));
       const uint32_t w = yyjson_get_int(yyjson_obj_get(sprite, "width"));
       const uint32_t h = yyjson_get_int(yyjson_obj_get(sprite, "height"));
 
-      sqlite3_bind_text(stmt, 1, name_data, name_size, SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 1, name.data(), name.size(), SQLITE_TRANSIENT);
       sqlite3_bind_text(stmt, 2, filename.data(), filename.size(),
                         SQLITE_STATIC);
       sqlite3_bind_int(stmt, 3, x);
@@ -536,16 +534,13 @@ class DbPacker {
       sqlite3_bind_int(stmt, 5, w);
       sqlite3_bind_int(stmt, 6, h);
       if (sqlite3_step(stmt) != SQLITE_DONE) {
-        DIE("Could not insert data for ",
-            std::string_view(name_data, name_size), " in ", filename, ": ",
+        DIE("Could not insert data for ", name, " in ", filename, ": ",
             sqlite3_errmsg(db_));
       }
       sqlite3_reset(stmt);
       sqlite3_clear_bindings(stmt);
     }
-    yyjson_val* atlas_val = yyjson_obj_get(root, "atlas");
-    std::string_view atlas(yyjson_get_str(atlas_val),
-                           yyjson_get_len(atlas_val));
+    std::string_view atlas = YyjsonStrView(yyjson_obj_get(root, "atlas"));
     const int64_t width = yyjson_get_int(yyjson_obj_get(root, "width"));
     const int64_t height = yyjson_get_int(yyjson_obj_get(root, "height"));
     InsertSpritesheetEntry(filename, width, height, sprite_count,

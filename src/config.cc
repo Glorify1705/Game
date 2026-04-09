@@ -43,7 +43,7 @@ void LoadConfig(std::string_view json_configuration, GameConfig* config,
   yyjson_obj_iter iter = yyjson_obj_iter_with(root);
   while ((key = yyjson_obj_iter_next(&iter)) != nullptr) {
     value = yyjson_obj_iter_get_val(key);
-    std::string_view k(yyjson_get_str(key), yyjson_get_len(key));
+    std::string_view k = YyjsonStrView(key);
     if (k == "width") {
       config->window_width = yyjson_get_int(value);
     } else if (k == "height") {
@@ -61,18 +61,17 @@ void LoadConfig(std::string_view json_configuration, GameConfig* config,
     } else if (k == "enable_debug_rendering") {
       config->enable_debug_rendering = yyjson_get_bool(value);
     } else if (k == "title") {
-      CopyString(std::string_view(yyjson_get_str(value), yyjson_get_len(value)),
-                 config->window_title, sizeof(config->window_title));
+      CopyString(YyjsonStrView(value), config->window_title,
+                 sizeof(config->window_title));
     } else if (k == "org_name") {
-      CopyString(std::string_view(yyjson_get_str(value), yyjson_get_len(value)),
-                 config->org_name, sizeof(config->org_name));
+      CopyString(YyjsonStrView(value), config->org_name,
+                 sizeof(config->org_name));
     } else if (k == "app_name") {
-      CopyString(std::string_view(yyjson_get_str(value), yyjson_get_len(value)),
-                 config->app_name, sizeof(config->app_name));
+      CopyString(YyjsonStrView(value), config->app_name,
+                 sizeof(config->app_name));
     } else if (k == "version") {
       char ver[32];
-      CopyString(std::string_view(yyjson_get_str(value), yyjson_get_len(value)),
-                 ver, sizeof(ver));
+      CopyString(YyjsonStrView(value), ver, sizeof(ver));
       ParseVersionFromString(ver, config);
     }
   }
