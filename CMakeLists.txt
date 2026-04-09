@@ -91,6 +91,7 @@ set(VENDORED_SRCS
     "libraries/stb_truetype.cc"
     "libraries/stb_image_write.cc"
     "libraries/stb_vorbis.cc"
+    "libraries/yyjson.c"
     "libraries/backward.cc")
 
 set(ENGINE_SRCS
@@ -138,7 +139,6 @@ set(ENGINE_SRCS
     "src/timer.cc"
     "src/executor.cc"
     "src/transformations.cc"
-    "src/json.cc"
     "src/xml.cc"
     "src/packer.cc"
     "src/cmd_clean.cc"

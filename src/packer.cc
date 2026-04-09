@@ -9,11 +9,12 @@
 #include "defer.h"
 #include "filesystem.h"
 #include "image.h"
-#include "json.h"
+#include "json_alc.h"
 #include "libraries/dr_wav.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
 #include "libraries/stb_vorbis.h"
+#include "libraries/yyjson.h"
 #include "physfs.h"
 #include "qoa.h"
 #include "schema.sql.h"
@@ -487,11 +488,18 @@ class DbPacker {
 
   AssetInfo InsertSpritesheetJson(std::string_view filename, const uint8_t* buf,
                                   size_t size) {
-    std::string_view input(reinterpret_cast<const char*>(buf), size);
     ArenaAllocator scratch(allocator_, Megabytes(1));
-    JsonValue* json = MUST(ParseJson(input, &scratch));
-    CHECK(json->IsObject(),
-          "invalid spritesheet format, must return a json object");
+    yyjson_alc alc = MakeYyjsonAlc(&scratch);
+    yyjson_read_err err{};
+    yyjson_doc* doc =
+        yyjson_read_opts(reinterpret_cast<char*>(const_cast<uint8_t*>(buf)),
+                         size, YYJSON_READ_NOFLAG, &alc, &err);
+    CHECK(doc != nullptr, "Failed to parse spritesheet ", filename, ": ",
+          err.msg);
+    yyjson_val* root = yyjson_doc_get_root(doc);
+    CHECK(yyjson_is_obj(root),
+          "invalid spritesheet format, must be a json object");
+
     // Insert sprites.
     sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql(R"(
@@ -503,18 +511,24 @@ class DbPacker {
     DEFER([&] { sqlite3_finalize(stmt); });
 
     size_t sprite_count = 0, sprite_name_length = 0;
-    (*json)["sprites"].ForEachElement([&](const JsonValue& sprite) {
+    yyjson_val* sprites = yyjson_obj_get(root, "sprites");
+    CHECK(yyjson_is_arr(sprites), "spritesheet 'sprites' must be an array");
+    size_t idx, max;
+    yyjson_val* sprite;
+    yyjson_arr_foreach(sprites, idx, max, sprite) {
       sprite_count++;
 
-      std::string_view name = sprite["name"].GetString();
-      sprite_name_length += name.size();
+      yyjson_val* name_val = yyjson_obj_get(sprite, "name");
+      const char* name_data = yyjson_get_str(name_val);
+      const size_t name_size = yyjson_get_len(name_val);
+      sprite_name_length += name_size;
 
-      const uint32_t x = sprite["x"].GetLong();
-      const uint32_t y = sprite["y"].GetLong();
-      const uint32_t w = sprite["width"].GetLong();
-      const uint32_t h = sprite["height"].GetLong();
+      const uint32_t x = yyjson_get_int(yyjson_obj_get(sprite, "x"));
+      const uint32_t y = yyjson_get_int(yyjson_obj_get(sprite, "y"));
+      const uint32_t w = yyjson_get_int(yyjson_obj_get(sprite, "width"));
+      const uint32_t h = yyjson_get_int(yyjson_obj_get(sprite, "height"));
 
-      sqlite3_bind_text(stmt, 1, name.data(), name.size(), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 1, name_data, name_size, SQLITE_TRANSIENT);
       sqlite3_bind_text(stmt, 2, filename.data(), filename.size(),
                         SQLITE_STATIC);
       sqlite3_bind_int(stmt, 3, x);
@@ -522,15 +536,18 @@ class DbPacker {
       sqlite3_bind_int(stmt, 5, w);
       sqlite3_bind_int(stmt, 6, h);
       if (sqlite3_step(stmt) != SQLITE_DONE) {
-        DIE("Could not insert data for ", name, " in ", filename, ": ",
+        DIE("Could not insert data for ",
+            std::string_view(name_data, name_size), " in ", filename, ": ",
             sqlite3_errmsg(db_));
       }
       sqlite3_reset(stmt);
       sqlite3_clear_bindings(stmt);
-    });
-    std::string_view atlas = (*json)["atlas"].GetString();
-    const int64_t width = (*json)["width"].GetLong();
-    const int64_t height = (*json)["height"].GetLong();
+    }
+    yyjson_val* atlas_val = yyjson_obj_get(root, "atlas");
+    std::string_view atlas(yyjson_get_str(atlas_val),
+                           yyjson_get_len(atlas_val));
+    const int64_t width = yyjson_get_int(yyjson_obj_get(root, "width"));
+    const int64_t height = yyjson_get_int(yyjson_obj_get(root, "height"));
     InsertSpritesheetEntry(filename, width, height, sprite_count,
                            sprite_name_length, atlas);
     return {};
