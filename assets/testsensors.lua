@@ -93,7 +93,7 @@ function Game:init()
 		sensor_by_ud[s.ud] = s
 	end
 
-	G.physics.set_collision_callback(function(a, b)
+	G.physics.on_begin_contact(function(a, b)
 		local msg = string.format("ENTER %s <-> %s (frame=%d)", describe(a), describe(b), frame)
 		print("[testsensors] " .. msg)
 		-- Defensive: ignore contacts where either side has no userdata
@@ -110,7 +110,7 @@ function Game:init()
 		log_event(msg)
 	end)
 
-	G.physics.set_end_collision_callback(function(a, b)
+	G.physics.on_end_contact(function(a, b)
 		local msg = string.format("EXIT  %s <-> %s (frame=%d)", describe(a), describe(b), frame)
 		print("[testsensors] " .. msg)
 		if a == nil or b == nil then

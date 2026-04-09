@@ -96,7 +96,7 @@ Legend for **Status**:
 | `Body:setFixedRotation`, `setLinearDamping`, `setAngularDamping`, `setBullet`, `setGravityScale`, `setMass` | Both                                        | `set_fixed_rotation`, `set_linear_damping`, `set_angular_damping`, `set_bullet`, `set_gravity_scale` | OK (partial) | Only `setMass` missing (needs `b2MassData`).                                                                                                         |
 | `Fixture:setCategory`, `setMask`, `setGroupIndex`, `setSensor`                                              | Both (via Windfield `setCollisionClass`)    | named category registry, `options.sensor` on `add_box`/`add_circle` | OK (partial) | Sensors are wired through the `options` table on body creation; per-fixture filters are not (single-shape bodies only). `setGroupIndex` not exposed.  |
 | `newRevoluteJoint`, `newDistanceJoint`, `newWeldJoint`, `newRopeJoint`, `newMouseJoint`                     | SNKRX (revolute), BYTEPATH (distance, rope) | —                                                                | **Gap**      | Joints are the single largest missing area. Covered by physics expansion phases.                                                                     |
-| World callbacks (`beginContact`, `endContact`, `preSolve`, `postSolve`)                                     | Both                                        | `set_collision_callback` (begin), `set_end_collision_callback` (end) | OK (partial) | Begin and end contacts (including sensors) are exposed. `preSolve`/`postSolve` are still missing but skippable for these two games.                  |
+| World callbacks (`beginContact`, `endContact`, `preSolve`, `postSolve`)                                     | Both                                        | `on_begin_contact`, `on_end_contact` | OK (partial) | Begin and end contacts (including sensors) are exposed. `preSolve`/`postSolve` are still missing but skippable for these two games.                  |
 | `World:rayCast`, `queryBoundingBox`                                                                         | BYTEPATH (target-finding)                   | `G.collision.raycast` exists, but not against Box2D bodies       | Adapt        | The games use raycasts on the physics world, not on a separate collision system. Effort: S to expose Box2D's raycast.                                |
 
 ### love.audio / love.sound
@@ -206,9 +206,9 @@ out to already exist in the engine (or shipped in a follow-up PR):
   ..., mask = ... }`. Box2D fires `BeginContact`/`EndContact` for sensor
   overlaps, so no separate query API is needed. Used by SNKRX pickups and
   BYTEPATH aggro zones.
-- **`endContact` callback** — `G.physics.set_end_collision_callback(fn)`
+- **`endContact` callback** — `G.physics.on_end_contact(fn)`
   fires when two bodies (including sensors) stop touching. Required by
-  SNKRX for sensor exit. `set_collision_callback` continues to wire the
+  SNKRX for sensor exit. `on_begin_contact` continues to wire the
   begin-contact half.
 
 ### Tier 2 — Critical, medium effort

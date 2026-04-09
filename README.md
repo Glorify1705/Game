@@ -252,8 +252,8 @@ adding any dynamic bodies.
 -- Setup
 G.physics.create_ground([walls])           -- walls=true adds screen-edge fixtures
 G.physics.set_collision_categories({ "player", "enemy", ... })
-G.physics.set_collision_callback(function(a, b) ... end)         -- begin contact
-G.physics.set_end_collision_callback(function(a, b) ... end)     -- end contact / sensor exit
+G.physics.on_begin_contact(function(a, b) ... end)               -- begin contact
+G.physics.on_end_contact(function(a, b) ... end)                 -- end contact / sensor exit
 
 -- Bodies (options table is optional: density, friction, restitution,
 -- sensor, category, mask)

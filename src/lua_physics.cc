@@ -167,7 +167,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
        physics->CreateGround(walls);
        return 0;
      }},
-    {"set_collision_callback",
+    {"on_begin_contact",
      "Sets a global callback invoked when two bodies begin contact",
      {{"callback", "function called with two collision callbacks", "function"}},
      {},
@@ -206,7 +206,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
            context);
        return 0;
      }},
-    {"set_end_collision_callback",
+    {"on_end_contact",
      "Sets a global callback invoked when two bodies stop touching. Fires "
      "for sensor exits as well as regular contacts.",
      {{"callback", "function called with the two userdata values", "function"}},
