@@ -73,9 +73,9 @@ Legend for **Status**:
 | `setColor`, `setLineWidth`, `setLineStyle` | Both | `G.graphics.set_color` / `set_line_width` | OK | Line style ("smooth"/"rough") can be ignored for now. |
 | `rectangle`, `circle`, `polygon`, `line`, `arc`, `points` | Both | `draw_rect`, `draw_circle`, `draw_line` | Adapt | We lack `polygon` fill/outline, `arc`, and multi-point `points`. Effort: S for each primitive. BYTEPATH's skill tree and SNKRX UI both draw arcs. |
 | `push`, `pop`, `translate`, `rotate`, `scale`, `shear` | Both | `G.graphics.push/pop/translate/rotate/scale` | OK | `shear` is rare and skippable. |
-| `setScissor` | Both | — | **Gap** | SNKRX uses scissor for clipped UI panels. Effort: S (glScissor passthrough). |
+| `setScissor` | Both | `G.graphics.set_scissor` / `clear_scissor` | OK | Already implemented; batch renderer flushes on state change. |
 | `stencil`, `setStencilTest` | SNKRX (heavy) | — | **Gap** | SNKRX's damage flashes and arena masks rely on stencils. Effort: M (requires stencil buffer on FBO, stencil op state). |
-| `setBlendMode("add"/"alpha"/"multiply"/"subtract")` | Both | `G.graphics.set_blend_mode("add"/"alpha"/"premultiplied")` | Adapt | We're missing "multiply" and "subtract". Effort: S. |
+| `setBlendMode("add"/"alpha"/"multiply"/"subtract")` | Both | `G.graphics.set_blend_mode("add"/"alpha"/"multiply"/"replace"/"premultiplied")` | Adapt | Only "subtract" is missing; adding it requires threading `glBlendEquation` state through every mode (otherwise previous subtract sticks). Effort: S-M. |
 | `newImageData`, `ImageData:setPixel`, `newImage(imagedata)` | SNKRX | — | **Gap** | SNKRX synthesises a mouse cursor and a few particle textures at runtime. Effort: M (requires an `ImageData` Lua object + CPU-side texture upload). |
 | `setDefaultFilter`, `Image:setFilter` | Both | pixel filtering is global in our renderer | Adapt | Both games use nearest filter throughout; our default matches. |
 | `getWidth`, `getHeight`, `getDimensions` on images | Both | `G.assets.sprite_info` | OK | |
@@ -83,30 +83,30 @@ Legend for **Status**:
 
 ### love.physics
 
-| Love2D call | Used by | Our equivalent | Status | Notes |
-|---|---|---|---|---|
-| `newWorld(gx, gy, sleep)` | Both (via Windfield) | Fixed world, implicit zero-G with friction joints | Adapt | Covered by the existing [[Physics system expansion]] plan. |
-| `newBody("dynamic"/"static"/"kinematic")` | Both | `G.physics.add_box` / `add_circle` only | **Gap** | No kinematic, no arbitrary bodies. |
-| `newRectangleShape`, `newCircleShape` | Both | `add_box` / `add_circle` | OK (partial) | But material properties are hardcoded. |
-| `newPolygonShape` (convex ≤8 verts) | SNKRX | — | **Gap** | SNKRX uses convex polygons for arena walls. Effort: S once the body/shape split lands. |
-| `newChainShape`, `newEdgeShape` | SNKRX | — | **Gap** | SNKRX's arena borders are chain shapes. Effort: S. |
-| `Body:setLinearVelocity`, `getLinearVelocity`, `setAngularVelocity` | Both | `linear_velocity`, `set_linear_velocity`, `set_angular_velocity` | OK | (Shipped in the space-garbage work.) |
-| `Body:applyForce`, `applyLinearImpulse`, `applyTorque` | Both | `apply_force`, `apply_linear_impulse`, `apply_torque` | OK | |
-| `Body:setPosition`, `getPosition`, `getAngle` | Both | `set_position`, `position`, `angle` | OK | |
-| `Body:setFixedRotation`, `setLinearDamping`, `setAngularDamping`, `setBullet`, `setGravityScale`, `setMass` | Both | only `set_fixed_rotation` | **Gap** | SNKRX's chained snake needs damping tuning. Effort: S. |
-| `Fixture:setCategory`, `setMask`, `setGroupIndex`, `setSensor` | Both (via Windfield `setCollisionClass`) | named category registry; no sensor | Adapt/Gap | We have named categories; sensors are missing. Effort: M. |
-| `newRevoluteJoint`, `newDistanceJoint`, `newWeldJoint`, `newRopeJoint`, `newMouseJoint` | SNKRX (revolute), BYTEPATH (distance, rope) | — | **Gap** | Joints are the single largest missing area. Covered by physics expansion phases. |
-| World callbacks (`beginContact`, `endContact`, `preSolve`, `postSolve`) | Both | single `set_collision_callback` (begin only) | **Gap** | SNKRX needs `endContact` for sensor exit. `preSolve`/`postSolve` are skippable for these two games. Effort: S for `endContact`, M for pre/postSolve. |
-| `World:rayCast`, `queryBoundingBox` | BYTEPATH (target-finding) | `G.collision.raycast` exists, but not against Box2D bodies | Adapt | The games use raycasts on the physics world, not on a separate collision system. Effort: S to expose Box2D's raycast. |
+| Love2D call                                                                                                 | Used by                                     | Our equivalent                                                   | Status       | Notes                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `newWorld(gx, gy, sleep)`                                                                                   | Both (via Windfield)                        | Fixed world, implicit zero-G with friction joints                | Adapt        | Covered by the existing [[Physics system expansion]] plan.                                                                                           |
+| `newBody("dynamic"/"static"/"kinematic")`                                                                   | Both                                        | `G.physics.add_box` / `add_circle` only                          | **Gap**      | No kinematic, no arbitrary bodies.                                                                                                                   |
+| `newRectangleShape`, `newCircleShape`                                                                       | Both                                        | `add_box` / `add_circle`                                         | OK (partial) | But material properties are hardcoded.                                                                                                               |
+| `newPolygonShape` (convex ≤8 verts)                                                                         | SNKRX                                       | —                                                                | **Gap**      | SNKRX uses convex polygons for arena walls. Effort: S once the body/shape split lands.                                                               |
+| `newChainShape`, `newEdgeShape`                                                                             | SNKRX                                       | —                                                                | **Gap**      | SNKRX's arena borders are chain shapes. Effort: S.                                                                                                   |
+| `Body:setLinearVelocity`, `getLinearVelocity`, `setAngularVelocity`                                         | Both                                        | `linear_velocity`, `set_linear_velocity`, `set_angular_velocity` | OK           | (Shipped in the space-garbage work.)                                                                                                                 |
+| `Body:applyForce`, `applyLinearImpulse`, `applyTorque`                                                      | Both                                        | `apply_force`, `apply_linear_impulse`, `apply_torque`            | OK           |                                                                                                                                                      |
+| `Body:setPosition`, `getPosition`, `getAngle`                                                               | Both                                        | `set_position`, `position`, `angle`                              | OK           |                                                                                                                                                      |
+| `Body:setFixedRotation`, `setLinearDamping`, `setAngularDamping`, `setBullet`, `setGravityScale`, `setMass` | Both                                        | `set_fixed_rotation`, `set_linear_damping`, `set_angular_damping`, `set_bullet`, `set_gravity_scale` | OK (partial) | Only `setMass` missing (needs `b2MassData`).                                                                                                         |
+| `Fixture:setCategory`, `setMask`, `setGroupIndex`, `setSensor`                                              | Both (via Windfield `setCollisionClass`)    | named category registry; no sensor                               | Adapt/Gap    | We have named categories; sensors are missing. Effort: M.                                                                                            |
+| `newRevoluteJoint`, `newDistanceJoint`, `newWeldJoint`, `newRopeJoint`, `newMouseJoint`                     | SNKRX (revolute), BYTEPATH (distance, rope) | —                                                                | **Gap**      | Joints are the single largest missing area. Covered by physics expansion phases.                                                                     |
+| World callbacks (`beginContact`, `endContact`, `preSolve`, `postSolve`)                                     | Both                                        | single `set_collision_callback` (begin only)                     | **Gap**      | SNKRX needs `endContact` for sensor exit. `preSolve`/`postSolve` are skippable for these two games. Effort: S for `endContact`, M for pre/postSolve. |
+| `World:rayCast`, `queryBoundingBox`                                                                         | BYTEPATH (target-finding)                   | `G.collision.raycast` exists, but not against Box2D bodies       | Adapt        | The games use raycasts on the physics world, not on a separate collision system. Effort: S to expose Box2D's raycast.                                |
 
 ### love.audio / love.sound
 
 | Love2D call | Used by | Our equivalent | Status | Notes |
 |---|---|---|---|---|
 | `newSource(path, "stream"/"static")` | Both | `G.sound.add_source` | OK | |
-| `Source:play`, `stop`, `pause`, `setVolume`, `setPitch`, `setLooping` | Both | `G.sound.play_source`, `stop_source`, `set_volume`, `set_loop` | Adapt | Missing `pause`, `setPitch`. Effort: S. |
+| `Source:play`, `stop`, `pause`, `setVolume`, `setPitch`, `setLooping` | Both | `G.sound.play_source`, `stop_source`, `pause`, `resume`, `set_volume`, `set_pitch`, `set_loop` | OK | Full parity. |
 | `Source:setPosition`, `setAttenuation` (positional audio) | Not used in either game | — | Gap (nice) | Both games are 2D flat-mix, no positional audio. Skip. |
-| `love.audio.setVolume` (master) | Both | — | Gap | BYTEPATH has master volume sliders. Effort: S. |
+| `love.audio.setVolume` (master) | Both | `G.sound.set_global_volume` | OK | Already exposed. |
 | Ripple audio library (SNKRX) | SNKRX | — | Adapt | Ripple is a tag-based mixer on top of love.audio. SNKRX uses it for music ducking and tag-based volume. Would need to be reimplemented in Lua against our API. Not an engine change. |
 
 ### love.filesystem
@@ -170,14 +170,30 @@ into a separate design doc).
 
 | Gap | Effort | Justification |
 |---|---|---|
-| Scissor rect (`setScissor`) | S | SNKRX UI, BYTEPATH menus. Direct `glScissor` passthrough. |
 | `endContact` callback | S | SNKRX sensors leak without this; also a correctness bug we already want fixed. |
-| Blend modes: multiply, subtract | S | Both games use them for damage flashes and backgrounds. |
-| `Body:setLinearDamping` / `setAngularDamping` / `setGravityScale` / `setMass` | S | Tiny passthroughs; unblocks the snake chain in SNKRX and BYTEPATH ship handling. |
+| Blend mode: subtract | S-M | Less trivial than it looks — requires threading `glBlendEquation` state through every existing mode so previous subtract does not stick. |
+| `Body:setMass` | S | Only remaining body setter; requires `b2MassData` so slightly more than a passthrough. |
 | Polygon, chain, edge shapes | S (each) | Additive once the body/shape split from [[Physics system expansion]] Phase 1 lands. |
 | Raycast against physics world | S | Target-finding in BYTEPATH. We already have raycast in `G.collision`; this is an additional Box2D backend. |
-| `Source:pause`, `setPitch` | S | BYTEPATH ducks music on pause; SNKRX pitches SFX. |
-| Master audio volume | S | Options menu staple. |
+
+### Tier 1 — Already shipped
+
+The following were listed as gaps during the initial walkthrough but turned
+out to already exist in the engine (or shipped in a follow-up PR):
+
+- **Scissor rect** — `G.graphics.set_scissor` / `clear_scissor` have been in
+  the batch renderer since before this analysis.
+- **`Source:pause` / `resume` / `setPitch`** — all exposed as
+  `G.sound.pause`, `G.sound.resume`, `G.sound.set_pitch`.
+- **Master audio volume** — `G.sound.set_global_volume`.
+- **Blend mode `multiply`** — already present; the original analysis was
+  wrong.
+- **`Body:setLinearDamping` / `setAngularDamping` / `setGravityScale` /
+  `setBullet`** — shipped as `G.physics.set_linear_damping`,
+  `set_angular_damping`, `set_gravity_scale`, `set_bullet`.
+- **Engine-side pause on focus loss** — the main loop now zeroes the
+  fixed-step accumulator when the window lacks keyboard focus, so games no
+  longer need to early-return from `update()`.
 
 ### Tier 2 — Critical, medium effort
 
@@ -221,13 +237,11 @@ Assuming we want to unblock *both* games in roughly the right order:
    attacks.
 3. **Save persistence** (save dir + `filesystem.write`). Required for any
    real run of either game. Covered by [[Save and persistence]].
-4. **Rendering gap-fill**: scissor, polygon/arc/points primitives, stencil,
-   `printf`, remaining blend modes. These are all independent and can land
-   in any order; SNKRX's stencil work is the one that unlocks the most
-   visible polish.
-5. **Audio polish**: pause, pitch, master volume.
-6. **Input polish**: `textinput`, cursor set/hide.
-7. **`ImageData` + procedural textures.** Lowest priority — neither game
+4. **Rendering gap-fill**: polygon/arc/points primitives, stencil, `printf`,
+   subtract blend mode. These are all independent and can land in any order;
+   SNKRX's stencil work is the one that unlocks the most visible polish.
+5. **Input polish**: `textinput`, cursor set/hide.
+6. **`ImageData` + procedural textures.** Lowest priority — neither game
    would *break* with static cursor assets.
 
 After steps 1–3, BYTEPATH is realistically portable with the remaining work
