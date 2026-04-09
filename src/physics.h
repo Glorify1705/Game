@@ -103,6 +103,20 @@ class Physics final : public b2ContactListener {
   // Sets the angular velocity in radians/s.
   void SetAngularVelocity(Handle handle, float v);
 
+  // Sets linear damping (drag). 0 = no damping, higher = more drag.
+  void SetLinearDamping(Handle handle, float damping);
+
+  // Sets angular damping (rotational drag).
+  void SetAngularDamping(Handle handle, float damping);
+
+  // Scales the effect of world gravity on this body. 0 = no gravity, 1 =
+  // normal gravity, -1 = anti-gravity.
+  void SetGravityScale(Handle handle, float scale);
+
+  // Flags a body for continuous collision detection. Use on fast-moving
+  // bodies (projectiles) to prevent tunneling through thin geometry.
+  void SetBullet(Handle handle, bool bullet);
+
   // Prevents a body from rotating. Useful for bullets and characters.
   void SetFixedRotation(Handle handle, bool fixed);
 

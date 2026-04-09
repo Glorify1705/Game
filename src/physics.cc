@@ -281,6 +281,22 @@ void Physics::SetAngularVelocity(Handle handle, float v) {
   handle.handle->SetAngularVelocity(v);
 }
 
+void Physics::SetLinearDamping(Handle handle, float damping) {
+  handle.handle->SetLinearDamping(damping);
+}
+
+void Physics::SetAngularDamping(Handle handle, float damping) {
+  handle.handle->SetAngularDamping(damping);
+}
+
+void Physics::SetGravityScale(Handle handle, float scale) {
+  handle.handle->SetGravityScale(scale);
+}
+
+void Physics::SetBullet(Handle handle, bool bullet) {
+  handle.handle->SetBullet(bullet);
+}
+
 void Physics::SetFixedRotation(Handle handle, bool fixed) {
   handle.handle->SetFixedRotation(fixed);
 }
