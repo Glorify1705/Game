@@ -63,23 +63,23 @@ Legend for **Status**:
 
 ### love.graphics
 
-| Love2D call | Used by | Our equivalent | Status | Notes |
-|---|---|---|---|---|
-| `newImage`, `newQuad`, `draw` | Both | `G.graphics.draw_sprite`, sprite atlas | OK | Sprites use the asset DB; quads are implicit. |
-| `newCanvas`, `setCanvas` | Both (heavily) | `G.graphics.new_canvas`, `set_canvas` | OK | BYTEPATH uses 7 canvases for its post chain; validate that cost is acceptable. |
-| `newShader`, `setShader`, `send` | Both (heavily) | `G.graphics.attach_shader` + `send_uniform` | OK | BYTEPATH: 8 shaders; SNKRX: 6. Most ports of these shaders will be 1:1 GLSL. |
-| `newFont(path, size)` | Both | `G.graphics.draw_text(font, size, …)` | OK | We already load faces at multiple sizes on demand. |
-| `printf` (aligned/wrapped text) | Both | — | **Gap** | BYTEPATH menus and SNKRX tooltips need wrapped/aligned text. Effort: M (word-wrap + alignment pass over existing font rasteriser). |
-| `setColor`, `setLineWidth`, `setLineStyle` | Both | `G.graphics.set_color` / `set_line_width` | OK | Line style ("smooth"/"rough") can be ignored for now. |
-| `rectangle`, `circle`, `polygon`, `line`, `arc`, `points` | Both | `draw_rect`, `draw_circle`, `draw_line` | Adapt | We lack `polygon` fill/outline, `arc`, and multi-point `points`. Effort: S for each primitive. BYTEPATH's skill tree and SNKRX UI both draw arcs. |
-| `push`, `pop`, `translate`, `rotate`, `scale`, `shear` | Both | `G.graphics.push/pop/translate/rotate/scale` | OK | `shear` is rare and skippable. |
-| `setScissor` | Both | `G.graphics.set_scissor` / `clear_scissor` | OK | Already implemented; batch renderer flushes on state change. |
-| `stencil`, `setStencilTest` | SNKRX (heavy) | — | **Gap** | SNKRX's damage flashes and arena masks rely on stencils. Effort: M (requires stencil buffer on FBO, stencil op state). |
-| `setBlendMode("add"/"alpha"/"multiply"/"subtract")` | Both | `G.graphics.set_blend_mode("add"/"alpha"/"multiply"/"replace"/"premultiplied")` | Adapt | Only "subtract" is missing; adding it requires threading `glBlendEquation` state through every mode (otherwise previous subtract sticks). Effort: S-M. |
-| `newImageData`, `ImageData:setPixel`, `newImage(imagedata)` | SNKRX | — | **Gap** | SNKRX synthesises a mouse cursor and a few particle textures at runtime. Effort: M (requires an `ImageData` Lua object + CPU-side texture upload). |
-| `setDefaultFilter`, `Image:setFilter` | Both | pixel filtering is global in our renderer | Adapt | Both games use nearest filter throughout; our default matches. |
-| `getWidth`, `getHeight`, `getDimensions` on images | Both | `G.assets.sprite_info` | OK | |
-| `captureScreenshot` | BYTEPATH | — | Gap (nice) | Only used for the F12 debug screenshot. Low priority. |
+| Love2D call                                                 | Used by        | Our equivalent                                                                  | Status     | Notes                                                                                                                                                  |
+| ----------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `newImage`, `newQuad`, `draw`                               | Both           | `G.graphics.draw_sprite`, sprite atlas                                          | OK         | Sprites use the asset DB; quads are implicit.                                                                                                          |
+| `newCanvas`, `setCanvas`                                    | Both (heavily) | `G.graphics.new_canvas`, `set_canvas`                                           | OK         | BYTEPATH uses 7 canvases for its post chain; validate that cost is acceptable.                                                                         |
+| `newShader`, `setShader`, `send`                            | Both (heavily) | `G.graphics.attach_shader` + `send_uniform`                                     | OK         | BYTEPATH: 8 shaders; SNKRX: 6. Most ports of these shaders will be 1:1 GLSL.                                                                           |
+| `newFont(path, size)`                                       | Both           | `G.graphics.draw_text(font, size, …)`                                           | OK         | We already load faces at multiple sizes on demand.                                                                                                     |
+| `printf` (aligned/wrapped text)                             | Both           | `G.graphics.draw_text_wrapped` + `text_wrapped_height` + `draw_text_colored`    | OK         | Word-wrap with left/center/right alignment and a colored-segments form already exist (shipped in cb1154f). Exercised by `assets/testtext.lua`.        |
+| `setColor`, `setLineWidth`, `setLineStyle`                  | Both           | `G.graphics.set_color` / `set_line_width`                                       | OK         | Line style ("smooth"/"rough") can be ignored for now.                                                                                                  |
+| `rectangle`, `circle`, `polygon`, `line`, `arc`, `points`   | Both           | `draw_rect`, `draw_circle`, `draw_line`                                         | Adapt      | We lack `polygon` fill/outline, `arc`, and multi-point `points`. Effort: S for each primitive. BYTEPATH's skill tree and SNKRX UI both draw arcs.      |
+| `push`, `pop`, `translate`, `rotate`, `scale`, `shear`      | Both           | `G.graphics.push/pop/translate/rotate/scale`                                    | OK         | `shear` is rare and skippable.                                                                                                                         |
+| `setScissor`                                                | Both           | `G.graphics.set_scissor` / `clear_scissor`                                      | OK         | Already implemented; batch renderer flushes on state change.                                                                                           |
+| `stencil`, `setStencilTest`                                 | SNKRX (heavy)  | —                                                                               | **Gap**    | SNKRX's damage flashes and arena masks rely on stencils. Effort: M (requires stencil buffer on FBO, stencil op state).                                 |
+| `setBlendMode("add"/"alpha"/"multiply"/"subtract")`         | Both           | `G.graphics.set_blend_mode("add"/"alpha"/"multiply"/"replace"/"premultiplied")` | Adapt      | Only "subtract" is missing; adding it requires threading `glBlendEquation` state through every mode (otherwise previous subtract sticks). Effort: S-M. |
+| `newImageData`, `ImageData:setPixel`, `newImage(imagedata)` | SNKRX          | —                                                                               | **Gap**    | SNKRX synthesises a mouse cursor and a few particle textures at runtime. Effort: M (requires an `ImageData` Lua object + CPU-side texture upload).     |
+| `setDefaultFilter`, `Image:setFilter`                       | Both           | pixel filtering is global in our renderer                                       | Adapt      | Both games use nearest filter throughout; our default matches.                                                                                         |
+| `getWidth`, `getHeight`, `getDimensions` on images          | Both           | `G.assets.sprite_info`                                                          | OK         |                                                                                                                                                        |
+| `captureScreenshot`                                         | BYTEPATH       | —                                                                               | Gap (nice) | Only used for the F12 debug screenshot. Low priority.                                                                                                  |
 
 ### love.physics
 
@@ -196,6 +196,12 @@ out to already exist in the engine (or shipped in a follow-up PR):
   longer need to early-return from `update()`.
 - **`textinput` event** — games already receive SDL text input via the
   `_Game:textinput(input)` callback; no API work needed.
+- **`love.graphics.printf` (wrapped + aligned text)** — shipped in `cb1154f`
+  as `G.graphics.draw_text_wrapped(font, size, text, x, y, max_width,
+  align?)` with left/center/right alignment, plus `text_wrapped_height` for
+  layout and `draw_text_colored` for multi-color segments. Exercised by
+  `assets/testtext.lua`. Rotation/scale parameters from the Love2D variant
+  are not supported but neither game uses them.
 
 ### Tier 2 — Critical, medium effort
 
@@ -205,7 +211,6 @@ out to already exist in the engine (or shipped in a follow-up PR):
 | Joint types: revolute, distance, weld, rope, mouse | M–L | SNKRX snake is revolute-only, but the physics doc plan ships the whole set together. |
 | Sensors (non-colliding fixtures) | M | SNKRX pickups, BYTEPATH aggro zones. |
 | Fixture collision filter per-shape | M | Our category registry is per-body; games set per-fixture filters for compound bodies. |
-| `love.graphics.printf` (wrap + align) | M | BYTEPATH skill tree tooltips and SNKRX cards are unreadable without it. |
 | Stencil buffer + `setStencilTest` | M | SNKRX damage masks. Without stencils the visual identity changes significantly, though gameplay survives. |
 | `love.graphics.polygon`, `arc`, `points` | S×3 | Skill tree and UI drawing. |
 
@@ -238,9 +243,9 @@ Assuming we want to unblock *both* games in roughly the right order:
    attacks.
 3. **Save persistence** (save dir + `filesystem.write`). Required for any
    real run of either game. Covered by [[Save and persistence]].
-4. **Rendering gap-fill**: polygon/arc/points primitives, stencil, `printf`,
-   subtract blend mode. These are all independent and can land in any order;
-   SNKRX's stencil work is the one that unlocks the most visible polish.
+4. **Rendering gap-fill**: polygon/arc/points primitives, stencil, subtract
+   blend mode. These are all independent and can land in any order; SNKRX's
+   stencil work is the one that unlocks the most visible polish.
 5. **Input polish**: cursor set/hide.
 6. **`ImageData` + procedural textures.** Lowest priority — neither game
    would *break* with static cursor assets.

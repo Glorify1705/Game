@@ -157,7 +157,7 @@ Love2D uses FreeType for font rasterization and creates texture atlases on deman
 | SDF support     | No                                         | No (but can be added via shaders)                      |
 | Character range | ASCII 32–126 only                          | Full Unicode                                           |
 | Font objects    | Looked up by filename string               | First-class `Font` objects with methods                |
-| Text alignment  | Manual                                     | Built-in `printf` with align/wrap                      |
+| Text alignment  | `draw_text_wrapped` with left/center/right | Built-in `printf` with align/wrap (also `"justify"`)   |
 | Colored text    | ANSI escape codes                          | Inline color table `{color, "text", color, "text"}`    |
 | Rich text       | No                                         | `Text` objects with formatted sections                 |
 | DPI scaling     | No                                         | Automatic DPI scaling with `love.window.getDPIScale()` |
@@ -228,20 +228,19 @@ This requires adding a `kSetShader` command before text draw calls to switch to 
 
 Alternatively, use `stb_rect_pack` (already a dependency) to determine the minimum atlas size with a binary search.
 
-### 3. Text alignment and wrapping
+### 3. Text alignment and wrapping — *shipped (cb1154f)*
 
-**Problem**: There is no built-in way to center, right-align, or wrap text. Game developers must manually call `text_dimensions` and compute positions.
-
-**Proposal**: Add alignment and max-width parameters to `draw_text`:
+Word-wrap with left/center/right alignment landed as a separate entry point rather than as options on `draw_text`:
 
 ```lua
-graphics.draw_text("font.ttf", 24, "Hello world", x, y, {
-  align = "center",  -- "left" | "center" | "right"
-  max_width = 400,   -- wrap at this width (nil = no wrap)
-})
+G.graphics.draw_text_wrapped(font, size, text, x, y, max_width, align)
+G.graphics.text_wrapped_height(font, size, text, max_width)
+G.graphics.draw_text_colored(font, size, segments, x, y)
 ```
 
-Implementation: perform a layout pass (word-wrap + alignment) before emitting quads. The layout pass reuses the same metrics code as `TextDimensions`.
+`Renderer::DrawTextWrapped` (`renderer.cc:1664`) runs a `WordWrapLines` layout pass and emits one `DrawText` call per line, offsetting `x` by `(max_width - line.width)` (or half of it) for right/center. `text_wrapped_height` reuses the same layout pass for measurement so callers can size containers without rendering. Test coverage: `assets/testtext.lua`.
+
+Gaps versus Love2D `printf`: rotation, scale, and shear parameters are not threaded through, and there is no `"justify"` alignment. Neither BYTEPATH nor SNKRX uses any of those, so they are deferred until a concrete need appears.
 
 ### 4. Text outlines and shadows
 
