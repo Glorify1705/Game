@@ -56,7 +56,14 @@ void FillLogLine(lua_State* state, LogLine* l) {
   const int num_args = lua_gettop(state);
   lua_getglobal(state, "tostring");
   for (int i = 0; i < num_args; ++i) {
-    Lua::LogValue(state, /*pos=*/i + 1, /*depth=*/0, &l->log);
+    // Top-level strings are appended raw (no surrounding quotes), so that
+    // print("hello") logs `hello` rather than `"hello"`. Nested strings inside
+    // tables still get quoted by LogValue itself.
+    if (lua_type(state, i + 1) == LUA_TSTRING) {
+      l->log.Append(lua_tostring(state, i + 1));
+    } else {
+      Lua::LogValue(state, /*pos=*/i + 1, /*depth=*/0, &l->log);
+    }
     lua_pop(state, 1);
   }
   lua_pop(state, 1);
