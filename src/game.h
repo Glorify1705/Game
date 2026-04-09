@@ -12,6 +12,10 @@ struct GameOptions {
   const char* source_directory = nullptr;
   // Whether to watch source files and hot-reload on changes.
   bool hotreload = true;
+  // Run the game's _Game:test_inputs() coroutine instead of taking real input.
+  // The engine exits with code 0 if the coroutine returns normally, 1 on
+  // assertion failure or Lua error.
+  bool test_mode = false;
   // Arguments forwarded to the game scripts (everything after '--').
   Slice<const char*> args;
   // All command-line arguments (for logging after SDL logger is set up).
@@ -19,8 +23,9 @@ struct GameOptions {
 };
 
 // Runs the full engine with SDL, OpenGL, audio, etc.
-// Takes ownership of the db handle and closes it on exit.
-void RunGame(const GameOptions& opts, sqlite3* db);
+// Takes ownership of the db handle and closes it on exit. Returns the test
+// exit code in test mode, otherwise 0.
+int RunGame(const GameOptions& opts, sqlite3* db);
 
 }  // namespace G
 

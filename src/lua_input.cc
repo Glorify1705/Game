@@ -11,7 +11,8 @@ const struct LuaApiFunction kInputLib[] = {
      {},
      {{"x", "x coordinate", "number"}, {"y", "y coordinate", "number"}},
      [](lua_State* state) {
-       const FVec2 pos = Mouse::GetPosition();
+       auto* mouse = Registry<Mouse>::Retrieve(state);
+       const FVec2 pos = mouse->GetPosition();
        lua_pushnumber(state, pos.x);
        lua_pushnumber(state, pos.y);
        return 2;

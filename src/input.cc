@@ -8,6 +8,13 @@
 namespace G {
 
 void Keyboard::InitForFrame() {
+  if (test_mode_) {
+    // In test mode pressed_ is the canonical state (only injection writes to
+    // it), so carry it forward and skip SDL polling entirely.
+    previous_pressed_ = pressed_;
+    previous_mods_ = mods_;
+    return;
+  }
   int size;
   auto* keyboard = SDL_GetKeyboardState(&size);
   DCHECK(size == kKeyboardTable, " unexpected keyboard table");
@@ -154,6 +161,12 @@ void Controllers::InitForFrame() {
     if (!open_controllers_[i]) continue;
     controllers_[i].previously_pressed = controllers_[i].pressed;
     controllers_[i].pressed.reset();
+  }
+  if (test_mode_) {
+    // The test controller occupies slot 0 even when no real controller is
+    // open. Carry pressed → previously_pressed without resetting, so injected
+    // button presses persist until explicitly released.
+    controllers_[0].previously_pressed = controllers_[0].pressed;
   }
 }
 

@@ -81,8 +81,9 @@ std::string_view TrimPath(std::string_view f);
 // Logs a message at the given level with file and line information.
 template <typename... T>
 void LogAt(LogLevel level, std::string_view file, int line, T&&... ts) {
-  FixedStringBuffer<kMaxLogLineLength> buf("[", TrimPath(file), ":", line,
-                                           "] ");
+  FixedStringBuffer<kMaxLogLineLength> buf;
+  buf.AllowTruncation();
+  buf.Append("[", TrimPath(file), ":", line, "] ");
   buf.Append<T...>(std::forward<T>(ts)...);
   GetLogSink()(level, buf.str());
 }

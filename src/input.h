@@ -42,9 +42,9 @@ class Keyboard {
 
   bool IsReleased(const PressConditions& p) const {
     if (previous_pressed_[p.code] && !pressed_[p.code]) {
-      return true;
+      return !p.mods || (previous_mods_ & p.mods);
     }
-    return !(mods_ & p.mods);
+    return false;
   }
 
   bool IsPressed(const PressConditions& p) const {
@@ -66,6 +66,15 @@ class Keyboard {
 
   enum EventType { kDown, kUp };
 
+  // Enables synthetic-input mode. InitForFrame stops querying SDL state and
+  // instead carries `pressed_` over into `previous_pressed_`, so injected
+  // keypresses persist across frames.
+  void SetTestMode(bool enabled) { test_mode_ = enabled; }
+
+  // Synthetically presses or releases a key. Only valid in test mode.
+  void InjectKeyDown(SDL_Scancode code) { pressed_[code] = true; }
+  void InjectKeyUp(SDL_Scancode code) { pressed_[code] = false; }
+
  private:
   inline static constexpr size_t kQueueSize = 256;
   inline static constexpr size_t kKeyboardTable = SDL_SCANCODE_COUNT;
@@ -81,6 +90,7 @@ class Keyboard {
   SDL_Keymod mods_;
   Dictionary<PressConditions> table_;
   FixedArray<Event> events_;
+  bool test_mode_ = false;
 };
 
 class Mouse {
@@ -90,7 +100,8 @@ class Mouse {
     std::fill(previous_pressed_.begin(), previous_pressed_.end(), false);
   }
   enum Button { kLeft = 0, kRight = 1, kMiddle = 2 };
-  static FVec2 GetPosition() {
+  FVec2 GetPosition() const {
+    if (test_mode_) return test_position_;
     float x, y;
     SDL_GetMouseState(&x, &y);
     return FVec(x, y);
@@ -117,9 +128,29 @@ class Mouse {
 
   FVec2 GetWheel() const { return mouse_wheel_; }
 
+  // Enables synthetic-input mode. GetPosition() then returns the test
+  // position instead of querying SDL.
+  void SetTestMode(bool enabled) { test_mode_ = enabled; }
+
+  // Injects a synthetic mouse button press or release.
+  void InjectButtonDown(int button) {
+    if (button >= 0 && button < 3) pressed_[button] = true;
+  }
+  void InjectButtonUp(int button) {
+    if (button >= 0 && button < 3) pressed_[button] = false;
+  }
+
+  // Adds to the synthetic wheel delta for this frame.
+  void InjectWheel(float dx, float dy) { mouse_wheel_ += FVec(dx, dy); }
+
+  // Sets the synthetic mouse position. Only used when test_mode_ is true.
+  void SetTestPosition(float x, float y) { test_position_ = FVec(x, y); }
+
  private:
   FVec2 mouse_wheel_ = FVec2::Zero();
   std::array<bool, 3> previous_pressed_, pressed_;
+  FVec2 test_position_ = FVec2::Zero();
+  bool test_mode_ = false;
 };
 
 class Controllers {
@@ -166,11 +197,19 @@ class Controllers {
 
   int AxisPositions(SDL_GamepadAxis axis, int controller_id) const {
     if (controller_id == -1) return 0;
+    if (test_mode_) {
+      if (axis < 0 || axis >= SDL_GAMEPAD_AXIS_COUNT) return 0;
+      return test_axes_[axis];
+    }
     return SDL_GetGamepadAxis(controllers_[controller_id].ptr, axis);
   }
 
   int TriggerPositions(SDL_GamepadAxis axis, int controller_id) const {
     if (controller_id == -1) return 0;
+    if (test_mode_) {
+      if (axis < 0 || axis >= SDL_GAMEPAD_AXIS_COUNT) return 0;
+      return test_axes_[axis];
+    }
     return SDL_GetGamepadAxis(controllers_[controller_id].ptr, axis);
   }
 
@@ -184,6 +223,37 @@ class Controllers {
 
   int active_controller() const { return active_controller_; }
 
+  // Enables synthetic-input mode. Reserves controller slot 0 for the test
+  // controller, and AxisPositions / Inject* operate on it instead of real
+  // hardware. InitForFrame carries pressed → previously_pressed for slot 0
+  // (without resetting), so injected button presses persist until released.
+  void SetTestMode(bool enabled) {
+    test_mode_ = enabled;
+    if (enabled) active_controller_ = 0;
+  }
+
+  // Synthetically presses or releases a button on the test controller.
+  void InjectButtonDown(SDL_GamepadButton button) {
+    if (button == SDL_GAMEPAD_BUTTON_INVALID ||
+        static_cast<int>(button) >= 32) {
+      return;
+    }
+    controllers_[0].pressed[button] = true;
+  }
+  void InjectButtonUp(SDL_GamepadButton button) {
+    if (button == SDL_GAMEPAD_BUTTON_INVALID ||
+        static_cast<int>(button) >= 32) {
+      return;
+    }
+    controllers_[0].pressed[button] = false;
+  }
+
+  // Sets a synthetic axis or trigger position on the test controller.
+  void InjectAxis(SDL_GamepadAxis axis, int value) {
+    if (axis < 0 || axis >= SDL_GAMEPAD_AXIS_COUNT) return;
+    test_axes_[axis] = value;
+  }
+
  private:
   struct Controller {
     SDL_Gamepad* ptr = nullptr;
@@ -195,6 +265,8 @@ class Controllers {
   int active_controller_ = -1;
   Dictionary<SDL_GamepadButton> button_table_;
   Dictionary<SDL_GamepadAxis> axis_table_;
+  std::array<int, SDL_GAMEPAD_AXIS_COUNT> test_axes_ = {};
+  bool test_mode_ = false;
 };
 
 }  // namespace G

@@ -246,6 +246,22 @@ class Lua {
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }
 
+  // Looks up `_Game.test_inputs`, creates a Lua coroutine bound to it, and
+  // anchors it in the registry so it isn't collected. No-op if `test_inputs`
+  // is missing or not a function. Must be called after `Init()`.
+  void StartTestCoroutine();
+
+  // Resumes the test coroutine for one step. Sets stopped_ + test_exit_code_
+  // when the coroutine finishes (0 on success, 1 on error). No-op if no
+  // coroutine is active.
+  void ResumeTestCoroutine();
+
+  // True if a test coroutine has been started and has not yet finished.
+  bool TestCoroutineActive() const { return test_co_ != nullptr; }
+
+  // Exit code reported when the test coroutine ends. 0 = success, 1 = error.
+  int TestExitCode() const { return test_exit_code_; }
+
   Allocator* allocator() const { return allocator_; }
 
   // Checks whether there is a permanent error.
@@ -318,6 +334,7 @@ class Lua {
   friend void AddCollisionLibrary(Lua* lua);
   friend void AddCameraLibrary(Lua* lua);
   friend void AddTimerLibrary(Lua* lua);
+  friend void AddTestLibrary(Lua* lua);
 
  private:
   int LoadLuaAsset(std::string_view filename, std::string_view script_contents,
@@ -415,6 +432,22 @@ class Lua {
   float time_scale_ = 1.0f;
 
   bool hotload_requested_ = false;
+
+  // Coroutine running _Game.test_inputs in test mode. nullptr when test
+  // mode is disabled or after the coroutine has finished or errored.
+  lua_State* test_co_ = nullptr;
+  // Registry reference that keeps test_co_ alive across GC cycles. Released
+  // (back to LUA_NOREF) when the coroutine finishes.
+  int test_co_ref_ = LUA_NOREF;
+  // Exit code reported by RunGame when --test is used: 0 on coroutine
+  // success, 1 if it errored or the engine quit before it finished.
+  int test_exit_code_ = 0;
+  // Frames remaining before the next ResumeTestCoroutine actually resumes.
+  // Set from the value passed to lua_yield (e.g. by G.test.wait_frames).
+  int test_co_wait_frames_ = 0;
+  // True until the first lua_resume call. The first resume passes `self`
+  // (the _Game module) as an argument; subsequent resumes pass none.
+  bool test_co_first_resume_ = true;
 };
 
 }  // namespace G

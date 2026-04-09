@@ -56,7 +56,14 @@ void FillLogLine(lua_State* state, LogLine* l) {
   const int num_args = lua_gettop(state);
   lua_getglobal(state, "tostring");
   for (int i = 0; i < num_args; ++i) {
-    Lua::LogValue(state, /*pos=*/i + 1, /*depth=*/0, &l->log);
+    // Top-level strings are appended raw (no surrounding quotes), so that
+    // print("hello") logs `hello` rather than `"hello"`. Nested strings inside
+    // tables still get quoted by LogValue itself.
+    if (lua_type(state, i + 1) == LUA_TSTRING) {
+      l->log.Append(lua_tostring(state, i + 1));
+    } else {
+      Lua::LogValue(state, /*pos=*/i + 1, /*depth=*/0, &l->log);
+    }
     lua_pop(state, 1);
   }
   lua_pop(state, 1);
@@ -1151,6 +1158,87 @@ void Lua::HandleMouseMoved(FVec2 pos, FVec2 delta) {
     return;
   }
   lua_pop(state_, 1);
+}
+
+void Lua::StartTestCoroutine() {
+  LUA_CHECK_STACK(state_);
+
+  if (!error_.empty()) return;
+  READY();
+  lua_getglobal(state_, "_Game");
+  lua_getfield(state_, -1, "test_inputs");
+  if (!lua_isfunction(state_, -1)) {
+    lua_pop(state_, 2);
+    LOG("No _Game.test_inputs function defined; nothing to run in test mode");
+    Stop();
+    return;
+  }
+  // Create a new coroutine and anchor it in the registry so it survives GC,
+  // then seed its stack with `test_inputs` and `_Game` (which becomes the
+  // implicit `self` argument on the first resume). lua_xmove transfers
+  // values between threads owned by the same Lua state.
+  //
+  // Stack at this point: _Game, test_inputs
+  test_co_ = lua_newthread(state_);
+  // Stack: _Game, test_inputs, thread
+  test_co_ref_ = luaL_ref(state_, LUA_REGISTRYINDEX);
+  // Stack: _Game, test_inputs
+  lua_xmove(state_, test_co_, 1);
+  // Stack: _Game
+  lua_pushvalue(state_, -1);
+  lua_xmove(state_, test_co_, 1);
+  lua_pop(state_, 1);
+  // test_co_ stack now: test_inputs, self
+}
+
+void Lua::ResumeTestCoroutine() {
+  if (test_co_ == nullptr) return;
+  // If anything in the engine has errored since the last resume (a script
+  // failed to load, hot-reload blew up, etc.), the coroutine can no longer
+  // make progress. Tear it down, mark the test as failed, and ask the engine
+  // to stop so RunGame returns the failure exit code.
+  if (!error_.empty()) {
+    test_exit_code_ = 1;
+    luaL_unref(state_, LUA_REGISTRYINDEX, test_co_ref_);
+    test_co_ref_ = LUA_NOREF;
+    test_co_ = nullptr;
+    Stop();
+    return;
+  }
+  // On the first resume, we have (test_inputs, self) on the coroutine stack
+  // and pass 1 arg. On subsequent resumes the yielded coroutine takes 0 args.
+  if (test_co_wait_frames_ > 0) {
+    --test_co_wait_frames_;
+    return;
+  }
+  int nargs = test_co_first_resume_ ? 1 : 0;
+  test_co_first_resume_ = false;
+  int status = lua_resume(test_co_, nargs);
+  if (status == LUA_YIELD) {
+    // The yielded value (if any) is the number of additional frames to wait
+    // before resuming again. The current frame counts as one already-elapsed
+    // wait step, so subtract 1.
+    int requested = 0;
+    if (lua_gettop(test_co_) >= 1 && lua_isnumber(test_co_, -1)) {
+      requested = static_cast<int>(lua_tonumber(test_co_, -1));
+    }
+    lua_settop(test_co_, 0);
+    test_co_wait_frames_ = requested > 0 ? requested - 1 : 0;
+    return;
+  }
+  if (status == 0) {
+    LOG("Test coroutine finished successfully");
+    test_exit_code_ = 0;
+  } else {
+    const char* msg =
+        lua_isstring(test_co_, -1) ? lua_tostring(test_co_, -1) : "unknown";
+    LOG("Test coroutine failed: ", msg);
+    test_exit_code_ = 1;
+  }
+  luaL_unref(state_, LUA_REGISTRYINDEX, test_co_ref_);
+  test_co_ref_ = LUA_NOREF;
+  test_co_ = nullptr;
+  Stop();
 }
 
 void Lua::HandleQuit() {
