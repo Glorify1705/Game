@@ -4,6 +4,7 @@
 
 #include "clock.h"
 #include "input.h"
+#include "lua.h"
 
 namespace G {
 namespace {
@@ -127,6 +128,16 @@ const struct LuaApiFunction kTestLib[] = {
        if (n < 1) n = 1;
        lua_pushnumber(state, n);
        return lua_yield(state, 1);
+     }},
+    {"is_active",
+     "Returns true if the engine is running under --test (a test coroutine "
+     "is driving input).",
+     {},
+     {{"active", "whether test mode is active", "boolean"}},
+     [](lua_State* state) {
+       lua_pushboolean(state,
+                       Registry<Lua>::Retrieve(state)->TestCoroutineActive());
+       return 1;
      }},
     {"assert_true",
      "Errors out the test coroutine if the condition is false.",

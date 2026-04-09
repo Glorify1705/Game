@@ -6,9 +6,16 @@ local M = {}
 M.frame = 0
 M.events = {}
 M.test_done = false
+M.quit_at = nil
+M.message = nil
 
 function M:init()
   print("testinputs: init")
+  if not G.test.is_active() then
+    self.message = "Not running under --test, quitting in 5 seconds..."
+    print("testinputs: " .. self.message)
+    self.quit_at = 5.0
+  end
 end
 
 function M:update(t, dt)
@@ -19,9 +26,20 @@ function M:update(t, dt)
   if G.input.is_key_released("space") then
     table.insert(self.events, "space released at frame " .. self.frame)
   end
+  if self.quit_at then
+    self.quit_at = self.quit_at - dt
+    if self.quit_at <= 0 then
+      G.system.quit()
+    end
+  end
 end
 
 function M:draw()
+  if self.message then
+    G.graphics.set_color("white")
+    G.graphics.print(self.message, 20, 20)
+    G.graphics.print(string.format("Quitting in %.1fs", math.max(0, self.quit_at or 0)), 20, 40)
+  end
 end
 
 function M:test_inputs()
