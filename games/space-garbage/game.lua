@@ -70,6 +70,48 @@ end
 local WORLD_W = 8000
 local WORLD_H = 6000
 
+-- High scores persistence via G.json + G.filesystem.
+local MAX_HIGH_SCORES = 10
+local SCORES_WRITE_PATH = "highscores.json"
+local SCORES_READ_PATH = "/app/highscores.json"
+
+local function load_high_scores()
+	if not G.filesystem.exists(SCORES_READ_PATH) then
+		return {}
+	end
+	local buf, rerr = G.filesystem.slurp(SCORES_READ_PATH)
+	if rerr then return {} end
+	local err, result = G.json.decode(tostring(buf))
+	if err or type(result) ~= "table" then return {} end
+	return result
+end
+
+local function save_high_scores(scores)
+	local err, json = G.json.encode(scores)
+	if err then return end
+	G.filesystem.spit(SCORES_WRITE_PATH, json)
+end
+
+local function insert_high_score(scores, name, score)
+	scores[#scores + 1] = { name = name, score = score }
+	-- Sort descending by score.
+	for i = #scores - 1, 1, -1 do
+		if scores[i + 1].score > scores[i].score then
+			scores[i], scores[i + 1] = scores[i + 1], scores[i]
+		end
+	end
+	-- Trim to max.
+	while #scores > MAX_HIGH_SCORES do
+		scores[#scores] = nil
+	end
+	return scores
+end
+
+local function qualifies_for_high_scores(scores, score)
+	if #scores < MAX_HIGH_SCORES then return true end
+	return score > scores[#scores].score
+end
+
 local function draw_number(n, x, y)
 	local s = tostring(n)
 	local digit_w = 19
@@ -473,7 +515,7 @@ function G1:update(t, dt)
 
 	if self.confirm_quit then
 		if G.input.is_key_pressed("y") then
-			G.system.quit()
+			self.state = "enter_name"
 		end
 		if G.input.is_key_pressed("n") or G.input.is_key_pressed("escape") then
 			self.confirm_quit = false
@@ -518,7 +560,7 @@ function G1:update(t, dt)
 
 	if self.state == "game_over" then
 		if G.input.is_key_pressed("return") then
-			self.state = "back_to_menu"
+			self.state = "enter_name"
 		end
 		return
 	end
@@ -770,7 +812,7 @@ function G1:draw()
 		draw_text_centered("GAME OVER", FONT_LG, cx, cy - 50)
 		G.graphics.set_color("white")
 		draw_text_centered("SCORE: " .. self.score, FONT_MD, cx, cy)
-		draw_text_centered("Press ENTER to restart", FONT_SM, cx, cy + 35)
+		draw_text_centered("Press ENTER to continue", FONT_SM, cx, cy + 35)
 	end
 
 	if self.paused then
@@ -780,7 +822,7 @@ function G1:draw()
 		G.graphics.draw_rect(0, 0, self.screen_w, self.screen_h)
 		if self.confirm_quit then
 			G.graphics.set_color(255, 80, 80, 255)
-			draw_text_centered("Quit the game?", FONT_LG, cx, cy - 20)
+			draw_text_centered("End game?", FONT_LG, cx, cy - 20)
 			G.graphics.set_color("white")
 			draw_text_centered("Y / N", FONT_MD, cx, cy + 25)
 		else
@@ -803,12 +845,166 @@ function G1:draw()
 	G.graphics.set_color("white")
 end
 
+-- Arcade-style name entry after game over.
+local NameEntry = {}
+local NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
+local NAME_LENGTH = 3
+
+function NameEntry:init(score)
+	self.screen_w, self.screen_h = G.window.dimensions()
+	self.score = score
+	self.chars = { 1, 1, 1 }  -- indices into NAME_CHARS
+	self.pos = 1               -- which character we're editing (1..3)
+	self.done = false
+	self.blink = 0
+	self.rnd = Random()
+	self.starfield = Starfield(self.screen_w, self.screen_h, self.rnd.rnd)
+end
+
+function NameEntry:update(t, dt)
+	self.starfield:update(dt)
+	self.blink = self.blink + dt
+
+	if G.input.is_key_pressed("up") or G.input.is_key_pressed("w") then
+		self.chars[self.pos] = self.chars[self.pos] - 1
+		if self.chars[self.pos] < 1 then self.chars[self.pos] = #NAME_CHARS end
+	end
+	if G.input.is_key_pressed("down") or G.input.is_key_pressed("s") then
+		self.chars[self.pos] = self.chars[self.pos] + 1
+		if self.chars[self.pos] > #NAME_CHARS then self.chars[self.pos] = 1 end
+	end
+	if G.input.is_key_pressed("right") or G.input.is_key_pressed("d") then
+		if self.pos < NAME_LENGTH then self.pos = self.pos + 1 end
+	end
+	if G.input.is_key_pressed("left") or G.input.is_key_pressed("a") then
+		if self.pos > 1 then self.pos = self.pos - 1 end
+	end
+	if G.input.is_key_pressed("return") or G.input.is_key_pressed("space") then
+		self.done = true
+	end
+end
+
+function NameEntry:get_name()
+	local parts = {}
+	for i = 1, NAME_LENGTH do
+		parts[i] = NAME_CHARS:sub(self.chars[i], self.chars[i])
+	end
+	return table.concat(parts)
+end
+
+function NameEntry:draw()
+	G.graphics.clear()
+	self.starfield:draw(0, 0)
+	local cx = self.screen_w / 2
+	local cy = self.screen_h / 2
+
+	G.graphics.set_color(200, 0, 0, 255)
+	draw_text_centered("GAME OVER", FONT_LG, cx, cy - 120)
+	G.graphics.set_color("white")
+	draw_text_centered("SCORE: " .. self.score, FONT_MD, cx, cy - 80)
+
+	G.graphics.set_color(100, 200, 255, 255)
+	draw_text_centered("ENTER YOUR NAME", FONT_MD, cx, cy - 30)
+
+	-- Draw the three character slots.
+	local slot_w = 40
+	local total_w = NAME_LENGTH * slot_w
+	local start_x = cx - total_w / 2
+
+	for i = 1, NAME_LENGTH do
+		local ch = NAME_CHARS:sub(self.chars[i], self.chars[i])
+		local sx = start_x + (i - 1) * slot_w + slot_w / 2
+		local sy = cy + 20
+
+		if i == self.pos then
+			-- Blinking underscore for active slot.
+			local show = math.floor(self.blink * 3) % 2 == 0
+			G.graphics.set_color(255, 255, 100, 255)
+			draw_text_centered(ch, FONT_LG, sx, sy)
+			if show then
+				G.graphics.set_color(255, 255, 100, 200)
+				local uw = text_w(FONT_LG, "_")
+				G.graphics.draw_text(FONT, FONT_LG, "_", sx - uw / 2, sy + 5)
+			end
+			-- Up/down arrows.
+			G.graphics.set_color(255, 255, 100, 150)
+			draw_text_centered("^", FONT_SM, sx, sy - 30)
+			draw_text_centered("v", FONT_SM, sx, sy + 40)
+		else
+			G.graphics.set_color(200, 200, 200, 255)
+			draw_text_centered(ch, FONT_LG, sx, sy)
+		end
+	end
+
+	G.graphics.set_color(150, 150, 150, 255)
+	draw_text_centered("UP/DOWN to change, LEFT/RIGHT to move, ENTER to confirm", FONT_SM, cx, cy + 90)
+	G.graphics.set_color("white")
+end
+
+-- High scores display screen.
+local HighScoresView = {}
+
+function HighScoresView:init()
+	self.screen_w, self.screen_h = G.window.dimensions()
+	self.scores = load_high_scores()
+	self.rnd = Random()
+	self.starfield = Starfield(self.screen_w, self.screen_h, self.rnd.rnd)
+end
+
+function HighScoresView:update(t, dt)
+	self.starfield:update(dt)
+	if G.input.is_key_pressed("return") or G.input.is_key_pressed("space")
+		or G.input.is_key_pressed("escape") then
+		return "back"
+	end
+end
+
+function HighScoresView:draw()
+	G.graphics.clear()
+	self.starfield:draw(0, 0)
+	local cx = self.screen_w / 2
+	local cy = self.screen_h / 2
+
+	G.graphics.set_color(100, 200, 255, 255)
+	draw_text_centered("HIGH SCORES", FONT_LG, cx, 60)
+
+	if #self.scores == 0 then
+		G.graphics.set_color(150, 150, 150, 255)
+		draw_text_centered("No scores yet!", FONT_MD, cx, cy)
+	else
+		local start_y = 120
+		for i, entry in ipairs(self.scores) do
+			local y = start_y + (i - 1) * 35
+			local rank = tostring(i) .. "."
+			local name = entry.name or "???"
+			local score = tostring(entry.score or 0)
+
+			if i == 1 then
+				G.graphics.set_color(255, 215, 0, 255)
+			elseif i == 2 then
+				G.graphics.set_color(192, 192, 192, 255)
+			elseif i == 3 then
+				G.graphics.set_color(205, 127, 50, 255)
+			else
+				G.graphics.set_color(200, 200, 200, 255)
+			end
+
+			local line = rank .. " " .. name .. "  " .. score
+			draw_text_centered(line, FONT_MD, cx, y)
+		end
+	end
+
+	G.graphics.set_color(150, 150, 150, 255)
+	draw_text_centered("Press ENTER to return", FONT_SM, cx, self.screen_h - 50)
+	G.graphics.set_color("white")
+end
+
 local Menu = {}
 
 function Menu:init()
 	self.screen_w, self.screen_h = G.window.dimensions()
 	self.selected = 1
-	self.items = { "PLAY GAME", "QUIT" }
+	self.items = { "PLAY GAME", "HIGH SCORES", "QUIT" }
 	self.rnd = Random()
 	self.starfield = Starfield(self.screen_w, self.screen_h, self.rnd.rnd)
 	self.confirm_quit = false
@@ -845,6 +1041,8 @@ function Menu:update(t, dt)
 		if self.selected == 1 then
 			return "play"
 		elseif self.selected == 2 then
+			return "high_scores"
+		elseif self.selected == 3 then
 			G.system.quit()
 		end
 	end
@@ -897,15 +1095,39 @@ function Game:update(t, dt)
 		if result == "play" then
 			self.state = "playing"
 			G1:init()
+		elseif result == "high_scores" then
+			self.state = "high_scores"
+			HighScoresView:init()
+		end
+	elseif self.state == "high_scores" then
+		local result = HighScoresView:update(t, dt)
+		if result == "back" then
+			self.state = "menu"
+			Menu:init()
 		end
 	elseif self.state == "playing" then
 		G1:update(t, dt)
-		if G1.state == "back_to_menu" then
+		if G1.state == "enter_name" then
+			if G1.music_source then
+				G.sound.stop_source(G1.music_source)
+			end
+			self.state = "name_entry"
+			NameEntry:init(G1.score)
+		elseif G1.state == "back_to_menu" then
 			if G1.music_source then
 				G.sound.stop_source(G1.music_source)
 			end
 			self.state = "menu"
 			Menu:init()
+		end
+	elseif self.state == "name_entry" then
+		NameEntry:update(t, dt)
+		if NameEntry.done then
+			local scores = load_high_scores()
+			insert_high_score(scores, NameEntry:get_name(), NameEntry.score)
+			save_high_scores(scores)
+			self.state = "high_scores"
+			HighScoresView:init()
 		end
 	end
 end
@@ -913,6 +1135,10 @@ end
 function Game:draw()
 	if self.state == "menu" then
 		Menu:draw()
+	elseif self.state == "high_scores" then
+		HighScoresView:draw()
+	elseif self.state == "name_entry" then
+		NameEntry:draw()
 	elseif self.state == "playing" then
 		G1:draw()
 	end
