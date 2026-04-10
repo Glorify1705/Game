@@ -489,11 +489,9 @@ class DbPacker {
   AssetInfo InsertSpritesheetJson(std::string_view filename, const uint8_t* buf,
                                   size_t size) {
     ArenaAllocator scratch(allocator_, Megabytes(1));
-    yyjson_alc alc = MakeYyjsonAlc(&scratch);
     yyjson_read_err err{};
     yyjson_doc* doc =
-        yyjson_read_opts(reinterpret_cast<char*>(const_cast<uint8_t*>(buf)),
-                         size, YYJSON_READ_NOFLAG, &alc, &err);
+        ReadJson(&scratch, reinterpret_cast<const char*>(buf), size, &err);
     CHECK(doc != nullptr, "Failed to parse spritesheet ", filename, ": ",
           err.msg);
     yyjson_val* root = yyjson_doc_get_root(doc);

@@ -18,7 +18,6 @@ int LuaPushJsonValue(lua_State* state, yyjson_val* val);
 ErrorOr<yyjson_mut_val*> LuaToJsonValue(lua_State* state, int index,
                                         yyjson_mut_doc* doc);
 
-// Registers the G.json library (decode, encode).
 void AddJsonLibrary(Lua* lua);
 
 }  // namespace G

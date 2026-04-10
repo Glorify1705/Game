@@ -1,5 +1,7 @@
 #include "filesystem.h"
 
+#include "defer.h"
+
 namespace G {
 
 void Filesystem::Initialize(const GameConfig& config) {
@@ -57,14 +59,13 @@ ErrorOr<void> Filesystem::Spit(std::string_view filename,
         PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
     return Error::Message("failed to open file for writing");
   }
+  DEFER([f] { PHYSFS_close(f); });
   if (PHYSFS_writeBytes(f, contents.data(), contents.size()) !=
       static_cast<PHYSFS_sint64>(contents.size())) {
     LOG("Could not write to file ", path, ": ",
         PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
-    PHYSFS_close(f);
     return Error::Message("failed to write to file");
   }
-  PHYSFS_close(f);
   return {};
 }
 
@@ -101,9 +102,9 @@ ErrorOr<size_t> Filesystem::Slurp(std::string_view filename, uint8_t* buffer,
         PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
     return Error::Message("failed to open file for reading");
   }
+  DEFER([f] { PHYSFS_close(f); });
   PHYSFS_sint64 length = PHYSFS_fileLength(f);
   if (length < 0 || static_cast<size_t>(length) > buffer_size) {
-    PHYSFS_close(f);
     return Error::Message("file too large for buffer");
   }
   size_t sz = static_cast<size_t>(length);
@@ -111,10 +112,8 @@ ErrorOr<size_t> Filesystem::Slurp(std::string_view filename, uint8_t* buffer,
       PHYSFS_readBytes(f, buffer, sz) != static_cast<PHYSFS_sint64>(sz)) {
     LOG("Could not read file ", path, ": ",
         PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
-    PHYSFS_close(f);
     return Error::Message("failed to read file");
   }
-  PHYSFS_close(f);
   return sz;
 }
 
