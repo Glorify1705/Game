@@ -128,6 +128,9 @@ class ArenaAllocator : public Allocator {
   ArenaAllocator(Allocator* a, size_t size)
       : ArenaAllocator(reinterpret_cast<uint8_t*>(a->Alloc(size, kMaxAlign)),
                        size) {
+    CHECK(reinterpret_cast<void*>(beginning_) != nullptr,
+          "ArenaAllocator: parent allocator failed to provide ", size,
+          " bytes");
     allocator_ = a;
   }
 

@@ -4,7 +4,8 @@
 
 #include "clock.h"
 #include "defer.h"
-#include "json.h"
+#include "json_alc.h"
+#include "libraries/yyjson.h"
 #include "logging.h"
 
 namespace G {
@@ -27,41 +28,53 @@ void ParseVersionFromString(const char* str, GameConfig* config) {
 void LoadConfig(std::string_view json_configuration, GameConfig* config,
                 Allocator* allocator) {
   TIMER("Loading configuration");
-  ArenaAllocator scratch(allocator, Kilobytes(16));
-  JsonValue* json = MUST(ParseJson(json_configuration, &scratch));
-  CHECK(json->IsObject(), "config must be a json object");
-  json->ForEachMember([&](std::string_view key, const JsonValue& value) {
-    if (key == "width") {
-      config->window_width = value.GetLong();
-    } else if (key == "height") {
-      config->window_height = value.GetNumber();
-    } else if (key == "msaa_samples") {
-      config->msaa_samples = value.GetNumber();
-    } else if (key == "borderless") {
-      config->borderless = value.GetBool();
-    } else if (key == "centered") {
-      config->centered = value.GetBool();
-    } else if (key == "fullscreen") {
-      config->fullscreen = value.GetBool();
-    } else if (key == "enable_joystick") {
-      config->enable_joystick = value.GetBool();
-    } else if (key == "enable_debug_rendering") {
-      config->enable_debug_rendering = value.GetBool();
-    } else if (key == "title") {
-      CopyString(value.GetString(), config->window_title,
+  ArenaAllocator scratch(allocator, Kilobytes(64));
+  yyjson_alc alc = MakeYyjsonAlc(&scratch);
+  yyjson_read_err err{};
+  yyjson_doc* doc = yyjson_read_opts(
+      const_cast<char*>(json_configuration.data()), json_configuration.size(),
+      YYJSON_READ_NOFLAG, &alc, &err);
+  CHECK(doc != nullptr, "config parse failed: ", err.msg);
+  yyjson_val* root = yyjson_doc_get_root(doc);
+  CHECK(yyjson_is_obj(root), "config must be a json object");
+
+  yyjson_val* key;
+  yyjson_val* value;
+  yyjson_obj_iter iter = yyjson_obj_iter_with(root);
+  while ((key = yyjson_obj_iter_next(&iter)) != nullptr) {
+    value = yyjson_obj_iter_get_val(key);
+    std::string_view k = YyjsonStrView(key);
+    if (k == "width") {
+      config->window_width = yyjson_get_int(value);
+    } else if (k == "height") {
+      config->window_height = yyjson_get_int(value);
+    } else if (k == "msaa_samples") {
+      config->msaa_samples = yyjson_get_int(value);
+    } else if (k == "borderless") {
+      config->borderless = yyjson_get_bool(value);
+    } else if (k == "centered") {
+      config->centered = yyjson_get_bool(value);
+    } else if (k == "fullscreen") {
+      config->fullscreen = yyjson_get_bool(value);
+    } else if (k == "enable_joystick") {
+      config->enable_joystick = yyjson_get_bool(value);
+    } else if (k == "enable_debug_rendering") {
+      config->enable_debug_rendering = yyjson_get_bool(value);
+    } else if (k == "title") {
+      CopyString(YyjsonStrView(value), config->window_title,
                  sizeof(config->window_title));
-    } else if (key == "org_name") {
-      CopyString(value.GetString(), config->org_name, sizeof(config->org_name));
-    } else if (key == "app_name") {
-      CopyString(value.GetString(), config->app_name, sizeof(config->app_name));
-    } else if (key == "version") {
-      // GetString() points into allocator memory and is null-terminated
-      // when escape processing occurs, but for safety copy to a local buffer.
+    } else if (k == "org_name") {
+      CopyString(YyjsonStrView(value), config->org_name,
+                 sizeof(config->org_name));
+    } else if (k == "app_name") {
+      CopyString(YyjsonStrView(value), config->app_name,
+                 sizeof(config->app_name));
+    } else if (k == "version") {
       char ver[32];
-      CopyString(value.GetString(), ver, sizeof(ver));
+      CopyString(YyjsonStrView(value), ver, sizeof(ver));
       ParseVersionFromString(ver, config);
     }
-  });
+  }
 }
 
 void LoadConfigFromDatabase(sqlite3* db, GameConfig* config,

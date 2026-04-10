@@ -659,8 +659,10 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
 int Main(int argc, const char* argv[]) {
   InstallSignalHandlers();
   // Top-level arena for CLI subcommand memory.
-  auto* cli_buf = static_cast<uint8_t*>(malloc(Megabytes(512)));
-  ArenaAllocator cli_arena(cli_buf, Megabytes(512));
+  // Sized to comfortably hold the packer's 512MB sub-arena plus the
+  // config arena and other CLI scratch state.
+  auto* cli_buf = static_cast<uint8_t*>(malloc(Gigabytes(1)));
+  ArenaAllocator cli_arena(cli_buf, Gigabytes(1));
 
   if (argc >= 2) {
     std::string_view cmd = argv[1];
