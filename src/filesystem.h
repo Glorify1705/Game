@@ -33,8 +33,17 @@ class Filesystem {
   ErrorOr<void> WriteToFile(std::string_view filename,
                             std::string_view contents);
 
+  // Opens, writes, and closes the file in one shot. Unlike WriteToFile, this
+  // does not cache the handle, so the data is visible to reads immediately.
+  ErrorOr<void> Spit(std::string_view filename, std::string_view contents);
+
   ErrorOr<void> ReadFile(std::string_view filename, uint8_t* buffer,
                          size_t size);
+
+  // Opens, reads the entire file, and closes the handle. Unlike ReadFile/Size,
+  // this always sees the latest data on disk.
+  ErrorOr<size_t> Slurp(std::string_view filename, uint8_t* buffer,
+                        size_t buffer_size);
 
   struct StatInfo {
     size_t size;
@@ -50,6 +59,9 @@ class Filesystem {
   ErrorOr<StatInfo> Stat(std::string_view filename);
 
   bool Exists(std::string_view filename);
+
+  // Delete a file from the write directory. No error if the file doesn't exist.
+  ErrorOr<void> Delete(std::string_view filename);
 
   using DirCallback = PHYSFS_EnumerateCallbackResult (*)(void* userdata,
                                                          const char* file,

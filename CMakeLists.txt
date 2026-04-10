@@ -118,6 +118,7 @@ set(ENGINE_SRCS
     "src/lua_filesystem.cc"
     "src/lua_graphics.cc"
     "src/lua_input.cc"
+    "src/lua_json.cc"
     "src/lua_physics.cc"
     "src/lua_log.cc"
     "src/lua_random.cc"

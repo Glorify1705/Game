@@ -6,6 +6,10 @@ local Object = require("classic")
 local Starfield = require("starfield")
 local Powerup = require("powerup")
 local CollisionGroups = require("collision_groups")
+local Scores = require("scores")
+local HS = require("highscores")
+local NameEntry = HS.NameEntry
+local HighScoresView = HS.HighScoresView
 
 local Entities = Object:extend()
 
@@ -473,7 +477,7 @@ function G1:update(t, dt)
 
 	if self.confirm_quit then
 		if G.input.is_key_pressed("y") then
-			G.system.quit()
+			self.state = "enter_name"
 		end
 		if G.input.is_key_pressed("n") or G.input.is_key_pressed("escape") then
 			self.confirm_quit = false
@@ -518,7 +522,7 @@ function G1:update(t, dt)
 
 	if self.state == "game_over" then
 		if G.input.is_key_pressed("return") then
-			self.state = "back_to_menu"
+			self.state = "enter_name"
 		end
 		return
 	end
@@ -770,7 +774,7 @@ function G1:draw()
 		draw_text_centered("GAME OVER", FONT_LG, cx, cy - 50)
 		G.graphics.set_color("white")
 		draw_text_centered("SCORE: " .. self.score, FONT_MD, cx, cy)
-		draw_text_centered("Press ENTER to restart", FONT_SM, cx, cy + 35)
+		draw_text_centered("Press ENTER to continue", FONT_SM, cx, cy + 35)
 	end
 
 	if self.paused then
@@ -780,7 +784,7 @@ function G1:draw()
 		G.graphics.draw_rect(0, 0, self.screen_w, self.screen_h)
 		if self.confirm_quit then
 			G.graphics.set_color(255, 80, 80, 255)
-			draw_text_centered("Quit the game?", FONT_LG, cx, cy - 20)
+			draw_text_centered("End game?", FONT_LG, cx, cy - 20)
 			G.graphics.set_color("white")
 			draw_text_centered("Y / N", FONT_MD, cx, cy + 25)
 		else
@@ -808,7 +812,7 @@ local Menu = {}
 function Menu:init()
 	self.screen_w, self.screen_h = G.window.dimensions()
 	self.selected = 1
-	self.items = { "PLAY GAME", "QUIT" }
+	self.items = { "PLAY GAME", "HIGH SCORES", "QUIT" }
 	self.rnd = Random()
 	self.starfield = Starfield(self.screen_w, self.screen_h, self.rnd.rnd)
 	self.confirm_quit = false
@@ -845,6 +849,8 @@ function Menu:update(t, dt)
 		if self.selected == 1 then
 			return "play"
 		elseif self.selected == 2 then
+			return "high_scores"
+		elseif self.selected == 3 then
 			G.system.quit()
 		end
 	end
@@ -897,15 +903,39 @@ function Game:update(t, dt)
 		if result == "play" then
 			self.state = "playing"
 			G1:init()
+		elseif result == "high_scores" then
+			self.state = "high_scores"
+			HighScoresView:init()
+		end
+	elseif self.state == "high_scores" then
+		local result = HighScoresView:update(t, dt)
+		if result == "back" then
+			self.state = "menu"
+			Menu:init()
 		end
 	elseif self.state == "playing" then
 		G1:update(t, dt)
-		if G1.state == "back_to_menu" then
+		if G1.state == "enter_name" then
+			if G1.music_source then
+				G.sound.stop_source(G1.music_source)
+			end
+			self.state = "name_entry"
+			NameEntry:init(G1.score)
+		elseif G1.state == "back_to_menu" then
 			if G1.music_source then
 				G.sound.stop_source(G1.music_source)
 			end
 			self.state = "menu"
 			Menu:init()
+		end
+	elseif self.state == "name_entry" then
+		NameEntry:update(t, dt)
+		if NameEntry.done then
+			local scores = Scores.load()
+			Scores.insert(scores, NameEntry:get_name(), NameEntry.score)
+			Scores.save(scores)
+			self.state = "high_scores"
+			HighScoresView:init()
 		end
 	end
 end
@@ -913,6 +943,10 @@ end
 function Game:draw()
 	if self.state == "menu" then
 		Menu:draw()
+	elseif self.state == "high_scores" then
+		HighScoresView:draw()
+	elseif self.state == "name_entry" then
+		NameEntry:draw()
 	elseif self.state == "playing" then
 		G1:draw()
 	end

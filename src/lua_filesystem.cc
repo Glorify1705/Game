@@ -34,27 +34,6 @@ const struct LuaApiFunction kFilesystemLib[] = {
      [](lua_State* state) {
        return LuaLoadFileIntoBuffer(state, GetLuaString(state, 1));
      }},
-    {"load_json",
-     "Loads a Json file from a string.",
-     {{"name", "Filename to read from", "string"}},
-     {{"error", "nil on success, a string if there were any errors", "string"},
-      {"result",
-       "Table result of evaluating the Json file, nil if there were any "
-       "errors",
-       "table"}},
-     [](lua_State* state) {
-       LUA_ERROR(state, "Unimplemented");
-       return 0;
-     }},
-    {"save_json",
-     "Saves a Lua table into a file.",
-     {{"name", "Filename to write to from", "string"},
-      {"contents", "Table to serialize", "table"}},
-     {{"error", "nil on success, a string if there were any errors", "string"}},
-     [](lua_State* state) {
-       LUA_ERROR(state, "Unimplemented");
-       return 0;
-     }},
     {"list_directory",
      "List all files in a givne directory",
      {{"name", "Directory to list", "string"}},
@@ -76,6 +55,50 @@ const struct LuaApiFunction kFilesystemLib[] = {
        lua_pushboolean(state, filesystem->Exists(name));
        return 1;
      }},
+    {"stat",
+     "Get file metadata",
+     {{"name", "Path to the file or directory", "string"}},
+     {{"error", "nil on success, error message on failure", "string"},
+      {"info", "Table with size, type, and modtime fields", "table"}},
+     [](lua_State* state) {
+       auto* filesystem = Registry<Filesystem>::Retrieve(state);
+       std::string_view name = GetLuaString(state, 1);
+       auto result = filesystem->Stat(name);
+       if (result.is_error()) {
+         auto msg = result.error().message();
+         lua_pushlstring(state, msg.data(), msg.size());
+         lua_pushnil(state);
+         return 2;
+       }
+       auto info = result.release_value();
+       lua_pushnil(state);
+       lua_createtable(state, 0, 3);
+       lua_pushnumber(state, static_cast<lua_Number>(info.size));
+       lua_setfield(state, -2, "size");
+       lua_pushstring(state, info.type == Filesystem::StatInfo::kFile
+                                 ? "file"
+                                 : "directory");
+       lua_setfield(state, -2, "type");
+       lua_pushnumber(state, static_cast<lua_Number>(info.modtime_secs));
+       lua_setfield(state, -2, "modtime");
+       return 2;
+     }},
+    {"delete",
+     "Delete a file from the write directory",
+     {{"name", "Path to the file to delete", "string"}},
+     {{"error", "nil on success, error message on failure", "string"}},
+     [](lua_State* state) {
+       auto* filesystem = Registry<Filesystem>::Retrieve(state);
+       std::string_view name = GetLuaString(state, 1);
+       auto result = filesystem->Delete(name);
+       if (result.is_error()) {
+         auto msg = result.error().message();
+         lua_pushlstring(state, msg.data(), msg.size());
+       } else {
+         lua_pushnil(state);
+       }
+       return 1;
+     }},
 };
 
 }  // namespace
@@ -84,7 +107,7 @@ int LuaWriteToFile(lua_State* state, int index, std::string_view filename) {
   auto* filesystem = Registry<Filesystem>::Retrieve(state);
   auto write_to_fs = [&](std::string_view data) {
     LOG("Writing to ", filename);
-    auto result = filesystem->WriteToFile(filename, data);
+    auto result = filesystem->Spit(filename, data);
     if (result.is_error()) {
       auto msg = result.error().message();
       lua_pushlstring(state, msg.data(), msg.size());
@@ -106,24 +129,24 @@ int LuaWriteToFile(lua_State* state, int index, std::string_view filename) {
 
 int LuaLoadFileIntoBuffer(lua_State* state, std::string_view filename) {
   auto* filesystem = Registry<Filesystem>::Retrieve(state);
-  auto size_result = filesystem->Size(filename);
-  if (size_result.is_error()) {
+  auto stat_result = filesystem->Stat(filename);
+  if (stat_result.is_error()) {
     lua_pushnil(state);
-    auto msg = size_result.error().message();
+    auto msg = stat_result.error().message();
     lua_pushlstring(state, msg.data(), msg.size());
     return 2;
   }
-  size_t size = size_result.release_value();
+  size_t size = stat_result.release_value().size;
   auto* buf = static_cast<ByteBuffer*>(
       lua_newuserdata(state, sizeof(ByteBuffer) + size));
   buf->size = size;
   luaL_getmetatable(state, "byte_buffer");
   lua_setmetatable(state, -2);
-  auto read_result = filesystem->ReadFile(filename, buf->contents, buf->size);
-  if (read_result.is_error()) {
-    lua_pop(state, 1);  // Pop the userdata, it will be GCed.
+  auto result = filesystem->Slurp(filename, buf->contents, size);
+  if (result.is_error()) {
+    lua_pop(state, 1);
     lua_pushnil(state);
-    auto msg = read_result.error().message();
+    auto msg = result.error().message();
     lua_pushlstring(state, msg.data(), msg.size());
   } else {
     lua_pushnil(state);

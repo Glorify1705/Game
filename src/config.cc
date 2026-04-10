@@ -29,11 +29,8 @@ void LoadConfig(std::string_view json_configuration, GameConfig* config,
                 Allocator* allocator) {
   TIMER("Loading configuration");
   ArenaAllocator scratch(allocator, Kilobytes(64));
-  yyjson_alc alc = MakeYyjsonAlc(&scratch);
   yyjson_read_err err{};
-  yyjson_doc* doc = yyjson_read_opts(
-      const_cast<char*>(json_configuration.data()), json_configuration.size(),
-      YYJSON_READ_NOFLAG, &alc, &err);
+  yyjson_doc* doc = ReadJson(&scratch, json_configuration, &err);
   CHECK(doc != nullptr, "config parse failed: ", err.msg);
   yyjson_val* root = yyjson_doc_get_root(doc);
   CHECK(yyjson_is_obj(root), "config must be a json object");

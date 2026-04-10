@@ -1,5 +1,7 @@
 #include "filesystem.h"
 
+#include "defer.h"
+
 namespace G {
 
 void Filesystem::Initialize(const GameConfig& config) {
@@ -48,6 +50,25 @@ ErrorOr<void> Filesystem::WriteToFile(std::string_view filename,
   return {};
 }
 
+ErrorOr<void> Filesystem::Spit(std::string_view filename,
+                               std::string_view contents) {
+  FixedStringBuffer<kMaxPathLength> path(filename);
+  PHYSFS_File* f = PHYSFS_openWrite(path.str());
+  if (f == nullptr) {
+    LOG("Failed to open file ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    return Error::Message("failed to open file for writing");
+  }
+  DEFER([f] { PHYSFS_close(f); });
+  if (PHYSFS_writeBytes(f, contents.data(), contents.size()) !=
+      static_cast<PHYSFS_sint64>(contents.size())) {
+    LOG("Could not write to file ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    return Error::Message("failed to write to file");
+  }
+  return {};
+}
+
 ErrorOr<void> Filesystem::ReadFile(std::string_view filename, uint8_t* buffer,
                                    size_t size) {
   size_t handle;
@@ -70,6 +91,30 @@ ErrorOr<void> Filesystem::ReadFile(std::string_view filename, uint8_t* buffer,
     return Error::Message("failed to read file");
   }
   return {};
+}
+
+ErrorOr<size_t> Filesystem::Slurp(std::string_view filename, uint8_t* buffer,
+                                  size_t buffer_size) {
+  FixedStringBuffer<kMaxPathLength> path(filename);
+  PHYSFS_File* f = PHYSFS_openRead(path.str());
+  if (f == nullptr) {
+    LOG("Could not read file ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    return Error::Message("failed to open file for reading");
+  }
+  DEFER([f] { PHYSFS_close(f); });
+  PHYSFS_sint64 length = PHYSFS_fileLength(f);
+  if (length < 0 || static_cast<size_t>(length) > buffer_size) {
+    return Error::Message("file too large for buffer");
+  }
+  size_t sz = static_cast<size_t>(length);
+  if (sz > 0 &&
+      PHYSFS_readBytes(f, buffer, sz) != static_cast<PHYSFS_sint64>(sz)) {
+    LOG("Could not read file ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    return Error::Message("failed to read file");
+  }
+  return sz;
 }
 
 ErrorOr<size_t> Filesystem::Size(std::string_view filename) {
@@ -126,6 +171,19 @@ ErrorOr<Filesystem::StatInfo> Filesystem::Stat(std::string_view filename) {
 bool Filesystem::Exists(std::string_view filename) {
   FixedStringBuffer<kMaxPathLength> path(filename);
   return PHYSFS_exists(path);
+}
+
+ErrorOr<void> Filesystem::Delete(std::string_view filename) {
+  FixedStringBuffer<kMaxPathLength> path(filename);
+  // PHYSFS_delete operates on the write directory. It returns 0 on failure;
+  // "not found" is not an error — treat it as a successful no-op.
+  if (PHYSFS_delete(path) == 0) {
+    PHYSFS_ErrorCode err = PHYSFS_getLastErrorCode();
+    if (err == PHYSFS_ERR_NOT_FOUND) return {};
+    LOG("Could not delete file ", path, ": ", PHYSFS_getErrorByCode(err));
+    return Error::Message("failed to delete file");
+  }
+  return {};
 }
 
 void Filesystem::EnumerateDirectory(std::string_view directory,
