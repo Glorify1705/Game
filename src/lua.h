@@ -329,6 +329,7 @@ class Lua {
   friend void AddSoundLibrary(Lua* lua);
   friend void AddBufferLibrary(Lua* lua);
   friend void AddFilesystemLibrary(Lua* lua);
+  friend void AddJsonLibrary(Lua* lua);
   friend void AddByteBufferLibrary(Lua* lua);
   friend void AddAssetsLibrary(Lua* lua);
   friend void AddCollisionLibrary(Lua* lua);

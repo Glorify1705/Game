@@ -128,6 +128,17 @@ bool Filesystem::Exists(std::string_view filename) {
   return PHYSFS_exists(path);
 }
 
+ErrorOr<void> Filesystem::Delete(std::string_view filename) {
+  FixedStringBuffer<kMaxPathLength> path(filename);
+  if (!PHYSFS_exists(path)) return {};
+  if (PHYSFS_delete(path) == 0) {
+    LOG("Could not delete file ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    return Error::Message("failed to delete file");
+  }
+  return {};
+}
+
 void Filesystem::EnumerateDirectory(std::string_view directory,
                                     DirCallback callback, void* userdata) {
   FixedStringBuffer<kMaxPathLength> d(directory);

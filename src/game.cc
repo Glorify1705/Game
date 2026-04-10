@@ -27,6 +27,7 @@
 #include "lua_filesystem.h"
 #include "lua_graphics.h"
 #include "lua_input.h"
+#include "lua_json.h"
 #include "lua_log.h"
 #include "lua_math.h"
 #include "lua_physics.h"
@@ -107,6 +108,7 @@ struct EngineModules {
     lua.Register(&camera);
     lua.Register(assets);
     lua.Register(&timers);
+    lua.Register(&frame_allocator);
     AddByteBufferLibrary(&lua);
     AddCameraLibrary(&lua);
     AddFilesystemLibrary(&lua);
@@ -120,6 +122,7 @@ struct EngineModules {
     AddSystemLibrary(&lua);
     AddAssetsLibrary(&lua);
     AddCollisionLibrary(&lua);
+    AddJsonLibrary(&lua);
     AddTestLibrary(&lua);
     AddTimerLibrary(&lua);
     lua.BuildCompilationCache();

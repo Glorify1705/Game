@@ -51,6 +51,9 @@ class Filesystem {
 
   bool Exists(std::string_view filename);
 
+  // Delete a file from the write directory. No error if the file doesn't exist.
+  ErrorOr<void> Delete(std::string_view filename);
+
   using DirCallback = PHYSFS_EnumerateCallbackResult (*)(void* userdata,
                                                          const char* file,
                                                          const char* dir);
