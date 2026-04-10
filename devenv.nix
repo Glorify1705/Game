@@ -76,6 +76,7 @@ in
     export CC="${pkgs.clang}/bin/clang";
     export CXX="${pkgs.clang}/bin/clang++";
     export CMAKE_PREFIX_PATH="${pkgs.elfutils.dev}:${pkgs.elfutils.out}:$CMAKE_PREFIX_PATH";
+    export PATH="$DEVENV_ROOT/build:$PATH";
   '';
 
   # Each script is a thin wrapper that execs the corresponding file under
