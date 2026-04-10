@@ -48,6 +48,26 @@ ErrorOr<void> Filesystem::WriteToFile(std::string_view filename,
   return {};
 }
 
+ErrorOr<void> Filesystem::Spit(std::string_view filename,
+                               std::string_view contents) {
+  FixedStringBuffer<kMaxPathLength> path(filename);
+  PHYSFS_File* f = PHYSFS_openWrite(path.str());
+  if (f == nullptr) {
+    LOG("Failed to open file ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    return Error::Message("failed to open file for writing");
+  }
+  if (PHYSFS_writeBytes(f, contents.data(), contents.size()) !=
+      static_cast<PHYSFS_sint64>(contents.size())) {
+    LOG("Could not write to file ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    PHYSFS_close(f);
+    return Error::Message("failed to write to file");
+  }
+  PHYSFS_close(f);
+  return {};
+}
+
 ErrorOr<void> Filesystem::ReadFile(std::string_view filename, uint8_t* buffer,
                                    size_t size) {
   size_t handle;
@@ -70,6 +90,32 @@ ErrorOr<void> Filesystem::ReadFile(std::string_view filename, uint8_t* buffer,
     return Error::Message("failed to read file");
   }
   return {};
+}
+
+ErrorOr<size_t> Filesystem::Slurp(std::string_view filename, uint8_t* buffer,
+                                  size_t buffer_size) {
+  FixedStringBuffer<kMaxPathLength> path(filename);
+  PHYSFS_File* f = PHYSFS_openRead(path.str());
+  if (f == nullptr) {
+    LOG("Could not read file ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    return Error::Message("failed to open file for reading");
+  }
+  PHYSFS_sint64 length = PHYSFS_fileLength(f);
+  if (length < 0 || static_cast<size_t>(length) > buffer_size) {
+    PHYSFS_close(f);
+    return Error::Message("file too large for buffer");
+  }
+  size_t sz = static_cast<size_t>(length);
+  if (sz > 0 &&
+      PHYSFS_readBytes(f, buffer, sz) != static_cast<PHYSFS_sint64>(sz)) {
+    LOG("Could not read file ", path, ": ",
+        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    PHYSFS_close(f);
+    return Error::Message("failed to read file");
+  }
+  PHYSFS_close(f);
+  return sz;
 }
 
 ErrorOr<size_t> Filesystem::Size(std::string_view filename) {

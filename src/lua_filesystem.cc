@@ -107,7 +107,7 @@ int LuaWriteToFile(lua_State* state, int index, std::string_view filename) {
   auto* filesystem = Registry<Filesystem>::Retrieve(state);
   auto write_to_fs = [&](std::string_view data) {
     LOG("Writing to ", filename);
-    auto result = filesystem->WriteToFile(filename, data);
+    auto result = filesystem->Spit(filename, data);
     if (result.is_error()) {
       auto msg = result.error().message();
       lua_pushlstring(state, msg.data(), msg.size());
@@ -129,24 +129,24 @@ int LuaWriteToFile(lua_State* state, int index, std::string_view filename) {
 
 int LuaLoadFileIntoBuffer(lua_State* state, std::string_view filename) {
   auto* filesystem = Registry<Filesystem>::Retrieve(state);
-  auto size_result = filesystem->Size(filename);
-  if (size_result.is_error()) {
+  auto stat_result = filesystem->Stat(filename);
+  if (stat_result.is_error()) {
     lua_pushnil(state);
-    auto msg = size_result.error().message();
+    auto msg = stat_result.error().message();
     lua_pushlstring(state, msg.data(), msg.size());
     return 2;
   }
-  size_t size = size_result.release_value();
+  size_t size = stat_result.release_value().size;
   auto* buf = static_cast<ByteBuffer*>(
       lua_newuserdata(state, sizeof(ByteBuffer) + size));
   buf->size = size;
   luaL_getmetatable(state, "byte_buffer");
   lua_setmetatable(state, -2);
-  auto read_result = filesystem->ReadFile(filename, buf->contents, buf->size);
-  if (read_result.is_error()) {
-    lua_pop(state, 1);  // Pop the userdata, it will be GCed.
+  auto result = filesystem->Slurp(filename, buf->contents, size);
+  if (result.is_error()) {
+    lua_pop(state, 1);
     lua_pushnil(state);
-    auto msg = read_result.error().message();
+    auto msg = result.error().message();
     lua_pushlstring(state, msg.data(), msg.size());
   } else {
     lua_pushnil(state);
