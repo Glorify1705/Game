@@ -130,10 +130,12 @@ bool Filesystem::Exists(std::string_view filename) {
 
 ErrorOr<void> Filesystem::Delete(std::string_view filename) {
   FixedStringBuffer<kMaxPathLength> path(filename);
-  if (!PHYSFS_exists(path)) return {};
+  // PHYSFS_delete operates on the write directory. It returns 0 on failure;
+  // "not found" is not an error — treat it as a successful no-op.
   if (PHYSFS_delete(path) == 0) {
-    LOG("Could not delete file ", path, ": ",
-        PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+    PHYSFS_ErrorCode err = PHYSFS_getLastErrorCode();
+    if (err == PHYSFS_ERR_NOT_FOUND) return {};
+    LOG("Could not delete file ", path, ": ", PHYSFS_getErrorByCode(err));
     return Error::Message("failed to delete file");
   }
   return {};

@@ -396,7 +396,7 @@ class Lua {
     size_t count;
   };
 
-  static constexpr size_t kMaxLibraries = 16;
+  static constexpr size_t kMaxLibraries = 32;
   RegisteredLibrary registered_libraries_[kMaxLibraries];
   size_t registered_library_count_ = 0;
 

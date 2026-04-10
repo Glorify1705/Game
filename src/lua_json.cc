@@ -64,6 +64,10 @@ ErrorOr<yyjson_mut_val*> LuaToJsonValue(lua_State* state, int index,
       double n = lua_tonumber(state, index);
       if (std::isnan(n)) return Error::Message("cannot encode NaN as JSON");
       if (std::isinf(n)) return Error::Message("cannot encode Inf as JSON");
+      // Use integer encoding when the value has no fractional part and fits
+      // in a 64-bit signed integer, so 42 encodes as "42" not "42.0".
+      auto i = static_cast<int64_t>(n);
+      if (static_cast<double>(i) == n) return yyjson_mut_sint(doc, i);
       return yyjson_mut_real(doc, n);
     }
     case LUA_TSTRING: {
