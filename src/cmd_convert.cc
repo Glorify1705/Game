@@ -64,16 +64,16 @@ const char* DefaultOutputExtension(Format input) {
 }
 
 // Convert image data (any stb_image-supported format) to QOI.
-bool ConvertImageToQoi(const uint8_t* data, size_t size, const char* out_path,
-                       Allocator* allocator) {
+ErrorOr<void> ConvertImageToQoi(ByteSlice data, const char* out_path,
+                                Allocator* allocator) {
   int w, h, channels;
-  auto* pixels =
-      stbi_load_from_memory(data, static_cast<int>(size), &w, &h, &channels,
-                            /*desired_channels=*/0);
+  auto* pixels = stbi_load_from_memory(
+      data.data(), static_cast<int>(data.size()), &w, &h, &channels,
+      /*desired_channels=*/0);
   if (pixels == nullptr) {
     fprintf(stderr, "Error: failed to decode image: %s\n",
             stbi_failure_reason());
-    return false;
+    return Error::Message("failed to decode image");
   }
   DEFER([pixels] { stbi_image_free(pixels); });
   QoiDesc desc;
@@ -83,40 +83,34 @@ bool ConvertImageToQoi(const uint8_t* data, size_t size, const char* out_path,
   desc.colorspace = QoiColorspace::kLinear;
   int out_len;
   auto* encoded = QoiEncode(pixels, &desc, &out_len, allocator);
-  if (encoded == nullptr) {
-    fprintf(stderr, "Error: failed to encode QOI\n");
-    return false;
-  }
-  return !WriteEntireFile(out_path, encoded, out_len).is_error();
+  if (encoded == nullptr) return Error::Message("failed to encode QOI");
+  TRY(WriteEntireFile(out_path, encoded, out_len));
+  return {};
 }
 
 // Convert QOI to PNG.
-bool ConvertQoiToPng(const uint8_t* data, size_t size, const char* out_path,
-                     Allocator* allocator) {
+ErrorOr<void> ConvertQoiToPng(ByteSlice data, const char* out_path,
+                              Allocator* allocator) {
   QoiDesc desc;
-  auto* pixels = QoiDecode(data, static_cast<int>(size), &desc,
+  auto* pixels = QoiDecode(data.data(), static_cast<int>(data.size()), &desc,
                            /*channels=*/0, allocator);
-  if (pixels == nullptr) {
-    fprintf(stderr, "Error: failed to decode QOI\n");
-    return false;
-  }
+  if (pixels == nullptr) return Error::Message("failed to decode QOI");
   int ok = stbi_write_png(out_path, static_cast<int>(desc.width),
                           static_cast<int>(desc.height), desc.channels, pixels,
                           static_cast<int>(desc.width) * desc.channels);
   if (!ok) {
     fprintf(stderr, "Error: failed to write PNG '%s'\n", out_path);
-    return false;
+    return Error::Message("failed to write PNG");
   }
-  return true;
+  return {};
 }
 
 // Convert WAV to QOA.
-bool ConvertWavToQoa(const uint8_t* data, size_t size, const char* out_path,
-                     Allocator* allocator) {
+ErrorOr<void> ConvertWavToQoa(ByteSlice data, const char* out_path,
+                              Allocator* allocator) {
   drwav wav;
-  if (!drwav_init_memory(&wav, data, size, nullptr)) {
-    fprintf(stderr, "Error: failed to decode WAV\n");
-    return false;
+  if (!drwav_init_memory(&wav, data.data(), data.size(), nullptr)) {
+    return Error::Message("failed to decode WAV");
   }
   DEFER([&wav] { drwav_uninit(&wav); });
   size_t total_frames = wav.totalPCMFrameCount;
@@ -129,30 +123,25 @@ bool ConvertWavToQoa(const uint8_t* data, size_t size, const char* out_path,
   desc.samples = static_cast<uint32_t>(total_frames);
   Slice<int16_t> samples(pcm, total_samples);
   FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator);
-  if (encoded.empty()) {
-    fprintf(stderr, "Error: failed to encode QOA\n");
-    return false;
-  }
-  return !WriteEntireFile(out_path, encoded.data(), encoded.size()).is_error();
+  if (encoded.empty()) return Error::Message("failed to encode QOA");
+  TRY(WriteEntireFile(out_path, encoded.data(), encoded.size()));
+  return {};
 }
 
 // Convert OGG Vorbis to QOA.
-bool ConvertOggToQoa(const uint8_t* data, size_t size, const char* out_path,
-                     Allocator* allocator) {
+ErrorOr<void> ConvertOggToQoa(ByteSlice data, const char* out_path,
+                              Allocator* allocator) {
   int error;
-  stb_vorbis* v =
-      stb_vorbis_open_memory(data, static_cast<int>(size), &error, nullptr);
+  stb_vorbis* v = stb_vorbis_open_memory(
+      data.data(), static_cast<int>(data.size()), &error, nullptr);
   if (v == nullptr) {
     fprintf(stderr, "Error: failed to decode OGG (error %d)\n", error);
-    return false;
+    return Error::Message("failed to decode OGG");
   }
   DEFER([v] { stb_vorbis_close(v); });
   stb_vorbis_info info = stb_vorbis_get_info(v);
   unsigned int total_frames = stb_vorbis_stream_length_in_samples(v);
-  if (total_frames == 0) {
-    fprintf(stderr, "Error: empty OGG file\n");
-    return false;
-  }
+  if (total_frames == 0) return Error::Message("empty OGG file");
   size_t total_samples = static_cast<size_t>(total_frames) * info.channels;
   auto* pcm = allocator->NewArray<int16_t>(total_samples);
   stb_vorbis_get_samples_short_interleaved(v, info.channels, pcm,
@@ -163,23 +152,17 @@ bool ConvertOggToQoa(const uint8_t* data, size_t size, const char* out_path,
   desc.samples = total_frames;
   Slice<int16_t> samples(pcm, total_samples);
   FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator);
-  if (encoded.empty()) {
-    fprintf(stderr, "Error: failed to encode QOA\n");
-    return false;
-  }
-  return !WriteEntireFile(out_path, encoded.data(), encoded.size()).is_error();
+  if (encoded.empty()) return Error::Message("failed to encode QOA");
+  TRY(WriteEntireFile(out_path, encoded.data(), encoded.size()));
+  return {};
 }
 
 // Convert QOA to WAV.
-bool ConvertQoaToWav(const uint8_t* data, size_t size, const char* out_path,
-                     Allocator* allocator) {
+ErrorOr<void> ConvertQoaToWav(ByteSlice data, const char* out_path,
+                              Allocator* allocator) {
   QoaDesc desc;
-  ByteSlice input(data, size);
-  FixedArray<int16_t> samples = QoaDecode(input, &desc, allocator);
-  if (samples.empty()) {
-    fprintf(stderr, "Error: failed to decode QOA\n");
-    return false;
-  }
+  FixedArray<int16_t> samples = QoaDecode(data, &desc, allocator);
+  if (samples.empty()) return Error::Message("failed to decode QOA");
   drwav wav;
   drwav_data_format format;
   format.container = drwav_container_riff;
@@ -189,11 +172,11 @@ bool ConvertQoaToWav(const uint8_t* data, size_t size, const char* out_path,
   format.bitsPerSample = 16;
   if (!drwav_init_file_write(&wav, out_path, &format, nullptr)) {
     fprintf(stderr, "Error: could not open '%s' for writing\n", out_path);
-    return false;
+    return Error::Message("could not open file for writing");
   }
   drwav_write_pcm_frames(&wav, desc.samples, samples.data());
   drwav_uninit(&wav);
-  return true;
+  return {};
 }
 
 }  // namespace
@@ -276,25 +259,25 @@ int CmdConvert(Slice<const char*> args, Allocator* allocator) {
     fprintf(stderr, "Error: could not read '%s'\n", input_path);
     return 1;
   }
-  size_t input_size = read_result.value();
+  ByteSlice input(input_data, read_result.value());
 
-  bool ok = false;
-  if (input_format == Format::kQoi && output_format == Format::kPng) {
-    ok = ConvertQoiToPng(input_data, input_size, output_path, &arena);
-  } else if (IsImageFormat(input_format) && output_format == Format::kQoi) {
-    ok = ConvertImageToQoi(input_data, input_size, output_path, &arena);
-  } else if (input_format == Format::kQoa && output_format == Format::kWav) {
-    ok = ConvertQoaToWav(input_data, input_size, output_path, &arena);
-  } else if (input_format == Format::kWav && output_format == Format::kQoa) {
-    ok = ConvertWavToQoa(input_data, input_size, output_path, &arena);
-  } else if (input_format == Format::kOgg && output_format == Format::kQoa) {
-    ok = ConvertOggToQoa(input_data, input_size, output_path, &arena);
-  } else {
+  auto convert = [&]() -> ErrorOr<void> {
+    if (input_format == Format::kQoi && output_format == Format::kPng) {
+      return ConvertQoiToPng(input, output_path, &arena);
+    } else if (IsImageFormat(input_format) && output_format == Format::kQoi) {
+      return ConvertImageToQoi(input, output_path, &arena);
+    } else if (input_format == Format::kQoa && output_format == Format::kWav) {
+      return ConvertQoaToWav(input, output_path, &arena);
+    } else if (input_format == Format::kWav && output_format == Format::kQoa) {
+      return ConvertWavToQoa(input, output_path, &arena);
+    } else if (input_format == Format::kOgg && output_format == Format::kQoa) {
+      return ConvertOggToQoa(input, output_path, &arena);
+    }
     fprintf(stderr, "Error: unsupported conversion.\n");
-    return 1;
-  }
+    return Error::Message("unsupported conversion");
+  };
 
-  if (!ok) return 1;
+  if (convert().is_error()) return 1;
   printf("%s -> %s\n", input_path, output_path);
   return 0;
 }

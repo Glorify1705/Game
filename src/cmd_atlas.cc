@@ -32,23 +32,31 @@ struct SpriteInput {
   int height;
 };
 
+// Decoded image dimensions.
+struct DecodedImage {
+  uint8_t* pixels;
+  int width;
+  int height;
+};
+
 // Decode an image file (any supported format) into RGBA pixels.
-uint8_t* DecodeImage(const uint8_t* file_data, size_t file_size,
-                     std::string_view ext, int* out_w, int* out_h,
-                     Allocator* allocator) {
+DecodedImage DecodeImage(ByteSlice data, std::string_view ext,
+                         Allocator* allocator) {
   if (ext == "qoi") {
     QoiDesc desc;
-    auto* pixels =
-        static_cast<uint8_t*>(QoiDecode(file_data, static_cast<int>(file_size),
-                                        &desc, /*channels=*/4, allocator));
-    if (pixels == nullptr) return nullptr;
-    *out_w = static_cast<int>(desc.width);
-    *out_h = static_cast<int>(desc.height);
-    return pixels;
+    auto* pixels = static_cast<uint8_t*>(
+        QoiDecode(data.data(), static_cast<int>(data.size()), &desc,
+                  /*channels=*/4, allocator));
+    if (pixels == nullptr) return {nullptr, 0, 0};
+    return {pixels, static_cast<int>(desc.width),
+            static_cast<int>(desc.height)};
   }
-  int ch;
-  return stbi_load_from_memory(file_data, static_cast<int>(file_size), out_w,
-                               out_h, &ch, /*desired_channels=*/4);
+  int w, h, ch;
+  auto* pixels = stbi_load_from_memory(
+      data.data(), static_cast<int>(data.size()), &w, &h, &ch,
+      /*desired_channels=*/4);
+  if (pixels == nullptr) return {nullptr, 0, 0};
+  return {pixels, w, h};
 }
 
 // State passed through the directory iteration callback.
@@ -84,12 +92,10 @@ void CollectCallback(const DirEntry& entry, void* userdata) {
   uint8_t* file_data = nullptr;
   auto result = ReadEntireFile(full_path.str(), &file_data, state->allocator);
   if (result.is_error()) return;
-  size_t file_size = result.value();
 
-  int w, h;
-  uint8_t* pixels =
-      DecodeImage(file_data, file_size, ext, &w, &h, state->allocator);
-  if (pixels == nullptr) {
+  ByteSlice file_bytes(file_data, result.value());
+  DecodedImage img = DecodeImage(file_bytes, ext, state->allocator);
+  if (img.pixels == nullptr) {
     fprintf(stderr, "Warning: could not decode '%s', skipping.\n",
             full_path.str());
     return;
@@ -102,9 +108,9 @@ void CollectCallback(const DirEntry& entry, void* userdata) {
 
   SpriteInput si;
   si.name = StrDupZ(state->allocator, sprite_name.piece());
-  si.pixels = pixels;
-  si.width = w;
-  si.height = h;
+  si.pixels = img.pixels;
+  si.width = img.width;
+  si.height = img.height;
   state->sprites->Push(si);
 }
 
@@ -132,15 +138,12 @@ void BlitSprite(uint8_t* atlas, int atlas_w, const SpriteInput& sprite,
 }
 
 // Write the .sprites.json metadata file.
-bool WriteSpriteJson(const char* path, const char* atlas_filename, int atlas_w,
-                     int atlas_h, Slice<const SpriteInput> sprites,
-                     const stbrp_rect* rects, size_t count) {
+ErrorOr<void> WriteSpriteJson(const char* path, const char* atlas_filename,
+                              int atlas_w, int atlas_h,
+                              Slice<const SpriteInput> sprites,
+                              const stbrp_rect* rects, size_t count) {
   FILE* f = fopen(path, "w");
-  if (f == nullptr) {
-    fprintf(stderr, "Error: could not open '%s' for writing: %s\n", path,
-            strerror(errno));
-    return false;
-  }
+  if (f == nullptr) return Error::Errno(errno);
   DEFER([f] { fclose(f); });
   fprintf(f, "{\n");
   fprintf(f, "  \"atlas\": \"%s\",\n", atlas_filename);
@@ -160,7 +163,7 @@ bool WriteSpriteJson(const char* path, const char* atlas_filename, int atlas_w,
   }
   fprintf(f, "\n  ]\n");
   fprintf(f, "}\n");
-  return true;
+  return {};
 }
 
 // Parse a "WxH" size string.
@@ -185,48 +188,49 @@ struct AtlasArgs {
   bool recursive = false;
 };
 
-// Parse atlas command-line arguments. Returns 0 on success.
-int ParseAtlasArgs(Slice<const char*> args, AtlasArgs* out) {
+// Parse atlas command-line arguments.
+ErrorOr<AtlasArgs> ParseAtlasArgs(Slice<const char*> args) {
+  AtlasArgs out;
   for (size_t i = 1; i < args.size(); ++i) {
     std::string_view arg = args[i];
     if ((arg == "-o" || arg == "--output") && i + 1 < args.size()) {
-      out->output_dir = args[++i];
+      out.output_dir = args[++i];
     } else if (arg == "--name" && i + 1 < args.size()) {
-      out->name = args[++i];
+      out.name = args[++i];
     } else if (arg == "--size" && i + 1 < args.size()) {
-      if (!ParseSize(args[++i], &out->atlas_w, &out->atlas_h)) {
+      if (!ParseSize(args[++i], &out.atlas_w, &out.atlas_h)) {
         fprintf(stderr, "Error: invalid size '%s'. Use WxH (e.g. 1024x1024).\n",
                 args[i]);
-        return 1;
+        return Error::Message("invalid atlas size");
       }
     } else if (arg == "--padding" && i + 1 < args.size()) {
-      out->padding = atoi(args[++i]);
+      out.padding = atoi(args[++i]);
     } else if (arg == "--extrude" && i + 1 < args.size()) {
-      out->extrude = atoi(args[++i]);
+      out.extrude = atoi(args[++i]);
     } else if (arg == "--recursive") {
-      out->recursive = true;
+      out.recursive = true;
     } else if (arg[0] != '-') {
-      out->input_dir = args[i];
+      out.input_dir = args[i];
     }
   }
 
-  if (out->input_dir == nullptr) {
+  if (out.input_dir == nullptr) {
     fprintf(stderr, "Error: no input directory specified.\n");
     fprintf(stderr, "Usage: game atlas <input-dir> [options]\n");
-    return 1;
+    return Error::Message("no input directory");
   }
 
-  if (!DirectoryExists(out->input_dir)) {
-    fprintf(stderr, "Error: directory not found: '%s'\n", out->input_dir);
-    return 1;
+  if (!DirectoryExists(out.input_dir)) {
+    fprintf(stderr, "Error: directory not found: '%s'\n", out.input_dir);
+    return Error::Message("directory not found");
   }
 
-  return 0;
+  return out;
 }
 
-// Encode and write a single atlas page as QOI. Returns false on error.
-bool WriteAtlasQoi(const char* path, const uint8_t* atlas_buf, int atlas_w,
-                   int atlas_h, Allocator* allocator) {
+// Encode and write a single atlas page as QOI.
+ErrorOr<void> WriteAtlasQoi(const char* path, const uint8_t* atlas_buf,
+                            int atlas_w, int atlas_h, Allocator* allocator) {
   QoiDesc qoi_desc;
   qoi_desc.width = atlas_w;
   qoi_desc.height = atlas_h;
@@ -234,18 +238,16 @@ bool WriteAtlasQoi(const char* path, const uint8_t* atlas_buf, int atlas_w,
   qoi_desc.colorspace = QoiColorspace::kLinear;
   int qoi_len;
   auto* qoi_data = QoiEncode(atlas_buf, &qoi_desc, &qoi_len, allocator);
-  if (qoi_data == nullptr) {
-    fprintf(stderr, "Error: failed to encode atlas QOI.\n");
-    return false;
-  }
-  return !WriteEntireFile(path, qoi_data, qoi_len).is_error();
+  if (qoi_data == nullptr) return Error::Message("failed to encode atlas QOI");
+  TRY(WriteEntireFile(path, qoi_data, qoi_len));
+  return {};
 }
 
 // Composite sprites into an atlas buffer and write QOI + JSON files.
-int WriteAtlasPage(const AtlasArgs& opts, int atlas_index, bool is_last,
-                   Slice<const SpriteInput> sprites, stbrp_rect* rects,
-                   const size_t* unpacked, size_t remaining, int pad,
-                   Allocator* allocator) {
+ErrorOr<void> WriteAtlasPage(const AtlasArgs& opts, int atlas_index,
+                             bool is_last, Slice<const SpriteInput> sprites,
+                             stbrp_rect* rects, const size_t* unpacked,
+                             size_t remaining, int pad, Allocator* allocator) {
   int atlas_w = opts.atlas_w;
   int atlas_h = opts.atlas_h;
 
@@ -276,19 +278,15 @@ int WriteAtlasPage(const AtlasArgs& opts, int atlas_index, bool is_last,
     atlas_filename.AppendF("%s_%d.qoi", opts.name, atlas_index);
   }
 
-  if (!WriteAtlasQoi(qoi_path.str(), atlas_buf, atlas_w, atlas_h, allocator)) {
-    return 1;
-  }
+  TRY(WriteAtlasQoi(qoi_path.str(), atlas_buf, atlas_w, atlas_h, allocator));
 
   // Adjust rects to exclude padding for JSON output.
   for (size_t i = 0; i < sprites.size(); ++i) {
     rects[i].x += pad;
     rects[i].y += pad;
   }
-  if (!WriteSpriteJson(json_path.str(), atlas_filename.str(), atlas_w, atlas_h,
-                       sprites, rects, sprites.size())) {
-    return 1;
-  }
+  TRY(WriteSpriteJson(json_path.str(), atlas_filename.str(), atlas_w, atlas_h,
+                      sprites, rects, sprites.size()));
   // Undo adjustment for any remaining packing iterations.
   for (size_t i = 0; i < sprites.size(); ++i) {
     rects[i].x -= pad;
@@ -297,15 +295,15 @@ int WriteAtlasPage(const AtlasArgs& opts, int atlas_index, bool is_last,
 
   printf("  %s\n", qoi_path.str());
   printf("  %s\n", json_path.str());
-  return 0;
+  return {};
 }
 
 }  // namespace
 
 int CmdAtlas(Slice<const char*> args, Allocator* allocator) {
-  AtlasArgs opts;
-  int parse_result = ParseAtlasArgs(args, &opts);
-  if (parse_result != 0) return parse_result;
+  auto parse_result = ParseAtlasArgs(args);
+  if (parse_result.is_error()) return 1;
+  AtlasArgs opts = parse_result.value();
 
   // Create output directory if it doesn't exist.
   if (!DirectoryExists(opts.output_dir)) {
@@ -380,10 +378,10 @@ int CmdAtlas(Slice<const char*> args, Allocator* allocator) {
     }
 
     Slice<const SpriteInput> sprite_slice(sprites.cdata(), sprites.size());
-    int result =
+    auto page_result =
         WriteAtlasPage(opts, atlas_index, new_remaining == 0, sprite_slice,
                        rects, unpacked, remaining, pad, &arena);
-    if (result != 0) return result;
+    if (page_result.is_error()) return 1;
 
     printf("  (%d sprites)\n", static_cast<int>(packed_count));
 
