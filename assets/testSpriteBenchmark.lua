@@ -6,7 +6,7 @@
 -- changes — the things a real 2D game spends its frame budget on.
 --
 -- Controls:
---   1-6: Set sprite count (1000, 2500, 5000, 10000, 20000, 40000)
+--   1-9: Set sprite count (1000, 2500, 5000, 10000, 20000, 40000, 100000, 200000, 500000)
 --   T:   Toggle random tints (forces SetColor state changes)
 --   R:   Toggle rotation
 --   Esc: Quit
@@ -71,7 +71,7 @@ function Game:update(t, dt)
 		rotation_on = not rotation_on
 	end
 
-	local counts = { 1000, 2500, 5000, 10000, 20000, 40000 }
+	local counts = { 1000, 2500, 5000, 10000, 20000, 40000, 100000, 200000, 500000 }
 	for i, n in ipairs(counts) do
 		if G.input.is_key_pressed(tostring(i)) then
 			target_count = n
@@ -132,7 +132,7 @@ function Game:draw()
 		16,
 		16
 	)
-	G.graphics.print("1-6: count   T: tints   R: rotation   Esc: quit", 16, 38)
+	G.graphics.print("1-9: count   T: tints   R: rotation   Esc: quit", 16, 38)
 end
 
 return Game
