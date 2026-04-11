@@ -376,6 +376,9 @@ inline std::string_view Extension(std::string_view p) {
   return (pos == 0 && p[pos] != '.') ? p : p.substr(pos + 1);
 }
 
+// Duplicate a string_view into a null-terminated arena allocation.
+const char* StrDupZ(Allocator* allocator, std::string_view s);
+
 }  // namespace G
 
 #endif  // _GAME_STRINGLIB_H

@@ -1,4 +1,3 @@
-#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -19,47 +18,6 @@
 
 namespace G {
 namespace {
-
-// Read an entire file into an arena-allocated buffer. Returns nullptr on error.
-uint8_t* ReadEntireFile(const char* path, size_t* out_size,
-                        Allocator* allocator) {
-  FILE* f = fopen(path, "rb");
-  if (f == nullptr) {
-    fprintf(stderr, "Error: could not open '%s': %s\n", path, strerror(errno));
-    return nullptr;
-  }
-  DEFER([f] { fclose(f); });
-  fseek(f, 0, SEEK_END);
-  long len = ftell(f);
-  if (len < 0) {
-    fprintf(stderr, "Error: could not determine size of '%s'\n", path);
-    return nullptr;
-  }
-  fseek(f, 0, SEEK_SET);
-  auto* buf = static_cast<uint8_t*>(allocator->Alloc(len, 1));
-  if (fread(buf, 1, len, f) != static_cast<size_t>(len)) {
-    fprintf(stderr, "Error: could not read '%s'\n", path);
-    return nullptr;
-  }
-  *out_size = static_cast<size_t>(len);
-  return buf;
-}
-
-// Write a buffer to a file. Returns true on success.
-bool WriteEntireFile(const char* path, const void* data, size_t size) {
-  FILE* f = fopen(path, "wb");
-  if (f == nullptr) {
-    fprintf(stderr, "Error: could not open '%s' for writing: %s\n", path,
-            strerror(errno));
-    return false;
-  }
-  DEFER([f] { fclose(f); });
-  if (fwrite(data, 1, size, f) != size) {
-    fprintf(stderr, "Error: could not write '%s'\n", path);
-    return false;
-  }
-  return true;
-}
 
 enum class Format {
   kUnknown,
@@ -129,7 +87,7 @@ bool ConvertImageToQoi(const uint8_t* data, size_t size, const char* out_path,
     fprintf(stderr, "Error: failed to encode QOI\n");
     return false;
   }
-  return WriteEntireFile(out_path, encoded, out_len);
+  return !WriteEntireFile(out_path, encoded, out_len).is_error();
 }
 
 // Convert QOI to PNG.
@@ -175,7 +133,7 @@ bool ConvertWavToQoa(const uint8_t* data, size_t size, const char* out_path,
     fprintf(stderr, "Error: failed to encode QOA\n");
     return false;
   }
-  return WriteEntireFile(out_path, encoded.data(), encoded.size());
+  return !WriteEntireFile(out_path, encoded.data(), encoded.size()).is_error();
 }
 
 // Convert OGG Vorbis to QOA.
@@ -209,7 +167,7 @@ bool ConvertOggToQoa(const uint8_t* data, size_t size, const char* out_path,
     fprintf(stderr, "Error: failed to encode QOA\n");
     return false;
   }
-  return WriteEntireFile(out_path, encoded.data(), encoded.size());
+  return !WriteEntireFile(out_path, encoded.data(), encoded.size()).is_error();
 }
 
 // Convert QOA to WAV.
@@ -312,9 +270,13 @@ int CmdConvert(Slice<const char*> args, Allocator* allocator) {
 
   // Read input.
   ArenaAllocator arena(allocator, Megabytes(64));
-  size_t input_size = 0;
-  uint8_t* input_data = ReadEntireFile(input_path, &input_size, &arena);
-  if (input_data == nullptr) return 1;
+  uint8_t* input_data = nullptr;
+  auto read_result = ReadEntireFile(input_path, &input_data, &arena);
+  if (read_result.is_error()) {
+    fprintf(stderr, "Error: could not read '%s'\n", input_path);
+    return 1;
+  }
+  size_t input_size = read_result.value();
 
   bool ok = false;
   if (input_format == Format::kQoi && output_format == Format::kPng) {
