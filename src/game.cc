@@ -66,7 +66,7 @@ struct EngineModules {
       : console(allocator),
         db(db),
         assets(db_assets),
-        config(&config),
+        config(config),
         filesystem(allocator),
         window(sdl_window),
         shaders(allocator),
@@ -91,7 +91,7 @@ struct EngineModules {
 
   void Initialize() {
     TIMER();
-    filesystem.Initialize(*config);
+    filesystem.Initialize(config);
     lua.LoadLibraries();
     lua.Register(&shaders);
     lua.Register(&batch_renderer);
@@ -269,7 +269,7 @@ struct EngineModules {
 
   void HandleEvent(const SDL_Event& event) {
     if (event.type == SDL_EVENT_WINDOW_RESIZED) {
-      if (config->resizable) {
+      if (config.resizable) {
         IVec2 new_viewport(event.window.data1, event.window.data2);
         batch_renderer.SetViewport(new_viewport);
         physics.UpdateDimensions(new_viewport);
@@ -291,7 +291,7 @@ struct EngineModules {
   DebugConsole console;
   sqlite3* db;
   DbAssets* assets;
-  const GameConfig* config = nullptr;
+  GameConfig config;
   Filesystem filesystem;
   SDL_Window* window;
   Shaders shaders;

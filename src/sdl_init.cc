@@ -123,7 +123,8 @@ SDL_Window* CreateWindow(const GameConfig& config) {
     CHECK(window != nullptr, "Could not initialize window: ", SDL_GetError());
   }
 
-  CHECK(window != nullptr);
+  CHECK(window != nullptr, "Could not create ", config.window_width, "x",
+        config.window_height, " window: ", SDL_GetError());
   return window;
 }
 
