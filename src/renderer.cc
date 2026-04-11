@@ -434,18 +434,18 @@ void BatchRenderer::SetupGLState() {
   OPENGL_CALL(glDisable(GL_STENCIL_TEST));
   OPENGL_CALL(glStencilMask(0x00));
   OPENGL_CALL(glEnable(GL_LINE_SMOOTH));
-}
-
-void BatchRenderer::FlushAndContinue() {
-  Finish();
   if (needs_clear_) {
-    SetupGLState();
     OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
     OPENGL_CALL(glStencilMask(0xFF));
     OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT));
     OPENGL_CALL(glStencilMask(0x00));
     needs_clear_ = false;
   }
+}
+
+void BatchRenderer::FlushAndContinue() {
+  Finish();
+  SetupGLState();
   RenderBatch();
   commands_.Clear();
   pos_ = 0;
@@ -855,10 +855,13 @@ void BatchRenderer::RenderBatch() {
     OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
     OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   }
-  stats.vertices += static_cast<int>(vertices_count);
-  // Accumulate into frame_stats_ (may be called multiple times per frame).
+  AccumulateStats(stats, static_cast<int>(vertices_count));
+}
+
+void BatchRenderer::AccumulateStats(const FrameStats& stats,
+                                    int vertices_count) {
   frame_stats_.draw_calls += stats.draw_calls;
-  frame_stats_.vertices += stats.vertices;
+  frame_stats_.vertices += vertices_count;
   frame_stats_.commands += stats.commands;
   frame_stats_.flush_texture += stats.flush_texture;
   frame_stats_.flush_transform += stats.flush_transform;
@@ -879,13 +882,6 @@ void BatchRenderer::Render() {
   PROFILE_SCOPE;
   frame_stats_ = {};
   SetupGLState();
-  if (needs_clear_) {
-    OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
-    OPENGL_CALL(glStencilMask(0xFF));
-    OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT));
-    OPENGL_CALL(glStencilMask(0x00));
-    needs_clear_ = false;
-  }
   RenderBatch();
   frame_stats_.flush_overflow = flush_overflow_;
   // MSAA resolve: downsample from multisampled to regular framebuffer.

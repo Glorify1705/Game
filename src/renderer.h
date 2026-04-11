@@ -395,6 +395,9 @@ class BatchRenderer {
   // Re-emits current recording state into a freshly cleared command buffer.
   void ReEmitState();
 
+  // Accumulates local batch stats into the per-frame totals.
+  void AccumulateStats(const FrameStats& batch_stats, int vertices_count);
+
   // Sets up common GL state for rendering (blend, multisample, etc.).
   void SetupGLState();
 
