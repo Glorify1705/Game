@@ -35,7 +35,7 @@ const struct LuaApiFunction kFilesystemLib[] = {
        return LuaLoadFileIntoBuffer(state, GetLuaString(state, 1));
      }},
     {"list_directory",
-     "List all files in a givne directory",
+     "List all files in a given directory",
      {{"name", "Directory to list", "string"}},
      {{"files", "A list with all the files in the given directory", "table"}},
      [](lua_State* state) {

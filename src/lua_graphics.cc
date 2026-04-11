@@ -43,7 +43,7 @@ static const LuaApiFunction kGraphicsLib[] = {
      {{"file?", "If provided, a filename where we should write the screenshot.",
        "string"}},
      {{"result",
-       "If a file was provided, nil if the write suceeded or an error message "
+       "If a file was provided, nil if the write succeeded or an error message "
        "otherwise. If no file was provided, a byte buffer with the image "
        "contents",
        "byte_buffer"}},
@@ -113,16 +113,16 @@ static const LuaApiFunction kGraphicsLib[] = {
      }},
     {"draw_image",
      "Draws an image by name to the screen",
-     {{"sprite", "the name of the sprite in any sprite sheet", "string"},
+     {{"image", "the name of the image to draw", "string"},
       {"x",
        "the x position (left-right) in screen coordinates where to draw the "
-       "sprite",
+       "image",
        "number"},
       {"y",
        "the y position (top-bottom) in screen coordinates where to draw the "
-       "sprite",
+       "image",
        "number"},
-      {"angle?", "if provided, the angle to rotate the sprite", "number"}},
+      {"angle?", "if provided, the angle to rotate the image", "number"}},
      {},
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
@@ -705,8 +705,9 @@ static const LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"push",
-     "Push a transform to the screen into the transform stack.",
-     {{"transform", "A 4x4 matrix with the transform to push", "mat4x4"}},
+     "Save the current transform state onto the stack. Pair with pop() to "
+     "restore it.",
+     {},
      {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
@@ -723,7 +724,7 @@ static const LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"rotate",
-     "Push a transform to the screen that rotates all objects by a given angle",
+     "Apply a rotation to the current transform",
      {{"angle",
        "All objects will be rotated by this angle in radians clockwise",
        "number"}},
@@ -734,7 +735,7 @@ static const LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"scale",
-     "Push a transform to the screen that scales all objects by a given angle",
+     "Apply a scale to the current transform",
      {{"xf", "Scalar factor to scale up the x coordinate", "number"},
       {"yf", "Scalar factor to scale up the y coordinate", "number"}},
      {},
@@ -744,10 +745,9 @@ static const LuaApiFunction kGraphicsLib[] = {
        return 0;
      }},
     {"translate",
-     "Translate all objects in the screen by moving the coordinate system "
-     "center",
-     {{"x", "New x position of the coordinate system center", "number"},
-      {"y", "New y position of the coordinate system center", "number"}},
+     "Apply a translation to the current transform",
+     {{"x", "Horizontal offset in pixels", "number"},
+      {"y", "Vertical offset in pixels", "number"}},
      {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);

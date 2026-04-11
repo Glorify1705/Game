@@ -143,7 +143,7 @@ function G.filesystem.spit(name, str) end
 ---@return byte_buffer contents File contents on success, nil in case of errors
 function G.filesystem.slurp(name) end
 
----List all files in a givne directory
+---List all files in a given directory
 ---@param name string Directory to list
 ---@return table files A list with all the files in the given directory
 function G.filesystem.list_directory(name) end
@@ -176,7 +176,7 @@ function G.graphics.clear(r?, g?, b?, a?) end
 
 ---Saves a screenshot from the contents of the current framebuffer
 ---@param file? string If provided, a filename where we should write the screenshot.
----@return byte_buffer result If a file was provided, nil if the write suceeded or an error message otherwise. If no file was provided, a byte buffer with the image contents
+---@return byte_buffer result If a file was provided, nil if the write succeeded or an error message otherwise. If no file was provided, a byte buffer with the image contents
 function G.graphics.take_screenshot(file?) end
 
 ---Draws a sprite by name to the screen
@@ -187,11 +187,11 @@ function G.graphics.take_screenshot(file?) end
 function G.graphics.draw_sprite(sprite, x, y, angle?) end
 
 ---Draws an image by name to the screen
----@param sprite string the name of the sprite in any sprite sheet
----@param x number the x position (left-right) in screen coordinates where to draw the sprite
----@param y number the y position (top-bottom) in screen coordinates where to draw the sprite
----@param angle? number if provided, the angle to rotate the sprite
-function G.graphics.draw_image(sprite, x, y, angle?) end
+---@param image string the name of the image to draw
+---@param x number the x position (left-right) in screen coordinates where to draw the image
+---@param y number the y position (top-bottom) in screen coordinates where to draw the image
+---@param angle? number if provided, the angle to rotate the image
+function G.graphics.draw_image(image, x, y, angle?) end
 
 ---Draws a solid rectangle to the screen, with the color provided by the global context
 ---@param x1 number the x coordinate for the top left of the rectangle
@@ -349,25 +349,24 @@ function G.graphics.set_text_outline(r, g, b, a, thickness) end
 ---Removes the text outline effect for subsequent text draws.
 function G.graphics.clear_text_outline() end
 
----Push a transform to the screen into the transform stack.
----@param transform mat4x4 A 4x4 matrix with the transform to push
-function G.graphics.push(transform) end
+---Save the current transform state onto the stack. Pair with pop() to restore it.
+function G.graphics.push() end
 
 ---Pop the transform at the top of the stack. It will not apply anymore.
 function G.graphics.pop() end
 
----Push a transform to the screen that rotates all objects by a given angle
+---Apply a rotation to the current transform
 ---@param angle number All objects will be rotated by this angle in radians clockwise
 function G.graphics.rotate(angle) end
 
----Push a transform to the screen that scales all objects by a given angle
+---Apply a scale to the current transform
 ---@param xf number Scalar factor to scale up the x coordinate
 ---@param yf number Scalar factor to scale up the y coordinate
 function G.graphics.scale(xf, yf) end
 
----Translate all objects in the screen by moving the coordinate system center
----@param x number New x position of the coordinate system center
----@param y number New y position of the coordinate system center
+---Apply a translation to the current transform
+---@param x number Horizontal offset in pixels
+---@param y number Vertical offset in pixels
 function G.graphics.translate(x, y) end
 
 ---Creates a new shader with a given name and source code, compiling it in the GPU
