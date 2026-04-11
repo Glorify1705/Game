@@ -13,6 +13,7 @@ int LuaWriteToFile(lua_State* state, int index, std::string_view filename);
 int LuaLoadFileIntoBuffer(lua_State* state, std::string_view filename);
 
 void AddFilesystemLibrary(Lua* lua);
+LuaLibraryDef GetFilesystemLibraryDef();
 
 }  // namespace G
 

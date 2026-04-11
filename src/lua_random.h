@@ -7,6 +7,7 @@
 namespace G {
 
 void AddRandomLibrary(Lua* lua);
+LuaLibraryDef GetRandomLibraryDef();
 
 }  // namespace G
 

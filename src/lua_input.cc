@@ -141,4 +141,11 @@ const struct LuaApiFunction kInputLib[] = {
 
 void AddInputLibrary(Lua* lua) { lua->AddLibrary("input", kInputLib); }
 
+LuaLibraryDef GetInputLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"input", kInputLib, std::size(kInputLib)},
+  };
+  return {kLibs, std::size(kLibs), nullptr, 0};
+}
+
 }  // namespace G

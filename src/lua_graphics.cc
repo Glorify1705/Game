@@ -1205,4 +1205,12 @@ void AddGraphicsLibrary(Lua* lua) {
   lua->AddLibrary("window", kWindowLib);
 }
 
+LuaLibraryDef GetGraphicsLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"graphics", kGraphicsLib, std::size(kGraphicsLib)},
+      {"window", kWindowLib, std::size(kWindowLib)},
+  };
+  return {kLibs, std::size(kLibs), nullptr, 0};
+}
+
 }  // namespace G

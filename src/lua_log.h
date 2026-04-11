@@ -8,6 +8,7 @@ namespace G {
 
 // Registers G.log library for runtime log level control.
 void AddLogLibrary(Lua* lua);
+LuaLibraryDef GetLogLibraryDef();
 
 }  // namespace G
 

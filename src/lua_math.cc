@@ -462,4 +462,25 @@ void AddMathLibrary(Lua* lua) {
                              nullptr, 0, kMatMethods, std::size(kMatMethods)});
 }
 
+LuaLibraryDef GetMathLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"math", kMathLib, std::size(kMathLib)},
+  };
+  static const LuaUserdataType kTypes[] = {
+      {"fvec2", "vec2", "A 2D floating-point vector", nullptr, 0, kVecMethods,
+       std::size(kVecMethods), kVecOperators, std::size(kVecOperators)},
+      {"fvec3", "vec3", "A 3D floating-point vector", nullptr, 0, kVecMethods,
+       std::size(kVecMethods), kVecOperators, std::size(kVecOperators)},
+      {"fvec4", "vec4", "A 4D floating-point vector", nullptr, 0, kVecMethods,
+       std::size(kVecMethods), kVecOperators, std::size(kVecOperators)},
+      {"fmat2x2", "mat2x2", "A 2x2 floating-point matrix", nullptr, 0,
+       kMatMethods, std::size(kMatMethods)},
+      {"fmat3x3", "mat3x3", "A 3x3 floating-point matrix", nullptr, 0,
+       kMatMethods, std::size(kMatMethods)},
+      {"fmat4x4", "mat4x4", "A 4x4 floating-point matrix", nullptr, 0,
+       kMatMethods, std::size(kMatMethods)},
+  };
+  return {kLibs, std::size(kLibs), kTypes, std::size(kTypes)};
+}
+
 }  // namespace G

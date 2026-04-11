@@ -7,6 +7,7 @@
 namespace G {
 
 void AddPhysicsLibrary(Lua* lua);
+LuaLibraryDef GetPhysicsLibraryDef();
 
 }  // namespace G
 

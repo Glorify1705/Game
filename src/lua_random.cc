@@ -98,4 +98,14 @@ void AddRandomLibrary(Lua* lua) {
       {"random_number_generator", "rng", "A random number generator"});
 }
 
+LuaLibraryDef GetRandomLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"random", kRandomLib, std::size(kRandomLib)},
+  };
+  static const LuaUserdataType kTypes[] = {
+      {"random_number_generator", "rng", "A random number generator"},
+  };
+  return {kLibs, std::size(kLibs), kTypes, std::size(kTypes)};
+}
+
 }  // namespace G

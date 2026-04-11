@@ -7,9 +7,12 @@
 #include "lua.h"
 #include "lua_assets.h"
 #include "lua_bytebuffer.h"
+#include "lua_camera.h"
+#include "lua_collision.h"
 #include "lua_filesystem.h"
 #include "lua_graphics.h"
 #include "lua_input.h"
+#include "lua_json.h"
 #include "lua_log.h"
 #include "lua_math.h"
 #include "lua_physics.h"
@@ -17,9 +20,8 @@
 #include "lua_sound.h"
 #include "lua_system.h"
 #include "lua_test.h"
-#include "mimalloc_allocator.h"
+#include "lua_timer.h"
 #include "platform.h"
-#include "units.h"
 
 namespace G {
 
@@ -40,26 +42,19 @@ int CmdStubs(Slice<const char*> args, Allocator* allocator) {
     MUST(MakeDirs(parent));
   }
 
-  // TODO: Decouple stub generation from the Lua class.  The type and library
-  // metadata is statically known and should be loadable without instantiating
-  // a full Lua runtime.
-  MimallocAllocator lua_alloc(allocator->Alloc(Megabytes(16), kMaxAlign),
-                              Megabytes(16));
-  Lua lua(/*args=*/{}, /*db=*/nullptr, /*assets=*/nullptr, &lua_alloc);
-  lua.LoadLibraries();
-  AddByteBufferLibrary(&lua);
-  AddFilesystemLibrary(&lua);
-  AddGraphicsLibrary(&lua);
-  AddInputLibrary(&lua);
-  AddLogLibrary(&lua);
-  AddMathLibrary(&lua);
-  AddPhysicsLibrary(&lua);
-  AddRandomLibrary(&lua);
-  AddSoundLibrary(&lua);
-  AddSystemLibrary(&lua);
-  AddAssetsLibrary(&lua);
-  AddTestLibrary(&lua);
-  lua.GenerateLuaLSStubs(output);
+  // Collect all library metadata. No Lua runtime needed.
+  const LuaLibraryDef defs[] = {
+      GetByteBufferLibraryDef(), GetCameraLibraryDef(),
+      GetFilesystemLibraryDef(), GetGraphicsLibraryDef(),
+      GetInputLibraryDef(),      GetLogLibraryDef(),
+      GetMathLibraryDef(),       GetPhysicsLibraryDef(),
+      GetRandomLibraryDef(),     GetSoundLibraryDef(),
+      GetSystemLibraryDef(),     GetAssetsLibraryDef(),
+      GetCollisionLibraryDef(),  GetJsonLibraryDef(),
+      GetTestLibraryDef(),       GetTimerLibraryDef(),
+  };
+
+  WriteLuaLSStubs(output, defs, std::size(defs));
   printf("Wrote LuaLS stubs to %s\n", output);
   return 0;
 }

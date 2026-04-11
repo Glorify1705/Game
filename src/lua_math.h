@@ -7,6 +7,7 @@
 namespace G {
 
 void AddMathLibrary(Lua* lua);
+LuaLibraryDef GetMathLibraryDef();
 
 }  // namespace G
 

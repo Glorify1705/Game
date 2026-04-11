@@ -198,6 +198,26 @@ struct LuaUserdataType {
   size_t operator_count = 0;
 };
 
+// Static metadata for a Lua library, used for stub generation without a Lua
+// runtime.  A single source file may contribute multiple libraries (e.g.
+// system + clock) and multiple userdata types.
+struct LuaLibraryDef {
+  struct Library {
+    const char* name;
+    const LuaApiFunction* funcs;
+    size_t count;
+  };
+
+  const Library* libraries;
+  size_t library_count;
+  const LuaUserdataType* types;
+  size_t type_count;
+};
+
+// Writes LuaLS stub definitions to |output_path| from the given library defs.
+void WriteLuaLSStubs(const char* output_path, const LuaLibraryDef* defs,
+                     size_t def_count);
+
 class Lua {
  public:
   Lua(Slice<const char*> args, sqlite3* db, DbAssets* assets,

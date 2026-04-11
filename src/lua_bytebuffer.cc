@@ -98,4 +98,19 @@ void AddByteBufferLibrary(Lua* lua) {
                              kByteBufferOps, std::size(kByteBufferOps)});
 }
 
+LuaLibraryDef GetByteBufferLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"data", kDataLib, std::size(kDataLib)},
+  };
+  static const LuaUserdataOperator kOps[] = {
+      {"len", nullptr, "integer"},
+      {"concat", "any", "string"},
+  };
+  static const LuaUserdataType kTypes[] = {
+      {"byte_buffer", "byte_buffer", "A binary data buffer", nullptr, 0,
+       nullptr, 0, kOps, std::size(kOps)},
+  };
+  return {kLibs, std::size(kLibs), kTypes, std::size(kTypes)};
+}
+
 }  // namespace G

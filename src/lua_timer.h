@@ -7,6 +7,7 @@
 namespace G {
 
 void AddTimerLibrary(Lua* lua);
+LuaLibraryDef GetTimerLibraryDef();
 
 }  // namespace G
 

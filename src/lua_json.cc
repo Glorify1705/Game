@@ -181,4 +181,11 @@ const struct LuaApiFunction kJsonLib[] = {
 
 void AddJsonLibrary(Lua* lua) { lua->AddLibrary("json", kJsonLib); }
 
+LuaLibraryDef GetJsonLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"json", kJsonLib, std::size(kJsonLib)},
+  };
+  return {kLibs, std::size(kLibs), nullptr, 0};
+}
+
 }  // namespace G

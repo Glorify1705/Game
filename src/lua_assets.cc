@@ -104,4 +104,14 @@ void AddAssetsLibrary(Lua* lua) {
       {"asset_sprite_ptr", "sprite_asset", "A reference to a sprite asset"});
 }
 
+LuaLibraryDef GetAssetsLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"assets", kAssetsLib, std::size(kAssetsLib)},
+  };
+  static const LuaUserdataType kTypes[] = {
+      {"asset_sprite_ptr", "sprite_asset", "A reference to a sprite asset"},
+  };
+  return {kLibs, std::size(kLibs), kTypes, std::size(kTypes)};
+}
+
 }  // namespace G

@@ -158,4 +158,11 @@ void AddFilesystemLibrary(Lua* lua) {
   lua->AddLibrary("filesystem", kFilesystemLib);
 }
 
+LuaLibraryDef GetFilesystemLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"filesystem", kFilesystemLib, std::size(kFilesystemLib)},
+  };
+  return {kLibs, std::size(kLibs), nullptr, 0};
+}
+
 }  // namespace G

@@ -793,4 +793,20 @@ void AddCollisionLibrary(Lua* lua) {
                              "A collision shape (circle or AABB)"});
 }
 
+LuaLibraryDef GetCollisionLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"collision", kCollisionLib, std::size(kCollisionLib)},
+  };
+  static const LuaUserdataType kTypes[] = {
+      {"collision_world", "collision_world",
+       "A collision detection world with spatial hashing", nullptr, 0,
+       kWorldMethods, std::size(kWorldMethods), nullptr, 0},
+      {"collision_handle", "collision_handle",
+       "An opaque handle to a collider in a collision world"},
+      {"collision_shape", "collision_shape",
+       "A collision shape (circle or AABB)"},
+  };
+  return {kLibs, std::size(kLibs), kTypes, std::size(kTypes)};
+}
+
 }  // namespace G
