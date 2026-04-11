@@ -43,29 +43,41 @@ run directly.
 | No CMake toolchain file for cross compilation | `CMakeLists.txt` | Can't target Windows from Linux |
 | `game package` copies the _host_ binary | `cmd_package.cc:96-110` | Packaged output is always a Linux binary |
 | No way to specify a target platform | `cmd_package.cc` | CLI has no `--target` flag |
-| SDL2 Windows libs are vendored but unused | `libraries/SDL2/x86_64-w64-mingw32/` | Pre-built MinGW libs sit idle |
+| Vendored SDL2 Windows libs are stale | `libraries/SDL2/x86_64-w64-mingw32/` | Engine uses SDL3, not SDL2 — these libs are useless |
+| MSVC compatibility unverified | `allocators.h`, `stringlib.h` | GCC/Clang `__attribute__` used, will not compile with MSVC without guards |
+| No SDL3 Windows libraries vendored | — | SDL3 must be built from source or obtained for Windows |
 | No CI for Windows builds | — | Regressions go unnoticed |
 
 ## Current state
 
 ### What already works
 
-The project is surprisingly close to cross-compilation readiness:
-
-- **SDL2 Windows libraries are vendored.** Both 32-bit and 64-bit MinGW
-  pre-built libraries exist at `libraries/SDL2/x86_64-w64-mingw32/` and
-  `libraries/SDL2/i686-w64-mingw32/`, complete with CMake config files.
-- **All other dependencies are vendored** and written in portable C/C++:
-  Box2D, Lua 5.1, PhysFS, mimalloc, SQLite3, stb_*, pugixml, GLAD,
-  double-conversion.
+- **Most dependencies are vendored** and written in portable C/C++:
+  Box2D, Lua 5.1, PhysFS, mimalloc, SQLite3, stb_*, GLAD,
+  double-conversion, yyjson, backward-cpp, dr_wav.
 - **Platform abstraction is clean.** `platform.cc` has complete `#ifdef _WIN32`
   implementations for file operations, directory traversal, path handling, and
   executable detection. Thread naming in `thread.h` handles Windows.
   `file_watcher.h` documents per-platform backends.
-- **CMakeLists.txt has MSVC flags.** The build system already distinguishes
-  MSVC from GCC/Clang with appropriate warning flags.
 - **Asset format is platform-agnostic.** SQLite databases and the asset schema
   have no platform-specific content.
+
+### What does not work yet
+
+- **SDL3 has no vendored Windows libraries.** The engine migrated from SDL2 to
+  SDL3, but the vendored `libraries/SDL2/` directory still contains stale SDL2
+  MinGW pre-built libraries. These are useless. SDL3 Windows libraries (either
+  pre-built MinGW binaries or built from source) must be obtained separately.
+  SDL provides official MinGW development packages for SDL3 releases on GitHub.
+- **MSVC compilation is unverified.** CMakeLists.txt has MSVC flag blocks
+  (`/W4 /WX`), but the C++ source uses GCC/Clang-specific `__attribute__`
+  extensions in at least `allocators.h` (`__attribute__((malloc))`) and
+  `stringlib.h` (`__attribute__((format(printf, ...)))`). These will fail
+  under MSVC without `#ifdef` guards or a compatibility macro. There may be
+  other GCC-isms. The MinGW cross-compilation path avoids this issue entirely
+  since MinGW uses GCC, but native MSVC builds would require a porting pass.
+- **The stale SDL2 vendored libs should be removed** or replaced with SDL3
+  equivalents to avoid confusion.
 
 ### The blocker: `game package` copies itself
 
@@ -146,14 +158,29 @@ cmake -G Ninja -S . -B build-win64 \
 ninja -C build-win64
 ```
 
+#### SDL3 for Windows
+
+The biggest prerequisite for Phase 2. Options:
+
+1. **Download official SDL3 MinGW dev package.** SDL publishes
+   `SDL3-devel-<version>-mingw.tar.gz` on each GitHub release. Extract into
+   `libraries/SDL3-win64/` and point `SDL3_DIR` at it in the toolchain file.
+   This is the simplest path and mirrors how the stale SDL2 libs were vendored.
+
+2. **Build SDL3 from source with MinGW.** More work, but gives full control.
+   SDL3's CMake build supports MinGW cross-compilation natively.
+
+3. **Remove the stale SDL2 vendored libs.** They are SDL2, the engine uses
+   SDL3. They should be deleted regardless of which SDL3 approach is chosen.
+
 #### CMakeLists.txt changes needed
 
-The main CMakeLists.txt needs minor adjustments for cross compilation:
+The main CMakeLists.txt needs adjustments for cross compilation:
 
-1. **SDL2/SDL3 discovery.** When cross-compiling, `find_package(SDL3)` must
-   search the vendored MinGW libraries. Set `SDL3_DIR` or `CMAKE_PREFIX_PATH`
-   in the toolchain file to point at `libraries/SDL2/x86_64-w64-mingw32/`.
-   (The vendored CMake configs already handle architecture selection.)
+1. **SDL3 discovery.** When cross-compiling, `find_package(SDL3)` must
+   search the vendored SDL3 MinGW libraries. Set `SDL3_DIR` or
+   `CMAKE_PREFIX_PATH` in the toolchain file to point at the new
+   `libraries/SDL3-win64/` directory.
 
 2. **OpenGL.** `find_package(OpenGL REQUIRED)` needs a MinGW-compatible
    `libopengl32.a`. MinGW sysroots typically include this. May need
@@ -241,7 +268,10 @@ both of which `platform.cc` handles.
 ### MSVC cross-compilation
 
 MSVC doesn't support cross-compilation from Linux. Would require a Windows
-machine or VM. MinGW is the standard approach for Linux-to-Windows.
+machine or VM. Additionally, the codebase uses GCC/Clang `__attribute__`
+extensions (`malloc`, `format`) that would need compatibility macros or
+`#ifdef` guards before MSVC could compile it. MinGW avoids this entirely
+since it uses GCC, making it the only viable cross-compilation path.
 
 ### Zig as cross-compiler
 
