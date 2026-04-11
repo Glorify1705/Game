@@ -46,6 +46,8 @@ struct FrameStats {
   int flush_canvas = 0;
   int flush_line_end = 0;
   int flush_other = 0;
+  int flush_overflow =
+      0;  // Mid-frame flushes triggered by command buffer overflow.
   // Redundant flushes avoided by state filtering.
   int redundant_texture = 0;
   int redundant_transform = 0;
@@ -72,6 +74,7 @@ class BatchRenderer {
   Canvas CreateCanvas(int width, int height, bool nearest_filter);
 
   void SetActiveTexture(size_t texture_unit) {
+    rec_texture_ = texture_unit;
     AddCommand(kSetTexture, SetTexture{texture_unit});
   }
 
@@ -80,22 +83,27 @@ class BatchRenderer {
   size_t noop_texture() const { return noop_texture_; }
 
   void SetActiveColor(const Color& color) {
+    rec_color_ = color;
     AddCommand(kSetColor, SetColor{color});
   }
 
   void SetActiveTransform(const FMat4x4& transform) {
+    rec_transform_ = transform;
     AddCommand(kSetTransform, SetTransform{transform});
   }
 
   void SetActiveCanvas(GLuint fbo, int width, int height) {
+    rec_canvas_ = {fbo, width, height};
     AddCommand(kSetCanvas, SetCanvas{fbo, width, height});
   }
 
   void ResetCanvas() {
+    rec_canvas_ = {render_target_, viewport_.x, viewport_.y};
     AddCommand(kSetCanvas, SetCanvas{render_target_, viewport_.x, viewport_.y});
   }
 
   void SetActiveBlendMode(BlendMode mode) {
+    rec_blend_ = mode;
     AddCommand(kSetBlendMode, SetBlendMode{mode});
   }
 
@@ -104,34 +112,48 @@ class BatchRenderer {
   }
 
   void SetSDFOutline(float r, float g, float b, float a, float thickness) {
+    rec_sdf_outline_ = {r, g, b, a, thickness};
     AddCommand(kSetSDFOutline, SDFOutline{r, g, b, a, thickness});
   }
 
   // Clips all subsequent draws to an axis-aligned screen rectangle.
   void SetScissor(int x, int y, int w, int h) {
+    rec_scissor_enabled_ = true;
+    rec_scissor_ = {x, y, w, h};
     AddCommand(kSetScissor, SetScissorRect{x, y, w, h});
   }
 
   // Removes the scissor clipping region.
-  void ClearScissor() { AddCommand(kClearScissor, ClearScissorRect{}); }
+  void ClearScissor() {
+    rec_scissor_enabled_ = false;
+    AddCommand(kClearScissor, ClearScissorRect{});
+  }
 
   // Begins writing to the stencil buffer. Geometry drawn after this call
   // writes stencil values instead of visible pixels.
   void BeginStencilWrite(uint16_t action, uint8_t ref) {
+    rec_stencil_write_active_ = true;
+    rec_stencil_write_ = {action, ref};
     AddCommand(kBeginStencilWrite, BeginStencilWriteCmd{action, ref});
   }
 
   // Ends stencil writing and restores normal color output.
-  void EndStencilWrite() { AddCommand(kEndStencilWrite, EndStencilWriteCmd{}); }
+  void EndStencilWrite() {
+    rec_stencil_write_active_ = false;
+    AddCommand(kEndStencilWrite, EndStencilWriteCmd{});
+  }
 
   // Enables stencil testing: subsequent draws only appear where the stencil
   // buffer passes the comparison.
   void SetStencilTest(uint16_t compare, uint8_t ref) {
+    rec_stencil_test_active_ = true;
+    rec_stencil_test_ = {compare, ref};
     AddCommand(kSetStencilTest, SetStencilTestCmd{compare, ref});
   }
 
   // Disables stencil testing.
   void ClearStencilTest() {
+    rec_stencil_test_active_ = false;
     AddCommand(kClearStencilTest, ClearStencilTestCmd{});
   }
 
@@ -164,12 +186,15 @@ class BatchRenderer {
   uint32_t GetCurrentShaderHandle() const { return current_shader_; }
 
   void SetActiveLineWidth(float width) {
+    rec_line_width_ = width;
     AddCommand(kSetLineWidth, SetLineWidth{width});
   }
 
   void Clear() {
     commands_.Clear();
     pos_ = 0;
+    needs_clear_ = true;
+    flush_overflow_ = 0;
   }
 
   void Finish() { AddCommand(kDone, DoneCommand{}); }
@@ -184,7 +209,7 @@ class BatchRenderer {
 
   GLuint GetRenderTarget() const { return render_target_; }
 
-  void Render(Allocator* scratch);
+  void Render();
 
   const FrameStats& GetFrameStats() const { return frame_stats_; }
 
@@ -359,6 +384,20 @@ class BatchRenderer {
 
   static constexpr std::string_view CommandName(CommandType t);
 
+  // Submits the current command buffer to the GPU. Builds vertex/index
+  // arrays, uploads them, and issues draw calls. Does not clear or post-pass.
+  void RenderBatch();
+
+  // Called when AddCommand would overflow the command buffer. Submits the
+  // current batch to the GPU, resets the buffer, and re-emits current state.
+  void FlushAndContinue();
+
+  // Re-emits current recording state into a freshly cleared command buffer.
+  void ReEmitState();
+
+  // Sets up common GL state for rendering (blend, multisample, etc.).
+  void SetupGLState();
+
   Allocator* allocator_;
   uint8_t* command_buffer_ = nullptr;
   size_t pos_ = 0;
@@ -375,6 +414,32 @@ class BatchRenderer {
       downsampled_texture_, depth_buffer_;
   GLint antialiasing_samples_;
   IVec2 viewport_;
+
+  // Scratch arena for vertex/index arrays during RenderBatch. Allocated once,
+  // reset before each batch submission.
+  ArenaAllocator render_scratch_;
+
+  // Whether the framebuffer needs clearing before the next batch submission.
+  bool needs_clear_ = true;
+
+  // Number of mid-frame overflow flushes this frame.
+  int flush_overflow_ = 0;
+
+  // Recording state: tracks the last value of each state command so that
+  // FlushAndContinue can re-emit them after resetting the command buffer.
+  size_t rec_texture_ = 0;
+  Color rec_color_ = Color::White();
+  FMat4x4 rec_transform_ = FMat4x4::Identity();
+  BlendMode rec_blend_ = BLEND_ALPHA;
+  float rec_line_width_ = 2.5f;
+  SetCanvas rec_canvas_ = {};
+  SDFOutline rec_sdf_outline_ = {};
+  bool rec_scissor_enabled_ = false;
+  SetScissorRect rec_scissor_ = {};
+  bool rec_stencil_write_active_ = false;
+  BeginStencilWriteCmd rec_stencil_write_ = {};
+  bool rec_stencil_test_active_ = false;
+  SetStencilTestCmd rec_stencil_test_ = {};
 };
 
 class Renderer {

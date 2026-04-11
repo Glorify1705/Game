@@ -165,6 +165,10 @@ class BatchRenderer::CommandIterator {
 void BatchRenderer::AddCommand(CommandType command, uint32_t count,
                                const void* data, size_t size) {
   if (command != kDone) {
+    const size_t aligned = Align(size, alignof(Command));
+    if (pos_ + aligned > kCommandMemory) {
+      FlushAndContinue();
+    }
     std::memcpy(&command_buffer_[pos_], data, size);
     // Advance by the actual byte count written, rounded up to
     // alignof(Command), so the next command starts on a Command-aligned
@@ -172,10 +176,16 @@ void BatchRenderer::AddCommand(CommandType command, uint32_t count,
     // buffer and assumes alignment). `size` is per-call total bytes:
     // `count * sizeof(T)` for batched multi-element commands like
     // PushLinePoints, so we can't use SizeOfCommand here.
-    pos_ += Align(size, alignof(Command));
+    pos_ += aligned;
   }
-  if (commands_.empty() || commands_.back().type != command ||
-      commands_.back().count == kMaxCount) {
+  // Check if we need a new queue entry or can merge with the previous one.
+  bool needs_new_entry = commands_.empty() ||
+                         commands_.back().type != command ||
+                         commands_.back().count == kMaxCount;
+  if (needs_new_entry) {
+    if (commands_.size() == commands_.capacity()) {
+      FlushAndContinue();
+    }
     commands_.Push(QueueEntry{.type = command, .count = count});
   } else {
     commands_.back().count += count;
@@ -190,7 +200,8 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
       commands_(1 << 20, allocator),
       tex_(256, allocator),
       shaders_(shaders),
-      viewport_(viewport) {
+      viewport_(viewport),
+      render_scratch_(allocator, Megabytes(64)) {
   TIMER();
   glGetIntegerv(GL_MAX_SAMPLES, &antialiasing_samples_);
   LOG("Using ", antialiasing_samples_, " MSAA samples");
@@ -222,6 +233,7 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
                                     4 * sizeof(float),
                                     (void*)(2 * sizeof(float))));
   InitializeFramebuffers();
+  rec_canvas_ = {render_target_, viewport_.x, viewport_.y};
   // Load an empty texture, just white pixels, to be able to draw colors without
   // if statements in the shader.
   uint8_t white_pixels[32 * 32 * 4];
@@ -411,22 +423,65 @@ Canvas BatchRenderer::CreateCanvas(int width, int height, bool nearest_filter) {
   return c;
 }
 
-void BatchRenderer::Render(Allocator* scratch) {
-  PROFILE_SCOPE;
-  // Setup OpenGL state.
+void BatchRenderer::SetupGLState() {
   OPENGL_CALL(glEnable(GL_MULTISAMPLE));
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
-  OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
   OPENGL_CALL(glEnable(GL_BLEND));
   OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
   OPENGL_CALL(glBlendEquation(GL_FUNC_ADD));
   OPENGL_CALL(glDisable(GL_DEPTH_TEST));
   OPENGL_CALL(glDisable(GL_STENCIL_TEST));
-  OPENGL_CALL(glStencilMask(0xFF));
-  OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT));
   OPENGL_CALL(glStencilMask(0x00));
   OPENGL_CALL(glEnable(GL_LINE_SMOOTH));
+}
+
+void BatchRenderer::FlushAndContinue() {
+  Finish();
+  if (needs_clear_) {
+    SetupGLState();
+    OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
+    OPENGL_CALL(glStencilMask(0xFF));
+    OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT));
+    OPENGL_CALL(glStencilMask(0x00));
+    needs_clear_ = false;
+  }
+  RenderBatch();
+  commands_.Clear();
+  pos_ = 0;
+  ReEmitState();
+  flush_overflow_++;
+}
+
+void BatchRenderer::ReEmitState() {
+  AddCommand(kSetColor, SetColor{rec_color_});
+  AddCommand(kSetTexture, SetTexture{rec_texture_});
+  AddCommand(kSetTransform, SetTransform{rec_transform_});
+  if (current_shader_ != 0) {
+    AddCommand(kSetShader, SetShader{current_shader_});
+  }
+  AddCommand(kSetBlendMode, SetBlendMode{rec_blend_});
+  AddCommand(kSetLineWidth, SetLineWidth{rec_line_width_});
+  if (rec_canvas_.fbo != render_target_) {
+    AddCommand(kSetCanvas, rec_canvas_);
+  }
+  if (rec_sdf_outline_.thickness > 0) {
+    AddCommand(kSetSDFOutline, rec_sdf_outline_);
+  }
+  if (rec_scissor_enabled_) {
+    AddCommand(kSetScissor, rec_scissor_);
+  }
+  if (rec_stencil_write_active_) {
+    AddCommand(kBeginStencilWrite, rec_stencil_write_);
+  }
+  if (rec_stencil_test_active_) {
+    AddCommand(kSetStencilTest, rec_stencil_test_);
+  }
+}
+
+void BatchRenderer::RenderBatch() {
+  render_scratch_.Reset();
+  Allocator* scratch = &render_scratch_;
   // Compute size of data.
   size_t vertices_count = 0, indices_count = 0;
   for (CommandIterator it(command_buffer_, &commands_); !it.Done();) {
@@ -795,19 +850,52 @@ void BatchRenderer::Render(Allocator* scratch) {
         break;
     }
   }
-  // Ensure we're back on the main render target before MSAA resolve.
+  // Ensure we're back on the main render target after canvas switches.
   if (current_fbo != render_target_) {
     OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
     OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   }
-  // Downsample framebuffer.
+  stats.vertices += static_cast<int>(vertices_count);
+  // Accumulate into frame_stats_ (may be called multiple times per frame).
+  frame_stats_.draw_calls += stats.draw_calls;
+  frame_stats_.vertices += stats.vertices;
+  frame_stats_.commands += stats.commands;
+  frame_stats_.flush_texture += stats.flush_texture;
+  frame_stats_.flush_transform += stats.flush_transform;
+  frame_stats_.flush_shader += stats.flush_shader;
+  frame_stats_.flush_blend += stats.flush_blend;
+  frame_stats_.flush_canvas += stats.flush_canvas;
+  frame_stats_.flush_line_end += stats.flush_line_end;
+  frame_stats_.flush_other += stats.flush_other;
+  frame_stats_.redundant_texture += stats.redundant_texture;
+  frame_stats_.redundant_transform += stats.redundant_transform;
+  frame_stats_.redundant_shader += stats.redundant_shader;
+  frame_stats_.redundant_blend += stats.redundant_blend;
+  frame_stats_.redundant_line_width += stats.redundant_line_width;
+  frame_stats_.redundant_sdf_outline += stats.redundant_sdf_outline;
+}
+
+void BatchRenderer::Render() {
+  PROFILE_SCOPE;
+  frame_stats_ = {};
+  SetupGLState();
+  if (needs_clear_) {
+    OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
+    OPENGL_CALL(glStencilMask(0xFF));
+    OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT));
+    OPENGL_CALL(glStencilMask(0x00));
+    needs_clear_ = false;
+  }
+  RenderBatch();
+  frame_stats_.flush_overflow = flush_overflow_;
+  // MSAA resolve: downsample from multisampled to regular framebuffer.
   OPENGL_CALL(glActiveTexture(GL_TEXTURE0));
   OPENGL_CALL(glBindFramebuffer(GL_READ_FRAMEBUFFER, render_target_));
   OPENGL_CALL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, downsampled_target_));
   OPENGL_CALL(glBlitFramebuffer(0, 0, viewport_.x, viewport_.y, 0, 0,
                                 viewport_.x, viewport_.y, GL_COLOR_BUFFER_BIT,
                                 GL_NEAREST));
-  // Second pass.
+  // Post pass: draw to screen.
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
   OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
@@ -818,21 +906,20 @@ void BatchRenderer::Render(Allocator* scratch) {
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
-  stats.draw_calls++;
-  stats.vertices = static_cast<int>(vertices_count);
-  PROFILE_COUNTER("Draw Calls", stats.draw_calls);
-  PROFILE_COUNTER("Vertices", static_cast<double>(vertices_count));
-  PROFILE_COUNTER("Flush: Texture", stats.flush_texture);
-  PROFILE_COUNTER("Flush: Transform", stats.flush_transform);
-  PROFILE_COUNTER("Flush: Shader", stats.flush_shader);
-  PROFILE_COUNTER("Flush: Blend Mode", stats.flush_blend);
-  PROFILE_COUNTER("Flush: Canvas", stats.flush_canvas);
-  PROFILE_COUNTER("Flush: Line End", stats.flush_line_end);
-  PROFILE_COUNTER("Flush: Other", stats.flush_other);
-  PROFILE_COUNTER("Redundant: Texture", stats.redundant_texture);
-  PROFILE_COUNTER("Redundant: Transform", stats.redundant_transform);
-  PROFILE_COUNTER("Redundant: Shader", stats.redundant_shader);
-  frame_stats_ = stats;
+  frame_stats_.draw_calls++;
+  PROFILE_COUNTER("Draw Calls", frame_stats_.draw_calls);
+  PROFILE_COUNTER("Vertices", static_cast<double>(frame_stats_.vertices));
+  PROFILE_COUNTER("Flush: Texture", frame_stats_.flush_texture);
+  PROFILE_COUNTER("Flush: Transform", frame_stats_.flush_transform);
+  PROFILE_COUNTER("Flush: Shader", frame_stats_.flush_shader);
+  PROFILE_COUNTER("Flush: Blend Mode", frame_stats_.flush_blend);
+  PROFILE_COUNTER("Flush: Canvas", frame_stats_.flush_canvas);
+  PROFILE_COUNTER("Flush: Line End", frame_stats_.flush_line_end);
+  PROFILE_COUNTER("Flush: Other", frame_stats_.flush_other);
+  PROFILE_COUNTER("Flush: Overflow", frame_stats_.flush_overflow);
+  PROFILE_COUNTER("Redundant: Texture", frame_stats_.redundant_texture);
+  PROFILE_COUNTER("Redundant: Transform", frame_stats_.redundant_transform);
+  PROFILE_COUNTER("Redundant: Shader", frame_stats_.redundant_shader);
 }
 
 BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(

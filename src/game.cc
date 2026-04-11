@@ -77,8 +77,8 @@ struct EngineModules {
         text_files_(256, allocator),
         sound(audio_channels, audio_buffer_samples, allocator),
         renderer(*db_assets, &batch_renderer, db, allocator),
-        lua_allocator(allocator->Alloc(Megabytes(64), kMaxAlign),
-                      Megabytes(64)),
+        lua_allocator(allocator->Alloc(Megabytes(256), kMaxAlign),
+                      Megabytes(256)),
         lua(args, db, db_assets, &lua_allocator),
         physics(FVec(config.window_width, config.window_height),
                 Physics::kPixelsPerMeter, allocator),
@@ -556,6 +556,9 @@ class Game {
                  " xform=", fs.redundant_transform,
                  " shader=", fs.redundant_shader,
                  "\nLua memory usage: ", (e_->lua.MemoryUsage() / 1024.0f));
+      if (fs.flush_overflow > 0) {
+        log.Append("\nCmd buffer overflows: ", fs.flush_overflow);
+      }
       const IVec2 dims =
           e_->renderer.TextDimensions("debug_font.ttf", 16, log.str());
       const IVec2 viewport = e_->batch_renderer.GetViewport();
@@ -570,7 +573,7 @@ class Game {
     e_->renderer.FlushFrame();
     {
       PROFILE_SCOPE_N("BatchRenderer::Render");
-      e_->batch_renderer.Render(&e_->frame_allocator);
+      e_->batch_renderer.Render();
     }
     {
       PROFILE_SCOPE_N("SwapWindow");
