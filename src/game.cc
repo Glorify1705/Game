@@ -666,13 +666,15 @@ int Main(int argc, const char* argv[]) {
   // config arena and other CLI scratch state.
   auto* cli_buf = static_cast<uint8_t*>(malloc(Gigabytes(1)));
   ArenaAllocator cli_arena(cli_buf, Gigabytes(1));
+  DEFER([cli_buf] { free(cli_buf); });
 
   if (argc >= 2) {
     std::string_view cmd = argv[1];
     // Validate the command before doing anything else.
     if (cmd != "init" && cmd != "run" && cmd != "clean" && cmd != "package" &&
-        cmd != "stubs" && cmd != "version" && cmd != "help" &&
-        cmd != "--help" && cmd != "--version") {
+        cmd != "stubs" && cmd != "convert" && cmd != "atlas" &&
+        cmd != "version" && cmd != "help" && cmd != "--help" &&
+        cmd != "--version") {
       fprintf(stderr, "Error: unknown command '%s'.\n\n", argv[1]);
       return CmdHelp(argv[0], /*subcommand=*/nullptr);
     }
@@ -682,6 +684,8 @@ int Main(int argc, const char* argv[]) {
     if (cmd == "clean") return CmdClean(sub, &cli_arena);
     if (cmd == "package") return CmdPackage(sub, &cli_arena);
     if (cmd == "stubs") return CmdStubs(sub, &cli_arena);
+    if (cmd == "convert") return CmdConvert(sub, &cli_arena);
+    if (cmd == "atlas") return CmdAtlas(sub, &cli_arena);
     if (cmd == "version") return CmdVersion(argv[0]);
     if (cmd == "help") return CmdHelp(argv[0], argc > 2 ? argv[2] : nullptr);
     if (cmd == "--help") return CmdHelp(argv[0], /*subcommand=*/nullptr);
