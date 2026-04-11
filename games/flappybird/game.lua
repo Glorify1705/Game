@@ -312,12 +312,14 @@ function Game:draw()
 
     -- Show best score.
     if self.best_score > 0 then
-      G.graphics.set_color(255, 255, 255, 200)
-      local size = 12
+      local size = 16
       local text = "BEST: " .. tostring(self.best_score)
-      local tw, th = G.graphics.text_dimensions("debug_font.ttf", size, text)
+      local tw = G.graphics.text_dimensions("debug_font.ttf", size, text)
+      G.graphics.set_text_outline(0, 0, 0, 255, 2)
+      G.graphics.set_color(255, 255, 255, 255)
       G.graphics.draw_text("debug_font.ttf", size, text,
                            (SCREEN_W - tw) / 2, SCREEN_H / 2 - 20)
+      G.graphics.clear_text_outline()
       G.graphics.set_color("white")
     end
   end
