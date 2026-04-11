@@ -1,0 +1,189 @@
+{
+  "atlas": "flappy.qoi",
+  "width": 1024,
+  "height": 1024,
+  "sprites": [
+    {
+      "name": "0",
+      "x": 919,
+      "y": 1,
+      "width": 24,
+      "height": 36
+    },
+    {
+      "name": "5",
+      "x": 945,
+      "y": 1,
+      "width": 24,
+      "height": 36
+    },
+    {
+      "name": "base",
+      "x": 581,
+      "y": 323,
+      "width": 336,
+      "height": 112
+    },
+    {
+      "name": "redbird-midflap",
+      "x": 963,
+      "y": 77,
+      "width": 34,
+      "height": 24
+    },
+    {
+      "name": "redbird-downflap",
+      "x": 963,
+      "y": 103,
+      "width": 34,
+      "height": 24
+    },
+    {
+      "name": "4",
+      "x": 971,
+      "y": 1,
+      "width": 24,
+      "height": 36
+    },
+    {
+      "name": "redbird-upflap",
+      "x": 919,
+      "y": 115,
+      "width": 34,
+      "height": 24
+    },
+    {
+      "name": "pipe-red",
+      "x": 581,
+      "y": 1,
+      "width": 52,
+      "height": 320
+    },
+    {
+      "name": "yellowbird-upflap",
+      "x": 955,
+      "y": 129,
+      "width": 34,
+      "height": 24
+    },
+    {
+      "name": "bluebird-midflap",
+      "x": 919,
+      "y": 141,
+      "width": 34,
+      "height": 24
+    },
+    {
+      "name": "background-night",
+      "x": 1,
+      "y": 1,
+      "width": 288,
+      "height": 512
+    },
+    {
+      "name": "bluebird-upflap",
+      "x": 955,
+      "y": 155,
+      "width": 34,
+      "height": 24
+    },
+    {
+      "name": "1",
+      "x": 945,
+      "y": 77,
+      "width": 16,
+      "height": 36
+    },
+    {
+      "name": "3",
+      "x": 997,
+      "y": 1,
+      "width": 24,
+      "height": 36
+    },
+    {
+      "name": "yellowbird-downflap",
+      "x": 919,
+      "y": 167,
+      "width": 34,
+      "height": 24
+    },
+    {
+      "name": "8",
+      "x": 919,
+      "y": 39,
+      "width": 24,
+      "height": 36
+    },
+    {
+      "name": "6",
+      "x": 945,
+      "y": 39,
+      "width": 24,
+      "height": 36
+    },
+    {
+      "name": "7",
+      "x": 971,
+      "y": 39,
+      "width": 24,
+      "height": 36
+    },
+    {
+      "name": "gameover",
+      "x": 581,
+      "y": 437,
+      "width": 192,
+      "height": 42
+    },
+    {
+      "name": "pipe-green",
+      "x": 635,
+      "y": 1,
+      "width": 52,
+      "height": 320
+    },
+    {
+      "name": "message",
+      "x": 689,
+      "y": 1,
+      "width": 184,
+      "height": 267
+    },
+    {
+      "name": "background-day",
+      "x": 291,
+      "y": 1,
+      "width": 288,
+      "height": 512
+    },
+    {
+      "name": "yellowbird-midflap",
+      "x": 955,
+      "y": 181,
+      "width": 34,
+      "height": 24
+    },
+    {
+      "name": "2",
+      "x": 997,
+      "y": 39,
+      "width": 24,
+      "height": 36
+    },
+    {
+      "name": "9",
+      "x": 919,
+      "y": 77,
+      "width": 24,
+      "height": 36
+    },
+    {
+      "name": "bluebird-downflap",
+      "x": 919,
+      "y": 193,
+      "width": 34,
+      "height": 24
+    }
+  ]
+}
