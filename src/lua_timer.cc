@@ -274,4 +274,11 @@ void AddTimerLibrary(Lua* lua) {
   lua->AddLibrary("timer", kTimerLib);
 }
 
+LuaLibraryDef GetTimerLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"timer", kTimerLib, std::size(kTimerLib)},
+  };
+  return {kLibs, std::size(kLibs), nullptr, 0};
+}
+
 }  // namespace G

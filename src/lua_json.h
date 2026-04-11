@@ -19,6 +19,7 @@ ErrorOr<yyjson_mut_val*> LuaToJsonValue(lua_State* state, int index,
                                         yyjson_mut_doc* doc);
 
 void AddJsonLibrary(Lua* lua);
+LuaLibraryDef GetJsonLibraryDef();
 
 }  // namespace G
 

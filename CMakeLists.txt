@@ -90,6 +90,7 @@ set(VENDORED_SRCS
     "libraries/stb_rect_pack.cc"
     "libraries/stb_truetype.cc"
     "libraries/stb_image_write.cc"
+    "libraries/stb_image_all.cc"
     "libraries/stb_vorbis.cc"
     "libraries/yyjson.c"
     "libraries/backward.cc")
@@ -142,7 +143,9 @@ set(ENGINE_SRCS
     "src/transformations.cc"
     "src/xml.cc"
     "src/packer.cc"
+    "src/cmd_atlas.cc"
     "src/cmd_clean.cc"
+    "src/cmd_convert.cc"
     "src/cmd_help.cc"
     "src/cmd_init.cc"
     "src/cmd_package.cc"

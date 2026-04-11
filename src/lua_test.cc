@@ -155,4 +155,11 @@ const struct LuaApiFunction kTestLib[] = {
 
 void AddTestLibrary(Lua* lua) { lua->AddLibrary("test", kTestLib); }
 
+LuaLibraryDef GetTestLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"test", kTestLib, std::size(kTestLib)},
+  };
+  return {kLibs, std::size(kLibs), nullptr, 0};
+}
+
 }  // namespace G

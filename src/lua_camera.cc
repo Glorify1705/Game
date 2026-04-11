@@ -247,4 +247,11 @@ const struct LuaApiFunction kCameraLib[] = {
 
 void AddCameraLibrary(Lua* lua) { lua->AddLibrary("camera", kCameraLib); }
 
+LuaLibraryDef GetCameraLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"camera", kCameraLib, std::size(kCameraLib)},
+  };
+  return {kLibs, std::size(kLibs), nullptr, 0};
+}
+
 }  // namespace G

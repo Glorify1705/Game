@@ -20,6 +20,8 @@ void PrintGeneralHelp(const char* prog) {
       "  clean [dir]          Delete cached asset database\n"
       "  package [dir]        Package a game for distribution\n"
       "  stubs [--output]     Generate LuaLS type stubs\n"
+      "  convert <file>       Convert assets between formats\n"
+      "  atlas <dir>          Pack images into a texture atlas\n"
       "  version              Print engine version\n"
       "  help [command]       Show help for a command\n"
       "\n"
@@ -83,6 +85,43 @@ void PrintPackageHelp(const char* prog) {
       prog);
 }
 
+void PrintConvertHelp(const char* prog) {
+  printf(
+      "Usage: %s convert <input> [options]\n"
+      "\n"
+      "Converts assets to/from the engine's native formats.\n"
+      "\n"
+      "Supported conversions:\n"
+      "  PNG, JPEG, BMP, GIF, TGA -> QOI  (image to engine format)\n"
+      "  QOI -> PNG                       (engine format to portable)\n"
+      "  WAV, OGG -> QOA                  (audio to engine format)\n"
+      "  QOA -> WAV                       (engine format to portable)\n"
+      "\n"
+      "Options:\n"
+      "  -o, --output <path>  Output file path (default: input with new ext)\n"
+      "  -f, --format <fmt>   Output format (inferred from extension)\n",
+      prog);
+}
+
+void PrintAtlasHelp(const char* prog) {
+  printf(
+      "Usage: %s atlas <input-dir> [options]\n"
+      "\n"
+      "Packs loose images into a texture atlas with sprite metadata.\n"
+      "Outputs a .qoi atlas image and a .sprites.json metadata file.\n"
+      "\n"
+      "Input formats: PNG, JPEG, BMP, GIF, TGA, QOI.\n"
+      "\n"
+      "Options:\n"
+      "  -o, --output <dir>   Output directory (default: current directory)\n"
+      "  --name <name>        Base name for output files (default: atlas)\n"
+      "  --size <WxH>         Maximum atlas size (default: 2048x2048)\n"
+      "  --padding <px>       Pixels between sprites (default: 1)\n"
+      "  --extrude <px>       Extrude sprite edges by N pixels\n"
+      "  --recursive          Include images from subdirectories\n",
+      prog);
+}
+
 void PrintStubsHelp(const char* prog) {
   printf(
       "Usage: %s stubs [--output <path>]\n"
@@ -114,6 +153,10 @@ int CmdHelp(const char* argv0, const char* subcommand) {
     PrintPackageHelp(argv0);
   } else if (cmd == "stubs") {
     PrintStubsHelp(argv0);
+  } else if (cmd == "convert") {
+    PrintConvertHelp(argv0);
+  } else if (cmd == "atlas") {
+    PrintAtlasHelp(argv0);
   } else if (cmd == "version") {
     printf("Usage: %s version\n\nPrints the engine version and exits.\n",
            argv0);

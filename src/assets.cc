@@ -42,7 +42,7 @@ void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer, size_t size,
   }
   DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No font ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   std::memcpy(buffer, contents, size);
   buffer[size] = '\0';
@@ -93,7 +93,7 @@ void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
   }
   DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No shader ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   auto type_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
   std::string_view type(type_str);
@@ -119,7 +119,7 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
   }
   DEFER([&] { sqlite3_finalize(stmt); });
   sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No text file ", filename);
   auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   std::memcpy(buffer, contents, size);
   buffer[size] = '\0';
@@ -143,7 +143,7 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
     }
     DEFER([&] { sqlite3_finalize(stmt); });
     sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
+    CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No spritesheet ", filename);
     auto image = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
     size_t width = sqlite3_column_int(stmt, 1);
     size_t height = sqlite3_column_int(stmt, 2);
@@ -249,7 +249,6 @@ void DbAssets::Load() {
     DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
   }
   DEFER([&] { sqlite3_finalize(stmt); });
-  ArenaAllocator scratch(allocator_, Megabytes(128));
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
     const ChecksumType db_checksum = sqlite3_column_int64(stmt, 3);
@@ -265,7 +264,7 @@ void DbAssets::Load() {
     const size_t size = sqlite3_column_int64(stmt, 2);
     std::string_view saved_name = InternedString(name);
     auto* buffer =
-        reinterpret_cast<uint8_t*>(scratch.Alloc(size + 1, /*align=*/16));
+        reinterpret_cast<uint8_t*>(allocator_->Alloc(size + 1, /*align=*/16));
     for (const Loader& loader : kLoaders) {
       if (loader.name.empty()) {
         LOG("No loader for asset ", name, " with type ", type);

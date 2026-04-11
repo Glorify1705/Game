@@ -101,4 +101,6 @@ void AddLogLibrary([[maybe_unused]] Lua* lua) {
 #endif
 }
 
+LuaLibraryDef GetLogLibraryDef() { return {nullptr, 0, nullptr, 0}; }
+
 }  // namespace G

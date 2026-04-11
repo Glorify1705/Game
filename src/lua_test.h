@@ -9,6 +9,7 @@ namespace G {
 // Registers the `test` library exposing input injection and coroutine
 // helpers (wait_frames, wait_seconds) usable from `_Game.test_inputs`.
 void AddTestLibrary(Lua* lua);
+LuaLibraryDef GetTestLibraryDef();
 
 }  // namespace G
 

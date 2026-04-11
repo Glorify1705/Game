@@ -481,4 +481,15 @@ void AddPhysicsLibrary(Lua* lua) {
                              "An opaque handle to a physics body"});
 }
 
+LuaLibraryDef GetPhysicsLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"physics", kPhysicsLib, std::size(kPhysicsLib)},
+  };
+  static const LuaUserdataType kTypes[] = {
+      {"physics_handle", "physics_handle",
+       "An opaque handle to a physics body"},
+  };
+  return {kLibs, std::size(kLibs), kTypes, std::size(kTypes)};
+}
+
 }  // namespace G

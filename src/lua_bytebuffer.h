@@ -17,6 +17,7 @@ struct ByteBuffer {
 uint8_t* PushBufferIntoLua(lua_State* state, size_t size);
 
 void AddByteBufferLibrary(Lua* lua);
+LuaLibraryDef GetByteBufferLibraryDef();
 
 }  // namespace G
 

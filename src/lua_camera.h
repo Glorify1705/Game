@@ -7,6 +7,7 @@
 namespace G {
 
 void AddCameraLibrary(Lua* lua);
+LuaLibraryDef GetCameraLibraryDef();
 
 }  // namespace G
 

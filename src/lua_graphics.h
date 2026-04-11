@@ -7,6 +7,7 @@
 namespace G {
 
 void AddGraphicsLibrary(Lua* lua);
+LuaLibraryDef GetGraphicsLibraryDef();
 
 }  // namespace G
 

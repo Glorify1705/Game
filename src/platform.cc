@@ -4,11 +4,16 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "allocators.h"
+#include "defer.h"
+#include "stringlib.h"
+
 #ifdef _WIN32
 #include <windows.h>
 // Windows CopyFile macro conflicts with our function name.
 #undef CopyFile
 #else
+#include <dirent.h>
 #include <limits.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -88,6 +93,44 @@ ErrorOr<void> MakeDirs(const char* path) {
 #endif
 }
 
+ErrorOr<void> IterateDirectory(const char* dir, DirIterCallback callback,
+                               void* userdata) {
+#ifdef _WIN32
+  char pattern[MAX_PATH];
+  snprintf(pattern, sizeof(pattern), "%s\\*", dir);
+  WIN32_FIND_DATAA fd;
+  HANDLE h = FindFirstFileA(pattern, &fd);
+  if (h == INVALID_HANDLE_VALUE) return Error::Message("FindFirstFileA failed");
+  DEFER([h] { FindClose(h); });
+  do {
+    if (fd.cFileName[0] == '.') continue;
+    DirEntry entry;
+    entry.name = fd.cFileName;
+    entry.type = (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                     ? DirEntryType::kDirectory
+                     : DirEntryType::kFile;
+    callback(entry, userdata);
+  } while (FindNextFileA(h, &fd));
+#else
+  DIR* d = opendir(dir);
+  if (d == nullptr) return Error::Errno(errno);
+  DEFER([d] { closedir(d); });
+  struct dirent* ent;
+  while ((ent = readdir(d)) != nullptr) {
+    if (ent->d_name[0] == '.') continue;
+    struct stat st;
+    FixedStringBuffer<1024> full_path(dir, "/", ent->d_name);
+    if (stat(full_path.str(), &st) != 0) continue;
+    DirEntry entry;
+    entry.name = ent->d_name;
+    entry.type =
+        S_ISDIR(st.st_mode) ? DirEntryType::kDirectory : DirEntryType::kFile;
+    callback(entry, userdata);
+  }
+#endif
+  return {};
+}
+
 const char* AbsolutePath(const char* path) {
 #ifdef _WIN32
   static char resolved[MAX_PATH];
@@ -98,6 +141,31 @@ const char* AbsolutePath(const char* path) {
   if (realpath(path, resolved) != nullptr) return resolved;
   return path;
 #endif
+}
+
+ErrorOr<size_t> ReadEntireFile(const char* path, uint8_t** out,
+                               Allocator* allocator) {
+  FILE* f = fopen(path, "rb");
+  if (f == nullptr) return Error::Errno(errno);
+  DEFER([f] { fclose(f); });
+  fseek(f, 0, SEEK_END);
+  long len = ftell(f);
+  if (len < 0) return Error::Errno(errno);
+  fseek(f, 0, SEEK_SET);
+  auto* buf = static_cast<uint8_t*>(allocator->Alloc(len, 1));
+  if (fread(buf, 1, len, f) != static_cast<size_t>(len)) {
+    return Error::Errno(errno);
+  }
+  *out = buf;
+  return static_cast<size_t>(len);
+}
+
+ErrorOr<void> WriteEntireFile(const char* path, const void* data, size_t size) {
+  FILE* f = fopen(path, "wb");
+  if (f == nullptr) return Error::Errno(errno);
+  DEFER([f] { fclose(f); });
+  if (fwrite(data, 1, size, f) != size) return Error::Errno(errno);
+  return {};
 }
 
 ErrorOr<void> WriteFile(const char* path, const char* contents) {

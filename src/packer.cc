@@ -24,10 +24,8 @@
 #include "src/units.h"
 #include "xml.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#define STBI_ONLY_PNG
-#define STBI_FAILURE_USERMSG
-#define STBI_LOG(...) LOG(__VA_ARGS__)
+// stb_image implementation lives in libraries/stb_image_all.cc with all
+// formats enabled (used by both the packer and the asset conversion tools).
 #include "libraries/stb_image.h"
 
 namespace G {

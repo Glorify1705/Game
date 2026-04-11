@@ -216,4 +216,11 @@ const struct LuaApiFunction kSoundLib[] = {
 
 void AddSoundLibrary(Lua* lua) { lua->AddLibrary("sound", kSoundLib); }
 
+LuaLibraryDef GetSoundLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"sound", kSoundLib, std::size(kSoundLib)},
+  };
+  return {kLibs, std::size(kLibs), nullptr, 0};
+}
+
 }  // namespace G

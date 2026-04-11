@@ -7,6 +7,7 @@
 namespace G {
 
 void AddCollisionLibrary(Lua* lua);
+LuaLibraryDef GetCollisionLibraryDef();
 
 }  // namespace G
 

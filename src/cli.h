@@ -28,6 +28,12 @@ int CmdClean(Slice<const char*> args, Allocator* allocator);
 // path]
 int CmdStubs(Slice<const char*> args, Allocator* allocator);
 
+// Convert assets between formats: game convert <input> [-o output] [-f format]
+int CmdConvert(Slice<const char*> args, Allocator* allocator);
+
+// Pack images into a texture atlas: game atlas <dir> [options]
+int CmdAtlas(Slice<const char*> args, Allocator* allocator);
+
 // Print engine version.
 int CmdVersion(const char* argv0);
 

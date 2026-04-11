@@ -7,6 +7,7 @@
 namespace G {
 
 void AddSoundLibrary(Lua* lua);
+LuaLibraryDef GetSoundLibraryDef();
 
 }  // namespace G
 

@@ -56,4 +56,11 @@ void PrintDouble(double val, char* buffer, size_t size) {
   kDoubleToJson.ToFixed(val, 2, &db);
 }
 
+const char* StrDupZ(Allocator* allocator, std::string_view s) {
+  char* buf = static_cast<char*>(allocator->Alloc(s.size() + 1, 1));
+  memcpy(buf, s.data(), s.size());
+  buf[s.size()] = '\0';
+  return buf;
+}
+
 }  // namespace G

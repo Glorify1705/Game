@@ -7,6 +7,7 @@
 namespace G {
 
 void AddInputLibrary(Lua* lua);
+LuaLibraryDef GetInputLibraryDef();
 
 }  // namespace G
 

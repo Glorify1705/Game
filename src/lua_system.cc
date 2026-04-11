@@ -170,4 +170,12 @@ void AddSystemLibrary(Lua* lua) {
   lua->AddLibrary("clock", kClockLib);
 }
 
+LuaLibraryDef GetSystemLibraryDef() {
+  static const LuaLibraryDef::Library kLibs[] = {
+      {"system", kSystemLib, std::size(kSystemLib)},
+      {"clock", kClockLib, std::size(kClockLib)},
+  };
+  return {kLibs, std::size(kLibs), nullptr, 0};
+}
+
 }  // namespace G
