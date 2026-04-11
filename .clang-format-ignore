@@ -1,2 +1,3 @@
+libraries/SDL3/**
 libraries/yyjson.c
 libraries/yyjson.h

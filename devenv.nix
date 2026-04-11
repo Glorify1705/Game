@@ -57,16 +57,24 @@ in
     python3
     renderdoc
     samply
-    sdl3
     sqlite
     sqlitebrowser
     stylua
     valgrind
     wrappedClangTidy
     wrappedIncludeCleaner
+    libxkbcommon
+    xorg.libX11
+    xorg.libxcb
     xorg.libXcursor
+    xorg.libXext
+    xorg.libXfixes
+    xorg.libXi
     xorg.libXinerama
     xorg.libXrandr
+    xorg.libXrender
+    xorg.libXScrnSaver
+    xorg.libXtst
     xorg.xrandr
   ];
 
@@ -97,7 +105,10 @@ in
   scripts."game-samply".exec           = ''exec "$DEVENV_ROOT/scripts/game-samply.sh" "$@"'';
 
   git-hooks.hooks = {
-    clang-format.enable = true;
+    clang-format = {
+      enable = true;
+      excludes = [ "^libraries/SDL3/" ];
+    };
 
 		donotsubmit = {
 			enable = true;
@@ -105,6 +116,8 @@ in
 			name = "DONOTSUBMIT checker";
 
 			entry = "scripts/donotsubmit.sh";
+
+			excludes = [ "^libraries/SDL3/" ];
 		};
 
 		clang-tidy-hook = {
@@ -113,6 +126,8 @@ in
 			name = "clang-tidy";
 
 			entry = "scripts/run-clang-tidy.sh";
+
+			excludes = [ "^libraries/SDL3/" ];
 		};
 
   };
