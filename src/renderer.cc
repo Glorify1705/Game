@@ -43,7 +43,7 @@ constexpr uint64_t kSDFCacheVersion = 1;
 
 }  // namespace
 
-constexpr size_t kCommandMemory = 1 << 24;
+constexpr size_t kCommandMemory = Megabytes(64);
 
 // Size of each command in command_buffer_: sizeof rounded up to
 // alignof(Command) so every command starts on a Command-aligned offset.
