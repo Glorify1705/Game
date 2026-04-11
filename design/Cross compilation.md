@@ -64,20 +64,21 @@ run directly.
 
 ### What does not work yet
 
-- **SDL3 has no vendored Windows libraries.** The engine migrated from SDL2 to
-  SDL3, but the vendored `libraries/SDL2/` directory still contains stale SDL2
-  MinGW pre-built libraries. These are useless. SDL3 Windows libraries (either
-  pre-built MinGW binaries or built from source) must be obtained separately.
-  SDL provides official MinGW development packages for SDL3 releases on GitHub.
-- **MSVC compilation is unverified.** CMakeLists.txt has MSVC flag blocks
-  (`/W4 /WX`), but the C++ source uses GCC/Clang-specific `__attribute__`
-  extensions in at least `allocators.h` (`__attribute__((malloc))`) and
-  `stringlib.h` (`__attribute__((format(printf, ...)))`). These will fail
-  under MSVC without `#ifdef` guards or a compatibility macro. There may be
-  other GCC-isms. The MinGW cross-compilation path avoids this issue entirely
-  since MinGW uses GCC, but native MSVC builds would require a porting pass.
-- **The stale SDL2 vendored libs should be removed** or replaced with SDL3
-  equivalents to avoid confusion.
+- **SDL3 is not vendored.** The engine depends on a system-installed SDL3
+  (via `find_package(SDL3 REQUIRED CONFIG)` in CMakeLists.txt). This works on
+  Linux because the Nix devenv provides SDL3, but it means cross-compilation
+  requires obtaining SDL3 for each target separately. The solution is to vendor
+  SDL3 source and build it via `add_subdirectory()` — see the SDL3 section
+  below.
+- **Stale SDL2 vendored libs.** `libraries/SDL2/` contains pre-built SDL2
+  MinGW libraries from before the SDL3 migration. These are useless and should
+  be deleted.
+- **MSVC compatibility is unverified and not a priority.** The codebase uses
+  GCC/Clang `__attribute__` extensions (`malloc`, `format(printf, ...)`) in
+  `allocators.h`, `stringlib.h`, and likely elsewhere. MinGW uses GCC so this
+  is not a problem for cross-compilation. Native MSVC builds would require a
+  porting pass, but since the engine targets distribution (not Windows
+  development), this is deferred indefinitely.
 
 ### The blocker: `game package` copies itself
 
@@ -158,29 +159,65 @@ cmake -G Ninja -S . -B build-win64 \
 ninja -C build-win64
 ```
 
-#### SDL3 for Windows
+#### Vendor SDL3 source (all platforms)
 
-The biggest prerequisite for Phase 2. Options:
+SDL3 must be vendored as source and built via `add_subdirectory()` for _both_
+Linux and Windows. This is the SDL project's recommended approach for game
+engines — SDL3's CMake build is designed for it, and their migration guide
+explicitly recommends `add_subdirectory()` or `FetchContent` over
+`find_package()` for vendored builds.
 
-1. **Download official SDL3 MinGW dev package.** SDL publishes
-   `SDL3-devel-<version>-mingw.tar.gz` on each GitHub release. Extract into
-   `libraries/SDL3-win64/` and point `SDL3_DIR` at it in the toolchain file.
-   This is the simplest path and mirrors how the stale SDL2 libs were vendored.
+SDL3 has an internal dynamic API (a jump table) that allows runtime override
+of function pointers even when statically linked. This means
+`add_subdirectory()` builds get the benefits of static linking (no DLL
+management, single binary) while preserving SDL's ability to load a
+system-provided SDL3 shared library at runtime if one exists. On Linux, SDL
+prefers dynamic linking for license and ABI reasons, but the
+`add_subdirectory()` path handles this correctly — it builds a shared library
+by default, and CMake's `SDL3::SDL3` target sets up the right RPATH.
 
-2. **Build SDL3 from source with MinGW.** More work, but gives full control.
-   SDL3's CMake build supports MinGW cross-compilation natively.
+**Why use the same approach on Linux and Windows:**
 
-3. **Remove the stale SDL2 vendored libs.** They are SDL2, the engine uses
-   SDL3. They should be deleted regardless of which SDL3 approach is chosen.
+Using `find_package()` for Linux development but `add_subdirectory()` for
+Windows cross-compilation creates divergence: different SDL3 versions,
+different build configurations, different bugs. By vendoring SDL3 source and
+building it the same way everywhere, the Linux dev build is identical to the
+cross-compiled Windows build (minus the toolchain). This eliminates an entire
+class of "works on my machine" problems.
+
+**Steps:**
+
+1. **Vendor SDL3 source.** Download or `git archive` a release tarball into
+   `libraries/SDL3/`. Only the source tree is needed (no pre-built binaries).
+
+2. **Replace `find_package` with `add_subdirectory`.** In CMakeLists.txt,
+   replace:
+   ```cmake
+   find_package(SDL3 REQUIRED CONFIG)
+   ```
+   with:
+   ```cmake
+   add_subdirectory(libraries/SDL3)
+   ```
+   The `target_link_libraries(... SDL3::SDL3)` line remains unchanged — SDL3's
+   CMake build exports the same target name either way.
+
+3. **Delete `libraries/SDL2/`.** The stale SDL2 MinGW pre-built libraries
+   serve no purpose.
+
+4. **Update `devenv.nix`.** Remove the system SDL3 package from the Nix
+   devenv. SDL3 is now built from vendored source, so the system package is
+   unnecessary. Build-time dependencies that SDL3 needs (X11, Wayland,
+   PulseAudio headers, etc.) should remain.
 
 #### CMakeLists.txt changes needed
 
 The main CMakeLists.txt needs adjustments for cross compilation:
 
-1. **SDL3 discovery.** When cross-compiling, `find_package(SDL3)` must
-   search the vendored SDL3 MinGW libraries. Set `SDL3_DIR` or
-   `CMAKE_PREFIX_PATH` in the toolchain file to point at the new
-   `libraries/SDL3-win64/` directory.
+1. **SDL3 build.** `add_subdirectory(libraries/SDL3)` replaces
+   `find_package(SDL3 REQUIRED CONFIG)`. When cross-compiling with MinGW,
+   SDL3's CMake build auto-detects the target platform from the toolchain
+   file and builds Windows libraries. No special SDL3 configuration needed.
 
 2. **OpenGL.** `find_package(OpenGL REQUIRED)` needs a MinGW-compatible
    `libopengl32.a`. MinGW sysroots typically include this. May need
@@ -193,21 +230,28 @@ The main CMakeLists.txt needs adjustments for cross compilation:
 4. **backward-cpp.** On Windows, backward-cpp uses `dbghelp.h` instead of
    libdw. May need `target_link_libraries(... dbghelp)` on Windows.
 
-5. **DLL copying.** The post-build SDL3.dll copy step should use the vendored
-   DLL path rather than assuming a system install.
+5. **DLL copying.** When building SDL3 as a shared library via
+   `add_subdirectory()`, the SDL3.dll will be in the build tree. The
+   post-build copy step should reference `$<TARGET_FILE:SDL3::SDL3>`
+   rather than assuming a system install path.
 
 #### Nix integration
 
-Add a MinGW cross-compilation environment to `devenv.nix`:
+Two changes to `devenv.nix`:
 
-```nix
-packages = [
-  pkgs.pkgsCross.mingwW64.buildPackages.gcc
-  pkgs.pkgsCross.mingwW64.windows.pthreads
-];
-```
+1. **Remove system SDL3.** SDL3 is now built from vendored source, so the
+   system SDL3 package is no longer needed. Keep X11/Wayland/PulseAudio
+   development headers that SDL3's build requires.
 
-Or provide a `game-build-win64` script that invokes cmake with the toolchain
+2. **Add MinGW cross-compilation tools:**
+   ```nix
+   packages = [
+     pkgs.pkgsCross.mingwW64.buildPackages.gcc
+     pkgs.pkgsCross.mingwW64.windows.pthreads
+   ];
+   ```
+
+Provide a `game-build-win64` script that invokes cmake with the toolchain
 file.
 
 ### Phase 3: `game package --target windows`
@@ -296,10 +340,15 @@ zero-setup on the target machine.
 
 ## Implementation order
 
-1. **Phase 1** first (small `cmd_package.cc` change). This unblocks the
-   workflow immediately: cross-compile once with MinGW manually, then use
+0. **Vendor SDL3 source** and switch from `find_package()` to
+   `add_subdirectory()` on Linux first. This is a prerequisite for everything
+   else — it ensures the Linux dev build and cross-compiled builds use the
+   same SDL3 source. Delete `libraries/SDL2/` at this point.
+1. **Phase 1** (small `cmd_package.cc` change). Unblocks the workflow
+   immediately: cross-compile once with MinGW manually, then use
    `game package --engine-binary` repeatedly as you iterate on game scripts.
-2. **Phase 2** next (toolchain file + CMake adjustments). Makes the cross
-   build reproducible and scriptable.
+2. **Phase 2** (toolchain file + CMake adjustments). Makes the cross build
+   reproducible and scriptable. SDL3 cross-compilation just works because
+   `add_subdirectory()` respects the toolchain file.
 3. **Phase 3** for convenience (ties it all together into one command).
 4. **Phase 4** if/when Windows testing becomes important for CI.

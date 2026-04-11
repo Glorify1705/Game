@@ -130,10 +130,10 @@ Reaching more platforms multiplies the value of everything above.
 
 Valuable but not blocking. Build these when a specific game needs them.
 
-| Document | Rationale |
-|----------|-----------|
-| [Particle system](Particle%20system.md) | Visual polish. Can be prototyped in Lua first. |
-| [Networking](Networking.md) | Only needed for multiplayer games. |
-| [AI utilities](AI%20utilities.md) | Only needed for games with AI agents. |
-| [LuaJIT Migration](LuaJIT%20Migration.md) | Performance optimization. Current Lua 5.1 is adequate for most games. |
+| Document                                                      | Rationale                                                                  |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [Particle system](Particle%20system.md)                       | Visual polish. Can be prototyped in Lua first.                             |
+| [Networking](Networking.md)                                   | Only needed for multiplayer games.                                         |
+| [AI utilities](AI%20utilities.md)                             | Only needed for games with AI agents.                                      |
+| [LuaJIT Migration](LuaJIT%20Migration.md)                     | Performance optimization. Current Lua 5.1 is adequate for most games.      |
 | [Asset system improvements](Asset%20system%20improvements.md) | Current SQLite system works. ZIP+index is an optimization for large games. |
