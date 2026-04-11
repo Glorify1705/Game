@@ -1,6 +1,7 @@
 local Game = {}
 
--- Constants matching original Flappy Bird dimensions.
+-- Original Flappy Bird logical resolution. The window is 2x this size;
+-- we use G.graphics.scale(2, 2) in draw() to scale up.
 local SCREEN_W = 288
 local SCREEN_H = 512
 
@@ -265,6 +266,8 @@ end
 
 function Game:draw()
   G.graphics.clear()
+  G.graphics.push()
+  G.graphics.scale(2, 2)
 
   -- Background.
   G.graphics.set_color("white")
@@ -318,6 +321,8 @@ function Game:draw()
       G.graphics.set_color("white")
     end
   end
+
+  G.graphics.pop()
 end
 
 return Game
