@@ -36,6 +36,7 @@ in
 {
 
   packages = with pkgs; [
+    alsa-lib
     ccls
     clang
     clang-tools
@@ -48,6 +49,7 @@ in
     gperftools
     libGL
     libGLU
+    libpulseaudio
     libllvm
     lua-language-server
     lua51Packages.fennel
