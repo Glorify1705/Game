@@ -104,7 +104,9 @@ class DbAssets {
       : db_(db),
         allocator_(allocator),
         checksums_map_(allocator),
-        checksums_(1 << 20, allocator) {}
+        checksums_(1 << 20, allocator),
+        text_files_(256, allocator),
+        text_files_table_(allocator) {}
 
   // Callback type for asset loaders. Returns an error on failure.
   template <typename T>
@@ -147,10 +149,8 @@ class DbAssets {
     font_loader_.ud = ud;
   }
 
-  void RegisterTextLoad(LoadCallback<TextFile> load, void* ud) {
-    text_file_loader_.fn = load;
-    text_file_loader_.ud = ud;
-  }
+  // Returns the text file with the given name, or nullptr if not found.
+  TextFile* LookupTextFile(std::string_view name);
 
   ChecksumType GetChecksum(std::string_view asset);
 
@@ -208,7 +208,9 @@ class DbAssets {
   LoadFn<DbAssets::Sprite> sprite_loader_;
   LoadFn<DbAssets::Font> font_loader_;
   LoadFn<DbAssets::Sound> sound_loader_;
-  LoadFn<DbAssets::TextFile> text_file_loader_;
+
+  FixedArray<TextFile> text_files_;
+  Dictionary<TextFile*> text_files_table_;
 };
 
 }  // namespace G
