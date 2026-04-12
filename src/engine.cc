@@ -29,7 +29,7 @@ namespace G {
 Engine::Engine(Slice<const char*> args, sqlite3* db, DbAssets* db_assets,
                const GameConfig& config, size_t audio_channels,
                size_t audio_buffer_samples, SDL_Window* sdl_window,
-               Allocator* allocator, const char* source_directory)
+               Allocator* allocator)
     : console(allocator),
       db(db),
       assets(db_assets),
@@ -49,8 +49,7 @@ Engine::Engine(Slice<const char*> args, sqlite3* db, DbAssets* db_assets,
               Physics::kPixelsPerMeter, allocator),
       frame_allocator(allocator, Megabytes(128)),
       pool(allocator, ThreadPoolExecutor::NumDefaultThreads()),
-      allocator_(allocator),
-      hot_reload(source_directory, db, &pool, allocator) {}
+      allocator_(allocator) {}
 
 void Engine::Initialize() {
   TIMER();
@@ -152,13 +151,6 @@ void Engine::Initialize() {
   }
   lua.LoadMain();
   lua.FlushCompilationCache();
-  pool.Start();
-  hot_reload.Start();
-}
-
-void Engine::Deinitialize() {
-  hot_reload.Stop();
-  pool.Shutdown();
 }
 
 void Engine::StartFrame() {

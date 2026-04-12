@@ -31,349 +31,350 @@ namespace G {
 
 constexpr size_t kEngineMemory = Gigabytes(4);
 
-class Game {
- public:
-  Game(const GameOptions& opts, sqlite3* db, Allocator* allocator)
-      : opts_(opts), allocator_(allocator), db_(db) {
-    TIMER("Setup");
-    InitializeLogging();
-    for (size_t i = 0; i < opts.all_args.size(); ++i) {
-      LOG("args[", i, "]: ", opts.all_args[i]);
-    }
-    LOG("Program name = game, source = ",
-        opts.source_directory ? opts.source_directory : "(packaged)");
-    PHYSFS_CHECK(PHYSFS_init("game"), "Could not initialize PhysFS");
-    {
-      TIMER("Getting assets");
-      if (opts.source_directory != nullptr) {
-        InlineExecutor inline_executor;
-        MUST(WriteAssetsToDb(opts.source_directory, db_, allocator_,
-                             &inline_executor));
-      }
-      db_assets_ = allocator_->New<DbAssets>(db_, allocator_);
-    }
-    {
-      TIMER("Loading config");
-      LoadConfigFromDatabase(db_, &config_, allocator_);
-    }
-    LOG("Using engine version ", GAME_VERSION_STR);
-    LOG("Game requested engine version ", config_.version.major, ".",
-        config_.version.minor);
-    CHECK(config_.version.major == GAME_VERSION_MAJOR,
-          "Unsupported major version requested");
-    CHECK(config_.version.minor <= GAME_VERSION_MINOR,
-          "Unsupported minor engine version requested");
-    {
-      TIMER("SDL3 initialization");
-      sdl_ = InitializeSdl(config_, StaticAudioCallback, this);
-    }
-    PrintSystemInformation();
-  }
+namespace {
 
-  ~Game() {
-    // Stop the audio callback thread (via audio-stream destroy) before
-    // destroying Engine, which owns the Sound mutex.
-    SDL_DestroyAudioStream(sdl_.audio_stream);
-    sdl_.audio_stream = nullptr;
-    e_->Deinitialize();
-    allocator_->Destroy(e_);
-    PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
-    ShutdownSdl(&sdl_);
-    LOG("Statistics (in ms): ", stats_);
-    sqlite3_close(db_);
-  }
-
-  void Init() {
-    TIMER("Game Initialization");
-    e_ = allocator_->New<Engine>(opts_.args, db_, db_assets_, config_,
-                                 /*audio_channels=*/2,
-                                 /*audio_buffer_samples=*/8192, sdl_.window,
-                                 allocator_, opts_.source_directory);
-    if (opts_.test_mode) {
-      e_->keyboard.SetTestMode(true);
-      e_->mouse.SetTestMode(true);
-      e_->controllers.SetTestMode(true);
-    }
-    e_->Initialize();
-    e_->lua.Init();
-    if (opts_.test_mode) {
-      e_->lua.StartTestCoroutine();
-    }
-  }
-
-  void Run() {
-    SDL_ResumeAudioDevice(sdl_.audio_device);
-    Time last_frame = Now();
-    constexpr double kStep = TimeStepInSeconds();
-    double t = 0, real_t = 0, accum = 0;
-    bool first_update_done = false;
-    for (;;) {
-      if (e_->lua.Stopped()) return;
-      if (e_->lua.HasError() && e_->keyboard.IsDown(SDL_SCANCODE_Q)) {
-        e_->lua.Stop();
-        return;
-      }
-      if (e_->hot_reload.PendingChanges()) {
-        PROFILE_SCOPE_N("HotReload");
-        TIMER("Hotload requested");
-        auto changes = e_->hot_reload.ConsumePendingChanges();
-        e_->lua.ClearError();
-        e_->Reload(changes);
-        if (changes.has_script_changes) {
-          e_->lua.LoadMain();
-          e_->lua.Init();
-        }
-        LOG("Hot-reload complete: ", changes.file_count, " file(s) changed",
-            changes.has_script_changes ? " (scripts)" : "",
-            changes.has_audio_changes ? " (audio)" : "");
-      }
-      const Time now = Now();
-      const double frame_time = ToSeconds(now - last_frame);
-      last_frame = now;
-      accum += frame_time;
-      if (accum < kStep) {
-        SleepMs(1);
-        continue;
-      }
-      PROFILE_FRAME;
-      const Time frame_start = Now();
-      {
-        PROFILE_SCOPE_N("StartFrame");
-        e_->StartFrame();
-        SDL_StartTextInput(sdl_.window);
-      }
-      {
-        PROFILE_SCOPE_N("PollEvents");
-        for (SDL_Event event; SDL_PollEvent(&event);) {
-          if (event.type == SDL_EVENT_QUIT) {
-            e_->lua.HandleQuit();
-            return;
-          }
-          e_->HandleEvent(event);
-          if (event.type == SDL_EVENT_KEY_DOWN &&
-              e_->keyboard.IsDown(SDL_SCANCODE_TAB)) {
-            if (config_.enable_debug_rendering) {
-              debug_ = !debug_;
-            }
-          }
-          if (event.type == SDL_EVENT_KEY_DOWN &&
-              e_->keyboard.IsDown(SDL_SCANCODE_F12)) {
-            screenshot_requested_ = true;
-          }
-          if (event.type == SDL_EVENT_KEY_DOWN &&
-              e_->keyboard.IsDown(SDL_SCANCODE_F11)) {
-#ifdef GAME_WITH_PROFILING
-            GetProfiler()->ToggleRecording();
-#else
-            LOG("Profiling is disabled (build with -DENABLE_PROFILING=ON)");
-#endif
-          }
-        }
-      }
-      if (opts_.test_mode) {
-        e_->lua.ResumeTestCoroutine();
-      }
-      // Pause simulation while the window lacks keyboard focus. Rendering and
-      // event polling continue so the window redraws and focus events are
-      // still picked up. Test mode drives its own update cadence and is
-      // excluded. The first update is never paused: games may legitimately
-      // start unfocused (launched from a terminal) and `draw` commonly
-      // depends on state that `update` must set at least once.
-      const bool paused =
-          !opts_.test_mode && first_update_done &&
-          (SDL_GetWindowFlags(sdl_.window) & SDL_WINDOW_INPUT_FOCUS) == 0;
-      if (paused) accum = 0;
-      {
-        PROFILE_SCOPE_N("Update");
-        if (opts_.test_mode) {
-          // In test mode, run exactly one Update per frame for determinism.
-          const double scaled_dt = kStep * e_->lua.TimeScale();
-          Update(t, real_t, scaled_dt, kStep);
-          t += scaled_dt;
-          real_t += kStep;
-          accum = 0;
-        } else {
-          while (accum >= kStep) {
-            const double scaled_dt = kStep * e_->lua.TimeScale();
-            Update(t, real_t, scaled_dt, kStep);
-            t += scaled_dt;
-            real_t += kStep;
-            accum -= kStep;
-          }
-        }
-      }
-      first_update_done = true;
-      e_->batch_renderer.SetFrameTime(static_cast<float>(t));
-      {
-        PROFILE_SCOPE_N("Render");
-        Render();
-      }
-      PROFILE_COUNTER("Frame Time (ms)",
-                      ToSeconds(Now() - frame_start) * 1000.0);
-      PROFILE_COUNTER("Lua Memory (KB)", e_->lua.MemoryUsage() / 1024.0);
-      stats_.AddSample(ToSeconds(Now() - frame_start) * 1000.0);
-    }
-  }
-
-  void RenderCrashScreen(std::string_view error) {
-    const IVec2 viewport = e_->batch_renderer.GetViewport();
-    e_->renderer.ClearForFrame();
-    e_->renderer.SetColor(Color::Black());
-    e_->renderer.DrawRect(/*top_left=*/FVec(0, 0), FVec(viewport.x, viewport.y),
-                          /*angle=*/0);
-    e_->renderer.SetColor(Color::White());
-    e_->renderer.DrawText("debug_font.ttf", 24, error, FVec(50, 50));
-  }
-
-  // Update state given scaled game time t and scaled delta dt.
-  void Update(double t, double real_t, double scaled_dt, double real_dt) {
-    if (e_->lua.HasError()) {
-      e_->sound.StopAll();
-      return;
-    }
-    e_->lua.SetRealTime(real_t, real_dt);
-    {
-      PROFILE_SCOPE_N("Timers::Update");
-      e_->timers.Update(static_cast<float>(scaled_dt),
-                        static_cast<float>(real_dt));
-    }
-    {
-      PROFILE_SCOPE_N("Physics::Update");
-      e_->physics.Update(scaled_dt);
-    }
-    {
-      PROFILE_SCOPE_N("Lua::Update");
-      e_->lua.Update(t, scaled_dt);
-    }
-    IVec2 vp = e_->batch_renderer.GetViewport();
-    e_->camera.Update(scaled_dt, FVec2(vp.x, vp.y));
-  }
-
-  void Render() {
-    e_->renderer.ClearForFrame();
-    FixedStringBuffer<1024> buf;
-    buf.AllowTruncation();
-    if (e_->lua.Error(&buf)) {
-      RenderCrashScreen(buf.str());
-    } else {
-      PROFILE_SCOPE_N("Lua::Draw");
-      e_->lua.Draw();
-    }
-    // Draw FPS counter in debug mode.
-    if (debug_ && stats_.samples() > 0) {
-      FixedStringBuffer<kMaxLogLineLength> log;
-      log.AllowTruncation();
-      const auto& fs = e_->batch_renderer.GetFrameStats();
-      log.Append("FPS: ", (1000.0 / stats_.avg()), " Stats = ", stats_,
-                 "\nDraw calls: ", fs.draw_calls, "  Vertices: ", fs.vertices,
-                 "  Commands: ", fs.commands,
-                 "\nRedundant skipped: tex=", fs.redundant_texture,
-                 " xform=", fs.redundant_transform,
-                 " shader=", fs.redundant_shader,
-                 "\nLua memory usage: ", (e_->lua.MemoryUsage() / 1024.0f));
-      if (fs.flush_overflow > 0) {
-        log.Append("\nCmd buffer overflows: ", fs.flush_overflow);
-      }
-      const IVec2 dims =
-          e_->renderer.TextDimensions("debug_font.ttf", 16, log.str());
-      const IVec2 viewport = e_->batch_renderer.GetViewport();
-      const FVec2 text_pos(viewport.x - dims.x, viewport.y - dims.y);
-      e_->renderer.SetColor(Color::White());
-      e_->renderer.DrawText("debug_font.ttf", 16, log.str(), text_pos);
-    }
-    if (screenshot_requested_) {
-      screenshot_requested_ = false;
-      TakeScreenshotToClipboard();
-    }
-    e_->renderer.FlushFrame();
-    {
-      PROFILE_SCOPE_N("BatchRenderer::Render");
-      e_->batch_renderer.Render();
-    }
-    {
-      PROFILE_SCOPE_N("SwapWindow");
-      SDL_GL_SwapWindow(sdl_.window);
-    }
-  }
-
-  int TestExitCode() const { return e_->lua.TestExitCode(); }
-
- private:
-  void TakeScreenshotToClipboard() {
-    const char* write_dir = PHYSFS_getWriteDir();
-    if (write_dir == nullptr) {
-      LOG("Cannot take screenshot: no PhysFS write directory set");
-      return;
-    }
-    FixedStringBuffer<512> dir(write_dir, "screenshots");
-    if (MakeDirs(dir.str()).is_error()) {
-      LOG("Failed to create screenshot directory: ", dir.str());
-      return;
-    }
-    FixedStringBuffer<512> path(dir.str(), "/screenshot_",
-                                static_cast<uint64_t>(SDL_GetTicks()), ".png");
-    ArenaAllocator scratch(allocator_, Megabytes(32));
-    auto screenshot = e_->batch_renderer.TakeScreenshot(&scratch);
-    int ok =
-        stbi_write_png(path.str(), screenshot.width, screenshot.height,
-                       /*comp=*/4, screenshot.buffer, screenshot.width * 4);
-    if (!ok) {
-      LOG("Failed to write screenshot to ", path.str());
-      return;
-    }
-    SDL_SetClipboardText(path.str());
-    LOG("Screenshot saved to ", path.str());
-  }
-
-  static void SDLCALL StaticAudioCallback(void* userdata,
-                                          SDL_AudioStream* stream,
-                                          int additional_amount,
-                                          int /*total_amount*/) {
-    static bool named = false;
-    if (!named) {
-      SetCurrentThreadName("audio");
-      named = true;
-    }
-    auto* game = static_cast<Game*>(userdata);
-    const int total_floats = additional_amount / (int)sizeof(float);
-    const int clamped =
-        total_floats < kAudioBufFloats ? total_floats : kAudioBufFloats;
-    const int samples_per_channel = clamped / kAudioChannels;
-    game->e_->sound.SoundCallback(game->audio_buf_, samples_per_channel,
-                                  kAudioChannels);
-    SDL_PutAudioStreamData(stream, game->audio_buf_,
-                           static_cast<size_t>(samples_per_channel) *
-                               kAudioChannels * sizeof(float));
-  }
-
-  GameOptions opts_;
-  Allocator* allocator_;
-  sqlite3* db_;
-  DbAssets* db_assets_ = nullptr;
-  GameConfig config_;
-  SdlContext sdl_;
-  float audio_buf_[kAudioBufFloats];
-  Engine* e_;
-  bool debug_ = false;
-  bool screenshot_requested_ = false;
-  Stats stats_;
+// Holds state needed by the SDL audio callback thread.
+struct AudioCallbackContext {
+  Sound* sound;
+  float buf[kAudioBufFloats];
 };
 
+void SDLCALL StaticAudioCallback(void* userdata, SDL_AudioStream* stream,
+                                 int additional_amount, int /*total_amount*/) {
+  static bool named = false;
+  if (!named) {
+    SetCurrentThreadName("audio");
+    named = true;
+  }
+  auto* ctx = static_cast<AudioCallbackContext*>(userdata);
+  const int total_floats = additional_amount / (int)sizeof(float);
+  const int clamped =
+      total_floats < kAudioBufFloats ? total_floats : kAudioBufFloats;
+  const int samples_per_channel = clamped / kAudioChannels;
+  ctx->sound->SoundCallback(ctx->buf, samples_per_channel, kAudioChannels);
+  SDL_PutAudioStreamData(stream, ctx->buf,
+                         static_cast<size_t>(samples_per_channel) *
+                             kAudioChannels * sizeof(float));
+}
+
+void TakeScreenshotToClipboard(BatchRenderer* batch_renderer,
+                               Allocator* allocator) {
+  const char* write_dir = PHYSFS_getWriteDir();
+  if (write_dir == nullptr) {
+    LOG("Cannot take screenshot: no PhysFS write directory set");
+    return;
+  }
+  FixedStringBuffer<512> dir(write_dir, "screenshots");
+  if (MakeDirs(dir.str()).is_error()) {
+    LOG("Failed to create screenshot directory: ", dir.str());
+    return;
+  }
+  FixedStringBuffer<512> path(dir.str(), "/screenshot_",
+                              static_cast<uint64_t>(SDL_GetTicks()), ".png");
+  ArenaAllocator scratch(allocator, Megabytes(32));
+  auto screenshot = batch_renderer->TakeScreenshot(&scratch);
+  int ok = stbi_write_png(path.str(), screenshot.width, screenshot.height,
+                          /*comp=*/4, screenshot.buffer, screenshot.width * 4);
+  if (!ok) {
+    LOG("Failed to write screenshot to ", path.str());
+    return;
+  }
+  SDL_SetClipboardText(path.str());
+  LOG("Screenshot saved to ", path.str());
+}
+
+void RenderCrashScreen(Engine* e, std::string_view error) {
+  const IVec2 viewport = e->batch_renderer.GetViewport();
+  e->renderer.ClearForFrame();
+  e->renderer.SetColor(Color::Black());
+  e->renderer.DrawRect(/*top_left=*/FVec(0, 0), FVec(viewport.x, viewport.y),
+                       /*angle=*/0);
+  e->renderer.SetColor(Color::White());
+  e->renderer.DrawText("debug_font.ttf", 24, error, FVec(50, 50));
+}
+
+// Update state given scaled game time t and scaled delta dt.
+void Update(Engine* e, double t, double real_t, double scaled_dt,
+            double real_dt) {
+  if (e->lua.HasError()) {
+    e->sound.StopAll();
+    return;
+  }
+  e->lua.SetRealTime(real_t, real_dt);
+  {
+    PROFILE_SCOPE_N("Timers::Update");
+    e->timers.Update(static_cast<float>(scaled_dt),
+                     static_cast<float>(real_dt));
+  }
+  {
+    PROFILE_SCOPE_N("Physics::Update");
+    e->physics.Update(scaled_dt);
+  }
+  {
+    PROFILE_SCOPE_N("Lua::Update");
+    e->lua.Update(t, scaled_dt);
+  }
+  IVec2 vp = e->batch_renderer.GetViewport();
+  e->camera.Update(scaled_dt, FVec2(vp.x, vp.y));
+}
+
+void Render(Engine* e, bool debug, Stats* stats, bool* screenshot_requested,
+            Allocator* allocator, SDL_Window* window) {
+  e->renderer.ClearForFrame();
+  FixedStringBuffer<1024> buf;
+  buf.AllowTruncation();
+  if (e->lua.Error(&buf)) {
+    RenderCrashScreen(e, buf.str());
+  } else {
+    PROFILE_SCOPE_N("Lua::Draw");
+    e->lua.Draw();
+  }
+  // Draw FPS counter in debug mode.
+  if (debug && stats->samples() > 0) {
+    FixedStringBuffer<kMaxLogLineLength> log;
+    log.AllowTruncation();
+    const auto& fs = e->batch_renderer.GetFrameStats();
+    log.Append("FPS: ", (1000.0 / stats->avg()), " Stats = ", *stats,
+               "\nDraw calls: ", fs.draw_calls, "  Vertices: ", fs.vertices,
+               "  Commands: ", fs.commands,
+               "\nRedundant skipped: tex=", fs.redundant_texture,
+               " xform=", fs.redundant_transform,
+               " shader=", fs.redundant_shader,
+               "\nLua memory usage: ", (e->lua.MemoryUsage() / 1024.0f));
+    if (fs.flush_overflow > 0) {
+      log.Append("\nCmd buffer overflows: ", fs.flush_overflow);
+    }
+    const IVec2 dims =
+        e->renderer.TextDimensions("debug_font.ttf", 16, log.str());
+    const IVec2 viewport = e->batch_renderer.GetViewport();
+    const FVec2 text_pos(viewport.x - dims.x, viewport.y - dims.y);
+    e->renderer.SetColor(Color::White());
+    e->renderer.DrawText("debug_font.ttf", 16, log.str(), text_pos);
+  }
+  if (*screenshot_requested) {
+    *screenshot_requested = false;
+    TakeScreenshotToClipboard(&e->batch_renderer, allocator);
+  }
+  e->renderer.FlushFrame();
+  {
+    PROFILE_SCOPE_N("BatchRenderer::Render");
+    e->batch_renderer.Render();
+  }
+  {
+    PROFILE_SCOPE_N("SwapWindow");
+    SDL_GL_SwapWindow(window);
+  }
+}
+
+}  // namespace
+
 int RunGame(const GameOptions& opts, sqlite3* db) {
-  // Heap-allocated and never freed: the MimallocAllocator inside Game registers
-  // an arena via mi_manage_os_memory_ex with no unregister API, so the backing
-  // memory must outlive mimalloc's mi_process_done arena purge at process exit.
-  // Freeing it causes use-after-free; this is a one-shot allocation reclaimed
-  // by the OS on exit.
+  // Heap-allocated and never freed: the MimallocAllocator inside Engine
+  // registers an arena via mi_manage_os_memory_ex with no unregister API,
+  // so the backing memory must outlive mimalloc's mi_process_done arena
+  // purge at process exit. Freeing it causes use-after-free; this is a
+  // one-shot allocation reclaimed by the OS on exit.
   static ArenaAllocator* allocator = [] {
     auto* buf = static_cast<uint8_t*>(malloc(kEngineMemory));
     return new ArenaAllocator(buf, kEngineMemory);
   }();
-  auto* g = allocator->New<Game>(opts, db, allocator);
-  g->Init();
-  g->Run();
-  int exit_code = opts.test_mode ? g->TestExitCode() : 0;
-  allocator->Destroy(g);
+
+  // Setup.
+  TIMER("Setup");
+  InitializeLogging();
+  for (size_t i = 0; i < opts.all_args.size(); ++i) {
+    LOG("args[", i, "]: ", opts.all_args[i]);
+  }
+  LOG("Program name = game, source = ",
+      opts.source_directory ? opts.source_directory : "(packaged)");
+  PHYSFS_CHECK(PHYSFS_init("game"), "Could not initialize PhysFS");
+  DbAssets* db_assets;
+  {
+    TIMER("Getting assets");
+    if (opts.source_directory != nullptr) {
+      InlineExecutor inline_executor;
+      MUST(WriteAssetsToDb(opts.source_directory, db, allocator,
+                           &inline_executor));
+    }
+    db_assets = allocator->New<DbAssets>(db, allocator);
+  }
+  GameConfig config;
+  {
+    TIMER("Loading config");
+    LoadConfigFromDatabase(db, &config, allocator);
+  }
+  LOG("Using engine version ", GAME_VERSION_STR);
+  LOG("Game requested engine version ", config.version.major, ".",
+      config.version.minor);
+  CHECK(config.version.major == GAME_VERSION_MAJOR,
+        "Unsupported major version requested");
+  CHECK(config.version.minor <= GAME_VERSION_MINOR,
+        "Unsupported minor engine version requested");
+
+  // Audio callback context must be allocated before SDL init (which
+  // starts the audio thread) and must outlive the audio stream.
+  auto* audio_ctx = allocator->New<AudioCallbackContext>();
+  SdlContext sdl;
+  {
+    TIMER("SDL3 initialization");
+    sdl = InitializeSdl(config, StaticAudioCallback, audio_ctx);
+  }
+  PrintSystemInformation();
+
+  // Engine initialization.
+  Engine* e;
+  {
+    TIMER("Game Initialization");
+    e = allocator->New<Engine>(opts.args, db, db_assets, config,
+                               /*audio_channels=*/2,
+                               /*audio_buffer_samples=*/8192, sdl.window,
+                               allocator);
+    audio_ctx->sound = &e->sound;
+    if (opts.test_mode) {
+      e->keyboard.SetTestMode(true);
+      e->mouse.SetTestMode(true);
+      e->controllers.SetTestMode(true);
+    }
+    e->Initialize();
+    e->lua.Init();
+    if (opts.test_mode) {
+      e->lua.StartTestCoroutine();
+    }
+  }
+
+  // Start the thread pool and hot-reload watcher.
+  e->pool.Start();
+  HotReloadManager hot_reload(opts.source_directory, db, &e->pool, allocator);
+  hot_reload.Start();
+
+  // Main loop.
+  Stats stats;
+  bool debug = false;
+  bool screenshot_requested = false;
+  SDL_ResumeAudioDevice(sdl.audio_device);
+  Time last_frame = Now();
+  constexpr double kStep = TimeStepInSeconds();
+  double t = 0, real_t = 0, accum = 0;
+  bool first_update_done = false;
+  for (;;) {
+    if (e->lua.Stopped()) break;
+    if (e->lua.HasError() && e->keyboard.IsDown(SDL_SCANCODE_Q)) {
+      e->lua.Stop();
+      break;
+    }
+    if (hot_reload.PendingChanges()) {
+      PROFILE_SCOPE_N("HotReload");
+      TIMER("Hotload requested");
+      auto changes = hot_reload.ConsumePendingChanges();
+      e->lua.ClearError();
+      e->Reload(changes);
+      if (changes.has_script_changes) {
+        e->lua.LoadMain();
+        e->lua.Init();
+      }
+      LOG("Hot-reload complete: ", changes.file_count, " file(s) changed",
+          changes.has_script_changes ? " (scripts)" : "",
+          changes.has_audio_changes ? " (audio)" : "");
+    }
+    const Time now = Now();
+    const double frame_time = ToSeconds(now - last_frame);
+    last_frame = now;
+    accum += frame_time;
+    if (accum < kStep) {
+      SleepMs(1);
+      continue;
+    }
+    PROFILE_FRAME;
+    const Time frame_start = Now();
+    {
+      PROFILE_SCOPE_N("StartFrame");
+      e->StartFrame();
+      SDL_StartTextInput(sdl.window);
+    }
+    {
+      PROFILE_SCOPE_N("PollEvents");
+      for (SDL_Event event; SDL_PollEvent(&event);) {
+        if (event.type == SDL_EVENT_QUIT) {
+          e->lua.HandleQuit();
+          goto shutdown;
+        }
+        e->HandleEvent(event);
+        if (event.type == SDL_EVENT_KEY_DOWN &&
+            e->keyboard.IsDown(SDL_SCANCODE_TAB)) {
+          if (config.enable_debug_rendering) {
+            debug = !debug;
+          }
+        }
+        if (event.type == SDL_EVENT_KEY_DOWN &&
+            e->keyboard.IsDown(SDL_SCANCODE_F12)) {
+          screenshot_requested = true;
+        }
+        if (event.type == SDL_EVENT_KEY_DOWN &&
+            e->keyboard.IsDown(SDL_SCANCODE_F11)) {
+#ifdef GAME_WITH_PROFILING
+          GetProfiler()->ToggleRecording();
+#else
+          LOG("Profiling is disabled (build with -DENABLE_PROFILING=ON)");
+#endif
+        }
+      }
+    }
+    if (opts.test_mode) {
+      e->lua.ResumeTestCoroutine();
+    }
+    // Pause simulation while the window lacks keyboard focus. Rendering and
+    // event polling continue so the window redraws and focus events are
+    // still picked up. Test mode drives its own update cadence and is
+    // excluded. The first update is never paused: games may legitimately
+    // start unfocused (launched from a terminal) and `draw` commonly
+    // depends on state that `update` must set at least once.
+    const bool paused =
+        !opts.test_mode && first_update_done &&
+        (SDL_GetWindowFlags(sdl.window) & SDL_WINDOW_INPUT_FOCUS) == 0;
+    if (paused) accum = 0;
+    {
+      PROFILE_SCOPE_N("Update");
+      if (opts.test_mode) {
+        // In test mode, run exactly one Update per frame for determinism.
+        const double scaled_dt = kStep * e->lua.TimeScale();
+        Update(e, t, real_t, scaled_dt, kStep);
+        t += scaled_dt;
+        real_t += kStep;
+        accum = 0;
+      } else {
+        while (accum >= kStep) {
+          const double scaled_dt = kStep * e->lua.TimeScale();
+          Update(e, t, real_t, scaled_dt, kStep);
+          t += scaled_dt;
+          real_t += kStep;
+          accum -= kStep;
+        }
+      }
+    }
+    first_update_done = true;
+    e->batch_renderer.SetFrameTime(static_cast<float>(t));
+    {
+      PROFILE_SCOPE_N("Render");
+      Render(e, debug, &stats, &screenshot_requested, allocator, sdl.window);
+    }
+    PROFILE_COUNTER("Frame Time (ms)", ToSeconds(Now() - frame_start) * 1000.0);
+    PROFILE_COUNTER("Lua Memory (KB)", e->lua.MemoryUsage() / 1024.0);
+    stats.AddSample(ToSeconds(Now() - frame_start) * 1000.0);
+  }
+
+shutdown:
+  int exit_code = opts.test_mode ? e->lua.TestExitCode() : 0;
+  // Tear down in reverse order: hot-reload watcher, thread pool, audio
+  // stream (before Engine, which owns the Sound mutex), then Engine.
+  hot_reload.Stop();
+  e->pool.Shutdown();
+  SDL_DestroyAudioStream(sdl.audio_stream);
+  sdl.audio_stream = nullptr;
+  allocator->Destroy(e);
+  PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
+  ShutdownSdl(&sdl);
+  LOG("Statistics (in ms): ", stats);
+  sqlite3_close(db);
   return exit_code;
 }
 

@@ -25,22 +25,20 @@ namespace G {
 
 // Owns all engine subsystems as direct members. The constructor sets up
 // each subsystem in dependency order; Initialize() wires them together
-// (Lua bindings, asset loaders, controller DB). Deinitialize() tears
-// down the hot-reload watcher and thread pool.
+// (Lua bindings, asset loaders, controller DB).
+//
+// Engine does not own the hot-reload watcher — that is managed by the
+// caller (RunGame) so the main loop controls the lifecycle explicitly.
 struct Engine {
   Engine(Slice<const char*> args, sqlite3* db, DbAssets* db_assets,
          const GameConfig& config, size_t audio_channels,
          size_t audio_buffer_samples, SDL_Window* sdl_window,
-         Allocator* allocator, const char* source_directory);
+         Allocator* allocator);
 
   ~Engine() = default;
 
-  // Registers Lua bindings and asset loaders, loads assets, starts the
-  // thread pool and hot-reload watcher.
+  // Registers Lua bindings and asset loaders, loads assets.
   void Initialize();
-
-  // Stops the hot-reload watcher and shuts down the thread pool.
-  void Deinitialize();
 
   // Resets per-frame state (frame allocator, input devices).
   void StartFrame();
@@ -73,7 +71,6 @@ struct Engine {
   ArenaAllocator frame_allocator;
   ThreadPoolExecutor pool;
   Allocator* allocator_;
-  HotReloadManager hot_reload;
 
  private:
   // Dispatches SDL input events to the corresponding Lua handlers.
