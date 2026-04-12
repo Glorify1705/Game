@@ -112,6 +112,7 @@ set(ENGINE_SRCS
     "src/console.cc"
     "src/file_watcher.cc"
     "src/filesystem.cc"
+    "src/engine.cc"
     "src/game.cc"
     "src/hot_reload.cc"
     "src/image.cc"
