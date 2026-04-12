@@ -694,6 +694,12 @@ need concurrency accept an `Executor*` parameter, the same way they accept an
 `Allocator*`. This prevents uncoordinated thread creation and
 oversubscription.
 
+### `goto`
+
+Do not use `goto`. Use `DEFER`, a boolean flag with `break`, or a small RAII
+helper for cleanup. `goto` obscures control flow and makes local reasoning
+harder.
+
 ---
 
 ## Error Handling

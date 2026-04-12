@@ -255,7 +255,8 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   constexpr double kStep = TimeStepInSeconds();
   double t = 0, real_t = 0, accum = 0;
   bool first_update_done = false;
-  for (;;) {
+  bool running = true;
+  while (running) {
     if (e->lua.Stopped()) break;
     if (e->lua.HasError() && e->keyboard.IsDown(SDL_SCANCODE_Q)) {
       e->lua.Stop();
@@ -295,7 +296,8 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
       for (SDL_Event event; SDL_PollEvent(&event);) {
         if (event.type == SDL_EVENT_QUIT) {
           e->lua.HandleQuit();
-          goto shutdown;
+          running = false;
+          break;
         }
         e->HandleEvent(event);
         if (event.type == SDL_EVENT_KEY_DOWN &&
@@ -361,7 +363,6 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
     stats.AddSample(ToSeconds(Now() - frame_start) * 1000.0);
   }
 
-shutdown:
   int exit_code = opts.test_mode ? e->lua.TestExitCode() : 0;
   // Tear down in reverse order: hot-reload watcher, thread pool, audio
   // stream (before Engine, which owns the Sound mutex), then Engine.
