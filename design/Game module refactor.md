@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: implemented
 tags: [core, architecture, refactor, hot-reload]
 ---
 
@@ -302,49 +302,171 @@ PR is reviewable:
    `EngineModules` for Step 3. Same PR also flattened
    `CheckChangedFiles` using early-continue and extracted
    `DescribePendingReload` / `LogChanges` helpers.
-3. **[TODO]** **Rename `EngineModules` → `Engine`**, move to
-   `engine.h/cc`. Absorb `RegisterLoaders()` into `Initialize()`. Move
-   text file storage (`text_files_table_`, `text_files_`) into
-   `DbAssets` — it's asset data, not engine state. Move `Reload()` here
-   too (currently the last piece of hot-reload state in `EngineModules`).
-4. **[TODO]** **Flatten `Game` into `RunGame()`** — `Game` class is no
-   longer needed once SDL context is a plain struct (already done) and
-   engine is `Engine`. The main loop lives in `RunGame()` directly. This
-   also lets us move `HotReloadManager` ownership out of `Engine` into
-   `RunGame()` per the original design sketch, so `Engine` knows nothing
-   about hot-reload.
-5. **[TODO]** **Clean up** — Remove dead code, audit include
-   dependencies (clang-include-cleaner pass), drop now-unused forwards.
+3. **[DONE]** **Rename `EngineModules` → `Engine`**, move to
+   `engine.h/cc`. Absorbed `RegisterLoaders()` into `Initialize()`.
+   Moved text file storage (`text_files_table_`, `text_files_`) into
+   `DbAssets` with `LookupTextFile()` method. Removed
+   `RegisterTextLoad()` callback.
+4. **[DONE]** **Flatten `Game` into `RunGame()`** — Dissolved the
+   `Game` class. Constructor/destructor became setup/teardown in
+   `RunGame()`. Methods became anonymous-namespace free functions.
+   Audio callback uses `AudioCallbackContext` struct.
+   `HotReloadManager` moved from `Engine` into `RunGame()` scope.
+   `Engine::Deinitialize()` removed; pool and hot-reload lifecycle
+   managed explicitly in `RunGame()`.
+5. **[DONE]** **Clean up** — Removed dead includes, ran clang-format.
 
 Each step should build and pass tests independently.
 
-### Progress snapshot (2026-04-07)
+### Progress snapshot (2026-04-12)
 
-| File | Before | After Step 1 | After Step 2 |
+| File | Before | After Step 2 | After Step 5 |
 |------|-------:|-------------:|-------------:|
-| `src/game.cc` | 1019 | 787 | 656 |
-| `src/sdl_init.{h,cc}` | — | 52 + 254 | 52 + 254 |
-| `src/hot_reload.{h,cc}` | — | — | 71 + 169 |
+| `src/game.cc` | 1019 | 656 | 421 |
+| `src/engine.{h,cc}` | — | — | 82 + 232 |
+| `src/sdl_init.{h,cc}` | — | 52 + 254 | 52 + 255 |
+| `src/hot_reload.{h,cc}` | — | 71 + 169 | 71 + 169 |
 
-Things that intentionally did **not** move and are waiting for the
-later steps:
+All five steps are complete. The refactor is a pure code move with no
+behavior changes.
 
-- **`EngineModules::Reload()`** — still handles `timers.Clear()`,
-  `sound.StopAll()`, `physics.Clear()`, `assets->Load()`. Moves in
-  Step 3 (rename to `Engine::Reload`) and may dissolve further in
-  Step 4 when the main loop can call subsystem methods directly.
-- **`text_files_table_` / `text_files_`** on `EngineModules` — still
-  populated via the `RegisterTextLoad` lambda. Belongs in `DbAssets`.
-- **`RegisterLoaders()`** — still a separate method; should be folded
-  into `Initialize()`.
-- **`Game` class in `game.cc`** — still wraps ctor/dtor around PhysFS,
-  SDL, and `EngineModules`. Step 4 dissolves this into a straight-line
-  `RunGame()` that constructs the parts explicitly and owns the main
-  loop body that currently lives in `Game::Run()`.
-- **Loader-registration boilerplate** (8 lambdas casting `void*` to
-  `EngineModules*`) — addressed minimally in Step 3 (cast target
-  becomes `Engine*`). The listener-interface variant from §5 above is
-  explicitly not planned.
+### Detailed implementation plan for Steps 3–5
+
+#### Step 3a: Move text file storage into `DbAssets`
+
+`text_files_` (FixedArray) and `text_files_table_` (Dictionary) store
+loaded text file data for lookup by name. This is asset data, not engine
+state. Moving it into `DbAssets` lets `DbAssets::LoadText()` handle
+storage directly without a callback.
+
+**`src/assets.h` changes:**
+
+- Add private members: `FixedArray<TextFile> text_files_` and
+  `Dictionary<TextFile*> text_files_table_`.
+- Add public method: `TextFile* LookupTextFile(std::string_view name)`.
+- Remove `RegisterTextLoad()` and `LoadFn<TextFile> text_file_loader_`.
+  `DbAssets::LoadText()` now pushes directly into its own storage.
+
+**`src/assets.cc` changes:**
+
+- `LoadText()`: instead of calling `text_file_loader_.Load(&file)`,
+  push to `text_files_` and insert into `text_files_table_` directly.
+
+**`src/game.cc` changes:**
+
+- Remove `text_files_table_` and `text_files_` members from
+  `EngineModules`.
+- Remove the `RegisterTextLoad` lambda from `RegisterLoaders()`.
+- Replace `text_files_table_.Lookup("gamecontrollerdb", &controller_db)`
+  with `assets->LookupTextFile("gamecontrollerdb")`.
+
+#### Step 3b: Create `engine.h/cc`, rename struct
+
+**`src/engine.h`:**
+
+- Move the `EngineModules` struct here, renamed to `Engine`.
+- Include all subsystem headers needed for by-value members.
+- Same constructor signature (minus `text_files_*` members).
+- Same public methods: `Initialize()`, `Deinitialize()`, `StartFrame()`,
+  `ForwardEventToLua()`, `Reload()`, `HandleEvent()`.
+- `RegisterLoaders()` disappears as a separate method — its body is
+  inlined into `Initialize()`.
+
+**`src/engine.cc`:**
+
+- Method implementations move here from `game.cc`.
+- All `static_cast<EngineModules*>` → `static_cast<Engine*>`.
+- Fold the 7 remaining loader registrations (shader, script, image,
+  spritesheet, sprite, sound, font) directly into `Initialize()` before
+  the `assets->Load()` call.
+
+**`CMakeLists.txt`:** Add `src/engine.cc` to the source list.
+
+**`src/game.cc`:** `#include "engine.h"`, change `EngineModules* e_` →
+`Engine* e_`, change `New<EngineModules>` → `New<Engine>`, update
+destructor comment.
+
+#### Step 4: Flatten `Game` into `RunGame()`
+
+Dissolve the `Game` class entirely. Its constructor/destructor become
+setup/teardown code in `RunGame()`. Its methods become anonymous-namespace
+free functions.
+
+**Audio callback context:** `StaticAudioCallback` currently captures
+`Game*` and accesses `game->e_->sound` and `game->audio_buf_`. After
+flattening, introduce a small struct:
+
+```cpp
+struct AudioCallbackContext {
+  Sound* sound;
+  float buf[kAudioBufFloats];
+};
+```
+
+Allocated from the arena, passed as SDL audio callback userdata.
+
+**HotReloadManager ownership:** Moves from inside `Engine` to local
+scope in `RunGame()`. `Engine` no longer knows about hot reload.
+`Engine::Initialize()` no longer calls `pool.Start()` or
+`hot_reload.Start()` — those move to `RunGame()`.
+`Engine::Deinitialize()` becomes just `pool.Shutdown()`.
+
+**New `game.cc` structure:**
+
+```
+namespace G {
+namespace {
+
+constexpr size_t kEngineMemory = Gigabytes(4);
+
+void TakeScreenshotToClipboard(BatchRenderer& br, Allocator* a) { ... }
+void RenderCrashScreen(Renderer& r, BatchRenderer& br, ...) { ... }
+void Update(Engine* e, double t, double real_t, ...) { ... }
+void Render(Engine* e, bool debug, Stats& stats, ...) { ... }
+void SDLCALL StaticAudioCallback(...) { ... }
+
+}  // namespace
+
+int RunGame(const GameOptions& opts, sqlite3* db) {
+  // 1. Allocator setup (existing static ArenaAllocator)
+  // 2. Logging, PhysFS, asset DB setup (from Game ctor)
+  // 3. Config load + validation
+  // 4. SDL init (audio callback uses AudioCallbackContext)
+  // 5. Engine construction + Initialize
+  // 6. HotReloadManager construction + Start
+  // 7. pool.Start()
+  // 8. Main loop (from Game::Run, using engine.field directly)
+  // 9. Teardown: hot_reload.Stop, pool.Shutdown, audio stream
+  //    destroy, PhysFS deinit, ShutdownSdl
+}
+
+int Main(int argc, const char* argv[]) { ... }  // unchanged
+}
+```
+
+**Teardown ordering (critical):** The audio stream must be destroyed
+before `Engine` (which owns the `Sound` mutex). Then `Engine` is
+destroyed, then PhysFS, then SDL shutdown. This matches the current
+`~Game()` ordering, just expressed as sequential statements instead of
+destructor ordering.
+
+#### Step 5: Clean up
+
+- Remove dead includes from `game.cc` (subsystem headers now in
+  `engine.cc`).
+- Run `game-format`.
+- Run `game-build` and `game-test` to verify.
+
+#### Files modified
+
+| File | Action |
+|------|--------|
+| `src/engine.h` | **New** — `Engine` struct declaration |
+| `src/engine.cc` | **New** — `Engine` method implementations |
+| `src/assets.h` | Add text file storage, `LookupTextFile()`, remove `RegisterTextLoad()` |
+| `src/assets.cc` | `LoadText()` stores directly, remove callback |
+| `src/game.cc` | Remove `EngineModules`, flatten `Game` into `RunGame()` |
+| `CMakeLists.txt` | Add `src/engine.cc` |
 
 ## What This Does NOT Change
 

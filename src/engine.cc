@@ -3,7 +3,6 @@
 #include <SDL3/SDL.h>
 
 #include "clock.h"
-#include "error.h"
 #include "lua_assets.h"
 #include "lua_bytebuffer.h"
 #include "lua_camera.h"

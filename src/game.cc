@@ -3,7 +3,6 @@
 #include <SDL3/SDL.h>
 
 #include <cstdint>
-#include <cstring>
 #include <string_view>
 
 #include "allocators.h"
