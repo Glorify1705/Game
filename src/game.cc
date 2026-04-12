@@ -82,86 +82,254 @@ void TakeScreenshotToClipboard(BatchRenderer* batch_renderer,
   LOG("Screenshot saved to ", path.str());
 }
 
-void RenderCrashScreen(Engine* e, std::string_view error) {
-  const IVec2 viewport = e->batch_renderer.GetViewport();
-  e->renderer.ClearForFrame();
-  e->renderer.SetColor(Color::Black());
-  e->renderer.DrawRect(/*top_left=*/FVec(0, 0), FVec(viewport.x, viewport.y),
-                       /*angle=*/0);
-  e->renderer.SetColor(Color::White());
-  e->renderer.DrawText("debug_font.ttf", 24, error, FVec(50, 50));
+// Owns the main loop state and orchestrates per-frame work.
+struct MainLoop {
+  Engine* engine;
+  const GameConfig& config;
+  const GameOptions& opts;
+  SdlContext& sdl;
+  HotReloadManager& hot_reload;
+  Allocator* allocator;
+
+  Stats stats = {};
+  Time last_frame = {};
+  double t = 0;
+  double real_t = 0;
+  double accum = 0;
+  bool debug = false;
+  bool screenshot_requested = false;
+  bool first_update_done = false;
+  bool running = true;
+
+  MainLoop(Engine* engine, const GameConfig& config, const GameOptions& opts,
+           SdlContext& sdl, HotReloadManager& hot_reload, Allocator* allocator)
+      : engine(engine),
+        config(config),
+        opts(opts),
+        sdl(sdl),
+        hot_reload(hot_reload),
+        allocator(allocator) {}
+
+  // Runs the game loop until quit or Lua stop.
+  void Run();
+
+  // Applies any pending hot-reload changes to the engine.
+  void HandleHotReload();
+
+  // Polls SDL events, dispatches to engine, handles debug keys.
+  void PollEvents();
+
+  // Runs one fixed-timestep tick.
+  void UpdateTick(double scaled_dt);
+
+  // Runs fixed-timestep updates, consuming the accumulated frame time.
+  void RunUpdates();
+
+  // Renders a frame, including debug overlay and screenshots.
+  void Render();
+
+  // Renders the error screen when Lua has a fatal error.
+  void RenderCrashScreen(std::string_view error);
+};
+
+void MainLoop::Run() {
+  SDL_ResumeAudioDevice(sdl.audio_device);
+  last_frame = Now();
+  constexpr double kStep = TimeStepInSeconds();
+  while (running) {
+    if (engine->lua.Stopped()) break;
+    if (engine->lua.HasError() && engine->keyboard.IsDown(SDL_SCANCODE_Q)) {
+      engine->lua.Stop();
+      break;
+    }
+    HandleHotReload();
+    const Time now = Now();
+    const double frame_time = ToSeconds(now - last_frame);
+    last_frame = now;
+    accum += frame_time;
+    if (accum < kStep) {
+      SleepMs(1);
+      continue;
+    }
+    PROFILE_FRAME;
+    const Time frame_start = Now();
+    {
+      PROFILE_SCOPE_N("StartFrame");
+      engine->StartFrame();
+      SDL_StartTextInput(sdl.window);
+    }
+    PollEvents();
+    if (opts.test_mode) {
+      engine->lua.ResumeTestCoroutine();
+    }
+    // Pause simulation while the window lacks keyboard focus. Rendering and
+    // event polling continue so the window redraws and focus events are
+    // still picked up. Test mode drives its own update cadence and is
+    // excluded. The first update is never paused: games may legitimately
+    // start unfocused (launched from a terminal) and `draw` commonly
+    // depends on state that `update` must set at least once.
+    const bool paused =
+        !opts.test_mode && first_update_done &&
+        (SDL_GetWindowFlags(sdl.window) & SDL_WINDOW_INPUT_FOCUS) == 0;
+    if (paused) accum = 0;
+    RunUpdates();
+    first_update_done = true;
+    engine->batch_renderer.SetFrameTime(static_cast<float>(t));
+    {
+      PROFILE_SCOPE_N("Render");
+      Render();
+    }
+    PROFILE_COUNTER("Frame Time (ms)", ToSeconds(Now() - frame_start) * 1000.0);
+    PROFILE_COUNTER("Lua Memory (KB)", engine->lua.MemoryUsage() / 1024.0);
+    stats.AddSample(ToSeconds(Now() - frame_start) * 1000.0);
+  }
 }
 
-// Update state given scaled game time t and scaled delta dt.
-void Update(Engine* e, double t, double real_t, double scaled_dt,
-            double real_dt) {
-  if (e->lua.HasError()) {
-    e->sound.StopAll();
+void MainLoop::HandleHotReload() {
+  if (!hot_reload.PendingChanges()) return;
+  PROFILE_SCOPE_N("HotReload");
+  TIMER("Hotload requested");
+  auto changes = hot_reload.ConsumePendingChanges();
+  engine->lua.ClearError();
+  engine->Reload(changes);
+  if (changes.has_script_changes) {
+    engine->lua.LoadMain();
+    engine->lua.Init();
+  }
+  LOG("Hot-reload complete: ", changes.file_count, " file(s) changed",
+      changes.has_script_changes ? " (scripts)" : "",
+      changes.has_audio_changes ? " (audio)" : "");
+}
+
+void MainLoop::PollEvents() {
+  PROFILE_SCOPE_N("PollEvents");
+  for (SDL_Event event; SDL_PollEvent(&event);) {
+    if (event.type == SDL_EVENT_QUIT) {
+      engine->lua.HandleQuit();
+      running = false;
+      return;
+    }
+    engine->HandleEvent(event);
+    if (event.type == SDL_EVENT_KEY_DOWN &&
+        engine->keyboard.IsDown(SDL_SCANCODE_TAB)) {
+      if (config.enable_debug_rendering) {
+        debug = !debug;
+      }
+    }
+    if (event.type == SDL_EVENT_KEY_DOWN &&
+        engine->keyboard.IsDown(SDL_SCANCODE_F12)) {
+      screenshot_requested = true;
+    }
+    if (event.type == SDL_EVENT_KEY_DOWN &&
+        engine->keyboard.IsDown(SDL_SCANCODE_F11)) {
+#ifdef GAME_WITH_PROFILING
+      GetProfiler()->ToggleRecording();
+#else
+      LOG("Profiling is disabled (build with -DENABLE_PROFILING=ON)");
+#endif
+    }
+  }
+}
+
+void MainLoop::UpdateTick(double scaled_dt) {
+  if (engine->lua.HasError()) {
+    engine->sound.StopAll();
     return;
   }
-  e->lua.SetRealTime(real_t, real_dt);
+  constexpr double kStep = TimeStepInSeconds();
+  engine->lua.SetRealTime(real_t, kStep);
   {
     PROFILE_SCOPE_N("Timers::Update");
-    e->timers.Update(static_cast<float>(scaled_dt),
-                     static_cast<float>(real_dt));
+    engine->timers.Update(static_cast<float>(scaled_dt),
+                          static_cast<float>(kStep));
   }
   {
     PROFILE_SCOPE_N("Physics::Update");
-    e->physics.Update(scaled_dt);
+    engine->physics.Update(scaled_dt);
   }
   {
     PROFILE_SCOPE_N("Lua::Update");
-    e->lua.Update(t, scaled_dt);
+    engine->lua.Update(t, scaled_dt);
   }
-  IVec2 vp = e->batch_renderer.GetViewport();
-  e->camera.Update(scaled_dt, FVec2(vp.x, vp.y));
+  IVec2 vp = engine->batch_renderer.GetViewport();
+  engine->camera.Update(scaled_dt, FVec2(vp.x, vp.y));
 }
 
-void Render(Engine* e, bool debug, Stats* stats, bool* screenshot_requested,
-            Allocator* allocator, SDL_Window* window) {
-  e->renderer.ClearForFrame();
+void MainLoop::RunUpdates() {
+  PROFILE_SCOPE_N("Update");
+  constexpr double kStep = TimeStepInSeconds();
+  if (opts.test_mode) {
+    // In test mode, run exactly one update per frame for determinism.
+    const double scaled_dt = kStep * engine->lua.TimeScale();
+    UpdateTick(scaled_dt);
+    t += scaled_dt;
+    real_t += kStep;
+    accum = 0;
+  } else {
+    while (accum >= kStep) {
+      const double scaled_dt = kStep * engine->lua.TimeScale();
+      UpdateTick(scaled_dt);
+      t += scaled_dt;
+      real_t += kStep;
+      accum -= kStep;
+    }
+  }
+}
+
+void MainLoop::RenderCrashScreen(std::string_view error) {
+  const IVec2 viewport = engine->batch_renderer.GetViewport();
+  engine->renderer.ClearForFrame();
+  engine->renderer.SetColor(Color::Black());
+  engine->renderer.DrawRect(/*top_left=*/FVec(0, 0),
+                            FVec(viewport.x, viewport.y), /*angle=*/0);
+  engine->renderer.SetColor(Color::White());
+  engine->renderer.DrawText("debug_font.ttf", 24, error, FVec(50, 50));
+}
+
+void MainLoop::Render() {
+  engine->renderer.ClearForFrame();
   FixedStringBuffer<1024> buf;
   buf.AllowTruncation();
-  if (e->lua.Error(&buf)) {
-    RenderCrashScreen(e, buf.str());
+  if (engine->lua.Error(&buf)) {
+    RenderCrashScreen(buf.str());
   } else {
     PROFILE_SCOPE_N("Lua::Draw");
-    e->lua.Draw();
+    engine->lua.Draw();
   }
   // Draw FPS counter in debug mode.
-  if (debug && stats->samples() > 0) {
+  if (debug && stats.samples() > 0) {
     FixedStringBuffer<kMaxLogLineLength> log;
     log.AllowTruncation();
-    const auto& fs = e->batch_renderer.GetFrameStats();
-    log.Append("FPS: ", (1000.0 / stats->avg()), " Stats = ", *stats,
+    const auto& fs = engine->batch_renderer.GetFrameStats();
+    log.Append("FPS: ", (1000.0 / stats.avg()), " Stats = ", stats,
                "\nDraw calls: ", fs.draw_calls, "  Vertices: ", fs.vertices,
                "  Commands: ", fs.commands,
                "\nRedundant skipped: tex=", fs.redundant_texture,
                " xform=", fs.redundant_transform,
                " shader=", fs.redundant_shader,
-               "\nLua memory usage: ", (e->lua.MemoryUsage() / 1024.0f));
+               "\nLua memory usage: ", (engine->lua.MemoryUsage() / 1024.0f));
     if (fs.flush_overflow > 0) {
       log.Append("\nCmd buffer overflows: ", fs.flush_overflow);
     }
     const IVec2 dims =
-        e->renderer.TextDimensions("debug_font.ttf", 16, log.str());
-    const IVec2 viewport = e->batch_renderer.GetViewport();
+        engine->renderer.TextDimensions("debug_font.ttf", 16, log.str());
+    const IVec2 viewport = engine->batch_renderer.GetViewport();
     const FVec2 text_pos(viewport.x - dims.x, viewport.y - dims.y);
-    e->renderer.SetColor(Color::White());
-    e->renderer.DrawText("debug_font.ttf", 16, log.str(), text_pos);
+    engine->renderer.SetColor(Color::White());
+    engine->renderer.DrawText("debug_font.ttf", 16, log.str(), text_pos);
   }
-  if (*screenshot_requested) {
-    *screenshot_requested = false;
-    TakeScreenshotToClipboard(&e->batch_renderer, allocator);
+  if (screenshot_requested) {
+    screenshot_requested = false;
+    TakeScreenshotToClipboard(&engine->batch_renderer, allocator);
   }
-  e->renderer.FlushFrame();
+  engine->renderer.FlushFrame();
   {
     PROFILE_SCOPE_N("BatchRenderer::Render");
-    e->batch_renderer.Render();
+    engine->batch_renderer.Render();
   }
   {
     PROFILE_SCOPE_N("SwapWindow");
-    SDL_GL_SwapWindow(window);
+    SDL_GL_SwapWindow(sdl.window);
   }
 }
 
@@ -247,125 +415,12 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   hot_reload.Start();
 
   // Main loop.
-  Stats stats;
-  bool debug = false;
-  bool screenshot_requested = false;
-  SDL_ResumeAudioDevice(sdl.audio_device);
-  Time last_frame = Now();
-  constexpr double kStep = TimeStepInSeconds();
-  double t = 0, real_t = 0, accum = 0;
-  bool first_update_done = false;
-  bool running = true;
-  while (running) {
-    if (e->lua.Stopped()) break;
-    if (e->lua.HasError() && e->keyboard.IsDown(SDL_SCANCODE_Q)) {
-      e->lua.Stop();
-      break;
-    }
-    if (hot_reload.PendingChanges()) {
-      PROFILE_SCOPE_N("HotReload");
-      TIMER("Hotload requested");
-      auto changes = hot_reload.ConsumePendingChanges();
-      e->lua.ClearError();
-      e->Reload(changes);
-      if (changes.has_script_changes) {
-        e->lua.LoadMain();
-        e->lua.Init();
-      }
-      LOG("Hot-reload complete: ", changes.file_count, " file(s) changed",
-          changes.has_script_changes ? " (scripts)" : "",
-          changes.has_audio_changes ? " (audio)" : "");
-    }
-    const Time now = Now();
-    const double frame_time = ToSeconds(now - last_frame);
-    last_frame = now;
-    accum += frame_time;
-    if (accum < kStep) {
-      SleepMs(1);
-      continue;
-    }
-    PROFILE_FRAME;
-    const Time frame_start = Now();
-    {
-      PROFILE_SCOPE_N("StartFrame");
-      e->StartFrame();
-      SDL_StartTextInput(sdl.window);
-    }
-    {
-      PROFILE_SCOPE_N("PollEvents");
-      for (SDL_Event event; SDL_PollEvent(&event);) {
-        if (event.type == SDL_EVENT_QUIT) {
-          e->lua.HandleQuit();
-          running = false;
-          break;
-        }
-        e->HandleEvent(event);
-        if (event.type == SDL_EVENT_KEY_DOWN &&
-            e->keyboard.IsDown(SDL_SCANCODE_TAB)) {
-          if (config.enable_debug_rendering) {
-            debug = !debug;
-          }
-        }
-        if (event.type == SDL_EVENT_KEY_DOWN &&
-            e->keyboard.IsDown(SDL_SCANCODE_F12)) {
-          screenshot_requested = true;
-        }
-        if (event.type == SDL_EVENT_KEY_DOWN &&
-            e->keyboard.IsDown(SDL_SCANCODE_F11)) {
-#ifdef GAME_WITH_PROFILING
-          GetProfiler()->ToggleRecording();
-#else
-          LOG("Profiling is disabled (build with -DENABLE_PROFILING=ON)");
-#endif
-        }
-      }
-    }
-    if (opts.test_mode) {
-      e->lua.ResumeTestCoroutine();
-    }
-    // Pause simulation while the window lacks keyboard focus. Rendering and
-    // event polling continue so the window redraws and focus events are
-    // still picked up. Test mode drives its own update cadence and is
-    // excluded. The first update is never paused: games may legitimately
-    // start unfocused (launched from a terminal) and `draw` commonly
-    // depends on state that `update` must set at least once.
-    const bool paused =
-        !opts.test_mode && first_update_done &&
-        (SDL_GetWindowFlags(sdl.window) & SDL_WINDOW_INPUT_FOCUS) == 0;
-    if (paused) accum = 0;
-    {
-      PROFILE_SCOPE_N("Update");
-      if (opts.test_mode) {
-        // In test mode, run exactly one Update per frame for determinism.
-        const double scaled_dt = kStep * e->lua.TimeScale();
-        Update(e, t, real_t, scaled_dt, kStep);
-        t += scaled_dt;
-        real_t += kStep;
-        accum = 0;
-      } else {
-        while (accum >= kStep) {
-          const double scaled_dt = kStep * e->lua.TimeScale();
-          Update(e, t, real_t, scaled_dt, kStep);
-          t += scaled_dt;
-          real_t += kStep;
-          accum -= kStep;
-        }
-      }
-    }
-    first_update_done = true;
-    e->batch_renderer.SetFrameTime(static_cast<float>(t));
-    {
-      PROFILE_SCOPE_N("Render");
-      Render(e, debug, &stats, &screenshot_requested, allocator, sdl.window);
-    }
-    PROFILE_COUNTER("Frame Time (ms)", ToSeconds(Now() - frame_start) * 1000.0);
-    PROFILE_COUNTER("Lua Memory (KB)", e->lua.MemoryUsage() / 1024.0);
-    stats.AddSample(ToSeconds(Now() - frame_start) * 1000.0);
-  }
+  MainLoop loop{e, config, opts, sdl, hot_reload, allocator};
+  loop.Run();
 
-  int exit_code = opts.test_mode ? e->lua.TestExitCode() : 0;
   // Tear down in reverse order: hot-reload watcher, thread pool, audio
   // stream (before Engine, which owns the Sound mutex), then Engine.
+  int exit_code = opts.test_mode ? e->lua.TestExitCode() : 0;
   hot_reload.Stop();
   e->pool.Shutdown();
   SDL_DestroyAudioStream(sdl.audio_stream);
@@ -373,7 +428,7 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   allocator->Destroy(e);
   PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
   ShutdownSdl(&sdl);
-  LOG("Statistics (in ms): ", stats);
+  LOG("Statistics (in ms): ", loop.stats);
   sqlite3_close(db);
   return exit_code;
 }
