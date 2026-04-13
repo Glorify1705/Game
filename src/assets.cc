@@ -128,7 +128,8 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
   file.contents = buffer;
   file.size = size;
   file.checksum = checksum;
-  text_file_loader_.Load(&file);
+  text_files_.Push(file);
+  text_files_table_.Insert(file.name, &text_files_.back());
 }
 
 void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
@@ -287,6 +288,12 @@ void DbAssets::Load() {
       break;
     }
   }
+}
+
+DbAssets::TextFile* DbAssets::LookupTextFile(std::string_view name) {
+  TextFile* result = nullptr;
+  text_files_table_.Lookup(name, &result);
+  return result;
 }
 
 }  // namespace G
