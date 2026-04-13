@@ -40,9 +40,30 @@ function M:init()
 	})
 
 	zones = {
-		{ name = "red", x = W * 0.2, y = H * 0.5, r = 50, sound = "laser.ogg", color = { 220, 60, 60 } },
-		{ name = "green", x = W * 0.8, y = H * 0.5, r = 50, sound = "gunshot.ogg", color = { 60, 220, 60 } },
-		{ name = "blue", x = W * 0.5, y = H * 0.2, r = 50, sound = "pong-blip1.ogg", color = { 60, 120, 220 } },
+		{
+			name = "red",
+			x = W * 0.2,
+			y = H * 0.5,
+			r = 50,
+			sound = "laser.ogg",
+			color = { 220, 60, 60 },
+		},
+		{
+			name = "green",
+			x = W * 0.8,
+			y = H * 0.5,
+			r = 50,
+			sound = "gunshot.ogg",
+			color = { 60, 220, 60 },
+		},
+		{
+			name = "blue",
+			x = W * 0.5,
+			y = H * 0.2,
+			r = 50,
+			sound = "pong-blip1.ogg",
+			color = { 60, 120, 220 },
+		},
 	}
 
 	for _, z in ipairs(zones) do
@@ -103,7 +124,7 @@ function M:draw()
 	G.graphics.set_color("white")
 	G.graphics.draw_circle(px, py, PLAYER_R)
 
-	G.graphics.print("Visited: " .. (#trigger_events) .. " / " .. #zones, 10, 10)
+	G.graphics.print("Visited: " .. #trigger_events .. " / " .. #zones, 10, 10)
 end
 
 -- Holds a key down for `frames` frames, releasing it afterward. Yields the

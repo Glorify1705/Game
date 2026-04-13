@@ -56,8 +56,16 @@ function Game:init()
 	G.physics.set_linear_damping(player.handle, 6)
 	do
 		local px, py = G.physics.position(player.handle)
-		print(string.format("[testsensors] ship requested=%.0f,%.0f actual=%.1f,%.1f r=%d",
-			W / 2, H / 2, px, py, SHIP_RADIUS))
+		print(
+			string.format(
+				"[testsensors] ship requested=%.0f,%.0f actual=%.1f,%.1f r=%d",
+				W / 2,
+				H / 2,
+				px,
+				py,
+				SHIP_RADIUS
+			)
+		)
 	end
 
 	-- Three sensors at fixed positions. Sensors are dynamic bodies with
@@ -82,8 +90,17 @@ function Game:init()
 	add_sensor("zone-C", W * 0.50, H * 0.75, 60, { 180, 255, 120 })
 	for _, s in ipairs(sensors) do
 		local px, py = G.physics.position(s.handle)
-		print(string.format("[testsensors] sensor %s requested=%.0f,%.0f actual=%.1f,%.1f r=%d",
-			s.name, s.x, s.y, px, py, s.r))
+		print(
+			string.format(
+				"[testsensors] sensor %s requested=%.0f,%.0f actual=%.1f,%.1f r=%d",
+				s.name,
+				s.x,
+				s.y,
+				px,
+				py,
+				s.r
+			)
+		)
 	end
 
 	-- Lookup table from userdata identity to sensor entry, so we can
@@ -131,8 +148,16 @@ function Game:update(t, dt)
 	if frame % 60 == 0 then
 		local px, py = G.physics.position(player.handle)
 		local vx, vy = G.physics.linear_velocity(player.handle)
-		print(string.format("[testsensors] frame=%d pos=%.1f,%.1f vel=%.2f,%.2f",
-			frame, px, py, vx, vy))
+		print(
+			string.format(
+				"[testsensors] frame=%d pos=%.1f,%.1f vel=%.2f,%.2f",
+				frame,
+				px,
+				py,
+				vx,
+				vy
+			)
+		)
 	end
 	if G.input.is_key_pressed("q") then
 		G.system.quit()
@@ -188,7 +213,12 @@ function Game:draw()
 	G.graphics.set_color("white")
 	G.graphics.print("Sensor Test  --  WASD: move  R: reset  Q: quit", 10, 10)
 	G.graphics.print(
-		string.format("Enters: %d   Exits: %d   Active: %d", enter_count, exit_count, active_overlaps),
+		string.format(
+			"Enters: %d   Exits: %d   Active: %d",
+			enter_count,
+			exit_count,
+			active_overlaps
+		),
 		10,
 		38
 	)
