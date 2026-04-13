@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: implemented
 tags: [json, dependencies, allocators, hot-reload]
 ---
 

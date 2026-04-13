@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: implemented
 tags: [filesystem, lua-api, json, physfs]
 ---
 

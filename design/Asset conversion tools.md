@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: implemented
 tags: [assets, cli, tools, texture-packing]
 ---
 
