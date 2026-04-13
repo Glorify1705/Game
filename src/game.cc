@@ -83,7 +83,7 @@ void TakeScreenshotToClipboard(BatchRenderer* batch_renderer,
 }
 
 // Owns the main loop state and orchestrates per-frame work.
-struct MainLoop {
+struct Game {
   Engine* engine;
   const GameConfig& config;
   const GameOptions& opts;
@@ -101,8 +101,8 @@ struct MainLoop {
   bool first_update_done = false;
   bool running = true;
 
-  MainLoop(Engine* engine, const GameConfig& config, const GameOptions& opts,
-           SdlContext& sdl, HotReloadManager& hot_reload, Allocator* allocator)
+  Game(Engine* engine, const GameConfig& config, const GameOptions& opts,
+       SdlContext& sdl, HotReloadManager& hot_reload, Allocator* allocator)
       : engine(engine),
         config(config),
         opts(opts),
@@ -132,7 +132,7 @@ struct MainLoop {
   void RenderCrashScreen(std::string_view error);
 };
 
-void MainLoop::Run() {
+void Game::Run() {
   SDL_ResumeAudioDevice(sdl.audio_device);
   last_frame = Now();
   constexpr double kStep = TimeStepInSeconds();
@@ -185,7 +185,7 @@ void MainLoop::Run() {
   }
 }
 
-void MainLoop::HandleHotReload() {
+void Game::HandleHotReload() {
   if (!hot_reload.PendingChanges()) return;
   PROFILE_SCOPE_N("HotReload");
   TIMER("Hotload requested");
@@ -201,7 +201,7 @@ void MainLoop::HandleHotReload() {
       changes.has_audio_changes ? " (audio)" : "");
 }
 
-void MainLoop::PollEvents() {
+void Game::PollEvents() {
   PROFILE_SCOPE_N("PollEvents");
   for (SDL_Event event; SDL_PollEvent(&event);) {
     if (event.type == SDL_EVENT_QUIT) {
@@ -231,7 +231,7 @@ void MainLoop::PollEvents() {
   }
 }
 
-void MainLoop::UpdateTick(double scaled_dt) {
+void Game::UpdateTick(double scaled_dt) {
   if (engine->lua.HasError()) {
     engine->sound.StopAll();
     return;
@@ -255,7 +255,7 @@ void MainLoop::UpdateTick(double scaled_dt) {
   engine->camera.Update(scaled_dt, FVec2(vp.x, vp.y));
 }
 
-void MainLoop::RunUpdates() {
+void Game::RunUpdates() {
   PROFILE_SCOPE_N("Update");
   constexpr double kStep = TimeStepInSeconds();
   if (opts.test_mode) {
@@ -276,7 +276,7 @@ void MainLoop::RunUpdates() {
   }
 }
 
-void MainLoop::RenderCrashScreen(std::string_view error) {
+void Game::RenderCrashScreen(std::string_view error) {
   const IVec2 viewport = engine->batch_renderer.GetViewport();
   engine->renderer.ClearForFrame();
   engine->renderer.SetColor(Color::Black());
@@ -286,7 +286,7 @@ void MainLoop::RenderCrashScreen(std::string_view error) {
   engine->renderer.DrawText("debug_font.ttf", 24, error, FVec(50, 50));
 }
 
-void MainLoop::Render() {
+void Game::Render() {
   engine->renderer.ClearForFrame();
   FixedStringBuffer<1024> buf;
   buf.AllowTruncation();
@@ -415,7 +415,7 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   hot_reload.Start();
 
   // Main loop.
-  MainLoop loop{e, config, opts, sdl, hot_reload, allocator};
+  Game loop{e, config, opts, sdl, hot_reload, allocator};
   loop.Run();
 
   // Tear down in reverse order: hot-reload watcher, thread pool, audio
