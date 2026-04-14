@@ -12,13 +12,13 @@
 #include "config.h"
 #include "engine.h"
 #include "executor.h"
+#include "libraries/sqlite3.h"
 #include "libraries/stb_image_write.h"
 #include "logging.h"
 #include "packer.h"
 #include "platform.h"
 #include "profiler.h"
 #include "sdl_init.h"
-#include "sqlite3.h"
 #include "stats.h"
 #include "stringlib.h"
 #include "thread.h"
@@ -283,7 +283,7 @@ void Game::RenderCrashScreen(std::string_view error) {
   engine->renderer.DrawRect(/*top_left=*/FVec(0, 0),
                             FVec(viewport.x, viewport.y), /*angle=*/0);
   engine->renderer.SetColor(Color::White());
-  engine->renderer.DrawText("debug_font.ttf", 24, error, FVec(50, 50));
+  engine->renderer.DrawString("debug_font.ttf", 24, error, FVec(50, 50));
 }
 
 void Game::Render() {
@@ -316,7 +316,7 @@ void Game::Render() {
     const IVec2 viewport = engine->batch_renderer.GetViewport();
     const FVec2 text_pos(viewport.x - dims.x, viewport.y - dims.y);
     engine->renderer.SetColor(Color::White());
-    engine->renderer.DrawText("debug_font.ttf", 16, log.str(), text_pos);
+    engine->renderer.DrawString("debug_font.ttf", 16, log.str(), text_pos);
   }
   if (screenshot_requested) {
     screenshot_requested = false;

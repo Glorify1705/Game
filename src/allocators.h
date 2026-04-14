@@ -2,8 +2,10 @@
 #ifndef _GAME_ALLOCATORS_H
 #define _GAME_ALLOCATORS_H
 
+#ifndef _WIN32
 #include <valgrind/memcheck.h>
 #include <valgrind/valgrind.h>
+#endif
 
 #include <array>
 #include <bitset>

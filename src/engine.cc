@@ -110,7 +110,7 @@ void Engine::Initialize() {
   assets->RegisterImageLoad(
       [](DbAssets::Image* image, void* ud) -> ErrorOr<void> {
         auto* self = static_cast<Engine*>(ud);
-        self->renderer.LoadImage(*image);
+        self->renderer.LoadTexture(*image);
         return {};
       },
       this);

@@ -19,6 +19,8 @@
 
 namespace G {
 
+#if defined(__linux__)
+
 namespace {
 
 // True if the filename has an extension we care about for asset changes.
@@ -36,8 +38,6 @@ bool IsRelevantFile(const char* name) {
 }
 
 }  // namespace
-
-#if defined(__linux__)
 
 struct FileWatcher::PlatformData {
   int inotify_fd = -1;

@@ -174,7 +174,7 @@ template <typename T>
 #define DONOTSUBMIT LOG
 
 #ifndef GAME_WITH_ASSERTS
-#define DCHECK(expr, ...) expr
+#define DCHECK(expr, ...) (void)(expr)
 #else
 #define DCHECK(...) CHECK(__VA_ARGS__)
 #endif

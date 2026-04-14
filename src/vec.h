@@ -29,9 +29,9 @@ struct FVec2 {
     result.y = 0;
     return result;
   }
-  explicit FVec2(float x, float y) {
-    this->x = x;
-    this->y = y;
+  explicit FVec2(float x_, float y_) {
+    x = x_;
+    y = y_;
   }
 
   FVec2 operator+(const FVec2& rhs) const {
@@ -140,10 +140,10 @@ struct FVec3 {
     z = value;
   }
 
-  explicit FVec3(float x, float y, float z) {
-    this->x = x;
-    this->y = y;
-    this->z = z;
+  explicit FVec3(float x_, float y_, float z_) {
+    x = x_;
+    y = y_;
+    z = z_;
   }
 
   FVec3(const float* vec) {
@@ -276,11 +276,11 @@ struct FVec4 {
     w = value;
   }
 
-  explicit FVec4(float x, float y, float z, float w) {
-    this->x = x;
-    this->y = y;
-    this->z = z;
-    this->w = w;
+  explicit FVec4(float x_, float y_, float z_, float w_) {
+    x = x_;
+    y = y_;
+    z = z_;
+    w = w_;
   }
 
   FVec4(const float* vec) {
@@ -414,9 +414,9 @@ struct DVec2 {
     y = value;
   }
 
-  explicit DVec2(double x, double y) {
-    this->x = x;
-    this->y = y;
+  explicit DVec2(double x_, double y_) {
+    x = x_;
+    y = y_;
   }
 
   DVec2(const double* vec) {
@@ -529,10 +529,10 @@ struct DVec3 {
     z = value;
   }
 
-  explicit DVec3(double x, double y, double z) {
-    this->x = x;
-    this->y = y;
-    this->z = z;
+  explicit DVec3(double x_, double y_, double z_) {
+    x = x_;
+    y = y_;
+    z = z_;
   }
 
   DVec3(const double* vec) {
@@ -664,11 +664,11 @@ struct DVec4 {
     w = value;
   }
 
-  explicit DVec4(double x, double y, double z, double w) {
-    this->x = x;
-    this->y = y;
-    this->z = z;
-    this->w = w;
+  explicit DVec4(double x_, double y_, double z_, double w_) {
+    x = x_;
+    y = y_;
+    z = z_;
+    w = w_;
   }
 
   DVec4(const double* vec) {
@@ -800,9 +800,9 @@ struct IVec2 {
     y = value;
   }
 
-  explicit IVec2(int x, int y) {
-    this->x = x;
-    this->y = y;
+  explicit IVec2(int x_, int y_) {
+    x = x_;
+    y = y_;
   }
 
   IVec2(const int* vec) {
@@ -912,10 +912,10 @@ struct IVec3 {
     z = value;
   }
 
-  explicit IVec3(int x, int y, int z) {
-    this->x = x;
-    this->y = y;
-    this->z = z;
+  explicit IVec3(int x_, int y_, int z_) {
+    x = x_;
+    y = y_;
+    z = z_;
   }
 
   IVec3(const int* vec) {
@@ -1044,11 +1044,11 @@ struct IVec4 {
     w = value;
   }
 
-  explicit IVec4(int x, int y, int z, int w) {
-    this->x = x;
-    this->y = y;
-    this->z = z;
-    this->w = w;
+  explicit IVec4(int x_, int y_, int z_, int w_) {
+    x = x_;
+    y = y_;
+    z = z_;
+    w = w_;
   }
 
   IVec4(const int* vec) {

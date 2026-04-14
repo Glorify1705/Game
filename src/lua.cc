@@ -2,6 +2,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <cinttypes>
 #include <cstdio>
 
 #include "clock.h"
@@ -789,7 +790,7 @@ void Lua::LogValue(lua_State* state, int pos, int depth, StringBuffer* buf) {
         buf->Append("nil");
       } else {
         char ptr[32];
-        snprintf(ptr, 32, "0x%016lx", reinterpret_cast<uintptr_t>(v));
+        snprintf(ptr, 32, "0x%016" PRIxPTR, reinterpret_cast<uintptr_t>(v));
         buf->Append(ptr);
       }
     }; break;

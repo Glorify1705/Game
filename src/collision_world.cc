@@ -147,7 +147,9 @@ size_t SpatialHash::QueryRay(FVec2 origin, FVec2 direction, float max_dist,
 CollisionWorld::CollisionWorld(float cell_size, Allocator* allocator)
     : allocator_(allocator) {
   colliders_ = allocator_->NewArray<Collider>(kMaxColliders);
-  std::memset(colliders_, 0, sizeof(Collider) * kMaxColliders);
+  for (uint32_t i = 0; i < kMaxColliders; ++i) {
+    colliders_[i] = Collider{};
+  }
 
   // Build initial free list.
   for (uint32_t i = 0; i < kMaxColliders; ++i) {

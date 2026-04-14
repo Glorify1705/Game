@@ -42,6 +42,7 @@ in
     clang-tools
     elfutils
     cmake
+    file
     ffmpeg
     fnlfmt
     gdb
@@ -56,6 +57,7 @@ in
     lua51Packages.lua
     mesa
     ninja
+    patchelf
     python3
     renderdoc
     samply
@@ -78,6 +80,9 @@ in
     xorg.libXScrnSaver
     xorg.libXtst
     xorg.xrandr
+
+    # MinGW cross-compilation toolchain is installed separately (not via Nix)
+    # due to a nixpkgs GCC 15 build bug. See scripts/setup-mingw-toolchain.sh.
   ];
 
   env.CCLS_LOCATION = "${pkgs.ccls}/bin/ccls";
@@ -105,6 +110,7 @@ in
   scripts."game-include-cleaner".exec  = ''exec "$DEVENV_ROOT/scripts/game-include-cleaner.sh" "$@"'';
   scripts."game-sanitize".exec         = ''exec "$DEVENV_ROOT/scripts/game-sanitize.sh" "$@"'';
   scripts."game-samply".exec           = ''exec "$DEVENV_ROOT/scripts/game-samply.sh" "$@"'';
+  scripts."game-build-win64".exec      = ''exec "$DEVENV_ROOT/scripts/game-build-win64.sh" "$@"'';
 
   git-hooks.hooks = {
     clang-format = {

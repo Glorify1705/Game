@@ -36,4 +36,5 @@ set(SRCS
 
 add_library(lua STATIC "${SRCS}")
 
-target_compile_options(lua PRIVATE ${COMPILER_FLAGS})
+target_compile_options(lua PRIVATE ${COMPILER_FLAGS}
+    $<${SUPPORTS_GCC_FLAGS}:-Wno-implicit-fallthrough>)
