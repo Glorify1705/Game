@@ -3,7 +3,6 @@
 #define _GAME_STRINGLIB_H
 
 #include <cassert>
-#include <cinttypes>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -79,7 +78,8 @@ class Alphanumeric {
   }
 
   Alphanumeric(void* b) {
-    snprintf(buf_, sizeof(buf_), "0x%16" PRIxPTR, (uintptr_t)b);
+    snprintf(buf_, sizeof(buf_), "0x%016llx",
+             static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(b)));
     piece_ = std::string_view(buf_);
   }
 

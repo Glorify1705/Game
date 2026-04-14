@@ -2,7 +2,7 @@
 
 #include <cstdio>
 
-#if defined(GAME_WITH_ASSERTS) && !defined(_WIN32)
+#ifdef GAME_WITH_ASSERTS
 #include "libraries/backward.h"
 #endif
 
@@ -52,7 +52,7 @@ void SetLogSink(LogSink sink) { g_LogSink = sink; }
 
 void SetCrashHandler(CrashHandler handler) { g_CrashHandler = handler; }
 
-#if defined(GAME_WITH_ASSERTS) && !defined(_WIN32)
+#ifdef GAME_WITH_ASSERTS
 void PrintStackTrace(backward::StackTrace& st) {
   backward::TraceResolver resolver;
   resolver.load_stacktrace(st);
@@ -70,7 +70,7 @@ void PrintStackTrace(backward::StackTrace& st) {
 #endif
 
 [[noreturn]] void Crash(const char* message) {
-#if defined(GAME_WITH_ASSERTS) && !defined(_WIN32)
+#ifdef GAME_WITH_ASSERTS
   backward::StackTrace st;
   st.load_here(32);
   PrintStackTrace(st);
@@ -113,7 +113,7 @@ void InstallSignalHandlers() {
 #endif
 }
 
-#if defined(GAME_WITH_ASSERTS) && !defined(_WIN32)
+#ifdef GAME_WITH_ASSERTS
 void SetChannelLevel(LogChannel channel, LogLevel level) {
   g_channel_levels[static_cast<size_t>(channel)] = level;
 }

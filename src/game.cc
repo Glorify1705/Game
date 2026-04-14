@@ -101,14 +101,14 @@ struct Game {
   bool first_update_done = false;
   bool running = true;
 
-  Game(Engine* engine, const GameConfig& config, const GameOptions& opts,
-       SdlContext& sdl, HotReloadManager& hot_reload, Allocator* allocator)
-      : engine(engine),
-        config(config),
-        opts(opts),
-        sdl(sdl),
-        hot_reload(hot_reload),
-        allocator(allocator) {}
+  Game(Engine* engine_, const GameConfig& config_, const GameOptions& opts_,
+       SdlContext& sdl_, HotReloadManager& hot_reload_, Allocator* allocator_)
+      : engine(engine_),
+        config(config_),
+        opts(opts_),
+        sdl(sdl_),
+        hot_reload(hot_reload_),
+        allocator(allocator_) {}
 
   // Runs the game loop until quit or Lua stop.
   void Run();

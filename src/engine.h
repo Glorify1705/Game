@@ -30,8 +30,8 @@ namespace G {
 // Engine does not own the hot-reload watcher — that is managed by the
 // caller (RunGame) so the main loop controls the lifecycle explicitly.
 struct Engine {
-  Engine(Slice<const char*> args, sqlite3* db, DbAssets* db_assets,
-         const GameConfig& config, size_t audio_channels,
+  Engine(Slice<const char*> args, sqlite3* db_, DbAssets* db_assets,
+         const GameConfig& config_, size_t audio_channels,
          size_t audio_buffer_samples, SDL_Window* sdl_window,
          Allocator* allocator);
 

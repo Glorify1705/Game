@@ -2,7 +2,6 @@
 
 #include <SDL3/SDL.h>
 
-#include <cinttypes>
 #include <cstdio>
 
 #include "clock.h"
@@ -790,7 +789,9 @@ void Lua::LogValue(lua_State* state, int pos, int depth, StringBuffer* buf) {
         buf->Append("nil");
       } else {
         char ptr[32];
-        snprintf(ptr, 32, "0x%016" PRIxPTR, reinterpret_cast<uintptr_t>(v));
+        snprintf(
+            ptr, 32, "0x%016llx",
+            static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(v)));
         buf->Append(ptr);
       }
     }; break;
@@ -1015,10 +1016,10 @@ void Lua::SetError(std::string_view file, int line, std::string_view error) {
   size_t st = 0, en = 0;
   auto flush = [&] {
     if (en <= st) return;
-    std::string_view line = error.substr(st, en - st + 1);
-    std::string_view trimmed = Trim(line);
+    std::string_view segment = error.substr(st, en - st + 1);
+    std::string_view trimmed = Trim(segment);
     if (!HasPrefix(trimmed, "[C]") && !HasPrefix(trimmed, "(tail call)")) {
-      error_.Append(line);
+      error_.Append(segment);
       error_.Append("\n");
     }
   };

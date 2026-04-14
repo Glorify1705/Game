@@ -101,7 +101,7 @@ set(VENDORED_SRCS
     "libraries/stb_image_all.cc"
     "libraries/stb_vorbis.cc"
     "libraries/yyjson.c"
-    $<$<NOT:$<BOOL:${WIN32}>>:libraries/backward.cc>)
+    "libraries/backward.cc")
 
 set(ENGINE_SRCS
     "src/assets.cc"
@@ -211,7 +211,7 @@ target_compile_options(Game PRIVATE
 # Engine code compiles with no exceptions, no RTTI, and extra warnings.
 # Vendored libraries are exempt from engine compile flags.
 set_source_files_properties(${ENGINE_SRCS} PROPERTIES
-    COMPILE_OPTIONS "$<${IS_GCC_LIKE}:-fno-exceptions;-fno-rtti;-Wformat=2;-Wimplicit-fallthrough>$<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:;-Wshadow>"
+    COMPILE_OPTIONS "$<${IS_GCC_LIKE}:-fno-exceptions;-fno-rtti;-Wshadow;-Wformat=2;-Wimplicit-fallthrough>"
 )
 
 if(ENABLE_SANITIZERS)
