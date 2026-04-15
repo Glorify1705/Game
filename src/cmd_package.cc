@@ -1,4 +1,3 @@
-#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <string_view>
@@ -20,18 +19,17 @@ namespace G {
 
 namespace {
 
-// DLLs that must ship alongside a cross-compiled Windows binary.
-struct RuntimeDll {
-  const char* filename;
-  const char* description;
+// DLLs that must ship alongside a cross-compiled Windows binary:
+// - SDL3.dll: SDL3 windowing/input/audio library
+// - libgcc_s_seh-1.dll: GCC runtime (structured exception handling)
+// - libstdc++-6.dll: C++ standard library (MinGW)
+// - libwinpthread-1.dll: POSIX threads implementation for Windows
+constexpr const char* kWindowsRuntimeDlls[] = {
+    "SDL3.dll",
+    "libgcc_s_seh-1.dll",
+    "libstdc++-6.dll",
+    "libwinpthread-1.dll",
 };
-
-constexpr std::array<RuntimeDll, 4> kWindowsRuntimeDlls = {{
-    {"SDL3.dll", "SDL3 windowing/input/audio library"},
-    {"libgcc_s_seh-1.dll", "GCC runtime (structured exception handling)"},
-    {"libstdc++-6.dll", "C++ standard library (MinGW)"},
-    {"libwinpthread-1.dll", "POSIX threads implementation for Windows"},
-}};
 
 // Copies runtime DLLs from the directory containing src_binary into output_dir.
 void CopyRuntimeDlls(const char* src_binary, const char* output_dir) {
@@ -39,11 +37,11 @@ void CopyRuntimeDlls(const char* src_binary, const char* output_dir) {
   size_t last_sep = src_path.rfind('/');
   if (last_sep == std::string_view::npos) return;
   std::string_view src_dir = src_path.substr(0, last_sep);
-  for (const auto& dll : kWindowsRuntimeDlls) {
-    FixedStringBuffer<1024> dll_src(src_dir, "/", dll.filename);
+  for (const char* dll : kWindowsRuntimeDlls) {
+    FixedStringBuffer<1024> dll_src(src_dir, "/", dll);
     if (FileExists(dll_src.str())) {
-      FixedStringBuffer<1024> dll_dst(output_dir, "/", dll.filename);
-      LOG("Copying ", dll.filename, " to ", dll_dst.str());
+      FixedStringBuffer<1024> dll_dst(output_dir, "/", dll);
+      LOG("Copying ", dll, " to ", dll_dst.str());
       MUST(CopyFile(dll_src.str(), dll_dst.str()));
     }
   }
@@ -54,7 +52,7 @@ ErrorOr<void> AppendFileContents(FILE* dst, const char* src_path) {
   FILE* src = fopen(src_path, "rb");
   if (src == nullptr) return Error::Errno(errno);
   DEFER([src] { fclose(src); });
-  char buf[8192];
+  char buf[1024];
   size_t n;
   while ((n = fread(buf, 1, sizeof(buf), src)) > 0) {
     if (fwrite(buf, 1, n, dst) != n) return Error::Errno(errno);
