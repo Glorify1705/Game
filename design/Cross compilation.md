@@ -1,6 +1,6 @@
 ---
 status: in-progress
-tags: [build, cross-compilation, packaging, portability]
+tags: [build, cross-compilation, packaging, portability, sfx]
 ---
 
 # Cross Compilation
@@ -36,223 +36,152 @@ windows` on the Linux host and produce a directory (or zip) containing a
 Windows `.exe` + `assets.sqlite3` that can be copied to a Windows machine and
 run directly.
 
-### Concrete issues
+### Concrete issues (original, most now resolved)
 
-| Issue | Where | Impact |
-|---|---|---|
-| No CMake toolchain file for cross compilation | `CMakeLists.txt` | Can't target Windows from Linux |
-| `game package` copies the _host_ binary | `cmd_package.cc:96-110` | Packaged output is always a Linux binary |
-| No way to specify a target platform | `cmd_package.cc` | CLI has no `--target` flag |
-| Vendored SDL2 Windows libs are stale | `libraries/SDL2/x86_64-w64-mingw32/` | Engine uses SDL3, not SDL2 — these libs are useless |
-| MSVC compatibility unverified | `allocators.h`, `stringlib.h` | GCC/Clang `__attribute__` used, will not compile with MSVC without guards |
-| No SDL3 Windows libraries vendored | — | SDL3 must be built from source or obtained for Windows |
-| No CI for Windows builds | — | Regressions go unnoticed |
+| Issue | Status |
+|---|---|
+| No CMake toolchain file for cross compilation | **Fixed.** `cmake/mingw-w64-x86_64.cmake` |
+| `game package` copies the host binary | **Fixed.** `--engine-binary` flag |
+| No way to specify a target platform | Partially addressed — `--engine-binary` works; `--target` convenience flag pending (Phase 3) |
+| Vendored SDL2 Windows libs are stale | **Fixed.** Deleted; SDL3 vendored from source |
+| MSVC compatibility unverified | Deferred — MinGW uses GCC, no issue for cross-compilation |
+| No SDL3 Windows libraries vendored | **Fixed.** SDL3 built via `add_subdirectory()` |
+| No CI for Windows builds | Pending (Phase 4) |
 
 ## Current state
 
-### What already works
+Phases 0–2 are complete. The engine cross-compiles from Linux to Windows via
+MinGW, and `game package` produces a self-contained distributable with all
+required DLLs. Self-extracting .7z.exe archives are supported via `--sfx`.
+Tested successfully on Windows with multiple games (flappybird, Space Garbage!).
 
-- **Most dependencies are vendored** and written in portable C/C++:
+### What works
+
+- **All dependencies are vendored** and written in portable C/C++:
   Box2D, Lua 5.1, PhysFS, mimalloc, SQLite3, stb_*, GLAD,
   double-conversion, yyjson, backward-cpp, dr_wav.
+- **SDL3 is vendored** and built via `add_subdirectory()` for both Linux
+  and Windows. Stale SDL2 libraries have been deleted.
 - **Platform abstraction is clean.** `platform.cc` has complete `#ifdef _WIN32`
   implementations for file operations, directory traversal, path handling, and
   executable detection. Thread naming in `thread.h` handles Windows.
   `file_watcher.h` documents per-platform backends.
 - **Asset format is platform-agnostic.** SQLite databases and the asset schema
   have no platform-specific content.
+- **MinGW cross-compilation toolchain** is set up via
+  `scripts/setup-mingw-toolchain.sh` (xpack GCC 14.2, with NixOS patchelf
+  support). CMake toolchain file at `cmake/mingw-w64-x86_64.cmake`.
+- **`game package`** accepts `--engine-binary` to use a pre-built Windows
+  binary, `--sfx` for self-extracting archives, and `--strip` for stripping
+  debug symbols. Auto-copies SDL3.dll and MinGW runtime DLLs.
+- **Portability fixes** applied: backward.h include order, pcg_random.h
+  exception removal, sqlite3.c warning suppression.
+- **Hot reload thread** is skipped in packaged mode (no source directory).
 
 ### What does not work yet
 
-- **SDL3 is not vendored.** The engine depends on a system-installed SDL3
-  (via `find_package(SDL3 REQUIRED CONFIG)` in CMakeLists.txt). This works on
-  Linux because the Nix devenv provides SDL3, but it means cross-compilation
-  requires obtaining SDL3 for each target separately. The solution is to vendor
-  SDL3 source and build it via `add_subdirectory()` — see the SDL3 section
-  below.
-- **Stale SDL2 vendored libs.** `libraries/SDL2/` contains pre-built SDL2
-  MinGW libraries from before the SDL3 migration. These are useless and should
-  be deleted.
 - **MSVC compatibility is unverified and not a priority.** The codebase uses
   GCC/Clang `__attribute__` extensions (`malloc`, `format(printf, ...)`) in
   `allocators.h`, `stringlib.h`, and likely elsewhere. MinGW uses GCC so this
   is not a problem for cross-compilation. Native MSVC builds would require a
   porting pass, but since the engine targets distribution (not Windows
   development), this is deferred indefinitely.
-
-### The blocker: `game package` copies itself
-
-`cmd_package.cc` calls `GetExePath()` to find its own binary, then copies it
-into the output directory (lines 96-110). When packaging on Linux, this always
-produces a Linux binary. There is no mechanism to substitute a pre-built
-Windows binary.
-
-### What needs to happen
-
-There are two separable problems:
-
-1. **Cross-compiling the engine binary** for Windows (build system work).
-2. **Packaging a game** with a cross-compiled binary (CLI/workflow work).
-
-These can be tackled independently. Problem 2 is the simpler and more
-immediately useful one: if you have a Windows `.exe` of the engine (built via
-MinGW cross-compilation, or built once on a Windows machine), you should be
-able to package a game for Windows from Linux.
+- **`--sfx` shells out to `7z`** using `system()` with sh syntax. Only works
+  on Linux. See [[Bug fixes and minor improvements]] for portable alternatives.
+- **No `--target` convenience flag** yet (Phase 3).
+- **No CI release builds** yet (Phase 4).
 
 ## Design
 
-### Phase 1: Cross-platform packaging (decouple packer from binary)
+### Phase 1: Cross-platform packaging (decouple packer from binary) — DONE
 
-Modify `game package` to accept a `--engine-binary` flag that specifies a
-pre-built engine binary for the target platform, instead of copying itself.
+`game package` accepts `--engine-binary <path>` to use a pre-built engine
+binary for the target platform. Additional flags: `--strip` to strip debug
+symbols, `--sfx` to produce a self-extracting .7z.exe archive.
 
 ```
-game package --engine-binary build-win64/game.exe --output dist-win64
+game package games/flappybird --engine-binary build-win64/game.exe \
+  -o dist-win64 --strip --sfx
 ```
 
-When `--engine-binary` is provided:
-- Copy that binary instead of `GetExePath()` result.
-- Skip `MakeExecutable()` and `strip` (caller handles these, or add
-  `--no-strip`).
-- The asset packing step is unchanged (SQLite DB is platform-agnostic).
+When `--engine-binary` is provided, the packager:
+- Copies that binary instead of `GetExePath()` result.
+- Detects `.exe` extension and auto-copies runtime DLLs (SDL3.dll,
+  libgcc_s_seh-1.dll, libstdc++-6.dll, libwinpthread-1.dll) from the same
+  directory as the source binary.
+- Skips `MakeExecutable()` for Windows targets.
 
 When `--engine-binary` is _not_ provided, behavior is unchanged (copies self).
 
-This is a small, self-contained change to `cmd_package.cc` — roughly 10 lines.
-
-**Output structure** (same as today, just with a Windows binary):
+**Output structure:**
 
 ```
 dist-win64/
   flappybird.exe
   assets.sqlite3
-  SDL3.dll           # copied from vendored libs
+  SDL3.dll
+  libgcc_s_seh-1.dll
+  libstdc++-6.dll
+  libwinpthread-1.dll
 ```
 
-Note: SDL3.dll must also be included. The CMakeLists.txt already has a
-post-build copy step for Windows (line 242-250). The packager should also
-copy required DLLs when targeting Windows.
+With `--sfx`, additionally produces `dist-win64/flappybird.7z.exe` — a
+self-extracting archive that bundles the 7-Zip SFX stub, config, and a 7z
+archive of the output directory. Run `scripts/setup-7z-sfx.sh` to download
+the SFX stub.
 
-### Phase 2: MinGW cross-compilation toolchain
+### Phase 2: MinGW cross-compilation toolchain — DONE
 
-Add a CMake toolchain file at `cmake/mingw-w64-x86_64.cmake`:
+CMake toolchain file at `cmake/mingw-w64-x86_64.cmake`. The MinGW toolchain
+is installed via `scripts/setup-mingw-toolchain.sh` (xpack GCC 14.2.0-1,
+pre-built for Linux x86_64). On NixOS, the script patches all ELF binaries
+with patchelf to set the Nix dynamic linker and RPATH.
 
-```cmake
-set(CMAKE_SYSTEM_NAME Windows)
-set(CMAKE_SYSTEM_PROCESSOR x86_64)
-
-set(CMAKE_C_COMPILER x86_64-w64-mingw32-gcc)
-set(CMAKE_CXX_COMPILER x86_64-w64-mingw32-g++)
-set(CMAKE_RC_COMPILER x86_64-w64-mingw32-windres)
-
-set(CMAKE_FIND_ROOT_PATH /usr/x86_64-w64-mingw32)
-set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
-set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
-set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
-```
-
-Build with:
+Build with `game-build-win64` (devenv script) or manually:
 
 ```sh
+scripts/setup-mingw-toolchain.sh   # one-time toolchain download
 cmake -G Ninja -S . -B build-win64 \
   -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64-x86_64.cmake
 ninja -C build-win64
 ```
 
-#### Vendor SDL3 source (all platforms)
+The `game-build-win64` script also copies MinGW runtime DLLs into the build
+directory after a successful build.
 
-SDL3 must be vendored as source and built via `add_subdirectory()` for _both_
-Linux and Windows. This is the SDL project's recommended approach for game
-engines — SDL3's CMake build is designed for it, and their migration guide
-explicitly recommends `add_subdirectory()` or `FetchContent` over
-`find_package()` for vendored builds.
+#### SDL3 vendored source build
 
-SDL3 has an internal dynamic API (a jump table) that allows runtime override
-of function pointers even when statically linked. This means
-`add_subdirectory()` builds get the benefits of static linking (no DLL
-management, single binary) while preserving SDL's ability to load a
-system-provided SDL3 shared library at runtime if one exists. On Linux, SDL
-prefers dynamic linking for license and ABI reasons, but the
-`add_subdirectory()` path handles this correctly — it builds a shared library
-by default, and CMake's `SDL3::SDL3` target sets up the right RPATH.
+SDL3 is vendored as source in `libraries/SDL3/` and built via
+`add_subdirectory()` for both Linux and Windows. SDL3's CMake build
+auto-detects the target platform from the toolchain file. The same
+`SDL3::SDL3` target works for both native and cross-compiled builds.
 
-**Why use the same approach on Linux and Windows:**
+#### CMakeLists.txt cross-compilation support
 
-Using `find_package()` for Linux development but `add_subdirectory()` for
-Windows cross-compilation creates divergence: different SDL3 versions,
-different build configurations, different bugs. By vendoring SDL3 source and
-building it the same way everywhere, the Linux dev build is identical to the
-cross-compiled Windows build (minus the toolchain). This eliminates an entire
-class of "works on my machine" problems.
+- `add_subdirectory(libraries/SDL3)` replaces `find_package(SDL3)`.
+- OpenGL: MinGW sysroot provides `libopengl32.a`. The toolchain file sets
+  `OPENGL_gl_LIBRARY` to `opengl32`.
+- libdw (backward-cpp): gated on `CMAKE_SYSTEM_NAME STREQUAL "Linux"`.
+  On Windows, backward-cpp links `dbghelp` instead.
+- SDL3.dll is copied post-build via `$<TARGET_FILE:SDL3::SDL3>`.
+- Vendored sqlite3.c compiles with `-Wno-error` to suppress MinGW warnings.
 
-**Steps:**
+#### Portability fixes applied
 
-1. **Vendor SDL3 source.** Download or `git archive` a release tarball into
-   `libraries/SDL3/`. Only the source tree is needed (no pre-built binaries).
-
-2. **Replace `find_package` with `add_subdirectory`.** In CMakeLists.txt,
-   replace:
-   ```cmake
-   find_package(SDL3 REQUIRED CONFIG)
-   ```
-   with:
-   ```cmake
-   add_subdirectory(libraries/SDL3)
-   ```
-   The `target_link_libraries(... SDL3::SDL3)` line remains unchanged — SDL3's
-   CMake build exports the same target name either way.
-
-3. **Delete `libraries/SDL2/`.** The stale SDL2 MinGW pre-built libraries
-   serve no purpose.
-
-4. **Update `devenv.nix`.** Remove the system SDL3 package from the Nix
-   devenv. SDL3 is now built from vendored source, so the system package is
-   unnecessary. Build-time dependencies that SDL3 needs (X11, Wayland,
-   PulseAudio headers, etc.) should remain.
-
-#### CMakeLists.txt changes needed
-
-The main CMakeLists.txt needs adjustments for cross compilation:
-
-1. **SDL3 build.** `add_subdirectory(libraries/SDL3)` replaces
-   `find_package(SDL3 REQUIRED CONFIG)`. When cross-compiling with MinGW,
-   SDL3's CMake build auto-detects the target platform from the toolchain
-   file and builds Windows libraries. No special SDL3 configuration needed.
-
-2. **OpenGL.** `find_package(OpenGL REQUIRED)` needs a MinGW-compatible
-   `libopengl32.a`. MinGW sysroots typically include this. May need
-   `set(OPENGL_gl_LIBRARY opengl32)` in the toolchain file.
-
-3. **libdw.** The Linux-only `find_library(LIBDW dw)` block (used for
-   backward-cpp stack traces) should be gated on `CMAKE_SYSTEM_NAME STREQUAL
-   "Linux"`, which it already partially is.
-
-4. **backward-cpp.** On Windows, backward-cpp uses `dbghelp.h` instead of
-   libdw. May need `target_link_libraries(... dbghelp)` on Windows.
-
-5. **DLL copying.** When building SDL3 as a shared library via
-   `add_subdirectory()`, the SDL3.dll will be in the build tree. The
-   post-build copy step should reference `$<TARGET_FILE:SDL3::SDL3>`
-   rather than assuming a system install path.
+- `libraries/backward.h`: Fixed `psapi.h` include order (must come after
+  `windows.h`), guarded with `// clang-format off` to prevent re-sorting.
+- `libraries/pcg_random.h`: Replaced `throw std::logic_error(...)` with
+  `abort()` for `-fno-exceptions` compatibility.
+- `src/hot_reload.cc`: Early-return from `Start()` when `source_directory_`
+  is null (packaged mode), avoiding a useless file watcher thread.
 
 #### Nix integration
 
-Two changes to `devenv.nix`:
-
-1. **Remove system SDL3.** SDL3 is now built from vendored source, so the
-   system SDL3 package is no longer needed. Keep X11/Wayland/PulseAudio
-   development headers that SDL3's build requires.
-
-2. **Add MinGW cross-compilation tools:**
-   ```nix
-   packages = [
-     pkgs.pkgsCross.mingwW64.buildPackages.gcc
-     pkgs.pkgsCross.mingwW64.windows.pthreads
-   ];
-   ```
-
-Provide a `game-build-win64` script that invokes cmake with the toolchain
-file.
+- MinGW toolchain is installed separately (not via Nix) due to a nixpkgs
+  GCC 15 build bug. See `scripts/setup-mingw-toolchain.sh`.
+- `devenv.nix` provides `p7zip` (for `--sfx`), `wine` (for testing), and
+  `patchelf` (for NixOS toolchain patching).
+- `game-build-win64` devenv script wraps the cross-compilation build.
 
 ### Phase 3: `game package --target windows`
 
@@ -365,12 +294,12 @@ zero-setup on the target machine.
 
 0. ~~**Vendor SDL3 source**~~ DONE. SDL3 is vendored and building via
    `add_subdirectory()`. Stale SDL2 libraries deleted.
-1. **Phase 1** (small `cmd_package.cc` change). Unblocks the workflow
-   immediately: cross-compile once with MinGW manually, then use
-   `game package --engine-binary` repeatedly as you iterate on game scripts.
-2. **Phase 2** (toolchain file + CMake adjustments). Makes the cross build
-   reproducible and scriptable. SDL3 cross-compilation just works because
-   `add_subdirectory()` respects the toolchain file.
+1. ~~**Phase 1**~~ DONE. `--engine-binary`, `--strip`, `--sfx` flags.
+   Auto-copies runtime DLLs. Tested on Windows with flappybird and Space
+   Garbage!.
+2. ~~**Phase 2**~~ DONE. MinGW toolchain setup script with NixOS patchelf
+   support, CMake toolchain file, `game-build-win64` devenv script,
+   portability fixes.
 3. **Phase 3** for convenience (ties it all together into one command).
 4. **Phase 4** CI release builds, enabling zero-toolchain cross-platform
    packaging via downloaded binaries.

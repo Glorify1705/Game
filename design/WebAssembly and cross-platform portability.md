@@ -85,7 +85,7 @@ Uses `wasm-bindgen` for JS interop and `wgpu` (WebGPU) for rendering in the brow
 | pugixml | Works via Emscripten | Pure C++ |
 | double-conversion | Works via Emscripten | Pure C++ |
 | nlohmann/json | Works via Emscripten | Header-only C++ |
-q
+
 ### What needs adaptation
 
 #### 1. Main loop (blocking)
