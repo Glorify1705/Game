@@ -48,11 +48,35 @@ fi
 if [ -n "$INTERP" ] && [[ "$INTERP" == /nix/store/* ]]; then
   echo "NixOS detected — patching ELF binaries..."
 
-  # Minimal RPATH: only glibc from Nix (for libc.so.6, libm, libdl, etc.)
-  # plus the toolchain's own bundled libraries (libexec has zlib, libiconv,
-  # libgmp, libmpc, libmpfr, libisl, libzstd, libstdc++, etc.).
-  # Do NOT add Nix store zlib/libstdc++ — their DT_NEEDED entries reference
-  # libc.so (the glibc linker script, not an ELF), which breaks the loader.
+  # Build an RPATH that lets the toolchain's ELF binaries find their shared
+  # libraries at runtime on NixOS.
+  #
+  # On NixOS, the standard /lib, /usr/lib paths don't exist — all libraries
+  # live under /nix/store/<hash>-<name>/lib. Pre-built binaries from upstream
+  # expect a conventional FHS layout, so we must tell the dynamic linker
+  # exactly where to look via RPATH (embedded in the ELF binary).
+  #
+  # The RPATH is built from two sources:
+  #
+  # 1. Nix glibc directory (dirname of the dynamic linker itself):
+  #    Provides libc.so.6, libm.so.6, libdl.so.2, libpthread.so.0, etc.
+  #    Every ELF binary needs these.
+  #
+  # 2. The toolchain's own lib directories:
+  #    - lib/, lib64/       — top-level shared libraries bundled with xpack
+  #    - libexec/           — helper binaries (cc1, cc1plus, collect2, lto1)
+  #    - libexec/gcc/<triple>/<version>/
+  #                         — GCC plugin libs, plus bundled copies of zlib,
+  #                           libiconv, libgmp, libmpc, libmpfr, libisl,
+  #                           libzstd, and libstdc++ that the compiler needs
+  #
+  # Why NOT add Nix store zlib/libstdc++ to the RPATH:
+  # Nix's zlib and libstdc++ packages have DT_NEEDED entries that reference
+  # "libc.so" — which in Nix's glibc is a linker script (not an ELF shared
+  # object). The dynamic loader cannot process linker scripts, so adding
+  # those Nix packages to the RPATH causes "cannot load shared object" errors.
+  # The toolchain's own bundled copies of these libraries work correctly
+  # because they were built against a conventional glibc.
   NIXLIB="$(dirname "$INTERP")"
   for d in "$TOOLCHAIN_DIR"/lib "$TOOLCHAIN_DIR"/lib64 "$TOOLCHAIN_DIR"/libexec \
            "$TOOLCHAIN_DIR"/libexec/gcc/x86_64-w64-mingw32/*/; do
