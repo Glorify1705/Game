@@ -25,6 +25,22 @@ bool LuaGetBoolField(lua_State* state, int index, const char* field,
   return result;
 }
 
+// Reads the body_type string field from a Lua table.
+PhysicsBodyType LuaGetBodyType(lua_State* state, int index) {
+  lua_getfield(state, index, "body_type");
+  PhysicsBodyType result = PhysicsBodyType::kDynamic;
+  if (lua_isstring(state, -1)) {
+    std::string_view bt = lua_tostring(state, -1);
+    if (bt == "static") {
+      result = PhysicsBodyType::kStatic;
+    } else if (bt == "kinematic") {
+      result = PhysicsBodyType::kKinematic;
+    }
+  }
+  lua_pop(state, 1);
+  return result;
+}
+
 // Reads shape options from a Lua table at the given stack index.
 // Supports both raw numeric category/mask and string-based names:
 //   { category = "player", collides_with = {"meteor", "powerup"} }
@@ -37,18 +53,7 @@ PhysicsShapeOptions ReadShapeOptions(lua_State* state, int index) {
   opts.restitution =
       LuaGetNumberField(state, index, "restitution", opts.restitution);
   opts.sensor = LuaGetBoolField(state, index, "sensor", opts.sensor);
-  lua_getfield(state, index, "body_type");
-  if (lua_isstring(state, -1)) {
-    std::string_view bt = lua_tostring(state, -1);
-    if (bt == "static") {
-      opts.body_type = PhysicsBodyType::kStatic;
-    } else if (bt == "kinematic") {
-      opts.body_type = PhysicsBodyType::kKinematic;
-    } else if (bt == "dynamic") {
-      opts.body_type = PhysicsBodyType::kDynamic;
-    }
-  }
-  lua_pop(state, 1);
+  opts.body_type = LuaGetBodyType(state, index);
   lua_getfield(state, index, "category");
   if (lua_isnumber(state, -1)) {
     opts.category = (uint16_t)lua_tointeger(state, -1);

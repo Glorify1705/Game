@@ -1,5 +1,7 @@
 #include "physics.h"
 
+#include <algorithm>
+
 namespace G {
 namespace {
 
@@ -21,6 +23,57 @@ b2BodyType ToBox2dBodyType(PhysicsBodyType type) {
       return b2_dynamicBody;
   }
 }
+
+// b2RayCastCallback that keeps only the closest hit.
+struct ClosestRaycastCallback : b2RayCastCallback {
+  Physics::RaycastHit hit;
+  uint16_t mask;
+  bool found = false;
+  float closest = 1.0f;
+
+  float ReportFixture(b2Fixture* fixture, const b2Vec2& point,
+                      const b2Vec2& normal, float fraction) override {
+    if (mask != 0xFFFF) {
+      uint16_t cat = fixture->GetFilterData().categoryBits;
+      if ((cat & mask) == 0) return -1;
+    }
+    if (fraction < closest) {
+      closest = fraction;
+      found = true;
+      b2Body* body = fixture->GetBody();
+      hit.handle = Physics::Handle{body, body->GetUserData().pointer};
+      hit.point = FVec(point.x, point.y);
+      hit.normal = FVec(normal.x, normal.y);
+      hit.fraction = fraction;
+    }
+    return fraction;
+  }
+};
+
+// b2RayCastCallback that collects all hits up to a maximum.
+struct AllRaycastCallback : b2RayCastCallback {
+  Physics::RaycastHit* hits;
+  int count = 0;
+  int max;
+  uint16_t mask;
+  float ppm;
+
+  float ReportFixture(b2Fixture* fixture, const b2Vec2& point,
+                      const b2Vec2& normal, float fraction) override {
+    if (mask != 0xFFFF) {
+      uint16_t cat = fixture->GetFilterData().categoryBits;
+      if ((cat & mask) == 0) return -1;
+    }
+    if (count >= max) return 0;
+    b2Body* body = fixture->GetBody();
+    hits[count].handle = Physics::Handle{body, body->GetUserData().pointer};
+    hits[count].point = FVec(point.x, point.y) * ppm;
+    hits[count].normal = FVec(normal.x, normal.y);
+    hits[count].fraction = fraction;
+    count++;
+    return 1;
+  }
+};
 
 }  // namespace
 
@@ -347,32 +400,7 @@ void Physics::SetIterations(int velocity_iterations, int position_iterations) {
 
 bool Physics::Raycast(FVec2 from, FVec2 to, uint16_t mask,
                       RaycastHit* out) const {
-  struct Callback : b2RayCastCallback {
-    RaycastHit hit;
-    uint16_t mask;
-    bool found = false;
-    float closest = 1.0f;
-
-    float ReportFixture(b2Fixture* fixture, const b2Vec2& point,
-                        const b2Vec2& normal, float fraction) override {
-      if (mask != 0xFFFF) {
-        uint16_t cat = fixture->GetFilterData().categoryBits;
-        if ((cat & mask) == 0) return -1;
-      }
-      if (fraction < closest) {
-        closest = fraction;
-        found = true;
-        b2Body* body = fixture->GetBody();
-        hit.handle = Handle{body, body->GetUserData().pointer};
-        hit.point = FVec(point.x, point.y);
-        hit.normal = FVec(normal.x, normal.y);
-        hit.fraction = fraction;
-      }
-      return fraction;
-    }
-  };
-
-  Callback cb;
+  ClosestRaycastCallback cb;
   cb.mask = mask;
   // b2World::RayCast is logically const but not declared so in Box2D.
   const_cast<b2World&>(world_).RayCast(&cb, To(from), To(to));
@@ -388,47 +416,15 @@ bool Physics::Raycast(FVec2 from, FVec2 to, uint16_t mask,
 
 int Physics::RaycastAll(FVec2 from, FVec2 to, uint16_t mask, RaycastHit* out,
                         int max_hits) const {
-  struct Callback : b2RayCastCallback {
-    RaycastHit* hits;
-    int count = 0;
-    int max;
-    uint16_t mask;
-    float ppm;
-
-    float ReportFixture(b2Fixture* fixture, const b2Vec2& point,
-                        const b2Vec2& normal, float fraction) override {
-      if (mask != 0xFFFF) {
-        uint16_t cat = fixture->GetFilterData().categoryBits;
-        if ((cat & mask) == 0) return -1;
-      }
-      if (count >= max) return 0;
-      b2Body* body = fixture->GetBody();
-      hits[count].handle = Handle{body, body->GetUserData().pointer};
-      hits[count].point = FVec(point.x, point.y) * ppm;
-      hits[count].normal = FVec(normal.x, normal.y);
-      hits[count].fraction = fraction;
-      count++;
-      return 1;
-    }
-  };
-
-  Callback cb;
+  AllRaycastCallback cb;
   cb.hits = out;
   cb.max = max_hits;
   cb.mask = mask;
   cb.ppm = pixels_per_meter_;
   const_cast<b2World&>(world_).RayCast(&cb, To(from), To(to));
-
-  // Sort by fraction (closest first).
-  for (int i = 0; i < cb.count - 1; i++) {
-    for (int j = i + 1; j < cb.count; j++) {
-      if (out[j].fraction < out[i].fraction) {
-        RaycastHit tmp = out[i];
-        out[i] = out[j];
-        out[j] = tmp;
-      }
-    }
-  }
+  std::sort(out, out + cb.count, [](const RaycastHit& a, const RaycastHit& b) {
+    return a.fraction < b.fraction;
+  });
   return cb.count;
 }
 
