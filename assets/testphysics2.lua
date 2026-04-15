@@ -86,13 +86,13 @@ function Game:init()
 		if a == nil or b == nil then return end
 		local ak = type(a) == "table" and a.kind or "?"
 		local bk = type(b) == "table" and b.kind or "?"
-		print(string.format("[testphysics2] contact: %s <-> %s", ak, bk))
+		print(string.format("contact: %s <-> %s", ak, bk))
 	end)
 
-	print("[testphysics2] initialized")
+	print("initialized")
 	local gx, gy = G.physics.gravity()
-	print(string.format("[testphysics2] gravity = %.0f, %.0f", gx, gy))
-	print(string.format("[testphysics2] ppm = %.0f", G.physics.pixels_per_meter()))
+	print(string.format("gravity = %.0f, %.0f", gx, gy))
+	print(string.format("ppm = %.0f", G.physics.pixels_per_meter()))
 end
 
 function Game:update(t, dt)
@@ -127,10 +127,10 @@ function Game:update(t, dt)
 
 	-- Horizontal nudge.
 	if G.input.is_key_down("left") then
-		G.physics.apply_force(ball.handle, -200, 0)
+		G.physics.apply_force(ball.handle, -20, 0)
 	end
 	if G.input.is_key_down("right") then
-		G.physics.apply_force(ball.handle, 200, 0)
+		G.physics.apply_force(ball.handle, 20, 0)
 	end
 
 	-- Oscillate the kinematic platform.
