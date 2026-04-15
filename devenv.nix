@@ -64,7 +64,9 @@ in
     sqlite
     sqlitebrowser
     stylua
+    p7zip
     valgrind
+    wineWowPackages.stable
     wrappedClangTidy
     wrappedIncludeCleaner
     libxkbcommon
@@ -111,6 +113,7 @@ in
   scripts."game-sanitize".exec         = ''exec "$DEVENV_ROOT/scripts/game-sanitize.sh" "$@"'';
   scripts."game-samply".exec           = ''exec "$DEVENV_ROOT/scripts/game-samply.sh" "$@"'';
   scripts."game-build-win64".exec      = ''exec "$DEVENV_ROOT/scripts/game-build-win64.sh" "$@"'';
+  scripts."game-sfx-win64".exec        = ''exec "$DEVENV_ROOT/scripts/game-sfx-win64.sh" "$@"'';
 
   git-hooks.hooks = {
     clang-format = {

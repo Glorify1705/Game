@@ -192,16 +192,6 @@ endif()
 set(IS_GCC_LIKE
     $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>
 )
-set(GCC_AND_CLANG_FLAGS
-    -Wall
-    -Wextra
-    -Werror
-    -O1
-    -ggdb
-    -DNDEBUG
-    -DGAME_WITH_ASSERTS)
-set(MSVC_FLAGS /W4 /WX /DGAME_WITH_ASSERTS /O2 /DEBUG /NDEBUG)
-
 target_compile_options(Game PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
@@ -237,7 +227,8 @@ if(ENABLE_PROFILING)
 endif()
 
 set_source_files_properties(libraries/sqlite3.c PROPERTIES
-    COMPILE_DEFINITIONS SQLITE_ENABLE_MEMSYS5)
+    COMPILE_DEFINITIONS SQLITE_ENABLE_MEMSYS5
+    COMPILE_OPTIONS "-Wno-error")
 
 target_link_libraries(
   Game

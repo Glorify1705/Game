@@ -17,3 +17,11 @@ cmake -G Ninja \
   "$@"
 
 ninja -C "$ROOT/build-win64"
+
+# Copy MinGW runtime DLLs next to the executable.
+SYSROOT="$TOOLCHAIN/x86_64-w64-mingw32"
+for dll in "$SYSROOT/lib/libgcc_s_seh-1.dll" \
+           "$SYSROOT/lib/libstdc++-6.dll" \
+           "$SYSROOT/bin/libwinpthread-1.dll"; do
+  [ -f "$dll" ] && cp "$dll" "$ROOT/build-win64/"
+done

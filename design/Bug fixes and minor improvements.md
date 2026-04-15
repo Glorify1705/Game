@@ -57,6 +57,12 @@ No known bugs at this time. Previous items were fixed or the files were removed.
 - [ ] Implement Windows file watcher (`ReadDirectoryChangesW` + IOCP) in
   `src/file_watcher.cc:235`
 - [ ] Implement macOS file watcher (`FSEvents`) in `src/file_watcher.cc:279`
+- [ ] Replace `system("7z ...")` in `cmd_package.cc --sfx` with a portable
+  solution. Current implementation shells out to `7z` and uses sh syntax
+  (`cd && ... >/dev/null`) which only works on Linux. Options: write a custom
+  SFX stub that reads zip/tar (eliminates 7z and SFX stub download
+  dependencies), use a single-header zip library (e.g. miniz), or use
+  `subprocess.h` for portable process spawning.
 
 ## Tests
 

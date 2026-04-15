@@ -78,10 +78,14 @@ void PrintPackageHelp(const char* prog) {
       "Packages the game into a self-contained distributable.\n"
       "\n"
       "Options:\n"
-      "  -o, --output <dir>  Output directory (default: ./dist)\n"
-      "  --name <name>       Override binary name (default: from conf.json)\n"
-      "  --strip             Strip debug symbols from the binary\n"
-      "  --zip               Produce a .zip archive\n",
+      "  -o, --output <dir>      Output directory (default: ./dist)\n"
+      "  --name <name>           Override binary name (default: from "
+      "conf.json)\n"
+      "  --engine-binary <path>  Use a pre-built engine binary instead of "
+      "self\n"
+      "  --strip                 Strip debug symbols from the binary\n"
+      "  --sfx                   Produce a self-extracting Windows .exe\n"
+      "  --zip                   Produce a .zip archive\n",
       prog);
 }
 
