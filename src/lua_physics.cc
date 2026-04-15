@@ -1,5 +1,7 @@
 #include "lua_physics.h"
 
+#include <string_view>
+
 #include "physics.h"
 
 namespace G {
@@ -35,6 +37,18 @@ PhysicsShapeOptions ReadShapeOptions(lua_State* state, int index) {
   opts.restitution =
       LuaGetNumberField(state, index, "restitution", opts.restitution);
   opts.sensor = LuaGetBoolField(state, index, "sensor", opts.sensor);
+  lua_getfield(state, index, "body_type");
+  if (lua_isstring(state, -1)) {
+    std::string_view bt = lua_tostring(state, -1);
+    if (bt == "static") {
+      opts.body_type = PhysicsBodyType::kStatic;
+    } else if (bt == "kinematic") {
+      opts.body_type = PhysicsBodyType::kKinematic;
+    } else if (bt == "dynamic") {
+      opts.body_type = PhysicsBodyType::kDynamic;
+    }
+  }
+  lua_pop(state, 1);
   lua_getfield(state, index, "category");
   if (lua_isnumber(state, -1)) {
     opts.category = (uint16_t)lua_tointeger(state, -1);
@@ -466,6 +480,139 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
        lua_pushboolean(state, physics->GetFixedRotation(*handle));
+       return 1;
+     }},
+    {"set_gravity",
+     "Sets the world gravity vector in pixels/s^2",
+     {{"gx", "gravity x component", "number"},
+      {"gy", "gravity y component", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       const float gx = luaL_checknumber(state, 1);
+       const float gy = luaL_checknumber(state, 2);
+       physics->SetWorldGravity(FVec(gx, gy));
+       return 0;
+     }},
+    {"gravity",
+     "Returns the world gravity vector in pixels/s^2",
+     {},
+     {{"gx", "gravity x component", "number"},
+      {"gy", "gravity y component", "number"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       FVec2 g = physics->GetWorldGravity();
+       lua_pushnumber(state, g.x);
+       lua_pushnumber(state, g.y);
+       return 2;
+     }},
+    {"set_iterations",
+     "Sets the solver iteration counts per time step",
+     {{"velocity", "velocity solver iterations (default 6)", "number"},
+      {"position", "position solver iterations (default 2)", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       const int vel = luaL_checkinteger(state, 1);
+       const int pos = luaL_checkinteger(state, 2);
+       physics->SetIterations(vel, pos);
+       return 0;
+     }},
+    {"pixels_per_meter",
+     "Returns the pixels-per-meter scale factor",
+     {},
+     {{"ppm", "the scale factor", "number"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       lua_pushnumber(state, physics->GetPixelsPerMeter());
+       return 1;
+     }},
+    {"raycast",
+     "Casts a ray and returns the closest hit, or nil if nothing was hit",
+     {{"x1", "ray start x", "number"},
+      {"y1", "ray start y", "number"},
+      {"x2", "ray end x", "number"},
+      {"y2", "ray end y", "number"},
+      {"mask", "collision mask filter (default 0xFFFF)", "number"}},
+     {{"hit", "table with handle, x, y, nx, ny, fraction fields, or nil",
+       "table|nil"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       const float x1 = luaL_checknumber(state, 1);
+       const float y1 = luaL_checknumber(state, 2);
+       const float x2 = luaL_checknumber(state, 3);
+       const float y2 = luaL_checknumber(state, 4);
+       uint16_t mask = 0xFFFF;
+       if (lua_gettop(state) >= 5 && lua_isnumber(state, 5)) {
+         mask = static_cast<uint16_t>(lua_tointeger(state, 5));
+       }
+       Physics::RaycastHit hit;
+       if (physics->Raycast(FVec(x1, y1), FVec(x2, y2), mask, &hit)) {
+         lua_createtable(state, 0, 6);
+         auto* handle = static_cast<Physics::Handle*>(
+             lua_newuserdata(state, sizeof(Physics::Handle)));
+         luaL_getmetatable(state, "physics_handle");
+         lua_setmetatable(state, -2);
+         *handle = hit.handle;
+         lua_setfield(state, -2, "handle");
+         lua_pushnumber(state, hit.point.x);
+         lua_setfield(state, -2, "x");
+         lua_pushnumber(state, hit.point.y);
+         lua_setfield(state, -2, "y");
+         lua_pushnumber(state, hit.normal.x);
+         lua_setfield(state, -2, "nx");
+         lua_pushnumber(state, hit.normal.y);
+         lua_setfield(state, -2, "ny");
+         lua_pushnumber(state, hit.fraction);
+         lua_setfield(state, -2, "fraction");
+         return 1;
+       }
+       lua_pushnil(state);
+       return 1;
+     }},
+    {"raycast_all",
+     "Casts a ray and returns all hits sorted by distance",
+     {{"x1", "ray start x", "number"},
+      {"y1", "ray start y", "number"},
+      {"x2", "ray end x", "number"},
+      {"y2", "ray end y", "number"},
+      {"mask", "collision mask filter (default 0xFFFF)", "number"}},
+     {{"hits", "array of hit tables", "table"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       const float x1 = luaL_checknumber(state, 1);
+       const float y1 = luaL_checknumber(state, 2);
+       const float x2 = luaL_checknumber(state, 3);
+       const float y2 = luaL_checknumber(state, 4);
+       uint16_t mask = 0xFFFF;
+       if (lua_gettop(state) >= 5 && lua_isnumber(state, 5)) {
+         mask = static_cast<uint16_t>(lua_tointeger(state, 5));
+       }
+       constexpr int kMaxHits = 32;
+       Physics::RaycastHit hits[kMaxHits];
+       int count = physics->RaycastAll(FVec(x1, y1), FVec(x2, y2), mask, hits,
+                                       kMaxHits);
+       lua_createtable(state, count, 0);
+       for (int i = 0; i < count; i++) {
+         lua_createtable(state, 0, 6);
+         auto* handle = static_cast<Physics::Handle*>(
+             lua_newuserdata(state, sizeof(Physics::Handle)));
+         luaL_getmetatable(state, "physics_handle");
+         lua_setmetatable(state, -2);
+         *handle = hits[i].handle;
+         lua_setfield(state, -2, "handle");
+         lua_pushnumber(state, hits[i].point.x);
+         lua_setfield(state, -2, "x");
+         lua_pushnumber(state, hits[i].point.y);
+         lua_setfield(state, -2, "y");
+         lua_pushnumber(state, hits[i].normal.x);
+         lua_setfield(state, -2, "nx");
+         lua_pushnumber(state, hits[i].normal.y);
+         lua_setfield(state, -2, "ny");
+         lua_pushnumber(state, hits[i].fraction);
+         lua_setfield(state, -2, "fraction");
+         lua_rawseti(state, -2, i + 1);
+       }
        return 1;
      }}};
 
