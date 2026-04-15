@@ -20,6 +20,8 @@ function Powerup:new(x, y, ptype)
 	self.image = TYPE_SPRITES[ptype]
 	self.entity_id = "powerup" .. count
 	count = count + 1
+	self.x = x
+	self.y = y
 	self.dead = false
 	self.lifetime = LIFETIME
 	self.visible = true
