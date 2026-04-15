@@ -2,9 +2,6 @@
 #ifndef _GAME_ALLOCATORS_H
 #define _GAME_ALLOCATORS_H
 
-#include <valgrind/memcheck.h>
-#include <valgrind/valgrind.h>
-
 #include <array>
 #include <bitset>
 #include <cstddef>

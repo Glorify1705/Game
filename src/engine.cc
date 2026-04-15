@@ -25,14 +25,14 @@
 
 namespace G {
 
-Engine::Engine(Slice<const char*> args, sqlite3* db, DbAssets* db_assets,
-               const GameConfig& config, size_t audio_channels,
+Engine::Engine(Slice<const char*> args, sqlite3* db_, DbAssets* db_assets,
+               const GameConfig& config_, size_t audio_channels,
                size_t audio_buffer_samples, SDL_Window* sdl_window,
                Allocator* allocator)
     : console(allocator),
-      db(db),
+      db(db_),
       assets(db_assets),
-      config(config),
+      config(config_),
       filesystem(allocator),
       window(sdl_window),
       shaders(allocator),
@@ -110,7 +110,7 @@ void Engine::Initialize() {
   assets->RegisterImageLoad(
       [](DbAssets::Image* image, void* ud) -> ErrorOr<void> {
         auto* self = static_cast<Engine*>(ud);
-        self->renderer.LoadImage(*image);
+        self->renderer.LoadTexture(*image);
         return {};
       },
       this);
@@ -127,9 +127,9 @@ void Engine::Initialize() {
       },
       this);
   assets->RegisterSoundLoad(
-      [](DbAssets::Sound* sound, void* ud) -> ErrorOr<void> {
+      [](DbAssets::Sound* asset, void* ud) -> ErrorOr<void> {
         auto* self = static_cast<Engine*>(ud);
-        self->sound.LoadSound(*sound);
+        self->sound.LoadSound(*asset);
         return {};
       },
       this);

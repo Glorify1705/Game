@@ -93,9 +93,8 @@ HotReloadManager::HotReloadManager(const char* source_directory, sqlite3* db,
 }
 
 void HotReloadManager::Start() {
-  if (source_directory_ != nullptr) {
-    watcher_.Watch(source_directory_);
-  }
+  if (source_directory_ == nullptr) return;
+  watcher_.Watch(source_directory_);
   watcher_task_.fn = StaticCheckChangedFiles;
   watcher_task_.userdata = this;
   watcher_task_.cleanup = nullptr;

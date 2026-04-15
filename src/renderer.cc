@@ -1002,7 +1002,7 @@ ErrorOr<void> Renderer::LoadSprite(const DbAssets::Sprite& sprite) {
   return {};
 }
 
-void Renderer::LoadImage(const DbAssets::Image& image) {
+void Renderer::LoadTexture(const DbAssets::Image& image) {
   if (!textures_table_.Contains(image.name)) {
     LOG("Loading texture for image ", image.name);
     textures_table_.Insert(image.name, textures_.size());
@@ -1474,8 +1474,7 @@ void Renderer::SaveSDFToCache(sqlite3* db, std::string_view font_name,
 }
 
 void Renderer::LoadFont(const DbAssets::Font& asset) {
-  FontInfo font;
-  std::memset(&font, 0, sizeof(font));
+  FontInfo font = {};
   CHECK(stbtt_InitFont(&font.font_info, asset.contents,
                        stbtt_GetFontOffsetForIndex(asset.contents, 0)),
         "Could not initialize ", asset.name);
@@ -1533,8 +1532,8 @@ Color ParseColor(std::string_view color) {
   return Color::White();
 }
 
-void Renderer::DrawText(std::string_view font_name, uint32_t size,
-                        std::string_view str, FVec2 position) {
+void Renderer::DrawString(std::string_view font_name, uint32_t size,
+                          std::string_view str, FVec2 position) {
   FontInfo* info = nullptr;
   if (!font_table_.Lookup(font_name, &info)) {
     LOG("Could not find ", font_name, " in fonts");
@@ -1744,9 +1743,9 @@ void Renderer::WordWrapLines(const FontInfo& info, float pixel_scale,
   }
 }
 
-void Renderer::DrawTextWrapped(std::string_view font_name, uint32_t size,
-                               std::string_view str, FVec2 position,
-                               float max_width, TextAlign align) {
+void Renderer::DrawStringWrapped(std::string_view font_name, uint32_t size,
+                                 std::string_view str, FVec2 position,
+                                 float max_width, TextAlign align) {
   FontInfo* info = nullptr;
   if (!font_table_.Lookup(font_name, &info)) {
     LOG("Could not find ", font_name, " in fonts");
@@ -1771,7 +1770,7 @@ void Renderer::DrawTextWrapped(std::string_view font_name, uint32_t size,
     } else if (align == TextAlign::kRight) {
       x_offset = std::max(0.0f, max_width - lines[i].width);
     }
-    DrawText(font_name, size, lines[i].text, FVec(p.x + x_offset, p.y));
+    DrawString(font_name, size, lines[i].text, FVec(p.x + x_offset, p.y));
     p.y += line_height;
   }
 }
@@ -1805,10 +1804,10 @@ void Renderer::ClearTextOutline() {
   outline_thickness_ = 0.0f;
 }
 
-void Renderer::DrawTextColored(std::string_view font_name, uint32_t size,
-                               const ColoredSegment* segments,
-                               size_t num_segments, FVec2 position,
-                               float max_width, TextAlign align) {
+void Renderer::DrawStringColored(std::string_view font_name, uint32_t size,
+                                 const ColoredSegment* segments,
+                                 size_t num_segments, FVec2 position,
+                                 float max_width, TextAlign align) {
   FontInfo* info = nullptr;
   if (!font_table_.Lookup(font_name, &info)) {
     LOG("Could not find ", font_name, " in fonts");

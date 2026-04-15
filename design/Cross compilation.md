@@ -269,11 +269,34 @@ This would:
 3. Copy the Windows binary + SDL3.dll + assets.sqlite3 to the output dir.
 4. Optionally produce a `.zip` for easy transfer.
 
-### Phase 4: CI for Windows builds (optional)
+### Phase 4: CI release builds
 
-Add a GitHub Actions workflow that cross-compiles with MinGW and runs basic
-smoke tests (e.g., `game.exe --help` via Wine, or just verify the binary is a
-valid PE executable).
+Add a GitHub Actions workflow that builds engine binaries for each platform on
+every tagged release. The workflow would:
+
+1. **Build for each target platform:**
+   - Linux x86_64 (native build on ubuntu runner)
+   - Windows x86_64 (MinGW cross-compilation or native MSYS2 build)
+   - macOS (native build on macos runner, when supported)
+
+2. **Upload binaries as release assets.** Each platform produces a zip
+   containing the engine binary and any required shared libraries (e.g.,
+   `SDL3.dll` for Windows). Asset names follow the pattern
+   `game-<platform>-<arch>.zip`.
+
+3. **Smoke test.** Verify each binary is valid (PE/ELF headers, `--version`
+   output via Wine for Windows builds).
+
+This enables a zero-toolchain workflow: `game package --target windows` can
+download the matching engine binary from the GitHub release instead of
+requiring a local MinGW toolchain. The engine version in the release must
+match the local `game` version to ensure compatibility.
+
+**Benefits:**
+- No local cross-compilation toolchain needed for end users
+- Reproducible builds from CI
+- Scales to new platforms without local setup
+- Binary cache: download once, reuse for every `game package` invocation
 
 ## Platform-specific concerns
 
@@ -340,10 +363,8 @@ zero-setup on the target machine.
 
 ## Implementation order
 
-0. **Vendor SDL3 source** and switch from `find_package()` to
-   `add_subdirectory()` on Linux first. This is a prerequisite for everything
-   else — it ensures the Linux dev build and cross-compiled builds use the
-   same SDL3 source. Delete `libraries/SDL2/` at this point.
+0. ~~**Vendor SDL3 source**~~ DONE. SDL3 is vendored and building via
+   `add_subdirectory()`. Stale SDL2 libraries deleted.
 1. **Phase 1** (small `cmd_package.cc` change). Unblocks the workflow
    immediately: cross-compile once with MinGW manually, then use
    `game package --engine-binary` repeatedly as you iterate on game scripts.
@@ -351,4 +372,5 @@ zero-setup on the target machine.
    reproducible and scriptable. SDL3 cross-compilation just works because
    `add_subdirectory()` respects the toolchain file.
 3. **Phase 3** for convenience (ties it all together into one command).
-4. **Phase 4** if/when Windows testing becomes important for CI.
+4. **Phase 4** CI release builds, enabling zero-toolchain cross-platform
+   packaging via downloaded binaries.

@@ -39,10 +39,10 @@ template <typename... Args>
 ErrorOr<void> WriteFileF(const char* path, const char* fmt, Args... args) {
   FILE* f = fopen(path, "w");
   if (f == nullptr) return Error::Errno(errno);
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
   fprintf(f, fmt, args...);
-#pragma clang diagnostic pop
+#pragma GCC diagnostic pop
   fclose(f);
   return {};
 }

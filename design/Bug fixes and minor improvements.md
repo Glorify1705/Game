@@ -32,6 +32,17 @@ No known bugs at this time. Previous items were fixed or the files were removed.
 - [ ] Remove `-Wno-unused-parameter` from CMakeLists.txt and use
   `[[maybe_unused]]` or parameter comments where needed
 
+## Allocator Instrumentation
+
+- [ ] Add Valgrind annotations (`VALGRIND_MALLOCLIKE_BLOCK`,
+  `VALGRIND_FREELIKE_BLOCK`, etc.) to custom allocators in `src/allocators.h`
+  so Valgrind can track arena/pool allocations in debug builds. Gate behind a
+  `GAME_WITH_VALGRIND` compile flag.
+- [ ] Add ASan poisoning/unpoisoning (`__asan_poison_memory_region`,
+  `__asan_unpoison_memory_region`) to arena and pool allocators so ASan can
+  detect use-after-free within arenas and buffer overflows within pool blocks.
+- [ ] Consider MSan annotations for uninitialized memory tracking in arenas.
+
 ## Robustness
 
 - [ ] Wrap `require()` in `assets/main.lua` with `pcall` and validate returned
@@ -46,6 +57,12 @@ No known bugs at this time. Previous items were fixed or the files were removed.
 - [ ] Implement Windows file watcher (`ReadDirectoryChangesW` + IOCP) in
   `src/file_watcher.cc:235`
 - [ ] Implement macOS file watcher (`FSEvents`) in `src/file_watcher.cc:279`
+- [ ] Replace `system("7z ...")` in `cmd_package.cc --sfx` with a portable
+  solution. Current implementation shells out to `7z` and uses sh syntax
+  (`cd && ... >/dev/null`) which only works on Linux. Options: write a custom
+  SFX stub that reads zip/tar (eliminates 7z and SFX stub download
+  dependencies), use a single-header zip library (e.g. miniz), or use
+  `subprocess.h` for portable process spawning.
 
 ## Tests
 

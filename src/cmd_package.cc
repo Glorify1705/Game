@@ -4,6 +4,7 @@
 
 #include "cli.h"
 #include "config.h"
+#include "defer.h"
 #include "error.h"
 #include "executor.h"
 #include "filesystem.h"
@@ -16,11 +17,134 @@
 
 namespace G {
 
+namespace {
+
+// DLLs that must ship alongside a cross-compiled Windows binary:
+// - SDL3.dll: SDL3 windowing/input/audio library
+// - libgcc_s_seh-1.dll: GCC runtime (structured exception handling)
+// - libstdc++-6.dll: C++ standard library (MinGW)
+// - libwinpthread-1.dll: POSIX threads implementation for Windows
+constexpr const char* kWindowsRuntimeDlls[] = {
+    "SDL3.dll",
+    "libgcc_s_seh-1.dll",
+    "libstdc++-6.dll",
+    "libwinpthread-1.dll",
+};
+
+// Copies runtime DLLs from the directory containing src_binary into output_dir.
+void CopyRuntimeDlls(const char* src_binary, const char* output_dir) {
+  std::string_view src_path(src_binary);
+  size_t last_sep = src_path.rfind('/');
+  if (last_sep == std::string_view::npos) return;
+  std::string_view src_dir = src_path.substr(0, last_sep);
+  for (const char* dll : kWindowsRuntimeDlls) {
+    FixedStringBuffer<1024> dll_src(src_dir, "/", dll);
+    if (FileExists(dll_src.str())) {
+      FixedStringBuffer<1024> dll_dst(output_dir, "/", dll);
+      LOG("Copying ", dll, " to ", dll_dst.str());
+      MUST(CopyFile(dll_src.str(), dll_dst.str()));
+    }
+  }
+}
+
+// Appends the contents of src_path to an open file handle.
+ErrorOr<void> AppendFileContents(FILE* dst, const char* src_path) {
+  FILE* src = fopen(src_path, "rb");
+  if (src == nullptr) return Error::Errno(errno);
+  DEFER([src] { fclose(src); });
+  char buf[1024];
+  size_t n;
+  while ((n = fread(buf, 1, sizeof(buf), src)) > 0) {
+    if (fwrite(buf, 1, n, dst) != n) return Error::Errno(errno);
+  }
+  return {};
+}
+
+// Locates the 7-Zip SFX stub relative to our own executable.
+ErrorOr<void> FindSfxStub(FixedStringBuffer<1024>* out) {
+  char exe_dir[1024];
+  TRY(GetExeDir(exe_dir, sizeof(exe_dir)));
+  out->Set(exe_dir, "/../toolchains/7z-sfx/7zSD.sfx");
+  if (!FileExists(out->str())) {
+    fprintf(stderr,
+            "Error: SFX stub not found at '%s'.\n"
+            "Run: scripts/setup-7z-sfx.sh\n",
+            out->str());
+    return Error::Message("SFX stub not found");
+  }
+  return {};
+}
+
+// Creates a self-extracting archive from the output directory.
+int BuildSfxArchive(const char* output_dir, const char* binary_name,
+                    const char* exe_ext) {
+  FixedStringBuffer<1024> sfx_stub;
+  if (FindSfxStub(&sfx_stub).is_error()) return 1;
+
+  FixedStringBuffer<1024> sfx_output(output_dir, "/", binary_name, ".7z",
+                                     exe_ext);
+  FixedStringBuffer<1024> tmp_config(output_dir, "/sfx_config.txt");
+  FixedStringBuffer<1024> tmp_archive(output_dir, "/sfx_archive.7z");
+  DEFER([&] {
+    remove(tmp_config.str());
+    remove(tmp_archive.str());
+  });
+
+  // Write SFX config.
+  FixedStringBuffer<256> config_contents;
+  config_contents.AppendF(
+      ";!@Install@!UTF-8!\nRunProgram=\"%s%s\"\n;!@InstallEnd@!\n", binary_name,
+      exe_ext);
+  if (WriteFile(tmp_config.str(), config_contents.str()).is_error()) {
+    fprintf(stderr, "Error: could not create SFX config.\n");
+    return 1;
+  }
+
+  // Create 7z archive of the output directory contents.
+  FixedStringBuffer<1024> archive_cmd;
+  archive_cmd.AllowTruncation();
+  archive_cmd.AppendF(
+      "cd \"%s\" && 7z a -mx=3 sfx_archive.7z . "
+      "-x!sfx_config.txt -x!sfx_archive.7z -x!*.7z.exe",
+      output_dir);
+  LOG("Creating SFX archive...");
+  if (system(archive_cmd.str()) != 0) {
+    fprintf(stderr,
+            "Error: 7z archive creation failed (is p7zip installed?).\n");
+    return 1;
+  }
+
+  // Concatenate: SFX stub + config + archive.
+  LOG("Building SFX executable: ", sfx_output.str());
+  FILE* out = fopen(sfx_output.str(), "wb");
+  if (out == nullptr) {
+    fprintf(stderr, "Error: could not create '%s'.\n", sfx_output.str());
+    return 1;
+  }
+  DEFER([out] { fclose(out); });
+
+  const char* parts[] = {sfx_stub.str(), tmp_config.str(), tmp_archive.str()};
+  for (const char* part : parts) {
+    if (AppendFileContents(out, part).is_error()) {
+      fprintf(stderr, "Error: could not read '%s'.\n", part);
+      remove(sfx_output.str());
+      return 1;
+    }
+  }
+
+  printf("Created SFX: %s\n", sfx_output.str());
+  return 0;
+}
+
+}  // namespace
+
 int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   const char* source_directory = ".";
   const char* output_dir = "dist";
   const char* name_override = nullptr;
+  const char* engine_binary = nullptr;
   bool strip = false;
+  bool sfx = false;
 
   for (size_t i = 1; i < args.size(); ++i) {
     std::string_view arg = args[i];
@@ -28,8 +152,12 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
       output_dir = args[++i];
     } else if (arg == "--name" && i + 1 < args.size()) {
       name_override = args[++i];
+    } else if (arg == "--engine-binary" && i + 1 < args.size()) {
+      engine_binary = args[++i];
     } else if (arg == "--strip") {
       strip = true;
+    } else if (arg == "--sfx") {
+      sfx = true;
     } else if (arg[0] != '-') {
       source_directory = args[i];
     }
@@ -94,22 +222,44 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   sqlite3_close(db);
 
   // Copy the engine binary.
+  const char* src_binary = nullptr;
   char self_path[1024];
-  if (GetExePath(self_path, sizeof(self_path)).is_error()) {
-    fprintf(stderr, "Error: could not determine engine binary path.\n");
-    return 1;
+  if (engine_binary != nullptr) {
+    if (!FileExists(engine_binary)) {
+      fprintf(stderr, "Error: engine binary not found: '%s'.\n", engine_binary);
+      return 1;
+    }
+    src_binary = engine_binary;
+  } else {
+    if (GetExePath(self_path, sizeof(self_path)).is_error()) {
+      fprintf(stderr, "Error: could not determine engine binary path.\n");
+      return 1;
+    }
+    src_binary = self_path;
   }
 
-  FixedStringBuffer<1024> binary_path(output_dir, "/", binary_name,
-                                      kExeExtension);
+  // Detect target extension from the source binary path.
+  const char* exe_ext = kExeExtension;
+  if (HasSuffix(src_binary, ".exe")) {
+    exe_ext = ".exe";
+  }
+
+  FixedStringBuffer<1024> binary_path(output_dir, "/", binary_name, exe_ext);
   LOG("Copying engine binary to ", binary_path.str());
-  if (CopyFile(self_path, binary_path.str()).is_error()) {
+  if (CopyFile(src_binary, binary_path.str()).is_error()) {
     fprintf(stderr, "Error: could not copy binary to '%s'.\n",
             binary_path.str());
     return 1;
   }
 
-  MUST(MakeExecutable(binary_path.str()));
+  // Copy runtime DLLs for cross-compiled Windows builds.
+  if (exe_ext[0] != '\0') {
+    CopyRuntimeDlls(src_binary, output_dir);
+  }
+
+  if (exe_ext[0] == '\0') {
+    MUST(MakeExecutable(binary_path.str()));
+  }
 
   // Optionally strip.
   if (strip) {
@@ -119,6 +269,10 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   }
 
   PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
+
+  if (sfx) {
+    return BuildSfxArchive(output_dir, binary_name, exe_ext);
+  }
 
   printf("Packaged game to '%s':\n", output_dir);
   printf("  %s\n", binary_path.str());

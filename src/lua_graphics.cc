@@ -456,12 +456,12 @@ static const LuaApiFunction kGraphicsLib[] = {
        const float y = luaL_checknumber(state, 3);
        if (lua_type(state, 1) == LUA_TSTRING) {
          std::string_view text = GetLuaString(state, 1);
-         renderer->DrawText(font, font_size, text, FVec(x, y));
+         renderer->DrawString(font, font_size, text, FVec(x, y));
        } else if (lua_type(state, 1) == LUA_TUSERDATA) {
          auto* buf = AsUserdata<ByteBuffer>(state, 1);
          std::string_view text(reinterpret_cast<const char*>(buf->contents),
                                buf->size);
-         renderer->DrawText(font, font_size, text, FVec(x, y));
+         renderer->DrawString(font, font_size, text, FVec(x, y));
        }
        return 0;
      }},
@@ -489,12 +489,12 @@ static const LuaApiFunction kGraphicsLib[] = {
        const float y = luaL_checknumber(state, 5);
        if (lua_type(state, 3) == LUA_TSTRING) {
          std::string_view text = GetLuaString(state, 3);
-         renderer->DrawText(font, font_size, text, FVec(x, y));
+         renderer->DrawString(font, font_size, text, FVec(x, y));
        } else if (lua_type(state, 3) == LUA_TUSERDATA) {
          auto* buf = AsUserdata<ByteBuffer>(state, 3);
          std::string_view text(reinterpret_cast<const char*>(buf->contents),
                                buf->size);
-         renderer->DrawText(font, font_size, text, FVec(x, y));
+         renderer->DrawString(font, font_size, text, FVec(x, y));
        }
        return 0;
      }},
@@ -553,8 +553,8 @@ static const LuaApiFunction kGraphicsLib[] = {
                      "'. Expected 'left', 'center', or 'right'");
          }
        }
-       renderer->DrawTextWrapped(font, font_size, text, FVec(x, y), max_width,
-                                 align);
+       renderer->DrawStringWrapped(font, font_size, text, FVec(x, y), max_width,
+                                   align);
        return 0;
      }},
     {"text_wrapped_height",
@@ -668,8 +668,8 @@ static const LuaApiFunction kGraphicsLib[] = {
          segments[i].text = GetLuaString(state, -1);
          lua_pop(state, 1);
        }
-       renderer->DrawTextColored(font, font_size, segments, num_segments,
-                                 FVec(x, y), max_width, align);
+       renderer->DrawStringColored(font, font_size, segments, num_segments,
+                                   FVec(x, y), max_width, align);
        return 0;
      }},
     {"set_text_outline",

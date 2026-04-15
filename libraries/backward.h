@@ -348,10 +348,13 @@ typedef int ssize_t;
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <psapi.h>
-#include <signal.h>
+// clang-format off
+// windows.h must come before psapi.h (psapi.h uses WINBOOL, DWORD, etc.)
 #include <windows.h>
 #include <winnt.h>
+#include <psapi.h>
+#include <signal.h>
+// clang-format on
 
 #ifndef __clang__
 #undef NOINLINE

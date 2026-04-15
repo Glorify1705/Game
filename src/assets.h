@@ -10,8 +10,8 @@
 #include "array.h"
 #include "dictionary.h"
 #include "error.h"
+#include "libraries/sqlite3.h"
 #include "logging.h"
-#include "sqlite3.h"
 
 namespace G {
 

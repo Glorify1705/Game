@@ -454,7 +454,7 @@ class Renderer {
   void FlushFrame() { renderer_->Finish(); }
 
   ErrorOr<void> LoadSprite(const DbAssets::Sprite& sprite);
-  void LoadImage(const DbAssets::Image& image);
+  void LoadTexture(const DbAssets::Image& image);
   ErrorOr<void> LoadSpritesheet(const DbAssets::Spritesheet& sprite);
   void LoadFont(const DbAssets::Font& font);
 
@@ -504,8 +504,8 @@ class Renderer {
   void DrawCircle(FVec2 center, float radius);
   // Draws an outlined circle using line segments.
   void DrawCircleOutline(FVec2 center, float radius);
-  void DrawText(std::string_view font_name, uint32_t size, std::string_view str,
-                FVec2 position);
+  void DrawString(std::string_view font_name, uint32_t size,
+                  std::string_view str, FVec2 position);
   void DrawLine(FVec2 p0, FVec2 p1);
   void DrawLines(const FVec2* ps, size_t n);
 
@@ -516,9 +516,9 @@ class Renderer {
   enum class TextAlign : uint8_t { kLeft, kCenter, kRight };
 
   // Draws word-wrapped text within max_width pixels.
-  void DrawTextWrapped(std::string_view font_name, uint32_t size,
-                       std::string_view str, FVec2 position, float max_width,
-                       TextAlign align);
+  void DrawStringWrapped(std::string_view font_name, uint32_t size,
+                         std::string_view str, FVec2 position, float max_width,
+                         TextAlign align);
 
   // Returns the total height that word-wrapped text would occupy.
   int TextWrappedHeight(std::string_view font_name, uint32_t size,
@@ -531,9 +531,9 @@ class Renderer {
   };
 
   // Draws multi-color text with optional word wrapping and alignment.
-  void DrawTextColored(std::string_view font_name, uint32_t size,
-                       const ColoredSegment* segments, size_t num_segments,
-                       FVec2 position, float max_width, TextAlign align);
+  void DrawStringColored(std::string_view font_name, uint32_t size,
+                         const ColoredSegment* segments, size_t num_segments,
+                         FVec2 position, float max_width, TextAlign align);
 
   // Sets the outline color and thickness for subsequent SDF text draws.
   void SetTextOutline(Color color, float thickness);

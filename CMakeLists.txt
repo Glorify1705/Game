@@ -48,7 +48,9 @@ set(PHYSFS_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
 set(PHYSFS_BUILD_TEST OFF CACHE BOOL "" FORCE)
 set(PHYSFS_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 
-find_package(OpenGL REQUIRED)
+if(NOT WIN32)
+  find_package(OpenGL REQUIRED)
+endif()
 
 set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
 set(SDL_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
@@ -162,8 +164,10 @@ set(ENGINE_SRCS
     "src/platform.cc")
 
 set_source_files_properties(${VENDORED_SRCS} PROPERTIES SKIP_LINTING ON)
+set_source_files_properties(${VENDORED_SRCS} PROPERTIES
+    COMPILE_OPTIONS "-Wno-error")
 set_source_files_properties("libraries/stb_image_write.cc" PROPERTIES
-    COMPILE_OPTIONS "-Wno-missing-field-initializers")
+    COMPILE_OPTIONS "-Wno-error;-Wno-missing-field-initializers")
 set(GAME_SRCS ${VENDORED_SRCS} ${ENGINE_SRCS})
 
 configure_file(src/version.h.in version.h)
@@ -188,16 +192,6 @@ endif()
 set(IS_GCC_LIKE
     $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>
 )
-set(GCC_AND_CLANG_FLAGS
-    -Wall
-    -Wextra
-    -Werror
-    -O1
-    -ggdb
-    -DNDEBUG
-    -DGAME_WITH_ASSERTS)
-set(MSVC_FLAGS /W4 /WX /DGAME_WITH_ASSERTS /O2 /DEBUG /NDEBUG)
-
 target_compile_options(Game PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
@@ -233,7 +227,8 @@ if(ENABLE_PROFILING)
 endif()
 
 set_source_files_properties(libraries/sqlite3.c PROPERTIES
-    COMPILE_DEFINITIONS SQLITE_ENABLE_MEMSYS5)
+    COMPILE_DEFINITIONS SQLITE_ENABLE_MEMSYS5
+    COMPILE_OPTIONS "-Wno-error")
 
 target_link_libraries(
   Game
@@ -243,8 +238,10 @@ target_link_libraries(
           lua
           mimalloc-static
           double-conversion
-          OpenGL::GL
-          $<$<BOOL:${LIBDW_FOUND}>:${LIBDW_LIBRARY}>)
+          $<$<BOOL:${WIN32}>:opengl32>
+          $<$<NOT:$<BOOL:${WIN32}>>:OpenGL::GL>
+          $<$<BOOL:${LIBDW_FOUND}>:${LIBDW_LIBRARY}>
+          $<$<BOOL:${WIN32}>:dbghelp>)
 
 if(WIN32)
   add_custom_command(
@@ -252,38 +249,40 @@ if(WIN32)
     POST_BUILD
     COMMAND
       "${CMAKE_COMMAND}" -E copy_if_different
-      "$<TARGET_FILE_DIR:SDL3::SDL3>/../bin/SDL3.dll" "$<TARGET_FILE_DIR:Game>"
+      "$<TARGET_FILE:SDL3::SDL3>" "$<TARGET_FILE_DIR:Game>"
     VERBATIM)
 endif()
 
-enable_testing()
+if(NOT CMAKE_CROSSCOMPILING)
+  enable_testing()
 
-set(TEST_SRCS "src/stringlib.cc" "src/stats.cc" "src/string_table.cc"
-              "src/logging.cc" "src/collision.cc" "src/collision_world.cc"
-              "src/executor.cc"
-              "tests/test.cc")
+  set(TEST_SRCS "src/stringlib.cc" "src/stats.cc" "src/string_table.cc"
+                "src/logging.cc" "src/collision.cc" "src/collision_world.cc"
+                "src/executor.cc"
+                "tests/test.cc")
 
-add_executable(Tests "${TEST_SRCS}")
+  add_executable(Tests "${TEST_SRCS}")
 
-target_compile_features(Tests PRIVATE cxx_std_17)
+  target_compile_features(Tests PRIVATE cxx_std_17)
 
-target_compile_options(Tests PRIVATE
-    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
-    $<${IS_GCC_LIKE}:-fsanitize=address,undefined;-fno-sanitize=vptr>
-)
+  target_compile_options(Tests PRIVATE
+      $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
+      $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
+      $<${IS_GCC_LIKE}:-fsanitize=address,undefined;-fno-sanitize=vptr>
+  )
 
-target_compile_definitions(Tests PRIVATE
-    $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
-)
+  target_compile_definitions(Tests PRIVATE
+      $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
+  )
 
-target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
-                                         "${PROJECT_SOURCE_DIR}/src")
+  target_include_directories(Tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
+                                           "${PROJECT_SOURCE_DIR}/src")
 
-add_subdirectory(libraries/googletest)
+  add_subdirectory(libraries/googletest)
 
-target_link_libraries(Tests GTest::gtest_main GTest::gmock double-conversion)
-target_link_options(Tests PRIVATE $<${IS_GCC_LIKE}:-fsanitize=address,undefined>)
+  target_link_libraries(Tests GTest::gtest_main GTest::gmock double-conversion)
+  target_link_options(Tests PRIVATE $<${IS_GCC_LIKE}:-fsanitize=address,undefined>)
 
-include(GoogleTest)
-gtest_discover_tests(Tests)
+  include(GoogleTest)
+  gtest_discover_tests(Tests)
+endif()

@@ -78,7 +78,8 @@ class Alphanumeric {
   }
 
   Alphanumeric(void* b) {
-    snprintf(buf_, sizeof(buf_), "0x%16lx", (uintptr_t)b);
+    snprintf(buf_, sizeof(buf_), "0x%016llx",
+             static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(b)));
     piece_ = std::string_view(buf_);
   }
 
@@ -208,8 +209,8 @@ class StringBuffer {
   void VAppendF(const char* fmt, va_list l) {
     // Format string is validated by __attribute__((format)) on callers.
     // NOLINTNEXTLINE(clang-diagnostic-format-nonliteral)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
     va_list copy;
     va_copy(copy, l);
     int needed = vsnprintf(&buf_[pos_], size_ - pos_, fmt, l);
@@ -228,7 +229,7 @@ class StringBuffer {
       pos_ += uneeded;
     }
     va_end(copy);
-#pragma clang diagnostic pop
+#pragma GCC diagnostic pop
   }
 
   void AppendStr(std::string_view s) {

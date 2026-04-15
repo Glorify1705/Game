@@ -188,20 +188,19 @@ const struct LuaApiFunction kPhysicsLib[] = {
            state, luaL_ref(state, LUA_REGISTRYINDEX), allocator);
        physics->SetBeginContactCallback(
            [](uintptr_t lhs, uintptr_t rhs, void* userdata) {
-             auto* context = reinterpret_cast<CollisionContext*>(userdata);
-             lua_rawgeti(context->state, LUA_REGISTRYINDEX,
-                         context->func_index);
+             auto* ctx = reinterpret_cast<CollisionContext*>(userdata);
+             lua_rawgeti(ctx->state, LUA_REGISTRYINDEX, ctx->func_index);
              if (lhs != 0) {
-               lua_rawgeti(context->state, LUA_REGISTRYINDEX, lhs);
+               lua_rawgeti(ctx->state, LUA_REGISTRYINDEX, lhs);
              } else {
-               lua_pushnil(context->state);
+               lua_pushnil(ctx->state);
              }
              if (rhs != 0) {
-               lua_rawgeti(context->state, LUA_REGISTRYINDEX, rhs);
+               lua_rawgeti(ctx->state, LUA_REGISTRYINDEX, rhs);
              } else {
-               lua_pushnil(context->state);
+               lua_pushnil(ctx->state);
              }
-             lua_call(context->state, 2, 0);
+             lua_call(ctx->state, 2, 0);
            },
            context);
        return 0;
@@ -228,20 +227,19 @@ const struct LuaApiFunction kPhysicsLib[] = {
            state, luaL_ref(state, LUA_REGISTRYINDEX), allocator);
        physics->SetEndContactCallback(
            [](uintptr_t lhs, uintptr_t rhs, void* userdata) {
-             auto* context = reinterpret_cast<CollisionContext*>(userdata);
-             lua_rawgeti(context->state, LUA_REGISTRYINDEX,
-                         context->func_index);
+             auto* ctx = reinterpret_cast<CollisionContext*>(userdata);
+             lua_rawgeti(ctx->state, LUA_REGISTRYINDEX, ctx->func_index);
              if (lhs != 0) {
-               lua_rawgeti(context->state, LUA_REGISTRYINDEX, lhs);
+               lua_rawgeti(ctx->state, LUA_REGISTRYINDEX, lhs);
              } else {
-               lua_pushnil(context->state);
+               lua_pushnil(ctx->state);
              }
              if (rhs != 0) {
-               lua_rawgeti(context->state, LUA_REGISTRYINDEX, rhs);
+               lua_rawgeti(ctx->state, LUA_REGISTRYINDEX, rhs);
              } else {
-               lua_pushnil(context->state);
+               lua_pushnil(ctx->state);
              }
-             lua_call(context->state, 2, 0);
+             lua_call(ctx->state, 2, 0);
            },
            context);
        return 0;

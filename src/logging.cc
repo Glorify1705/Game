@@ -80,7 +80,7 @@ void PrintStackTrace(backward::StackTrace& st) {
 }
 
 void InstallSignalHandlers() {
-#ifdef GAME_WITH_ASSERTS
+#if defined(GAME_WITH_ASSERTS) && !defined(_WIN32)
   const int signals[] = {SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSEGV};
   for (int sig : signals) {
     struct sigaction action;
