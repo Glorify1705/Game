@@ -15,7 +15,7 @@ void Filesystem::Initialize(const GameConfig& config) {
       config.app_name);
   org_name_.Set(config.app_name);
   program_name_.Set(config.app_name);
-  pref_dir_.Set(PHYSFS_getPrefDir(org_name_, program_name_));
+  pref_dir_.Set(PHYSFS_getPrefDir(org_name_.str(), program_name_.str()));
   LOG("Output dir: ", pref_dir_);
   PHYSFS_setWriteDir(pref_dir_.str());
   PHYSFS_mount(pref_dir_.str(), "/app", /*appendToPath=*/true);

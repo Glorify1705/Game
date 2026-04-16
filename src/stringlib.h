@@ -173,7 +173,7 @@ class StringBuffer {
   // Returns the null-terminated string.
   const char* str() const { return buf_; }
 
-  operator const char*() const { return buf_; }
+  explicit operator const char*() const { return buf_; }
 
   // Returns the number of bytes written.
   size_t size() const { return pos_; }
@@ -196,6 +196,12 @@ class StringBuffer {
   // Allows this buffer to silently truncate on overflow. By default, overflow
   // triggers an assertion in debug builds.
   void AllowTruncation() { allow_truncation_ = true; }
+
+  // Enables Append(some_string_buffer) via the AppendToString protocol.
+  friend void AppendToString(const StringBuffer& b, StringBuffer& sink) {
+    sink.AppendStr(b.view());
+    sink.buf_[sink.pos_] = '\0';
+  }
 
  protected:
   // Redirects the buffer pointer. Used by growable subclasses after realloc.

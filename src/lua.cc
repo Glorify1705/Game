@@ -723,7 +723,7 @@ int Lua::LoadFennelAsset(std::string_view name,
   std::string_view script = GetLuaString(state_, -1);
   LOG("Executing script ", name);
   FixedStringBuffer<kMaxPathLength + 1> buf("@", name);
-  if (luaL_loadbuffer(state_, script.data(), script.size(), buf) != 0) {
+  if (luaL_loadbuffer(state_, script.data(), script.size(), buf.str()) != 0) {
     lua_error(state_);
     return 0;
   }
@@ -1132,7 +1132,7 @@ void Lua::SetPackagePreload(std::string_view modname) {
   lua_getglobal(state_, "package");
   lua_getfield(state_, -1, "preload");
   lua_pushcfunction(state_, PackageLoaderShim);
-  lua_setfield(state_, -2, buf);
+  lua_setfield(state_, -2, buf.str());
   lua_pop(state_, 2);
 }
 
