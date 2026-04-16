@@ -130,8 +130,9 @@ class StringBuffer {
   }
 
   // Appends the contents of another StringBuffer.
-  StringBuffer& AppendBuffer(StringBuffer& buf) {
-    Append(buf.str());
+  StringBuffer& AppendBuffer(const StringBuffer& buf) {
+    AppendStr(buf.view());
+    buf_[pos_] = '\0';
     return *this;
   }
 
