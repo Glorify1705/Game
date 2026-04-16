@@ -194,7 +194,10 @@ class StringBuffer {
   std::string_view view() const { return std::string_view(str(), size()); }
 
   // Resets the buffer to empty.
-  void Clear() { pos_ = 0; }
+  void Clear() {
+    pos_ = 0;
+    buf_[0] = '\0';
+  }
 
   // Returns true if no bytes have been written.
   bool empty() const { return pos_ == 0; }
