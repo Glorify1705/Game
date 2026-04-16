@@ -532,6 +532,7 @@ containers:
 | `Dictionary<T>`     | `std::unordered_map`      | String-keyed, explicit allocator   |
 | `FixedStringBuffer` | `std::string`             | Fixed-capacity string buffer       |
 | `StringBuffer`      | `std::ostringstream`      | Non-allocating string formatting   |
+| `NullTerminated`    | —                         | Ensures string_view is C-safe      |
 | `FreeList<T>`       | —                         | Object pool                        |
 | `BlockAllocator<T>` | —                         | Fixed-block pool                   |
 
@@ -577,6 +578,47 @@ not appear as a **class member** in engine types. Prefer:
 
 `StrCat(...)` and `StrAppend(...)` from `stringlib.h` are the preferred
 string formatting utilities.
+
+### StringBuffer Named Aliases
+
+Use the named aliases from `stringlib.h` instead of raw
+`FixedStringBuffer<N>` when the size matches a standard use case:
+
+| Alias          | Size   | Use Case                              |
+|----------------|--------|---------------------------------------|
+| `Str`          | 256    | General-purpose short strings         |
+| `PathBuffer`   | 256    | Virtual filesystem paths              |
+| `LogBuffer`    | 511    | Log lines (with `kTruncating`)        |
+| `CmdBuffer`    | 1024   | CLI paths, system commands            |
+| `SqlBuffer`    | 1024   | SQL statements                        |
+| `SmallBuffer`  | 64     | Thread names, vector `__tostring`     |
+
+For buffers that may truncate (log lines, error messages), construct with
+the `kTruncating` tag instead of calling `AllowTruncation()` separately:
+
+```cpp
+// Good: single-step construction.
+FixedStringBuffer<kMaxLogLineLength> buf(kTruncating);
+buf.Append("[", file, ":", line, "] ", message);
+
+// Bad: two-step pattern.
+FixedStringBuffer<kMaxLogLineLength> buf;
+buf.AllowTruncation();
+```
+
+### NullTerminated for C API Interop
+
+When passing a `std::string_view` to a C API that requires `const char*`,
+use `NullTerminated` instead of creating a full `FixedStringBuffer`:
+
+```cpp
+// Good: lightweight, zero-copy when already null-terminated.
+PHYSFS_openRead(NullTerminated(filename));
+
+// Bad: allocates a full StringBuffer just for null-termination.
+FixedStringBuffer<256> path(filename);
+PHYSFS_openRead(path.str());
+```
 
 ---
 
@@ -678,6 +720,18 @@ Do not use `std::ostringstream`, `std::stringstream`, or iostream-based
 formatting for runtime string building. Use `StrCat`, `StrAppend`,
 `StringBuffer`, or `FixedStringBuffer`. `std::ostream& operator<<` overloads
 are fine for debug output and test assertions.
+
+`StringBuffer` supports `operator+=` and `operator<<` as alternatives to
+`Append()`. Use `Append()` for multi-value appends (variadic), and the
+operators for single-value chaining when it reads more naturally:
+
+```cpp
+// Variadic Append — preferred for building a string in one call.
+buf.Append("x=", x, " y=", y);
+
+// Stream-style — fine for incremental building.
+buf << "x=" << x << " y=" << y;
+```
 
 ### Raw Thread Creation
 

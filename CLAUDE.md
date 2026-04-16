@@ -90,6 +90,11 @@ All engine code lives under `src/` in namespace `G`. Major subsystems:
   member must have a one-line `//` comment. See `CODESTYLE.md` for details.
 - Use **parameter comments** for non-obvious literals:
   `Init(/*table_size=*/1024)`.
+- **String buffers**: use named aliases (`CmdBuffer`, `PathBuffer`,
+  `LogBuffer`, `SqlBuffer`, `SmallBuffer`) instead of raw
+  `FixedStringBuffer<N>`. Use `kTruncating` tag for buffers that may
+  truncate. Use `NullTerminated(sv)` when passing `string_view` to C APIs.
+  Use `view()` to get a `string_view` from a buffer.
 
 ## Git Conventions
 
