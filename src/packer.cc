@@ -489,7 +489,9 @@ class DbPacker {
     ArenaAllocator scratch(allocator_, Megabytes(1));
     yyjson_read_err err{};
     yyjson_doc* doc =
-        ReadJson(&scratch, reinterpret_cast<const char*>(buf), size, &err);
+        ReadJson(&scratch,
+                 std::string_view(reinterpret_cast<const char*>(buf), size),
+                 &err);
     CHECK(doc != nullptr, "Failed to parse spritesheet ", filename, ": ",
           err.msg);
     yyjson_val* root = yyjson_doc_get_root(doc);

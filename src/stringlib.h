@@ -16,6 +16,10 @@ namespace G {
 
 class Allocator;
 
+// Tag type for constructing a FixedStringBuffer that silently truncates.
+struct Truncating {};
+inline constexpr Truncating kTruncating;
+
 void PrintDouble(double val, char* buffer, size_t size);
 
 class StringBuffer;
@@ -96,7 +100,7 @@ class Alphanumeric {
   Alphanumeric(const Alphanumeric&) = delete;
   Alphanumeric& operator=(const Alphanumeric&) = delete;
 
-  std::string_view piece() const { return piece_; }
+  std::string_view view() const { return piece_; }
 
  private:
   char buf_[32] = {0};
@@ -125,14 +129,27 @@ class StringBuffer {
     return *this;
   }
 
+  // Appends a single value to the buffer.
+  template <typename T>
+  StringBuffer& operator+=(const T& t) {
+    return Append(t);
+  }
+
+  // Appends a single value to the buffer (stream-style).
+  template <typename T>
+  StringBuffer& operator<<(const T& t) {
+    return Append(t);
+  }
+
   // Appends the contents of another StringBuffer.
-  StringBuffer& AppendBuffer(StringBuffer& buf) {
-    Append(buf.str());
+  StringBuffer& AppendBuffer(const StringBuffer& buf) {
+    AppendStr(buf.view());
+    buf_[pos_] = '\0';
     return *this;
   }
 
   // Appends raw bytes from a buffer.
-  StringBuffer& AppendBuffer(void* buf, size_t size) {
+  StringBuffer& AppendBuffer(const void* buf, size_t size) {
     AppendRaw(buf, size);
     return *this;
   }
@@ -168,23 +185,38 @@ class StringBuffer {
   // Returns the null-terminated string.
   const char* str() const { return buf_; }
 
-  operator const char*() const { return buf_; }
+  explicit operator const char*() const { return buf_; }
 
   // Returns the number of bytes written.
   size_t size() const { return pos_; }
 
   // Returns a string_view of the written content.
-  std::string_view piece() const { return std::string_view(str(), size()); }
+  std::string_view view() const { return std::string_view(str(), size()); }
 
   // Resets the buffer to empty.
-  void Clear() { pos_ = 0; }
+  void Clear() {
+    pos_ = 0;
+    buf_[0] = '\0';
+  }
 
   // Returns true if no bytes have been written.
   bool empty() const { return pos_ == 0; }
 
+  // Returns the number of bytes that can still be written.
+  size_t remaining() const { return pos_ >= size_ ? 0 : (size_ - pos_); }
+
+  // Returns the total buffer capacity.
+  size_t capacity() const { return size_; }
+
   // Allows this buffer to silently truncate on overflow. By default, overflow
   // triggers an assertion in debug builds.
   void AllowTruncation() { allow_truncation_ = true; }
+
+  // Enables Append(some_string_buffer) via the AppendToString protocol.
+  friend void AppendToString(const StringBuffer& b, StringBuffer& sink) {
+    sink.AppendStr(b.view());
+    sink.buf_[sink.pos_] = '\0';
+  }
 
  protected:
   // Redirects the buffer pointer. Used by growable subclasses after realloc.
@@ -202,7 +234,7 @@ class StringBuffer {
     if constexpr (internal_strings::HasAppendString<T>::value) {
       AppendToString(t, *this);
     } else {
-      AppendStr(internal_strings::Alphanumeric(t).piece());
+      AppendStr(internal_strings::Alphanumeric(t).view());
     }
   }
 
@@ -264,8 +296,6 @@ class StringBuffer {
     pos_ += size;
   }
 
-  size_t remaining() const { return pos_ >= size_ ? 0 : (size_ - pos_); }
-
   char* buf_;
   size_t pos_ = 0;
   size_t size_;
@@ -284,6 +314,18 @@ class FixedStringBuffer final : public StringBuffer {
   // Stack-only mode with initial content.
   template <typename... Ts>
   explicit FixedStringBuffer(Ts... ts) : StringBuffer(inline_buf_, N) {
+    Append(std::forward<Ts>(ts)...);
+  }
+
+  // Stack-only mode that silently truncates on overflow.
+  explicit FixedStringBuffer(Truncating) : StringBuffer(inline_buf_, N) {
+    AllowTruncation();
+  }
+
+  // Stack-only mode that silently truncates, with initial content.
+  template <typename... Ts>
+  FixedStringBuffer(Truncating, Ts... ts) : StringBuffer(inline_buf_, N) {
+    AllowTruncation();
     Append(std::forward<Ts>(ts)...);
   }
 
@@ -345,8 +387,33 @@ class FixedStringBuffer final : public StringBuffer {
 using Str = FixedStringBuffer<>;
 using PathBuffer = FixedStringBuffer<kMaxPathLength>;
 using LogBuffer = FixedStringBuffer<kMaxLogLineLength>;
+using CmdBuffer = FixedStringBuffer<1024>;
 using SqlBuffer = FixedStringBuffer<1024>;
 using SmallBuffer = FixedStringBuffer<64>;
+
+// Ensures a string_view is null-terminated for C API calls. Zero-copy when the
+// byte after the view is already '\0'; copies into an inline buffer otherwise.
+template <size_t N = kMaxPathLength>
+class NullTerminated {
+ public:
+  explicit NullTerminated(std::string_view sv) {
+    assert(sv.size() < N && "string_view too large for NullTerminated buffer");
+    if (sv.data()[sv.size()] == '\0') {
+      ptr_ = sv.data();
+    } else {
+      std::memcpy(buf_, sv.data(), sv.size());
+      buf_[sv.size()] = '\0';
+      ptr_ = buf_;
+    }
+  }
+  // Returns the null-terminated string.
+  const char* c_str() const { return ptr_; }
+  operator const char*() const { return ptr_; }
+
+ private:
+  char buf_[N + 1];
+  const char* ptr_;
+};
 
 bool HasSuffix(std::string_view str, std::string_view suffix);
 bool ConsumeSuffix(std::string_view* str, std::string_view suffix);

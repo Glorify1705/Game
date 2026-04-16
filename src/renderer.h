@@ -169,8 +169,9 @@ class BatchRenderer {
 
   void FinishLine() { AddCommand(kEndLine, EndLine{}); }
 
-  void PushLinePoints(const FVec2* ps, size_t n) {
-    AddCommand(kAddLinePoint, /*count=*/n, ps, n * sizeof(FVec2));
+  void PushLinePoints(Slice<FVec2> ps) {
+    AddCommand(kAddLinePoint, /*count=*/ps.size(), ps.data(),
+               ps.size() * sizeof(FVec2));
   }
 
   void SetShaderProgram(std::string_view program_name) {
@@ -484,12 +485,12 @@ class Renderer {
     return result;
   }
 
-  ArrayView<DbAssets::Sprite> GetSprites() const {
-    return MakeArrayView(loaded_sprites_);
+  Slice<DbAssets::Sprite> GetSprites() const {
+    return MakeSlice(loaded_sprites_);
   }
 
-  ArrayView<DbAssets::Image> GetImages() const {
-    return MakeArrayView(loaded_images_);
+  Slice<DbAssets::Image> GetImages() const {
+    return MakeSlice(loaded_images_);
   }
 
   // Returns the previous color.
@@ -507,7 +508,7 @@ class Renderer {
   void DrawString(std::string_view font_name, uint32_t size,
                   std::string_view str, FVec2 position);
   void DrawLine(FVec2 p0, FVec2 p1);
-  void DrawLines(const FVec2* ps, size_t n);
+  void DrawLines(Slice<FVec2> ps);
 
   IVec2 TextDimensions(std::string_view font_name, uint32_t size,
                        std::string_view str);

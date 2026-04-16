@@ -65,7 +65,7 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
   }
 
   // Verify conf.json exists.
-  FixedStringBuffer<1024> conf_path(source_directory, "/conf.json");
+  CmdBuffer conf_path(source_directory, "/conf.json");
   if (!FileExists(conf_path.str())) {
     fprintf(stderr,
             "Error: no game project found in '%s'.\n"
@@ -80,7 +80,7 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
   LOG("Cache directory: ", cache_dir);
   MUST(MakeDirs(cache_dir));
 
-  FixedStringBuffer<1024> db_path(cache_dir, "/assets.sqlite3");
+  CmdBuffer db_path(cache_dir, "/assets.sqlite3");
 
   // Handle --clean: delete the cached database.
   if (clean) {
@@ -123,7 +123,7 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
     return 1;
   }
 
-  FixedStringBuffer<1024> db_path(exe_dir, "assets.sqlite3");
+  CmdBuffer db_path(exe_dir, "assets.sqlite3");
 
   // Configure SQLite memory.
   ArenaAllocator sqlite_arena(allocator, Megabytes(16));
@@ -161,7 +161,7 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
 bool PackagedGameExists(const char* argv0) {
   char exe_dir[1024];
   if (GetExeDir(exe_dir, sizeof(exe_dir)).is_error()) return false;
-  FixedStringBuffer<1024> asset_path(exe_dir, "assets.sqlite3");
+  CmdBuffer asset_path(exe_dir, "assets.sqlite3");
   return FileExists(asset_path.str());
 }
 

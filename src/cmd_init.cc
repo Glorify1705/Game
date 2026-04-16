@@ -38,7 +38,7 @@ int CmdInit(Slice<const char*> args, Allocator* allocator) {
   MUST(MakeDir(dir));
 
   // Check if project already exists.
-  FixedStringBuffer<1024> conf_path(dir, "/conf.json");
+  CmdBuffer conf_path(dir, "/conf.json");
   if (FileExists(conf_path.str())) {
     fprintf(stderr,
             "Error: project already exists in '%s' (conf.json found).\n", dir);
@@ -56,23 +56,23 @@ int CmdInit(Slice<const char*> args, Allocator* allocator) {
     return 1;
   }
 
-  FixedStringBuffer<1024> main_path(dir, "/main.lua");
+  CmdBuffer main_path(dir, "/main.lua");
   LOG("Writing ", main_path.str());
   MUST(WriteFile(main_path.str(), templates::kMainLua));
 
-  FixedStringBuffer<1024> game_path(dir, "/game.lua");
+  CmdBuffer game_path(dir, "/game.lua");
   LOG("Writing ", game_path.str());
   MUST(WriteFile(game_path.str(), templates::kGameLua));
 
-  FixedStringBuffer<1024> luarc_path(dir, "/.luarc.json");
+  CmdBuffer luarc_path(dir, "/.luarc.json");
   LOG("Writing ", luarc_path.str());
   MUST(WriteFile(luarc_path.str(), templates::kLuarcJson));
 
   // Create definitions directory and generate stubs.
-  FixedStringBuffer<1024> defs_dir(dir, "/definitions");
+  CmdBuffer defs_dir(dir, "/definitions");
   MUST(MakeDir(defs_dir.str()));
 
-  FixedStringBuffer<1024> stubs_output(defs_dir.str(), "/game.lua");
+  CmdBuffer stubs_output(defs_dir.str(), "/game.lua");
   const char* stubs_argv[] = {"stubs", "--output", stubs_output.str()};
   CmdStubs({stubs_argv, 3}, allocator);
 

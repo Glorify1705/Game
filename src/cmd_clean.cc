@@ -44,7 +44,7 @@ int CmdClean(Slice<const char*> args, Allocator*) {
   char cache_dir[1024];
   ComputeCacheDir(source_directory, cache_dir, sizeof(cache_dir));
 
-  FixedStringBuffer<1024> db_path(cache_dir, "/assets.sqlite3");
+  CmdBuffer db_path(cache_dir, "/assets.sqlite3");
 
   if (FileExists(db_path.str())) {
     remove(db_path.str());

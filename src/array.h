@@ -14,6 +14,9 @@
 namespace G {
 
 template <typename T>
+class Slice;
+
+template <typename T>
 class FixedArray {
  public:
   FixedArray(size_t n, Allocator* allocator) : allocator_(allocator), size_(n) {
@@ -54,6 +57,9 @@ class FixedArray {
     elems_ += n;
     return result;
   }
+
+  // Batch insert from a Slice.
+  T* Insert(Slice<T> s) { return Insert(s.data(), s.size()); }
 
   void Resize(size_t s) { elems_ = s; }
 
@@ -146,6 +152,9 @@ class DynArray {
       Push(ptr[i]);
     }
   }
+
+  // Batch insert from a Slice.
+  void Insert(Slice<T> s) { Insert(s.data(), s.size()); }
 
   void Pop() {
     DCHECK(elems_ > 0);
@@ -273,32 +282,6 @@ Slice<T> MakeSlice(const DynArray<T>& a) {
 template <typename T>
 Slice<T> MakeSlice(const FixedArray<T>& a) {
   return Slice<T>(a.cdata(), a.size());
-}
-
-template <typename T>
-class ArrayView {
- public:
-  explicit ArrayView(const T* array, size_t size)
-      : array_(array), size_(size) {};
-
-  using const_iterator = const T*;
-
-  const_iterator begin() const { return array_; }
-  const_iterator end() const { return array_ + size_; }
-
- private:
-  const T* const array_;
-  const size_t size_;
-};
-
-template <typename T>
-ArrayView<T> MakeArrayView(const DynArray<T>& a) {
-  return ArrayView(a.cdata(), a.size());
-}
-
-template <typename T>
-ArrayView<T> MakeArrayView(const FixedArray<T>& a) {
-  return ArrayView(a.cdata(), a.size());
 }
 
 using ByteSlice = Slice<const uint8_t>;

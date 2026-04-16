@@ -15,13 +15,12 @@ int GetLuaAbsoluteIndex(lua_State* L, int idx) {
   return lua_gettop(L) + idx + 1;
 }
 
-#define LUA_LOG_VALUE(state, pos, ...)           \
-  do {                                           \
-    FixedStringBuffer<kMaxLogLineLength> _l;     \
-    _l.AllowTruncation();                        \
-    _l.Append("", ##__VA_ARGS__);                \
-    Lua::LogValue(state, pos, /*depth=*/0, &_l); \
-    Log(__FILE__, __LINE__, _l.str());           \
+#define LUA_LOG_VALUE(state, pos, ...)                    \
+  do {                                                    \
+    FixedStringBuffer<kMaxLogLineLength> _l(kTruncating); \
+    _l.Append("", ##__VA_ARGS__);                         \
+    Lua::LogValue(state, pos, /*depth=*/0, &_l);          \
+    Log(__FILE__, __LINE__, _l.str());                    \
   } while (0);
 
 int Traceback(lua_State* state) {
@@ -43,13 +42,9 @@ int Traceback(lua_State* state) {
 }
 
 struct LogLine {
-  FixedStringBuffer<kMaxLogLineLength> file;
+  FixedStringBuffer<kMaxLogLineLength> file{kTruncating};
   int line = 0;
-  FixedStringBuffer<kMaxLogLineLength> log;
-  LogLine() {
-    file.AllowTruncation();
-    log.AllowTruncation();
-  }
+  FixedStringBuffer<kMaxLogLineLength> log{kTruncating};
 };
 
 void FillLogLine(lua_State* state, LogLine* l) {
@@ -208,9 +203,7 @@ Lua::Lua(Slice<const char*> args, sqlite3* db, DbAssets* assets,
       assets_(assets),
       scripts_by_name_(allocator),
       scripts_(1 << 16, allocator),
-      compilation_cache_(allocator) {
-  error_.AllowTruncation();
-}
+      compilation_cache_(allocator) {}
 
 void Lua::Crash() {
   std::string_view message = GetLuaString(state_, 1);
@@ -240,12 +233,12 @@ bool Lua::LoadFromCache(std::string_view script_name, lua_State* state) {
   return false;
 }
 
-void Lua::AddLibrary(const char* name, const luaL_Reg* funcs, size_t N) {
+void Lua::AddLibrary(const char* name, Slice<const luaL_Reg> funcs) {
   LUA_CHECK_STACK(state_);
   LOG("Adding library ", name);
   lua_getglobal(state_, "G");
   lua_newtable(state_);
-  for (size_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < funcs.size(); ++i) {
     CHECK(funcs[i].name != nullptr, "Invalid entry for library ", name, ": ",
           i);
     const auto* func = &funcs[i];
@@ -261,15 +254,16 @@ void Lua::RegisterUserdataType(const LuaUserdataType& type) {
   registered_types_[registered_type_count_++] = type;
 }
 
-void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
-                                 size_t N) {
+void Lua::AddLibraryWithMetadata(const char* name,
+                                 Slice<const LuaApiFunction> funcs) {
   LUA_CHECK_STACK(state_);
   LOG("Adding library ", name);
   CHECK(registered_library_count_ < kMaxLibraries, "Too many libraries");
-  registered_libraries_[registered_library_count_++] = {name, funcs, N};
+  registered_libraries_[registered_library_count_++] = {name, funcs.data(),
+                                                        funcs.size()};
   lua_getglobal(state_, "G");
   lua_newtable(state_);
-  for (size_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < funcs.size(); ++i) {
     LUA_CHECK_STACK(state_);
     CHECK(funcs[i].name != nullptr, "Invalid entry for library ", name, ": ",
           i);
@@ -282,7 +276,7 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
   // Add the docs.
   lua_getglobal(state_, "_Docs");
   lua_newtable(state_);
-  for (size_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < funcs.size(); ++i) {
     LUA_CHECK_STACK(state_);
     // Create a table with docstring, and args fields.
     lua_newtable(state_);
@@ -313,7 +307,7 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
   lua_setfield(state_, -2, name);
   // Add the functions in the library with a link to the
   // corresponding entry as a light user data.
-  for (size_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < funcs.size(); ++i) {
     LUA_CHECK_STACK(state_);
     lua_getfield(state_, -1, name);
     lua_pushstring(state_, funcs[i].name);
@@ -730,7 +724,7 @@ int Lua::LoadFennelAsset(std::string_view name,
   std::string_view script = GetLuaString(state_, -1);
   LOG("Executing script ", name);
   FixedStringBuffer<kMaxPathLength + 1> buf("@", name);
-  if (luaL_loadbuffer(state_, script.data(), script.size(), buf) != 0) {
+  if (luaL_loadbuffer(state_, script.data(), script.size(), buf.str()) != 0) {
     lua_error(state_);
     return 0;
   }
@@ -1035,7 +1029,7 @@ void Lua::SetError(std::string_view file, int line, std::string_view error) {
 }
 
 void Lua::BuildCompilationCache() {
-  FixedStringBuffer<512> sql(R"(
+  SqlBuffer sql(R"(
       SELECT c.source_name, c.compiled, c.source_hash
       FROM asset_metadata a 
       INNER JOIN compilation_cache c 
@@ -1139,7 +1133,7 @@ void Lua::SetPackagePreload(std::string_view modname) {
   lua_getglobal(state_, "package");
   lua_getfield(state_, -1, "preload");
   lua_pushcfunction(state_, PackageLoaderShim);
-  lua_setfield(state_, -2, buf);
+  lua_setfield(state_, -2, buf.str());
   lua_pop(state_, 2);
 }
 

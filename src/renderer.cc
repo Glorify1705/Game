@@ -1094,14 +1094,14 @@ void Renderer::DrawLine(FVec2 p0, FVec2 p1) {
   ClearTextureDedup();
   renderer_->BeginLine();
   FVec2 ps[2] = {p0, p1};
-  renderer_->PushLinePoints(ps, 2);
+  renderer_->PushLinePoints(Slice<FVec2>(ps, 2));
   renderer_->FinishLine();
 }
 
-void Renderer::DrawLines(const FVec2* ps, size_t n) {
+void Renderer::DrawLines(Slice<FVec2> ps) {
   ClearTextureDedup();
   renderer_->BeginLine();
-  renderer_->PushLinePoints(ps, n);
+  renderer_->PushLinePoints(ps);
   renderer_->FinishLine();
 }
 
@@ -1163,7 +1163,7 @@ void Renderer::DrawRectOutline(FVec2 top_left, FVec2 bottom_right,
   }
   renderer_->BeginLine();
   FVec2 loop[5] = {corners[0], corners[1], corners[2], corners[3], corners[0]};
-  renderer_->PushLinePoints(loop, 5);
+  renderer_->PushLinePoints(Slice<FVec2>(loop, 5));
   renderer_->FinishLine();
 }
 
@@ -1176,7 +1176,7 @@ void Renderer::DrawCircleOutline(FVec2 center, float radius) {
                      center.y + radius * kCircle32.v[i].y);
   }
   renderer_->BeginLine();
-  renderer_->PushLinePoints(points, kSegments + 1);
+  renderer_->PushLinePoints(Slice<FVec2>(points, kSegments + 1));
   renderer_->FinishLine();
 }
 
@@ -1184,7 +1184,7 @@ void Renderer::DrawTriangleOutline(FVec2 p1, FVec2 p2, FVec2 p3) {
   ClearTextureDedup();
   FVec2 loop[4] = {p1, p2, p3, p1};
   renderer_->BeginLine();
-  renderer_->PushLinePoints(loop, 4);
+  renderer_->PushLinePoints(Slice<FVec2>(loop, 4));
   renderer_->FinishLine();
 }
 
@@ -1208,7 +1208,7 @@ void Renderer::DrawEllipseOutline(FVec2 center, float rx, float ry) {
                      center.y + ry * kCircle32.v[i].y);
   }
   renderer_->BeginLine();
-  renderer_->PushLinePoints(points, kSegments + 1);
+  renderer_->PushLinePoints(Slice<FVec2>(points, kSegments + 1));
   renderer_->FinishLine();
 }
 
@@ -1293,7 +1293,7 @@ void Renderer::DrawRoundedRectOutline(FVec2 top_left, FVec2 bottom_right,
   // Close the loop back to the first point.
   points[idx++] = points[0];
   renderer_->BeginLine();
-  renderer_->PushLinePoints(points, idx);
+  renderer_->PushLinePoints(Slice<FVec2>(points, idx));
   renderer_->FinishLine();
 }
 

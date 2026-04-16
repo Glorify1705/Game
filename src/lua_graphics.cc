@@ -430,7 +430,7 @@ static const LuaApiFunction kGraphicsLib[] = {
          temp.Push(FVec(x, y));
        }
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->DrawLines(temp.data(), temp.size());
+       renderer->DrawLines(MakeSlice(temp));
        return 0;
      }},
     {"print",

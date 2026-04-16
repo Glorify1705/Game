@@ -53,8 +53,7 @@ const struct LuaApiFunction kSystemLib[] = {
        if (result) {
          lua_pushnil(state);
        } else {
-         FixedStringBuffer<kMaxLogLineLength> buf;
-         buf.AllowTruncation();
+         FixedStringBuffer<kMaxLogLineLength> buf(kTruncating);
          buf.Append("Could not open ", url, ": ", SDL_GetError());
          lua_pushstring(state, SDL_GetError());
        }

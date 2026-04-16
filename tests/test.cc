@@ -122,8 +122,7 @@ TEST(Tests, FixedStringBufferTest) {
 }
 
 TEST(Tests, FixedStringBufferTruncation) {
-  FixedStringBuffer<16> buffer;
-  buffer.AllowTruncation();
+  FixedStringBuffer<16> buffer(kTruncating);
   buffer.Append("foo ");
   buffer.Append("bar");
   buffer.Append(" bar ");
@@ -165,6 +164,130 @@ TEST(Tests, SmallBufferAlias) {
   SmallBuffer buffer;
   buffer.Append("test");
   EXPECT_STREQ(buffer.str(), "test");
+}
+
+TEST(Tests, StringBufferOperatorPlusEquals) {
+  FixedStringBuffer<64> buf;
+  buf += "hello";
+  buf += ' ';
+  buf += "world";
+  EXPECT_STREQ(buf.str(), "hello world");
+}
+
+TEST(Tests, StringBufferOperatorStream) {
+  FixedStringBuffer<64> buf;
+  buf << "x=" << 42 << " y=" << 3.14;
+  EXPECT_STREQ(buf.str(), "x=42 y=3.14");
+}
+
+TEST(Tests, StringBufferView) {
+  FixedStringBuffer<32> buf("hello");
+  std::string_view sv = buf.view();
+  EXPECT_EQ(sv, "hello");
+  EXPECT_EQ(sv.size(), 5);
+  buf.Append(" world");
+  sv = buf.view();
+  EXPECT_EQ(sv, "hello world");
+}
+
+TEST(Tests, StringBufferClear) {
+  FixedStringBuffer<32> buf("hello");
+  EXPECT_FALSE(buf.empty());
+  buf.Clear();
+  EXPECT_TRUE(buf.empty());
+  EXPECT_EQ(buf.size(), 0);
+  EXPECT_STREQ(buf.str(), "");
+}
+
+TEST(Tests, StringBufferSet) {
+  FixedStringBuffer<32> buf("hello");
+  buf.Set("goodbye");
+  EXPECT_STREQ(buf.str(), "goodbye");
+  buf.Set("a", "b", "c");
+  EXPECT_STREQ(buf.str(), "abc");
+}
+
+TEST(Tests, StringBufferSetF) {
+  FixedStringBuffer<32> buf("hello");
+  buf.SetF("n=%d", 99);
+  EXPECT_STREQ(buf.str(), "n=99");
+}
+
+TEST(Tests, StringBufferAppendF) {
+  FixedStringBuffer<64> buf;
+  buf.AppendF("x=%d", 10);
+  buf.AppendF(" y=%d", 20);
+  EXPECT_STREQ(buf.str(), "x=10 y=20");
+}
+
+TEST(Tests, StringBufferRemainingAndCapacity) {
+  FixedStringBuffer<32> buf;
+  EXPECT_EQ(buf.capacity(), 32);
+  EXPECT_EQ(buf.remaining(), 32);
+  buf.Append("hello");
+  EXPECT_EQ(buf.remaining(), 27);
+  EXPECT_EQ(buf.capacity(), 32);
+}
+
+TEST(Tests, StringBufferAppendBuffer) {
+  FixedStringBuffer<32> a("hello");
+  FixedStringBuffer<32> b(" world");
+  a.AppendBuffer(b);
+  EXPECT_STREQ(a.str(), "hello world");
+}
+
+TEST(Tests, StringBufferAppendToStringProtocol) {
+  // StringBuffer can be appended to another StringBuffer via Append().
+  FixedStringBuffer<32> inner("inner");
+  FixedStringBuffer<64> outer("outer=");
+  outer.Append(inner);
+  EXPECT_STREQ(outer.str(), "outer=inner");
+}
+
+TEST(Tests, TruncatingWithInitialContent) {
+  FixedStringBuffer<8> buf(kTruncating, "hello world, this is long");
+  EXPECT_EQ(buf.size(), 8);
+  EXPECT_STREQ(buf.str(), "hello wo");
+}
+
+TEST(Tests, ExplicitConstCharStar) {
+  FixedStringBuffer<32> buf("test");
+  // Explicit conversion works.
+  const char* p = static_cast<const char*>(buf);
+  EXPECT_STREQ(p, "test");
+  // .str() also works.
+  EXPECT_STREQ(buf.str(), "test");
+}
+
+TEST(Tests, CmdBufferAlias) {
+  CmdBuffer buf("/some/long/path/to/file");
+  EXPECT_STREQ(buf.str(), "/some/long/path/to/file");
+  EXPECT_EQ(buf.capacity(), 1024);
+}
+
+TEST(Tests, StringBufferMultiTypeAppend) {
+  FixedStringBuffer<64> buf;
+  buf.Append("count=", 42, " ratio=", 3.14);
+  std::string_view sv = buf.view();
+  EXPECT_TRUE(sv.substr(0, 9) == "count=42 ");
+}
+
+TEST(Tests, NullTerminatedZeroCopy) {
+  const char* literal = "hello";
+  NullTerminated nt(std::string_view(literal, 5));
+  EXPECT_STREQ(nt.c_str(), "hello");
+  // Zero-copy: points at the original literal since it's already terminated.
+  EXPECT_EQ(nt.c_str(), literal);
+}
+
+TEST(Tests, NullTerminatedCopies) {
+  const char data[] = "helloXworld";
+  // View into the middle — not null-terminated at the view boundary.
+  std::string_view sv(data, 5);
+  NullTerminated nt(sv);
+  EXPECT_STREQ(nt.c_str(), "hello");
+  // Must have copied because the byte after the view is 'X', not '\0'.
+  EXPECT_NE(nt.c_str(), data);
 }
 
 TEST(Tests, Dictionary) {

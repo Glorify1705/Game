@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 
+#include "array.h"
 #include "error.h"
 
 namespace G {
@@ -30,7 +31,7 @@ const char* AbsolutePath(const char* path);
 ErrorOr<size_t> ReadEntireFile(const char* path, uint8_t** out,
                                Allocator* allocator);
 // Write a buffer to a file.
-ErrorOr<void> WriteEntireFile(const char* path, const void* data, size_t size);
+ErrorOr<void> WriteEntireFile(const char* path, ByteSlice data);
 ErrorOr<void> WriteFile(const char* path, const char* contents);
 ErrorOr<void> CopyFile(const char* src, const char* dst);
 ErrorOr<void> MakeExecutable(const char* path);

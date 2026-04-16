@@ -28,10 +28,9 @@ class DebugConsole {
   template <typename... Ts>
   void Log(Ts... ts) {
     LockMutex l(mu_);
-    FixedStringBuffer<kMaxLogLineLength> buf;
-    buf.AllowTruncation();
+    FixedStringBuffer<kMaxLogLineLength> buf(kTruncating);
     buf.Append(std::forward<Ts>(ts)...);
-    LogLine(buf.piece());
+    LogLine(buf.view());
   }
 
   friend DebugConsole& StartDebugConsole();

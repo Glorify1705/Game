@@ -46,7 +46,7 @@ struct FileWatcher::PlatformData {
   // full relative paths from inotify events (which only provide the basename).
   struct WatchEntry {
     int wd;
-    FixedStringBuffer<256> dir_path;
+    PathBuffer dir_path;
   };
 
   // Raw array because FixedStringBuffer has no safe copy constructor
@@ -56,7 +56,7 @@ struct FileWatcher::PlatformData {
   uint32_t watch_count = 0;
 
   // Root directory being watched (absolute path for inotify_add_watch).
-  FixedStringBuffer<512> root_path;
+  CmdBuffer root_path;
 
   // Event read buffer. Sized for ~100 events.
   static constexpr size_t kEventBufSize =
@@ -111,8 +111,8 @@ struct FileWatcher::PlatformData {
     while ((entry = readdir(dir)) != nullptr) {
       if (entry->d_name[0] == '.') continue;
       if (entry->d_type != DT_DIR) continue;
-      FixedStringBuffer<512> abs_child(abs_dir, "/", entry->d_name);
-      FixedStringBuffer<256> rel_child;
+      CmdBuffer abs_child(abs_dir, "/", entry->d_name);
+      PathBuffer rel_child;
       if (rel_dir[0] == '\0') {
         rel_child.Set(entry->d_name);
       } else {
@@ -182,12 +182,12 @@ void FileWatcher::CheckForEvents() {
     if ((event->mask & IN_CREATE) && (event->mask & IN_ISDIR)) {
       const char* parent_rel = platform_->DirForWd(event->wd);
       if (parent_rel == nullptr) continue;
-      FixedStringBuffer<512> abs_path(platform_->root_path.str(), "/");
+      CmdBuffer abs_path(platform_->root_path.str(), "/");
       if (parent_rel[0] != '\0') {
         abs_path.Append(parent_rel, "/");
       }
       abs_path.Append(name);
-      FixedStringBuffer<256> rel_path;
+      PathBuffer rel_path;
       if (parent_rel[0] != '\0') {
         rel_path.Set(parent_rel, "/", name);
       } else {
@@ -214,7 +214,7 @@ void FileWatcher::CheckForEvents() {
     const char* parent_rel = platform_->DirForWd(event->wd);
     if (parent_rel == nullptr) continue;
 
-    FixedStringBuffer<256> rel_path;
+    PathBuffer rel_path;
     if (parent_rel[0] != '\0') {
       rel_path.Set(parent_rel, "/", name);
     } else {

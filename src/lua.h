@@ -122,8 +122,7 @@ T* AsUserdata(lua_State* state, int index) {
 
 #define LUA_ERROR(state, ...)                                                \
   do {                                                                       \
-    FixedStringBuffer<kMaxLogLineLength> _luaerror_buffer;                   \
-    _luaerror_buffer.AllowTruncation();                                      \
+    FixedStringBuffer<kMaxLogLineLength> _luaerror_buffer(kTruncating);      \
     _luaerror_buffer.Append(Basename(__FILE__), ":", __LINE__,               \
                             "]: ", ##__VA_ARGS__);                           \
     lua_pushlstring(state, _luaerror_buffer.str(), _luaerror_buffer.size()); \
@@ -383,18 +382,18 @@ class Lua {
     return static_cast<Lua*>(ud)->Alloc(ptr, osize, nsize);
   }
 
-  void AddLibrary(const char* name, const luaL_Reg* funcs, size_t N);
-  void AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
-                              size_t N);
+  void AddLibrary(const char* name, Slice<const luaL_Reg> funcs);
+  void AddLibraryWithMetadata(const char* name,
+                              Slice<const LuaApiFunction> funcs);
 
   template <size_t N>
   void AddLibrary(const char* name, const luaL_Reg (&funcs)[N]) {
-    AddLibrary(name, funcs, N);
+    AddLibrary(name, Slice<const luaL_Reg>(funcs, N));
   }
 
   template <size_t N>
   void AddLibrary(const char* name, const LuaApiFunction (&funcs)[N]) {
-    AddLibraryWithMetadata(name, funcs, N);
+    AddLibraryWithMetadata(name, Slice<const LuaApiFunction>(funcs, N));
   }
 
   int StackTop() { return lua_gettop(state_); }
@@ -426,7 +425,7 @@ class Lua {
   LuaUserdataType registered_types_[kMaxUserdataTypes];
   size_t registered_type_count_ = 0;
 
-  FixedStringBuffer<1024> error_;
+  CmdBuffer error_{kTruncating};
   std::jmp_buf on_error_buf_;
 
   struct CachedScript {

@@ -38,9 +38,9 @@ void CopyRuntimeDlls(const char* src_binary, const char* output_dir) {
   if (last_sep == std::string_view::npos) return;
   std::string_view src_dir = src_path.substr(0, last_sep);
   for (const char* dll : kWindowsRuntimeDlls) {
-    FixedStringBuffer<1024> dll_src(src_dir, "/", dll);
+    CmdBuffer dll_src(src_dir, "/", dll);
     if (FileExists(dll_src.str())) {
-      FixedStringBuffer<1024> dll_dst(output_dir, "/", dll);
+      CmdBuffer dll_dst(output_dir, "/", dll);
       LOG("Copying ", dll, " to ", dll_dst.str());
       MUST(CopyFile(dll_src.str(), dll_dst.str()));
     }
@@ -61,7 +61,7 @@ ErrorOr<void> AppendFileContents(FILE* dst, const char* src_path) {
 }
 
 // Locates the 7-Zip SFX stub relative to our own executable.
-ErrorOr<void> FindSfxStub(FixedStringBuffer<1024>* out) {
+ErrorOr<void> FindSfxStub(CmdBuffer* out) {
   char exe_dir[1024];
   TRY(GetExeDir(exe_dir, sizeof(exe_dir)));
   out->Set(exe_dir, "/../toolchains/7z-sfx/7zSD.sfx");
@@ -78,13 +78,12 @@ ErrorOr<void> FindSfxStub(FixedStringBuffer<1024>* out) {
 // Creates a self-extracting archive from the output directory.
 int BuildSfxArchive(const char* output_dir, const char* binary_name,
                     const char* exe_ext) {
-  FixedStringBuffer<1024> sfx_stub;
+  CmdBuffer sfx_stub;
   if (FindSfxStub(&sfx_stub).is_error()) return 1;
 
-  FixedStringBuffer<1024> sfx_output(output_dir, "/", binary_name, ".7z",
-                                     exe_ext);
-  FixedStringBuffer<1024> tmp_config(output_dir, "/sfx_config.txt");
-  FixedStringBuffer<1024> tmp_archive(output_dir, "/sfx_archive.7z");
+  CmdBuffer sfx_output(output_dir, "/", binary_name, ".7z", exe_ext);
+  CmdBuffer tmp_config(output_dir, "/sfx_config.txt");
+  CmdBuffer tmp_archive(output_dir, "/sfx_archive.7z");
   DEFER([&] {
     remove(tmp_config.str());
     remove(tmp_archive.str());
@@ -101,8 +100,7 @@ int BuildSfxArchive(const char* output_dir, const char* binary_name,
   }
 
   // Create 7z archive of the output directory contents.
-  FixedStringBuffer<1024> archive_cmd;
-  archive_cmd.AllowTruncation();
+  CmdBuffer archive_cmd(kTruncating);
   archive_cmd.AppendF(
       "cd \"%s\" && 7z a -mx=3 sfx_archive.7z . "
       "-x!sfx_config.txt -x!sfx_archive.7z -x!*.7z.exe",
@@ -164,14 +162,14 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   }
 
   // Validate project.
-  FixedStringBuffer<1024> conf_path(source_directory, "/conf.json");
+  CmdBuffer conf_path(source_directory, "/conf.json");
   if (!FileExists(conf_path.str())) {
     fprintf(stderr, "Error: no game project found in '%s'.\n",
             source_directory);
     return 1;
   }
 
-  FixedStringBuffer<1024> main_path(source_directory, "/main.lua");
+  CmdBuffer main_path(source_directory, "/main.lua");
   if (!FileExists(main_path.str())) {
     fprintf(stderr,
             "Error: no entry point script found in '%s'.\n"
@@ -202,7 +200,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   MUST(MakeDirs(output_dir));
 
   // Pack assets into the database.
-  FixedStringBuffer<1024> db_path(output_dir, "/assets.sqlite3");
+  CmdBuffer db_path(output_dir, "/assets.sqlite3");
   sqlite3* db = nullptr;
   LOG("Creating asset database: ", db_path.str());
   if (sqlite3_open(db_path.str(), &db) != SQLITE_OK) {
@@ -244,7 +242,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
     exe_ext = ".exe";
   }
 
-  FixedStringBuffer<1024> binary_path(output_dir, "/", binary_name, exe_ext);
+  CmdBuffer binary_path(output_dir, "/", binary_name, exe_ext);
   LOG("Copying engine binary to ", binary_path.str());
   if (CopyFile(src_binary, binary_path.str()).is_error()) {
     fprintf(stderr, "Error: could not copy binary to '%s'.\n",
@@ -264,7 +262,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   // Optionally strip.
   if (strip) {
     LOG("Stripping binary: ", binary_path.str());
-    FixedStringBuffer<1024> strip_cmd("strip ", binary_path.str());
+    CmdBuffer strip_cmd("strip ", binary_path.str());
     (void)system(strip_cmd.str());
   }
 
