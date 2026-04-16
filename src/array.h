@@ -275,32 +275,6 @@ Slice<T> MakeSlice(const FixedArray<T>& a) {
   return Slice<T>(a.cdata(), a.size());
 }
 
-template <typename T>
-class ArrayView {
- public:
-  explicit ArrayView(const T* array, size_t size)
-      : array_(array), size_(size) {};
-
-  using const_iterator = const T*;
-
-  const_iterator begin() const { return array_; }
-  const_iterator end() const { return array_ + size_; }
-
- private:
-  const T* const array_;
-  const size_t size_;
-};
-
-template <typename T>
-ArrayView<T> MakeArrayView(const DynArray<T>& a) {
-  return ArrayView(a.cdata(), a.size());
-}
-
-template <typename T>
-ArrayView<T> MakeArrayView(const FixedArray<T>& a) {
-  return ArrayView(a.cdata(), a.size());
-}
-
 using ByteSlice = Slice<const uint8_t>;
 
 template <size_t N>

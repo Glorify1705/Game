@@ -485,12 +485,12 @@ class Renderer {
     return result;
   }
 
-  ArrayView<DbAssets::Sprite> GetSprites() const {
-    return MakeArrayView(loaded_sprites_);
+  Slice<DbAssets::Sprite> GetSprites() const {
+    return MakeSlice(loaded_sprites_);
   }
 
-  ArrayView<DbAssets::Image> GetImages() const {
-    return MakeArrayView(loaded_images_);
+  Slice<DbAssets::Image> GetImages() const {
+    return MakeSlice(loaded_images_);
   }
 
   // Returns the previous color.
