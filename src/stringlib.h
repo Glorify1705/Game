@@ -96,7 +96,7 @@ class Alphanumeric {
   Alphanumeric(const Alphanumeric&) = delete;
   Alphanumeric& operator=(const Alphanumeric&) = delete;
 
-  std::string_view piece() const { return piece_; }
+  std::string_view view() const { return piece_; }
 
  private:
   char buf_[32] = {0};
@@ -174,7 +174,7 @@ class StringBuffer {
   size_t size() const { return pos_; }
 
   // Returns a string_view of the written content.
-  std::string_view piece() const { return std::string_view(str(), size()); }
+  std::string_view view() const { return std::string_view(str(), size()); }
 
   // Resets the buffer to empty.
   void Clear() { pos_ = 0; }
@@ -202,7 +202,7 @@ class StringBuffer {
     if constexpr (internal_strings::HasAppendString<T>::value) {
       AppendToString(t, *this);
     } else {
-      AppendStr(internal_strings::Alphanumeric(t).piece());
+      AppendStr(internal_strings::Alphanumeric(t).view());
     }
   }
 

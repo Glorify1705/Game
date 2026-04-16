@@ -107,7 +107,7 @@ void CollectCallback(const DirEntry& entry, void* userdata) {
   sprite_name.Append(name_part);
 
   SpriteInput si;
-  si.name = StrDupZ(state->allocator, sprite_name.piece());
+  si.name = StrDupZ(state->allocator, sprite_name.view());
   si.pixels = img.pixels;
   si.width = img.width;
   si.height = img.height;

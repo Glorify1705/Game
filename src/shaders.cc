@@ -263,7 +263,7 @@ ErrorOr<void> Shaders::Load(const DbAssets::Shader& shader) {
   code.Append(kFragmentShaderPreamble);
   code.AppendBuffer(shader.contents, shader.size);
   code.Append(kFragmentShaderPostamble);
-  TRY(Compile(shader.type, shader.name, code.piece(), kForceCompile));
+  TRY(Compile(shader.type, shader.name, code.view(), kForceCompile));
   std::string_view program_name = shader.name;
   CHECK(ConsumeSuffix(&program_name, ".frag"),
         " cannot hot reload vertex shaders yet.");

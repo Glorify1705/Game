@@ -31,7 +31,7 @@ class DebugConsole {
     FixedStringBuffer<kMaxLogLineLength> buf;
     buf.AllowTruncation();
     buf.Append(std::forward<Ts>(ts)...);
-    LogLine(buf.piece());
+    LogLine(buf.view());
   }
 
   friend DebugConsole& StartDebugConsole();
