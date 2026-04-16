@@ -43,7 +43,7 @@ tags: [index]
 
 | Document | Tags | Summary | Status |
 |----------|------|---------|--------|
-| [Cross compilation](Cross%20compilation.md) | build, cross-compilation, packaging | MinGW cross-compile from Linux to Windows | Phase 0 (vendor SDL3) done; packaging and toolchain pending |
+| [Cross compilation](Cross%20compilation.md) | build, cross-compilation, packaging, sfx | MinGW cross-compile from Linux to Windows | Phases 0–2 done (toolchain, packaging, SFX, DLL copying); `--target` convenience flag and CI pending |
 | [Module memory budgets](Module%20memory%20budgets.md) | memory, allocators, architecture | Per-module sub-arenas, watermark tracking | Batch renderer overflow fix shipped; per-module arenas and watermarks pending |
 | [SDL3 migration](SDL3%20migration.md) | sdl, migration, core | SDL2 to SDL3 API migration | SDL3 vendored and building; C++ API migration pending |
 
@@ -93,7 +93,8 @@ the engine stand out and what's needed to ship complete games.
 
 **Engine differentiators** (things no comparison engine has): hot reload, Fennel
 scripting, CLI tooling, SDF fonts, SQLite asset pipeline, type stubs for IDE,
-arena memory management, vendored SDL3 source build, cross-compilation support.
+arena memory management, vendored SDL3 source build, Linux-to-Windows
+cross-compilation with SFX packaging.
 
 ### P0 — Finish what's started
 
@@ -110,13 +111,13 @@ Low effort, high return. Complete in-progress work to close gaps cheaply.
 
 The biggest remaining gaps vs other engines. Required to ship non-trivial games.
 
-| Feature | Rationale |
-|---------|-----------|
-| [Save and persistence](Save%20and%20persistence.md) | Can't ship any game with progression without this. SQLite KV store, platform save dirs, achievements. Only Carimbo has built-in achievements. |
-| [Test input system](Test%20input%20system.md) | Automated testing via synthetic input. Raylib and libGDX both support this — strongest cross-engine signal for testability. Pairs with CI. |
-| Math utilities | Lerp, distance, angle, direction, noise. Used in virtually every game script. |
-| Scene/state management | Scene lifecycle (init/update/draw/cleanup), deferred switching, per-scene resource cleanup. Reduces boilerplate for menu/gameplay/pause states. Carimbo's SceneManager is the reference. |
-| Input action binding | Abstract action mapping (buttons to "jump"/"shoot"), rebinding, hold detection. high_impact and Anchor support this. |
+| Feature                                             | Rationale                                                                                                                                                                                |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Save and persistence](Save%20and%20persistence.md) | Can't ship any game with progression without this. SQLite KV store, platform save dirs, achievements. Only Carimbo has built-in achievements.                                            |
+| [Test input system](Test%20input%20system.md)       | Automated testing via synthetic input. Raylib and libGDX both support this — strongest cross-engine signal for testability. Pairs with CI.                                               |
+| Math utilities                                      | Lerp, distance, angle, direction, noise. Used in virtually every game script.                                                                                                            |
+| Scene/state management                              | Scene lifecycle (init/update/draw/cleanup), deferred switching, per-scene resource cleanup. Reduces boilerplate for menu/gameplay/pause states. Carimbo's SceneManager is the reference. |
+| Input action binding                                | Abstract action mapping (buttons to "jump"/"shoot"), rebinding, hold detection. high_impact and Anchor support this.                                                                     |
 
 ### P2 — Strengthen differentiators
 
@@ -124,7 +125,7 @@ Invest in what already sets the engine apart.
 
 | Document | Rationale |
 |----------|-----------|
-| [Cross compilation](Cross%20compilation.md) | Phase 0 done. Complete `--engine-binary` packaging and MinGW toolchain to ship Windows builds from Linux. |
+| [Cross compilation](Cross%20compilation.md) | Phases 0–2 done. Remaining: `--target` convenience flag (Phase 3) and CI release builds (Phase 4). |
 | [REPL and live interaction](REPL%20and%20live%20interaction.md) | In review (PR #46). Extends hot-reload into live debugging — no comparison engine has this. |
 | [Sound hot reload](Sound%20hot%20reload.md) | Per-asset incremental reload. Makes hot-reload seamless across all asset types. |
 | [Sound stream free list](Sound%20stream%20free%20list.md) | Prevents slot exhaustion during rapid sound effects. Small fix, real gameplay bug. |
@@ -141,12 +142,12 @@ Reaching more platforms multiplies the value of everything above.
 
 Valuable but not blocking. Build these when a specific game needs them.
 
-| Document | Rationale |
-|---------|-----------|
-| [Particle system](Particle%20system.md) | Visual polish. Can be prototyped in Lua first. |
-| Tilemap system | Essential for platformers/RPGs. libGDX has Tiled/TMX import; high_impact has slope collision. No design doc yet. |
-| Drawing primitives | Ellipses, arcs, rounded rects, polygons, gradients. Raylib is the reference. |
-| [Networking](Networking.md) | Only needed for multiplayer games. |
-| [AI utilities](AI%20utilities.md) | Only needed for games with AI agents. |
-| [LuaJIT Migration](LuaJIT%20Migration.md) | Performance optimization. Current Lua 5.1 is adequate for most games. |
-| [Asset system improvements](Asset%20system%20improvements.md) | Current SQLite system works. ZIP+index is an optimization for large games. |
+| Document                                                      | Rationale                                                                                                        |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [Particle system](Particle%20system.md)                       | Visual polish. Can be prototyped in Lua first.                                                                   |
+| Tilemap system                                                | Essential for platformers/RPGs. libGDX has Tiled/TMX import; high_impact has slope collision. No design doc yet. |
+| Drawing primitives                                            | Ellipses, arcs, rounded rects, polygons, gradients. Raylib is the reference.                                     |
+| [Networking](Networking.md)                                   | Only needed for multiplayer games.                                                                               |
+| [AI utilities](AI%20utilities.md)                             | Only needed for games with AI agents.                                                                            |
+| [LuaJIT Migration](LuaJIT%20Migration.md)                     | Performance optimization. Current Lua 5.1 is adequate for most games.                                            |
+| [Asset system improvements](Asset%20system%20improvements.md) | Current SQLite system works. ZIP+index is an optimization for large games.                                       |

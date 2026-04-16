@@ -13,6 +13,16 @@
 
 namespace G {
 
+// Body type for physics bodies.
+enum class PhysicsBodyType : uint8_t {
+  // Fully simulated. Responds to forces, impulses, gravity, collisions.
+  kDynamic = 0,
+  // Does not move. Infinite mass. Used for ground, walls, platforms.
+  kStatic = 1,
+  // Moves at a set velocity but unaffected by forces or collisions.
+  kKinematic = 2,
+};
+
 // Options for shape creation. Controls material, filtering, and sensing.
 struct PhysicsShapeOptions {
   // Mass per unit area. Higher = heavier for the same size.
@@ -23,6 +33,8 @@ struct PhysicsShapeOptions {
   float restitution = 0.0f;
   // Sensor shapes detect overlap without physical response.
   bool sensor = false;
+  // Body type (dynamic, static, or kinematic).
+  PhysicsBodyType body_type = PhysicsBodyType::kDynamic;
   // Collision category bit (what this shape is).
   uint16_t category = 0x0001;
   // Collision mask bits (what this shape collides with).
@@ -127,6 +139,38 @@ class Physics final : public b2ContactListener {
   // around the screen perimeter.
   void CreateGround(bool walls = true);
 
+  // Sets the world gravity vector in pixels/s^2.
+  void SetWorldGravity(FVec2 gravity);
+
+  // Returns the world gravity vector in pixels/s^2.
+  FVec2 GetWorldGravity() const;
+
+  // Sets the solver iteration counts per time step.
+  void SetIterations(int velocity_iterations, int position_iterations);
+
+  // Returns the pixels-per-meter scale factor (read-only after construction).
+  float GetPixelsPerMeter() const { return pixels_per_meter_; }
+
+  // Raycast hit result returned to callers.
+  struct RaycastHit {
+    // The body that was hit.
+    Handle handle;
+    // The hit point in pixel-space.
+    FVec2 point;
+    // The surface normal at the hit point.
+    FVec2 normal;
+    // Parametric fraction along the ray (0 = start, 1 = end).
+    float fraction;
+  };
+
+  // Casts a ray and returns the closest hit. Returns true if something was hit.
+  bool Raycast(FVec2 from, FVec2 to, uint16_t mask, RaycastHit *out) const;
+
+  // Casts a ray and returns all hits, sorted by fraction (closest first).
+  // Results are appended to the output array. Returns the number of hits.
+  int RaycastAll(FVec2 from, FVec2 to, uint16_t mask, RaycastHit *out,
+                 int max_hits) const;
+
  private:
   static void DefaultDestroy(uintptr_t, void *) {}
 
@@ -151,6 +195,10 @@ class Physics final : public b2ContactListener {
 
   DestroyCallback destroy_callback_ = DefaultDestroy;
   void *destroy_userdata_ = this;
+
+  // Solver iteration counts per time step.
+  int velocity_iterations_ = 6;
+  int position_iterations_ = 2;
 
   // Interned category names, indexed by bit position.
   std::array<uint32_t, 16> category_handles_ = {};

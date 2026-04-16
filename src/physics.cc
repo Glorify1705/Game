@@ -1,5 +1,7 @@
 #include "physics.h"
 
+#include <algorithm>
+
 namespace G {
 namespace {
 
@@ -10,6 +12,68 @@ void* Box2dAlloc(void* ctx, int32_t size, int32_t align) {
 void Box2dFree(void* ctx, void* ptr, int32_t size) {
   static_cast<Allocator*>(ctx)->Dealloc(ptr, size);
 }
+
+b2BodyType ToBox2dBodyType(PhysicsBodyType type) {
+  switch (type) {
+    case PhysicsBodyType::kStatic:
+      return b2_staticBody;
+    case PhysicsBodyType::kKinematic:
+      return b2_kinematicBody;
+    default:
+      return b2_dynamicBody;
+  }
+}
+
+// b2RayCastCallback that keeps only the closest hit.
+struct ClosestRaycastCallback : b2RayCastCallback {
+  Physics::RaycastHit hit;
+  uint16_t mask;
+  bool found = false;
+  float closest = 1.0f;
+
+  float ReportFixture(b2Fixture* fixture, const b2Vec2& point,
+                      const b2Vec2& normal, float fraction) override {
+    if (mask != 0xFFFF) {
+      uint16_t cat = fixture->GetFilterData().categoryBits;
+      if ((cat & mask) == 0) return -1;
+    }
+    if (fraction < closest) {
+      closest = fraction;
+      found = true;
+      b2Body* body = fixture->GetBody();
+      hit.handle = Physics::Handle{body, body->GetUserData().pointer};
+      hit.point = FVec(point.x, point.y);
+      hit.normal = FVec(normal.x, normal.y);
+      hit.fraction = fraction;
+    }
+    return fraction;
+  }
+};
+
+// b2RayCastCallback that collects all hits up to a maximum.
+struct AllRaycastCallback : b2RayCastCallback {
+  Physics::RaycastHit* hits;
+  int count = 0;
+  int max;
+  uint16_t mask;
+  float ppm;
+
+  float ReportFixture(b2Fixture* fixture, const b2Vec2& point,
+                      const b2Vec2& normal, float fraction) override {
+    if (mask != 0xFFFF) {
+      uint16_t cat = fixture->GetFilterData().categoryBits;
+      if ((cat & mask) == 0) return -1;
+    }
+    if (count >= max) return 0;
+    b2Body* body = fixture->GetBody();
+    hits[count].handle = Physics::Handle{body, body->GetUserData().pointer};
+    hits[count].point = FVec(point.x, point.y) * ppm;
+    hits[count].normal = FVec(normal.x, normal.y);
+    hits[count].fraction = fraction;
+    count++;
+    return 1;
+  }
+};
 
 }  // namespace
 
@@ -136,7 +200,7 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
   const b2Vec2 tl = To(top_left);
   const b2Vec2 br = To(bottom_right);
   b2BodyDef def;
-  def.type = b2_dynamicBody;
+  def.type = ToBox2dBodyType(options.body_type);
   def.position.Set((tl.x + br.x) / 2, (tl.y + br.y) / 2);
   def.userData.pointer = userdata;
   b2PolygonShape box;
@@ -151,7 +215,9 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
   fixture.filter.categoryBits = options.category;
   fixture.filter.maskBits = options.mask;
   body->CreateFixture(&fixture);
-  if (options.sensor) return Handle{body, userdata};
+  if (options.body_type != PhysicsBodyType::kDynamic || options.sensor) {
+    return Handle{body, userdata};
+  }
   // Friction joint anchors the body to the ground to simulate top-down drag.
   // Without it, bodies slide forever since world gravity is zero.
   b2FrictionJointDef jd;
@@ -176,7 +242,7 @@ Physics::Handle Physics::AddCircle(FVec2 position, double radius,
   CHECK(ground_, "create_ground() must be called before add_circle()");
   const b2Vec2 p = To(position);
   b2BodyDef def;
-  def.type = b2_dynamicBody;
+  def.type = ToBox2dBodyType(options.body_type);
   def.position.Set(p.x, p.y);
   def.userData.pointer = userdata;
   b2CircleShape circle;
@@ -195,7 +261,9 @@ Physics::Handle Physics::AddCircle(FVec2 position, double radius,
   fixture.filter.categoryBits = options.category;
   fixture.filter.maskBits = options.mask;
   body->CreateFixture(&fixture);
-  if (options.sensor) return Handle{body, userdata};
+  if (options.body_type != PhysicsBodyType::kDynamic || options.sensor) {
+    return Handle{body, userdata};
+  }
   // Friction joint anchors the body to the ground to simulate top-down drag.
   // Without it, bodies slide forever since world gravity is zero.
   b2FrictionJointDef jd;
@@ -315,10 +383,53 @@ b2Vec2 Physics::To(FVec2 v) const {
   return b2Vec2(v.x / pixels_per_meter_, v.y / pixels_per_meter_);
 }
 
+void Physics::SetWorldGravity(FVec2 gravity) {
+  world_.SetGravity(
+      b2Vec2(gravity.x / pixels_per_meter_, gravity.y / pixels_per_meter_));
+}
+
+FVec2 Physics::GetWorldGravity() const {
+  b2Vec2 g = world_.GetGravity();
+  return FVec(g.x, g.y) * pixels_per_meter_;
+}
+
+void Physics::SetIterations(int velocity_iterations, int position_iterations) {
+  velocity_iterations_ = velocity_iterations;
+  position_iterations_ = position_iterations;
+}
+
+bool Physics::Raycast(FVec2 from, FVec2 to, uint16_t mask,
+                      RaycastHit* out) const {
+  ClosestRaycastCallback cb;
+  cb.mask = mask;
+  // b2World::RayCast is logically const but not declared so in Box2D.
+  const_cast<b2World&>(world_).RayCast(&cb, To(from), To(to));
+  if (cb.found) {
+    out->handle = cb.hit.handle;
+    out->point = FVec(cb.hit.point.x, cb.hit.point.y) * pixels_per_meter_;
+    out->normal = cb.hit.normal;
+    out->fraction = cb.hit.fraction;
+    return true;
+  }
+  return false;
+}
+
+int Physics::RaycastAll(FVec2 from, FVec2 to, uint16_t mask, RaycastHit* out,
+                        int max_hits) const {
+  AllRaycastCallback cb;
+  cb.hits = out;
+  cb.max = max_hits;
+  cb.mask = mask;
+  cb.ppm = pixels_per_meter_;
+  const_cast<b2World&>(world_).RayCast(&cb, To(from), To(to));
+  std::sort(out, out + cb.count, [](const RaycastHit& a, const RaycastHit& b) {
+    return a.fraction < b.fraction;
+  });
+  return cb.count;
+}
+
 void Physics::Update(float dt) {
-  constexpr int32_t kVelocityIterations = 6;
-  constexpr int32_t kPositionIterations = 2;
-  world_.Step(dt, kVelocityIterations, kPositionIterations);
+  world_.Step(dt, velocity_iterations_, position_iterations_);
 }
 
 }  // namespace G
