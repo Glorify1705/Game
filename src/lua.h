@@ -382,18 +382,18 @@ class Lua {
     return static_cast<Lua*>(ud)->Alloc(ptr, osize, nsize);
   }
 
-  void AddLibrary(const char* name, const luaL_Reg* funcs, size_t N);
-  void AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
-                              size_t N);
+  void AddLibrary(const char* name, Slice<const luaL_Reg> funcs);
+  void AddLibraryWithMetadata(const char* name,
+                              Slice<const LuaApiFunction> funcs);
 
   template <size_t N>
   void AddLibrary(const char* name, const luaL_Reg (&funcs)[N]) {
-    AddLibrary(name, funcs, N);
+    AddLibrary(name, Slice<const luaL_Reg>(funcs, N));
   }
 
   template <size_t N>
   void AddLibrary(const char* name, const LuaApiFunction (&funcs)[N]) {
-    AddLibraryWithMetadata(name, funcs, N);
+    AddLibraryWithMetadata(name, Slice<const LuaApiFunction>(funcs, N));
   }
 
   int StackTop() { return lua_gettop(state_); }

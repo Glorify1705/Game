@@ -233,12 +233,12 @@ bool Lua::LoadFromCache(std::string_view script_name, lua_State* state) {
   return false;
 }
 
-void Lua::AddLibrary(const char* name, const luaL_Reg* funcs, size_t N) {
+void Lua::AddLibrary(const char* name, Slice<const luaL_Reg> funcs) {
   LUA_CHECK_STACK(state_);
   LOG("Adding library ", name);
   lua_getglobal(state_, "G");
   lua_newtable(state_);
-  for (size_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < funcs.size(); ++i) {
     CHECK(funcs[i].name != nullptr, "Invalid entry for library ", name, ": ",
           i);
     const auto* func = &funcs[i];
@@ -254,15 +254,16 @@ void Lua::RegisterUserdataType(const LuaUserdataType& type) {
   registered_types_[registered_type_count_++] = type;
 }
 
-void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
-                                 size_t N) {
+void Lua::AddLibraryWithMetadata(const char* name,
+                                 Slice<const LuaApiFunction> funcs) {
   LUA_CHECK_STACK(state_);
   LOG("Adding library ", name);
   CHECK(registered_library_count_ < kMaxLibraries, "Too many libraries");
-  registered_libraries_[registered_library_count_++] = {name, funcs, N};
+  registered_libraries_[registered_library_count_++] = {name, funcs.data(),
+                                                        funcs.size()};
   lua_getglobal(state_, "G");
   lua_newtable(state_);
-  for (size_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < funcs.size(); ++i) {
     LUA_CHECK_STACK(state_);
     CHECK(funcs[i].name != nullptr, "Invalid entry for library ", name, ": ",
           i);
@@ -275,7 +276,7 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
   // Add the docs.
   lua_getglobal(state_, "_Docs");
   lua_newtable(state_);
-  for (size_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < funcs.size(); ++i) {
     LUA_CHECK_STACK(state_);
     // Create a table with docstring, and args fields.
     lua_newtable(state_);
@@ -306,7 +307,7 @@ void Lua::AddLibraryWithMetadata(const char* name, const LuaApiFunction* funcs,
   lua_setfield(state_, -2, name);
   // Add the functions in the library with a link to the
   // corresponding entry as a light user data.
-  for (size_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < funcs.size(); ++i) {
     LUA_CHECK_STACK(state_);
     lua_getfield(state_, -1, name);
     lua_pushstring(state_, funcs[i].name);
