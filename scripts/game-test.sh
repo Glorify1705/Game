@@ -4,7 +4,8 @@
 # Uses the "dev" CMake preset (Debug) and builds the Tests target.
 # Sanitizers (ASan/UBSan) are always enabled for the test binary.
 #
-# Arguments: none.
+# Extra arguments are forwarded to ctest (e.g. -R <regex> to filter tests).
 set -euo pipefail
 cmake --preset dev
 cmake --build --preset test
+ctest --preset dev "$@"

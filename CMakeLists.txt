@@ -305,5 +305,10 @@ if(NOT CMAKE_CROSSCOMPILING)
   target_link_options(Tests PRIVATE $<${IS_GCC_LIKE}:-fsanitize=address,undefined>)
 
   include(GoogleTest)
-  gtest_discover_tests(Tests)
+  gtest_discover_tests(Tests
+      DISCOVERY_TIMEOUT 10
+      PROPERTIES
+          TIMEOUT 30
+          LABELS "unit"
+  )
 endif()
