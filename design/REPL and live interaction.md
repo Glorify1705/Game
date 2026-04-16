@@ -86,15 +86,18 @@ The engine already supports Fennel (a Lisp that compiles to Lua) and has file-wa
                     ┌───────────────────┼───────────┐
                     │                   │           │
               ┌─────▼──────┐   ┌───────▼───┐  ┌───▼────┐
-              │   Browser   │   │   Claude  │  │ Editor │
-              │  (HTML/JS)  │   │  (MCP/API)│  │(future)│
+              │   Browser   │   │Claude Code│  │ Editor │
+              │  (HTML/JS)  │   │  (MCP)    │  │(future)│
+              │  WebSocket  │   │  HTTP     │  │ NDJSON │
               └────────────┘   └───────────┘  └────────┘
 ```
 
-Two components:
+The REPL server multiplexes three protocols on a single TCP port, detected
+by inspecting the first bytes of each connection:
 
-1. **REPL Server (C++)** — A TCP server running inside the game process, on a dedicated thread. Accepts connections, receives eval requests, queues them for the main thread, and sends back results. Also serves a small embedded HTML page for the browser UI.
-2. **Browser UI (HTML/JS)** — A single HTML page with a terminal-style REPL. Connects to the server via WebSocket. Sends expressions, receives results and streaming `print()` output.
+1. **WebSocket** (browser) — First bytes are `GET ` with an `Upgrade: websocket` header. The server performs the WebSocket handshake and switches to framed messages. The embedded browser UI connects this way.
+2. **MCP over HTTP** (Claude Code) — First bytes are `POST /mcp` with JSON-RPC 2.0 content. The server speaks [MCP Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) directly. Claude Code connects with `"url": "http://localhost:9741/mcp"`.
+3. **Raw NDJSON** (scripts, netcat) — First byte is `{`. Line-delimited JSON, same protocol as the internal wire format. Useful for quick testing with `echo '...' | nc localhost 9741`.
 
 ### Why WebSocket over plain HTTP
 
@@ -108,7 +111,8 @@ Lovebird uses HTTP polling for `print()` output. This has visible latency (at le
 
 A custom TCP protocol would be simpler on the C++ side, but:
 - Browser JavaScript cannot open raw TCP sockets (WebSocket is the only option for browser ↔ localhost)
-- A plain TCP mode is still useful for non-browser clients (LLMs, editors, scripts). We support both: the same TCP server speaks HTTP/WebSocket for browser connections and a line-based JSON protocol for raw TCP connections, distinguished by the first bytes received.
+- Claude Code's MCP integration expects HTTP (Streamable HTTP transport) — raw TCP won't work
+- A plain TCP mode is still useful for non-browser, non-MCP clients (editors, scripts, `nc`). We support all three: the same TCP server speaks HTTP/WebSocket for browser connections, MCP over HTTP for Claude Code, and a line-based JSON protocol for raw TCP connections, distinguished by the first bytes received.
 
 ## Wire protocol
 
@@ -594,156 +598,57 @@ The protocol is deliberately LLM-friendly:
 ← {"id":14, "type":"result", "ok":true, "format":"png", "data":"iVBORw0KGgo..."}
 ```
 
-### MCP server wrapper
+### MCP server built into the REPL server
 
-For integration with Claude Code or similar MCP-aware tools, a thin MCP server wraps the TCP connection. This is a separate process (Python or TypeScript) that:
+The REPL server speaks MCP natively over HTTP on the same port as the
+WebSocket and NDJSON protocols. No separate process, no external
+dependencies. Claude Code connects directly to the running game.
 
-1. Connects to `localhost:9741` via raw TCP
-2. Exposes MCP tools that map 1:1 to protocol operations
-3. Includes the LuaLS stub file as an MCP resource so the LLM has the full API reference
-4. Handles connection lifecycle (reconnect if game restarts)
+The MCP implementation follows the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http)
+spec: Claude Code sends `POST /mcp` requests with JSON-RPC 2.0 bodies,
+and the server responds with JSON-RPC 2.0 results. For server-initiated
+notifications (log streaming, watch updates), the server uses SSE on
+`GET /mcp` with `Accept: text/event-stream`.
 
-```python
-# mcp_game_server.py — MCP server wrapping the REPL TCP connection
-# Runs as: python mcp_game_server.py (stdio transport)
+The MCP handler is part of the same HTTP detection path that already
+handles WebSocket upgrades and static HTML serving. When the REPL server
+sees `POST /mcp`, it parses the JSON-RPC request, translates it to the
+internal eval queue (the same queue used by WebSocket and NDJSON clients),
+and formats the response as MCP JSON-RPC.
 
-import json
-import socket
-from mcp.server import Server
+#### MCP tools exposed
 
-class GameConnection:
-    """Persistent TCP connection to the game's REPL server."""
+| Tool | Maps to | Description |
+|------|---------|-------------|
+| `game_eval` | `eval` | Evaluate Lua/Fennel code in the running game |
+| `game_inspect` | `inspect` | Deep-print a Lua value (tables, metatables, userdata) |
+| `game_complete` | `complete` | Tab-complete a Lua expression |
+| `game_state` | `state` | Get engine state (FPS, Lua memory, error status) |
+| `game_step` | `step` | Advance N frames then pause |
+| `game_screenshot` | `screenshot` | Capture current frame as PNG (returned as image content) |
+| `game_docs` | `docs` | Query API documentation from the `_Docs` table |
+| `game_read_file` | `read_file` | Read a game script's source |
+| `game_write_file` | `write_file` | Write a game script (triggers hot-reload) |
 
-    def __init__(self, host="127.0.0.1", port=9741):
-        self.host = host
-        self.port = port
-        self.sock = None
-        self.request_id = 0
-        self.buffer = b""
+#### MCP resources
 
-    def connect(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect((self.host, self.port))
+| Resource | Description |
+|----------|-------------|
+| `game://api-reference` | The LuaLS stub file (`definitions/game.lua`) — full API reference |
 
-    def send_request(self, op, **params):
-        self.request_id += 1
-        msg = {"id": self.request_id, "op": op, **params}
-        self.sock.sendall((json.dumps(msg) + "\n").encode())
-        return self._collect_response(self.request_id)
+#### Implementation notes
 
-    def _collect_response(self, request_id):
-        """Read lines until we get the result for this request ID."""
-        outputs = []
-        while True:
-            line = self._read_line()
-            msg = json.loads(line)
-            if msg.get("id") == request_id:
-                if msg.get("type") == "output":
-                    outputs.append(msg["text"])
-                elif msg.get("type") == "result":
-                    return {
-                        "output": "".join(outputs),
-                        "ok": msg["ok"],
-                        "value": msg.get("value", ""),
-                        "error": msg.get("error", ""),
-                    }
+The MCP layer is ~200–300 lines added to `repl.cc`. The key insight is that
+MCP tool calls map 1:1 to existing REPL operations — the eval queue, Lua VM
+access, and response formatting are all shared. The MCP layer only handles:
 
-    def _read_line(self):
-        while b"\n" not in self.buffer:
-            data = self.sock.recv(4096)
-            if not data:
-                raise ConnectionError("Game disconnected")
-            self.buffer += data
-        line, self.buffer = self.buffer.split(b"\n", 1)
-        return line.decode()
+1. Parsing JSON-RPC 2.0 envelope (method, params, id)
+2. Translating `tools/call` params to the internal `EvalRequest` format
+3. Formatting results as MCP `content` blocks (text or image)
+4. Responding to `initialize`, `tools/list`, and `resources/list` meta-methods
 
-server = Server("game-engine")
-game = GameConnection()
-
-@server.tool("game_eval")
-def game_eval(code: str, lang: str = "lua") -> str:
-    """Evaluate Lua or Fennel code in the running game engine.
-    Returns the result of the expression, or any error message.
-    Use 'return expr' to get values back. Statements without return
-    execute but return empty string."""
-    result = game.send_request("eval", code=code, lang=lang)
-    parts = []
-    if result["output"]:
-        parts.append(f"Output:\n{result['output']}")
-    if result["ok"]:
-        parts.append(f"Result: {result['value']}")
-    else:
-        parts.append(f"Error: {result['error']}")
-    return "\n".join(parts)
-
-@server.tool("game_inspect")
-def game_inspect(expr: str, depth: int = 3) -> str:
-    """Deep-inspect a Lua value. Shows table contents, metatables,
-    userdata types. Use 'G' to see all engine modules, 'G.graphics'
-    to see graphics functions, etc."""
-    result = game.send_request("inspect", expr=expr, depth=depth)
-    return result["value"] if result["ok"] else f"Error: {result['error']}"
-
-@server.tool("game_complete")
-def game_complete(prefix: str) -> str:
-    """Tab-complete a Lua expression. Returns matching field names.
-    Example: prefix='G.graphics.draw' returns all draw_* functions."""
-    result = game.send_request("complete", prefix=prefix)
-    return result["value"] if result["ok"] else f"Error: {result['error']}"
-
-@server.tool("game_state")
-def game_state() -> str:
-    """Get engine state: FPS, Lua memory usage, error status,
-    paused/running, frame count."""
-    result = game.send_request("state")
-    return result["value"] if result["ok"] else f"Error: {result['error']}"
-
-@server.tool("game_step")
-def game_step(n: int = 1) -> str:
-    """Advance the game by exactly N frames, then pause.
-    Useful for observing state changes frame-by-frame."""
-    result = game.send_request("step", n=n)
-    return result["value"] if result["ok"] else f"Error: {result['error']}"
-
-@server.tool("game_screenshot")
-def game_screenshot() -> str:
-    """Capture the current frame as a base64-encoded PNG image."""
-    result = game.send_request("screenshot")
-    if result["ok"]:
-        return f"data:image/png;base64,{result['value']}"
-    return f"Error: {result['error']}"
-
-@server.tool("game_docs")
-def game_docs(query: str) -> str:
-    """Query the engine's API documentation. Use 'G' for top-level modules,
-    'G.graphics' for graphics functions, 'G.graphics.draw_sprite' for
-    a specific function's signature and docs."""
-    result = game.send_request("docs", query=query)
-    return result["value"] if result["ok"] else f"Error: {result['error']}"
-
-@server.tool("game_read_file")
-def game_read_file(path: str) -> str:
-    """Read a game script file's source code."""
-    result = game.send_request("read_file", path=path)
-    return result["value"] if result["ok"] else f"Error: {result['error']}"
-
-@server.tool("game_write_file")
-def game_write_file(path: str, content: str) -> str:
-    """Write to a game script file. This triggers a hot reload automatically."""
-    result = game.send_request("write_file", path=path, content=content)
-    return result["value"] if result["ok"] else f"Error: {result['error']}"
-
-@server.resource("game://api-reference")
-def api_reference() -> str:
-    """The complete Lua API reference for the game engine (LuaLS stub file).
-    Read this to understand all available functions before writing code."""
-    with open("definitions/game.lua") as f:
-        return f.read()
-
-if __name__ == "__main__":
-    game.connect()
-    server.run()
-```
+Screenshots return MCP image content blocks (base64 PNG) which Claude Code
+can display natively. All other tools return text content.
 
 ### Claude Code integration
 
@@ -753,15 +658,17 @@ Add to `.claude/settings.json`:
 {
   "mcpServers": {
     "game-engine": {
-      "command": "python",
-      "args": ["mcp_game_server.py"],
-      "cwd": "/path/to/game/project"
+      "url": "http://localhost:9741/mcp"
     }
   }
 }
 ```
 
-This gives Claude Code direct access to the running game. When asked to "make the player jump higher", Claude can:
+No Python, no Node, no bridge process. Claude Code connects directly to the
+running game. The game must be running (`game run`) before Claude Code
+attempts to use the MCP tools.
+
+When asked to "make the player jump higher", Claude can:
 1. Read the API docs via `game_docs("G.physics")`
 2. Inspect current state via `game_eval("return player.jump_force")`
 3. Modify the script file via `game_write_file`
@@ -1016,15 +923,15 @@ src/repl_socket.cc   — Platform-specific socket implementation
    - Record per-frame timing for N frames using the existing `TIMER` / profiler infrastructure.
    - Return a summary: min/max/avg frame time, per-subsystem breakdown (Update, Physics, Lua, Render).
 
-### Phase 6: File operations + MCP server
+### Phase 6: File operations + MCP endpoint
 
 **Tasks:**
 
 1. **`files` operation** — list scripts in the asset database, optionally filtered by glob pattern.
 2. **`read_file` operation** — read a script file's source from the asset database or filesystem.
 3. **`write_file` operation** — write to a script file on disk. Triggers hot reload via `RequestHotload()`.
-4. **MCP server** (`scripts/mcp_game_server.py`) — the Python script from the design above. Minimal dependencies: just the `mcp` Python package.
-5. **Claude Code configuration** — document how to add the MCP server to `.claude/settings.json`.
+4. **MCP endpoint on the REPL server** — add `POST /mcp` handler to the existing HTTP detection path. Implement MCP Streamable HTTP transport: parse JSON-RPC 2.0 requests, dispatch to the eval queue, format responses as MCP content blocks. Handle `initialize`, `tools/list`, `resources/list`, and `tools/call` methods. ~200–300 lines added to `repl.cc`.
+5. **Claude Code configuration** — add `http://localhost:9741/mcp` as an MCP server URL in `.claude/settings.json`.
 
 ### Phase 7: Polish and robustness
 

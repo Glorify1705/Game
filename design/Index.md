@@ -65,6 +65,7 @@ tags: [index]
 |----------|------|---------|
 | [AI utilities](AI%20utilities.md) | gameplay, ai | Behavior trees, decision trees, and AI scaffolding |
 | [Asset system improvements](Asset%20system%20improvements.md) | assets, packaging | ZIP archive + SQLite index for lazy loading and modding |
+| [Debug UI](Debug%20UI.md) | debugging, ui, tooling | ImGui-based debug overlay with performance graphs, entity inspector, physics/collision visualization, log console |
 | [LuaJIT Migration](LuaJIT%20Migration.md) | lua, performance | Migration from Lua 5.1 to LuaJIT with WASM fallback |
 | [Module memory budgets](Module%20memory%20budgets.md) | memory, allocators, architecture | Only batch renderer overflow fix shipped; per-module sub-arenas, watermarks, and budget system not started |
 | [Networking](Networking.md) | networking, multiplayer | ENet reliable UDP for client/server multiplayer |
