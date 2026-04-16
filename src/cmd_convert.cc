@@ -84,7 +84,8 @@ ErrorOr<void> ConvertImageToQoi(ByteSlice data, const char* out_path,
   int out_len;
   auto* encoded = QoiEncode(pixels, &desc, &out_len, allocator);
   if (encoded == nullptr) return Error::Message("failed to encode QOI");
-  TRY(WriteEntireFile(out_path, encoded, out_len));
+  TRY(WriteEntireFile(
+      out_path, ByteSlice(static_cast<const uint8_t*>(encoded), out_len)));
   return {};
 }
 
@@ -124,7 +125,7 @@ ErrorOr<void> ConvertWavToQoa(ByteSlice data, const char* out_path,
   Slice<int16_t> samples(pcm, total_samples);
   FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator);
   if (encoded.empty()) return Error::Message("failed to encode QOA");
-  TRY(WriteEntireFile(out_path, encoded.data(), encoded.size()));
+  TRY(WriteEntireFile(out_path, ByteSlice(encoded.cdata(), encoded.size())));
   return {};
 }
 
@@ -153,7 +154,7 @@ ErrorOr<void> ConvertOggToQoa(ByteSlice data, const char* out_path,
   Slice<int16_t> samples(pcm, total_samples);
   FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator);
   if (encoded.empty()) return Error::Message("failed to encode QOA");
-  TRY(WriteEntireFile(out_path, encoded.data(), encoded.size()));
+  TRY(WriteEntireFile(out_path, ByteSlice(encoded.cdata(), encoded.size())));
   return {};
 }
 

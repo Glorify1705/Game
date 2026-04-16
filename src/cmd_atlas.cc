@@ -239,7 +239,8 @@ ErrorOr<void> WriteAtlasQoi(const char* path, const uint8_t* atlas_buf,
   int qoi_len;
   auto* qoi_data = QoiEncode(atlas_buf, &qoi_desc, &qoi_len, allocator);
   if (qoi_data == nullptr) return Error::Message("failed to encode atlas QOI");
-  TRY(WriteEntireFile(path, qoi_data, qoi_len));
+  TRY(WriteEntireFile(
+      path, ByteSlice(static_cast<const uint8_t*>(qoi_data), qoi_len)));
   return {};
 }
 

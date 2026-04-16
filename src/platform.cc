@@ -160,11 +160,12 @@ ErrorOr<size_t> ReadEntireFile(const char* path, uint8_t** out,
   return static_cast<size_t>(len);
 }
 
-ErrorOr<void> WriteEntireFile(const char* path, const void* data, size_t size) {
+ErrorOr<void> WriteEntireFile(const char* path, ByteSlice data) {
   FILE* f = fopen(path, "wb");
   if (f == nullptr) return Error::Errno(errno);
   DEFER([f] { fclose(f); });
-  if (fwrite(data, 1, size, f) != size) return Error::Errno(errno);
+  if (fwrite(data.data(), 1, data.size(), f) != data.size())
+    return Error::Errno(errno);
   return {};
 }
 
