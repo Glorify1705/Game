@@ -149,7 +149,7 @@ class StringBuffer {
   }
 
   // Appends raw bytes from a buffer.
-  StringBuffer& AppendBuffer(void* buf, size_t size) {
+  StringBuffer& AppendBuffer(const void* buf, size_t size) {
     AppendRaw(buf, size);
     return *this;
   }
