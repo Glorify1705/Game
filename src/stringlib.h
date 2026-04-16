@@ -187,6 +187,12 @@ class StringBuffer {
   // Returns true if no bytes have been written.
   bool empty() const { return pos_ == 0; }
 
+  // Returns the number of bytes that can still be written.
+  size_t remaining() const { return pos_ >= size_ ? 0 : (size_ - pos_); }
+
+  // Returns the total buffer capacity.
+  size_t capacity() const { return size_; }
+
   // Allows this buffer to silently truncate on overflow. By default, overflow
   // triggers an assertion in debug builds.
   void AllowTruncation() { allow_truncation_ = true; }
@@ -268,8 +274,6 @@ class StringBuffer {
     std::memcpy(buf_ + pos_, data, size);
     pos_ += size;
   }
-
-  size_t remaining() const { return pos_ >= size_ ? 0 : (size_ - pos_); }
 
   char* buf_;
   size_t pos_ = 0;
