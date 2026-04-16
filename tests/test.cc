@@ -166,6 +166,20 @@ TEST(Tests, SmallBufferAlias) {
   EXPECT_STREQ(buffer.str(), "test");
 }
 
+TEST(Tests, StringBufferOperatorPlusEquals) {
+  FixedStringBuffer<64> buf;
+  buf += "hello";
+  buf += ' ';
+  buf += "world";
+  EXPECT_STREQ(buf.str(), "hello world");
+}
+
+TEST(Tests, StringBufferOperatorStream) {
+  FixedStringBuffer<64> buf;
+  buf << "x=" << 42 << " y=" << 3.14;
+  EXPECT_STREQ(buf.str(), "x=42 y=3.14");
+}
+
 TEST(Tests, NullTerminatedZeroCopy) {
   const char* literal = "hello";
   NullTerminated nt(std::string_view(literal, 5));

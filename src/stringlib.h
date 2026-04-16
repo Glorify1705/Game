@@ -129,6 +129,18 @@ class StringBuffer {
     return *this;
   }
 
+  // Appends a single value to the buffer.
+  template <typename T>
+  StringBuffer& operator+=(const T& t) {
+    return Append(t);
+  }
+
+  // Appends a single value to the buffer (stream-style).
+  template <typename T>
+  StringBuffer& operator<<(const T& t) {
+    return Append(t);
+  }
+
   // Appends the contents of another StringBuffer.
   StringBuffer& AppendBuffer(const StringBuffer& buf) {
     AppendStr(buf.view());
