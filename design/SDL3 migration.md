@@ -1,15 +1,24 @@
 ---
-status: in-progress
+status: implemented
 tags: [sdl, migration, core]
 ---
 
 # SDL3 Migration
 
-## Current State
+## Completion Note
 
-The engine targets the SDL2 API but runs on SDL3 through the sdl2-compat
-shim. The Nix devenv pulls in `SDL2` which resolves to `sdl2-compat-2.32.x`
-backed by SDL3 3.4.0. This works but has drawbacks:
+This migration is **complete**. SDL3 is vendored at `libraries/SDL3`, all
+source files use SDL3 headers and APIs directly, the sdl2-compat shim has been
+removed, and `cmake/FindSDL2.cmake` is deleted. The audio system uses
+`SDL_OpenAudioDeviceStream`, events use `SDL_EVENT_*` constants, gamepad uses
+`SDL_Gamepad`, and I/O uses `SDL_IOStream`. The remainder of this document is
+the original migration plan, preserved for reference.
+
+## Original State (Pre-Migration)
+
+The engine targeted the SDL2 API but ran on SDL3 through the sdl2-compat
+shim. The Nix devenv pulled in `SDL2` which resolved to `sdl2-compat-2.32.x`
+backed by SDL3 3.4.0. This worked but had drawbacks:
 
 - SDL3 prints its own startup metadata ("App name: SDL Application", "App ID:
   \<unspecified\>", "SDL revision: ...") that we cannot fully control from the

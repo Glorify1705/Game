@@ -1,5 +1,5 @@
 ---
-status: in-design
+status: partially-implemented
 tags: [build, testing, cmake, ctest]
 ---
 
