@@ -164,7 +164,7 @@ TEST(CollisionTest, PointInAABB) {
 
 // CollisionWorld tests (need allocator).
 
-class CollisionWorldTest : public AllocTest {};
+class CollisionWorldTest : public BaseTest {};
 
 TEST_F(CollisionWorldTest, AddRemove) {
   CollisionWorld world(64.0f, alloc);

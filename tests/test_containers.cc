@@ -10,7 +10,7 @@ namespace G {
 
 // FixedArray
 
-class FixedArrayTest : public AllocTest {};
+class FixedArrayTest : public BaseTest {};
 
 TEST_F(FixedArrayTest, PushAndAccess) {
   FixedArray<int> array(3, alloc);
@@ -46,7 +46,7 @@ TEST_F(FixedArrayTest, WithAllocator) {
 
 // DynArray
 
-class DynArrayTest : public AllocTest {};
+class DynArrayTest : public BaseTest {};
 
 TEST_F(DynArrayTest, PushAndIterate) {
   DynArray<int> array(alloc);
@@ -90,7 +90,7 @@ TEST_F(DynArrayTest, Move) {
 
 // Dictionary
 
-class DictionaryTest : public AllocTest {};
+class DictionaryTest : public BaseTest {};
 
 TEST_F(DictionaryTest, InsertAndLookup) {
   Dictionary<int> dictionary(alloc);
@@ -111,7 +111,7 @@ TEST_F(DictionaryTest, InsertAndLookup) {
 
 // BlockAllocator
 
-class BlockAllocatorTest : public AllocTest {};
+class BlockAllocatorTest : public BaseTest {};
 
 TEST_F(BlockAllocatorTest, AllocAndDealloc) {
   BlockAllocator<uint32_t> pool(alloc, 2);
@@ -138,7 +138,7 @@ TEST(FreeListTest, AllocAndDealloc) {
 
 // CircularBuffer
 
-class CircularBufferTest : public AllocTest {};
+class CircularBufferTest : public BaseTest {};
 
 TEST_F(CircularBufferTest, EmptyOnConstruction) {
   CircularBuffer<int> buf(4, alloc);
@@ -337,7 +337,7 @@ TEST_F(CircularBufferTest, ConstAccess) {
 
 // SegmentedList
 
-class SegmentedListTest : public AllocTest {};
+class SegmentedListTest : public BaseTest {};
 
 TEST_F(SegmentedListTest, EmptyOnConstruction) {
   SegmentedList<int> list(alloc);
@@ -485,7 +485,7 @@ TEST_F(SegmentedListTest, WithArenaAllocator) {
 
 // InlinedArray
 
-class InlinedArrayTest : public AllocTest {};
+class InlinedArrayTest : public BaseTest {};
 
 TEST_F(InlinedArrayTest, EmptyOnConstruction) {
   InlinedArray<int, 4> arr(alloc);

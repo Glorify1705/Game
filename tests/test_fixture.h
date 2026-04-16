@@ -6,7 +6,7 @@
 namespace G {
 
 // Base fixture providing a system allocator for tests that need one.
-class AllocTest : public ::testing::Test {
+class BaseTest : public ::testing::Test {
  protected:
   Allocator* alloc = SystemAllocator::Instance();
 };

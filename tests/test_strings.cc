@@ -5,7 +5,7 @@
 
 namespace G {
 
-class StringBufferTest : public AllocTest {};
+class StringBufferTest : public BaseTest {};
 
 TEST_F(StringBufferTest, Basic) {
   FixedStringBuffer<16> buffer;

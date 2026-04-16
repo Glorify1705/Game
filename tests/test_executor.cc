@@ -76,7 +76,7 @@ TEST(InlineExecutorTest, ParallelForRunsSequentially) {
   EXPECT_EQ(sum, 45);
 }
 
-class ThreadPoolExecutorTest : public AllocTest {};
+class ThreadPoolExecutorTest : public BaseTest {};
 
 TEST_F(ThreadPoolExecutorTest, SubmitAndWait) {
   ThreadPoolExecutor pool(alloc, 2);
