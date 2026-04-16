@@ -101,8 +101,7 @@ int BuildSfxArchive(const char* output_dir, const char* binary_name,
   }
 
   // Create 7z archive of the output directory contents.
-  FixedStringBuffer<1024> archive_cmd;
-  archive_cmd.AllowTruncation();
+  FixedStringBuffer<1024> archive_cmd(kTruncating);
   archive_cmd.AppendF(
       "cd \"%s\" && 7z a -mx=3 sfx_archive.7z . "
       "-x!sfx_config.txt -x!sfx_archive.7z -x!*.7z.exe",

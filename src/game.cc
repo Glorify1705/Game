@@ -288,8 +288,7 @@ void Game::RenderCrashScreen(std::string_view error) {
 
 void Game::Render() {
   engine->renderer.ClearForFrame();
-  FixedStringBuffer<1024> buf;
-  buf.AllowTruncation();
+  FixedStringBuffer<1024> buf(kTruncating);
   if (engine->lua.Error(&buf)) {
     RenderCrashScreen(buf.str());
   } else {
@@ -298,8 +297,7 @@ void Game::Render() {
   }
   // Draw FPS counter in debug mode.
   if (debug && stats.samples() > 0) {
-    FixedStringBuffer<kMaxLogLineLength> log;
-    log.AllowTruncation();
+    FixedStringBuffer<kMaxLogLineLength> log(kTruncating);
     const auto& fs = engine->batch_renderer.GetFrameStats();
     log.Append("FPS: ", (1000.0 / stats.avg()), " Stats = ", stats,
                "\nDraw calls: ", fs.draw_calls, "  Vertices: ", fs.vertices,

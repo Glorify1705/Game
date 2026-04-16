@@ -122,8 +122,7 @@ T* AsUserdata(lua_State* state, int index) {
 
 #define LUA_ERROR(state, ...)                                                \
   do {                                                                       \
-    FixedStringBuffer<kMaxLogLineLength> _luaerror_buffer;                   \
-    _luaerror_buffer.AllowTruncation();                                      \
+    FixedStringBuffer<kMaxLogLineLength> _luaerror_buffer(kTruncating);      \
     _luaerror_buffer.Append(Basename(__FILE__), ":", __LINE__,               \
                             "]: ", ##__VA_ARGS__);                           \
     lua_pushlstring(state, _luaerror_buffer.str(), _luaerror_buffer.size()); \
@@ -426,7 +425,7 @@ class Lua {
   LuaUserdataType registered_types_[kMaxUserdataTypes];
   size_t registered_type_count_ = 0;
 
-  FixedStringBuffer<1024> error_;
+  FixedStringBuffer<1024> error_{kTruncating};
   std::jmp_buf on_error_buf_;
 
   struct CachedScript {

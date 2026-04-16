@@ -16,6 +16,10 @@ namespace G {
 
 class Allocator;
 
+// Tag type for constructing a FixedStringBuffer that silently truncates.
+struct Truncating {};
+inline constexpr Truncating kTruncating;
+
 void PrintDouble(double val, char* buffer, size_t size);
 
 class StringBuffer;
@@ -284,6 +288,18 @@ class FixedStringBuffer final : public StringBuffer {
   // Stack-only mode with initial content.
   template <typename... Ts>
   explicit FixedStringBuffer(Ts... ts) : StringBuffer(inline_buf_, N) {
+    Append(std::forward<Ts>(ts)...);
+  }
+
+  // Stack-only mode that silently truncates on overflow.
+  explicit FixedStringBuffer(Truncating) : StringBuffer(inline_buf_, N) {
+    AllowTruncation();
+  }
+
+  // Stack-only mode that silently truncates, with initial content.
+  template <typename... Ts>
+  FixedStringBuffer(Truncating, Ts... ts) : StringBuffer(inline_buf_, N) {
+    AllowTruncation();
     Append(std::forward<Ts>(ts)...);
   }
 

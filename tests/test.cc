@@ -122,8 +122,7 @@ TEST(Tests, FixedStringBufferTest) {
 }
 
 TEST(Tests, FixedStringBufferTruncation) {
-  FixedStringBuffer<16> buffer;
-  buffer.AllowTruncation();
+  FixedStringBuffer<16> buffer(kTruncating);
   buffer.Append("foo ");
   buffer.Append("bar");
   buffer.Append(" bar ");
