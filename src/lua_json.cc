@@ -134,7 +134,7 @@ const struct LuaApiFunction kJsonLib[] = {
        const char* str = luaL_checklstring(state, 1, &len);
        auto* arena = Registry<ArenaAllocator>::Retrieve(state);
        yyjson_read_err err{};
-       yyjson_doc* doc = ReadJson(arena, str, len, &err);
+       yyjson_doc* doc = ReadJson(arena, std::string_view(str, len), &err);
        if (doc == nullptr) {
          lua_pushlstring(state, err.msg, err.msg ? strlen(err.msg) : 0);
          lua_pushnil(state);
