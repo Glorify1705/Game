@@ -289,7 +289,14 @@ if(NOT CMAKE_CROSSCOMPILING)
 
   add_subdirectory(libraries/googletest SYSTEM)
 
-  add_executable(Tests tests/test.cc)
+  add_executable(Tests
+      tests/test_containers.cc
+      tests/test_strings.cc
+      tests/test_math.cc
+      tests/test_error.cc
+      tests/test_collision.cc
+      tests/test_executor.cc
+  )
 
   target_compile_features(Tests PRIVATE cxx_std_17)
 
@@ -299,7 +306,10 @@ if(NOT CMAKE_CROSSCOMPILING)
       $<${IS_GCC_LIKE}:-fsanitize=address,undefined;-fno-sanitize=vptr>
   )
 
-  target_include_directories(Tests PRIVATE "${PROJECT_SOURCE_DIR}/src")
+  target_include_directories(Tests PRIVATE
+      "${PROJECT_SOURCE_DIR}/src"
+      "${PROJECT_SOURCE_DIR}/tests"
+  )
 
   target_link_libraries(Tests PRIVATE engine GTest::gtest_main GTest::gmock)
   target_link_options(Tests PRIVATE $<${IS_GCC_LIKE}:-fsanitize=address,undefined>)
