@@ -15,6 +15,7 @@ CMakeFiles
 .vs
 out
 build
+build-release
 build-profile
 build-win64
 dist
