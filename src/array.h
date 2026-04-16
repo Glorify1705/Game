@@ -14,6 +14,9 @@
 namespace G {
 
 template <typename T>
+class Slice;
+
+template <typename T>
 class FixedArray {
  public:
   FixedArray(size_t n, Allocator* allocator) : allocator_(allocator), size_(n) {
@@ -54,6 +57,9 @@ class FixedArray {
     elems_ += n;
     return result;
   }
+
+  // Batch insert from a Slice.
+  T* Insert(Slice<T> s) { return Insert(s.data(), s.size()); }
 
   void Resize(size_t s) { elems_ = s; }
 
@@ -146,6 +152,9 @@ class DynArray {
       Push(ptr[i]);
     }
   }
+
+  // Batch insert from a Slice.
+  void Insert(Slice<T> s) { Insert(s.data(), s.size()); }
 
   void Pop() {
     DCHECK(elems_ > 0);
