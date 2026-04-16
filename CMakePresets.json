@@ -13,7 +13,10 @@
       "generator": "Ninja",
       "binaryDir": "build",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ENABLE_SANITIZERS": "OFF",
+        "ENABLE_PROFILING": "OFF",
+        "ENABLE_CLANG_TIDY": "OFF"
       }
     },
     {
@@ -34,7 +37,9 @@
       "binaryDir": "build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "ENABLE_SANITIZERS": "ON"
+        "ENABLE_SANITIZERS": "ON",
+        "ENABLE_PROFILING": "OFF",
+        "ENABLE_CLANG_TIDY": "OFF"
       }
     },
     {
@@ -45,7 +50,9 @@
       "binaryDir": "build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "ENABLE_PROFILING": "ON"
+        "ENABLE_SANITIZERS": "OFF",
+        "ENABLE_PROFILING": "ON",
+        "ENABLE_CLANG_TIDY": "OFF"
       }
     },
     {
@@ -56,6 +63,8 @@
       "binaryDir": "build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "ENABLE_SANITIZERS": "OFF",
+        "ENABLE_PROFILING": "OFF",
         "ENABLE_CLANG_TIDY": "ON"
       }
     },

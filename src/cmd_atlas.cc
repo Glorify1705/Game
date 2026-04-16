@@ -131,9 +131,9 @@ void CollectImages(const char* dir, const char* prefix, bool recursive,
 void BlitSprite(uint8_t* atlas, int atlas_w, const SpriteInput& sprite,
                 int dst_x, int dst_y) {
   for (int y = 0; y < sprite.height; ++y) {
-    const uint8_t* src = sprite.pixels + y * sprite.width * 4;
-    uint8_t* dst = atlas + ((dst_y + y) * atlas_w + dst_x) * 4;
-    memcpy(dst, src, sprite.width * 4);
+    const uint8_t* src = sprite.pixels + (size_t)y * sprite.width * 4;
+    uint8_t* dst = atlas + ((size_t)(dst_y + y) * atlas_w + dst_x) * 4;
+    memcpy(dst, src, (size_t)sprite.width * 4);
   }
 }
 

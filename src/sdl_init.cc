@@ -180,6 +180,10 @@ SdlContext InitializeSdl(const GameConfig& config,
   SDL_SetAppMetadata(config.app_name[0] != '\0' ? config.app_name : "game",
                      GAME_VERSION_STR,
                      config.org_name[0] != '\0' ? config.org_name : nullptr);
+  // Use EGL instead of GLX. EGL is the modern, platform-agnostic path and
+  // works on X11, Wayland, and future targets. GLX is X11-only legacy and
+  // breaks under ASan.
+  SDL_SetHint(SDL_HINT_VIDEO_FORCE_EGL, "1");
   CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_EVENTS),
         "Could not initialize SDL: ", SDL_GetError());
   if (config.enable_joystick) {
