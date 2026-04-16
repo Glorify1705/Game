@@ -1,26 +1,140 @@
 {
-    "version": 2,
-    "configurePresets": [
-        {
-            "name": "GCC",
-            "displayName": "GCC 13.2.0 x86_64-w64-mingw32 (mingw64)",
-            "description": "Using compilers: C = C:\\msys64\\mingw64\\bin\\gcc.exe, CXX = C:\\msys64\\mingw64\\bin\\g++.exe",
-            "generator": "MinGW Makefiles",
-            "binaryDir": "${sourceDir}/out/build/${presetName}",
-            "cacheVariables": {
-                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-                "CMAKE_C_COMPILER": "C:/msys64/mingw64/bin/gcc.exe",
-                "CMAKE_CXX_COMPILER": "C:/msys64/mingw64/bin/g++.exe",
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
-        }
-    ],
-    "testPresets": [
-        {
-            "name": "Tests",
-            "description": "",
-            "displayName": "",
-            "configurePreset": "GCC"
-        }
-    ]
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Development (Debug)",
+      "description": "Default debug build with Ninja",
+      "generator": "Ninja",
+      "binaryDir": "build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ENABLE_SANITIZERS": "OFF",
+        "ENABLE_PROFILING": "OFF",
+        "ENABLE_CLANG_TIDY": "OFF"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "description": "Optimized release build",
+      "generator": "Ninja",
+      "binaryDir": "build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "sanitize",
+      "displayName": "Debug + Sanitizers",
+      "description": "Debug build with ASan and UBSan",
+      "generator": "Ninja",
+      "binaryDir": "build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ENABLE_SANITIZERS": "ON",
+        "ENABLE_PROFILING": "OFF",
+        "ENABLE_CLANG_TIDY": "OFF"
+      }
+    },
+    {
+      "name": "profile",
+      "displayName": "Debug + Profiling",
+      "description": "Debug build with engine profiler instrumentation",
+      "generator": "Ninja",
+      "binaryDir": "build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ENABLE_SANITIZERS": "OFF",
+        "ENABLE_PROFILING": "ON",
+        "ENABLE_CLANG_TIDY": "OFF"
+      }
+    },
+    {
+      "name": "tidy",
+      "displayName": "Debug + clang-tidy",
+      "description": "Debug build with clang-tidy integrated into compile step",
+      "generator": "Ninja",
+      "binaryDir": "build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ENABLE_SANITIZERS": "OFF",
+        "ENABLE_PROFILING": "OFF",
+        "ENABLE_CLANG_TIDY": "ON"
+      }
+    },
+    {
+      "name": "win64",
+      "displayName": "Windows x86_64 (MinGW cross-compile)",
+      "description": "Release cross-compile for Windows using MinGW-w64",
+      "generator": "Ninja",
+      "binaryDir": "build-win64",
+      "toolchainFile": "${sourceDir}/cmake/mingw-w64-x86_64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "targets": [
+        "Game"
+      ]
+    },
+    {
+      "name": "test",
+      "configurePreset": "dev",
+      "targets": [
+        "Tests"
+      ]
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize",
+      "targets": [
+        "Game"
+      ]
+    },
+    {
+      "name": "profile",
+      "configurePreset": "profile",
+      "targets": [
+        "Game"
+      ]
+    },
+    {
+      "name": "tidy",
+      "configurePreset": "tidy",
+      "targets": [
+        "Game"
+      ]
+    },
+    {
+      "name": "win64",
+      "configurePreset": "win64"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 0
+      }
+    }
+  ]
 }

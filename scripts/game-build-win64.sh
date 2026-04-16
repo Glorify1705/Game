@@ -9,14 +9,8 @@ if [ ! -x "$TOOLCHAIN/bin/x86_64-w64-mingw32-g++" ]; then
   exit 1
 fi
 
-cmake -G Ninja \
-  -S "$ROOT" \
-  -B "$ROOT/build-win64" \
-  -DCMAKE_TOOLCHAIN_FILE="$ROOT/cmake/mingw-w64-x86_64.cmake" \
-  -DCMAKE_BUILD_TYPE=Release \
-  "$@"
-
-ninja -C "$ROOT/build-win64"
+cmake --preset win64 "$@"
+cmake --build --preset win64
 
 # Copy MinGW runtime DLLs next to the executable.
 SYSROOT="$TOOLCHAIN/x86_64-w64-mingw32"

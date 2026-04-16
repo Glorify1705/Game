@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # game-test: Build and run the GoogleTest suite.
 #
-# Forces CMAKE_BUILD_TYPE=Debug so sanitizers (ASan/UBSan) are enabled
-# for the test binary, per CMakeLists.txt. The `Tests` target both
-# compiles and runs the tests.
+# Uses the "dev" CMake preset (Debug) and builds the Tests target.
+# Sanitizers (ASan/UBSan) are always enabled for the test binary.
 #
-# Arguments: none.
+# Extra arguments are forwarded to ctest (e.g. -R <regex> to filter tests).
 set -euo pipefail
-cmake -DCMAKE_BUILD_TYPE=Debug -G Ninja -S . -B build
-cmake --build build --target Tests
+cmake --preset dev
+cmake --build --preset test
+ctest --preset dev "$@"

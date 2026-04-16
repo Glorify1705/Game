@@ -70,6 +70,7 @@ tags: [index]
 | [AI utilities](AI%20utilities.md) | gameplay, ai | Behavior trees, decision trees, and AI scaffolding |
 | [Asset system improvements](Asset%20system%20improvements.md) | assets, packaging | ZIP archive + SQLite index for lazy loading and modding |
 | [Bug fixes and minor improvements](Bug%20fixes%20and%20minor%20improvements.md) | bugs, code-quality, testing | Tracking list for small fixes, TODOs, and missing tests |
+| [CMake and CTest improvements](CMake%20and%20CTest%20improvements.md) | build, testing, cmake, ctest | Fix preset cache poisoning, split tests, expand coverage, ctest config |
 | [LuaJIT Migration](LuaJIT%20Migration.md) | lua, performance | Migration from Lua 5.1 to LuaJIT with WASM fallback |
 | [Networking](Networking.md) | networking, multiplayer | ENet reliable UDP for client/server multiplayer |
 | [Particle system](Particle%20system.md) | renderer, particles, lua-api | CPU particle system with PropertyRamp and instanced rendering |
