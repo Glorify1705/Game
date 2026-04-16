@@ -29,10 +29,10 @@ Filesystem::~Filesystem() {
 ErrorOr<void> Filesystem::WriteToFile(std::string_view filename,
                                       std::string_view contents) {
   size_t handle;
-  FixedStringBuffer<kMaxPathLength> path(filename);
+  NullTerminated path(filename);
   if (!filename_to_handle_.Lookup(filename, &handle)) {
     handle = for_write_.size();
-    PHYSFS_File* f = PHYSFS_openWrite(path.str());
+    PHYSFS_File* f = PHYSFS_openWrite(path);
     if (f == nullptr) {
       LOG("Failed to open file ", path, ": ",
           PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
@@ -52,8 +52,8 @@ ErrorOr<void> Filesystem::WriteToFile(std::string_view filename,
 
 ErrorOr<void> Filesystem::Spit(std::string_view filename,
                                std::string_view contents) {
-  FixedStringBuffer<kMaxPathLength> path(filename);
-  PHYSFS_File* f = PHYSFS_openWrite(path.str());
+  NullTerminated path(filename);
+  PHYSFS_File* f = PHYSFS_openWrite(path);
   if (f == nullptr) {
     LOG("Failed to open file ", path, ": ",
         PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
@@ -72,10 +72,10 @@ ErrorOr<void> Filesystem::Spit(std::string_view filename,
 ErrorOr<void> Filesystem::ReadFile(std::string_view filename, uint8_t* buffer,
                                    size_t size) {
   size_t handle;
-  FixedStringBuffer<kMaxPathLength> path(filename);
+  NullTerminated path(filename);
   if (!filename_to_handle_.Lookup(filename, &handle)) {
     handle = for_read_.size();
-    PHYSFS_File* f = PHYSFS_openRead(path.str());
+    PHYSFS_File* f = PHYSFS_openRead(path);
     if (f == nullptr) {
       LOG("Failed to open file ", path, ": ",
           PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
@@ -95,8 +95,8 @@ ErrorOr<void> Filesystem::ReadFile(std::string_view filename, uint8_t* buffer,
 
 ErrorOr<size_t> Filesystem::Slurp(std::string_view filename, uint8_t* buffer,
                                   size_t buffer_size) {
-  FixedStringBuffer<kMaxPathLength> path(filename);
-  PHYSFS_File* f = PHYSFS_openRead(path.str());
+  NullTerminated path(filename);
+  PHYSFS_File* f = PHYSFS_openRead(path);
   if (f == nullptr) {
     LOG("Could not read file ", path, ": ",
         PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
@@ -119,10 +119,10 @@ ErrorOr<size_t> Filesystem::Slurp(std::string_view filename, uint8_t* buffer,
 
 ErrorOr<size_t> Filesystem::Size(std::string_view filename) {
   size_t handle;
-  FixedStringBuffer<kMaxPathLength> path(filename);
+  NullTerminated path(filename);
   if (!filename_to_handle_.Lookup(filename, &handle)) {
     handle = for_read_.size();
-    PHYSFS_File* f = PHYSFS_openRead(path.str());
+    PHYSFS_File* f = PHYSFS_openRead(path);
     if (f == nullptr) {
       LOG("Failed to open file ", path, ": ",
           PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
@@ -141,9 +141,9 @@ ErrorOr<size_t> Filesystem::Size(std::string_view filename) {
 }
 
 ErrorOr<Filesystem::StatInfo> Filesystem::Stat(std::string_view filename) {
-  FixedStringBuffer<kMaxPathLength> path(filename);
+  NullTerminated path(filename);
   PHYSFS_Stat stat;
-  const int result = PHYSFS_stat(path.str(), &stat);
+  const int result = PHYSFS_stat(path, &stat);
   if (result == 0) {
     LOG("Could not stat file ", path, ": ",
         PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
@@ -169,12 +169,11 @@ ErrorOr<Filesystem::StatInfo> Filesystem::Stat(std::string_view filename) {
 }
 
 bool Filesystem::Exists(std::string_view filename) {
-  FixedStringBuffer<kMaxPathLength> path(filename);
-  return PHYSFS_exists(path);
+  return PHYSFS_exists(NullTerminated(filename));
 }
 
 ErrorOr<void> Filesystem::Delete(std::string_view filename) {
-  FixedStringBuffer<kMaxPathLength> path(filename);
+  NullTerminated path(filename);
   // PHYSFS_delete operates on the write directory. It returns 0 on failure;
   // "not found" is not an error — treat it as a successful no-op.
   if (PHYSFS_delete(path) == 0) {
@@ -188,8 +187,7 @@ ErrorOr<void> Filesystem::Delete(std::string_view filename) {
 
 void Filesystem::EnumerateDirectory(std::string_view directory,
                                     DirCallback callback, void* userdata) {
-  FixedStringBuffer<kMaxPathLength> d(directory);
-  PHYSFS_enumerate(d.str(), callback, userdata);
+  PHYSFS_enumerate(NullTerminated(directory), callback, userdata);
 }
 
 }  // namespace G

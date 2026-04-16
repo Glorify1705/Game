@@ -167,6 +167,24 @@ TEST(Tests, SmallBufferAlias) {
   EXPECT_STREQ(buffer.str(), "test");
 }
 
+TEST(Tests, NullTerminatedZeroCopy) {
+  const char* literal = "hello";
+  NullTerminated nt(std::string_view(literal, 5));
+  EXPECT_STREQ(nt.c_str(), "hello");
+  // Zero-copy: points at the original literal since it's already terminated.
+  EXPECT_EQ(nt.c_str(), literal);
+}
+
+TEST(Tests, NullTerminatedCopies) {
+  const char data[] = "helloXworld";
+  // View into the middle — not null-terminated at the view boundary.
+  std::string_view sv(data, 5);
+  NullTerminated nt(sv);
+  EXPECT_STREQ(nt.c_str(), "hello");
+  // Must have copied because the byte after the view is 'X', not '\0'.
+  EXPECT_NE(nt.c_str(), data);
+}
+
 TEST(Tests, Dictionary) {
   Dictionary<int> dictionary(SystemAllocator::Instance());
   EXPECT_FALSE(dictionary.Contains("foo"));

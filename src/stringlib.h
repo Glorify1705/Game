@@ -348,6 +348,30 @@ using LogBuffer = FixedStringBuffer<kMaxLogLineLength>;
 using SqlBuffer = FixedStringBuffer<1024>;
 using SmallBuffer = FixedStringBuffer<64>;
 
+// Ensures a string_view is null-terminated for C API calls. Zero-copy when the
+// byte after the view is already '\0'; copies into an inline buffer otherwise.
+template <size_t N = kMaxPathLength>
+class NullTerminated {
+ public:
+  explicit NullTerminated(std::string_view sv) {
+    assert(sv.size() < N && "string_view too large for NullTerminated buffer");
+    if (sv.data()[sv.size()] == '\0') {
+      ptr_ = sv.data();
+    } else {
+      std::memcpy(buf_, sv.data(), sv.size());
+      buf_[sv.size()] = '\0';
+      ptr_ = buf_;
+    }
+  }
+  // Returns the null-terminated string.
+  const char* c_str() const { return ptr_; }
+  operator const char*() const { return ptr_; }
+
+ private:
+  char buf_[N + 1];
+  const char* ptr_;
+};
+
 bool HasSuffix(std::string_view str, std::string_view suffix);
 bool ConsumeSuffix(std::string_view* str, std::string_view suffix);
 bool HasPrefix(std::string_view str, std::string_view prefix);
