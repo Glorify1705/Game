@@ -27,6 +27,7 @@ tags: [index]
 | [Lua API for LSP and LLMs](Lua%20API%20for%20LSP%20and%20LLMs.md) | lua, tooling, lsp | LuaLS stub generation with LuaCATS annotations and type registry |
 | [Memory allocators for third-party libraries](Memory%20allocators%20for%20third-party%20libraries.md) | memory, allocators | SQLite memsys5 + mimalloc for Lua, carved from engine arena |
 | [QOA audio format](QOA%20audio%20format.md) | audio, codec | QOA codec replacing OGG Vorbis for streaming audio |
+| [SDL3 migration](SDL3%20migration.md) | sdl, migration, core | Full SDL2-to-SDL3 API migration: events, audio stream, window, gamepad, IO, threading |
 | [SDF font rendering](SDF%20font%20rendering.md) | renderer, fonts, sdf | SDF generation, shader, caching, outline support |
 | [Shader API Redesign](Shader%20API%20Redesign.md) | renderer, shaders | Silent-skip for missing uniforms, built-in g_ScreenSize/g_Time |
 | [Single-file packaging](Single-file%20packaging.md) | packaging, assets | SQLite DB appended to binary with magic footer and custom VFS |
@@ -44,24 +45,19 @@ tags: [index]
 | Document | Tags | Summary | Status |
 |----------|------|---------|--------|
 | [Cross compilation](Cross%20compilation.md) | build, cross-compilation, packaging, sfx | MinGW cross-compile from Linux to Windows | Phases 0–2 done (toolchain, packaging, SFX, DLL copying); `--target` convenience flag and CI pending |
-| [Module memory budgets](Module%20memory%20budgets.md) | memory, allocators, architecture | Per-module sub-arenas, watermark tracking | Batch renderer overflow fix shipped; per-module arenas and watermarks pending |
-| [SDL3 migration](SDL3%20migration.md) | sdl, migration, core | SDL2 to SDL3 API migration | SDL3 vendored and building; C++ API migration pending |
+| [REPL and live interaction](REPL%20and%20live%20interaction.md) | debugging, lua, repl | TCP REPL server for live Lua evaluation | Phase 1 (TCP server + NDJSON eval) implemented on `worktree-repl-server` branch; not yet merged |
 
 ## Partially Implemented
 
 | Document | Tags | Summary |
 |----------|------|---------|
 | [Audio features](Audio%20features.md) | audio, lua-api | Pitch, looping, panning done; seek/tell, 3D audio, effects pending |
-| [Physics system expansion](Physics%20system%20expansion.md) | physics, lua-api | Basic Box2D wrapper done; joints, shapes, filtering pending |
-| [Profiling and tracing](Profiling%20and%20tracing.md) | profiling, performance | Chrome Tracing done; perf and pprof integration pending |
-| [Renderer improvements](Renderer%20improvements.md) | renderer, graphics | Stencil/scissor/blend done; post-processing, lighting pending |
-| [Sound hot reload](Sound%20hot%20reload.md) | audio, hot-reload | Basic reload works; per-asset incremental reload pending |
-
-## In Review
-
-| Document | Tags | Summary |
-|----------|------|---------|
-| [REPL and live interaction](REPL%20and%20live%20interaction.md) | debugging, lua, repl | TCP REPL server for live Lua evaluation (PR #46) |
+| [Bug fixes and minor improvements](Bug%20fixes%20and%20minor%20improvements.md) | bugs, code-quality, testing | Some code quality fixes done (override, ErrorOr returns); allocator instrumentation, platform watchers, and most test coverage pending |
+| [CMake and CTest improvements](CMake%20and%20CTest%20improvements.md) | build, testing, cmake, ctest | Phases 1–2 done (preset fix, ctest execution, timeouts, labels, parallel); test file split and coverage expansion pending |
+| [Physics system expansion](Physics%20system%20expansion.md) | physics, lua-api | Phase 1 mostly done (kinematic bodies, material properties, filtering, sensors, raycasting, per-body properties, world config); joints, advanced shapes, debug draw, deferred destruction pending |
+| [Profiling and tracing](Profiling%20and%20tracing.md) | profiling, performance | Chrome Tracing done; perf and pprof are external devenv tools, not engine integration |
+| [Renderer improvements](Renderer%20improvements.md) | renderer, graphics | Stencil/scissor/blend/primitives done; post-processing pipeline and lighting pending |
+| [Sound hot reload](Sound%20hot%20reload.md) | audio, hot-reload | File change detection works; actual reload is coarse (StopAll on any audio change), per-asset incremental reload pending |
 
 ## In Design
 
@@ -69,9 +65,8 @@ tags: [index]
 |----------|------|---------|
 | [AI utilities](AI%20utilities.md) | gameplay, ai | Behavior trees, decision trees, and AI scaffolding |
 | [Asset system improvements](Asset%20system%20improvements.md) | assets, packaging | ZIP archive + SQLite index for lazy loading and modding |
-| [Bug fixes and minor improvements](Bug%20fixes%20and%20minor%20improvements.md) | bugs, code-quality, testing | Tracking list for small fixes, TODOs, and missing tests |
-| [CMake and CTest improvements](CMake%20and%20CTest%20improvements.md) | build, testing, cmake, ctest | Fix preset cache poisoning, split tests, expand coverage, ctest config |
 | [LuaJIT Migration](LuaJIT%20Migration.md) | lua, performance | Migration from Lua 5.1 to LuaJIT with WASM fallback |
+| [Module memory budgets](Module%20memory%20budgets.md) | memory, allocators, architecture | Only batch renderer overflow fix shipped; per-module sub-arenas, watermarks, and budget system not started |
 | [Networking](Networking.md) | networking, multiplayer | ENet reliable UDP for client/server multiplayer |
 | [Particle system](Particle%20system.md) | renderer, particles, lua-api | CPU particle system with PropertyRamp and instanced rendering |
 | [Save and persistence](Save%20and%20persistence.md) | persistence, save, achievements, lua-api | Namespaced SQLite KV store for save data, settings, achievements |
@@ -103,10 +98,9 @@ Low effort, high return. Complete in-progress work to close gaps cheaply.
 
 | Document | Rationale |
 |----------|-----------|
-| [Module memory budgets](Module%20memory%20budgets.md) | Batch renderer crash fixed. Add watermark tracking and per-module sub-arenas — the infrastructure needed before any platform with memory constraints (web, mobile). |
-| [SDL3 migration](SDL3%20migration.md) | SDL3 is vendored and building. Migrate the C++ API calls to complete the transition and unblock cross-compilation Phase 2. |
-| [Physics system expansion](Physics%20system%20expansion.md) | Add sensors and raycasting. These unlock trigger zones, line-of-sight, and item pickups — needed for most game genres. |
-| [Bug fixes and minor improvements](Bug%20fixes%20and%20minor%20improvements.md) | Low-hanging fruit: override keywords, error handling TODOs, Lua script bugs, missing tests. |
+| [Physics system expansion](Physics%20system%20expansion.md) | Phase 1 (bodies, properties, filtering, sensors, raycasting) is done. Next: joints (Phase 2) — the killer feature that justifies Box2D over the simpler collision system. |
+| [Bug fixes and minor improvements](Bug%20fixes%20and%20minor%20improvements.md) | Low-hanging fruit: error handling TODOs, platform file watchers, missing tests, allocator instrumentation. |
+| [CMake and CTest improvements](CMake%20and%20CTest%20improvements.md) | Phases 1–2 done. Next: split test.cc into per-subsystem files, expand test coverage to mat.h, color.cc, stats.cc, etc. |
 
 ### P1 — High-impact missing features
 
@@ -127,8 +121,8 @@ Invest in what already sets the engine apart.
 | Document | Rationale |
 |----------|-----------|
 | [Cross compilation](Cross%20compilation.md) | Phases 0–2 done. Remaining: `--target` convenience flag (Phase 3) and CI release builds (Phase 4). |
-| [REPL and live interaction](REPL%20and%20live%20interaction.md) | In review (PR #46). Extends hot-reload into live debugging — no comparison engine has this. |
-| [Sound hot reload](Sound%20hot%20reload.md) | Per-asset incremental reload. Makes hot-reload seamless across all asset types. |
+| [REPL and live interaction](REPL%20and%20live%20interaction.md) | Phase 1 on branch. Extends hot-reload into live debugging — no comparison engine has this. |
+| [Sound hot reload](Sound%20hot%20reload.md) | Per-asset incremental reload. Current implementation stops all sounds on any change. |
 | [Sound stream free list](Sound%20stream%20free%20list.md) | Prevents slot exhaustion during rapid sound effects. Small fix, real gameplay bug. |
 
 ### P3 — Platform expansion
@@ -148,7 +142,8 @@ Valuable but not blocking. Build these when a specific game needs them.
 | [Particle system](Particle%20system.md)                       | Visual polish. Can be prototyped in Lua first.                                                                   |
 | Tilemap system                                                | Essential for platformers/RPGs. libGDX has Tiled/TMX import; high_impact has slope collision. No design doc yet. |
 | Drawing primitives                                            | Ellipses, arcs, rounded rects, polygons, gradients. Raylib is the reference.                                     |
+| [Module memory budgets](Module%20memory%20budgets.md)         | Per-module sub-arenas and watermarks. Only needed before targeting memory-constrained platforms (web, mobile).    |
 | [Networking](Networking.md)                                   | Only needed for multiplayer games.                                                                               |
 | [AI utilities](AI%20utilities.md)                             | Only needed for games with AI agents.                                                                            |
-| [LuaJIT Migration](LuaJIT%20Migration.md)                     | Performance optimization. Current Lua 5.1 is adequate for most games.                                            |
+| [LuaJIT Migration](LuaJIT%20Migration.md)                    | Performance optimization. Current Lua 5.1 is adequate for most games.                                            |
 | [Asset system improvements](Asset%20system%20improvements.md) | Current SQLite system works. ZIP+index is an optimization for large games.                                       |

@@ -1,5 +1,5 @@
 ---
-status: in-design
+status: partially-implemented
 tags: [bugs, code-quality, testing]
 ---
 

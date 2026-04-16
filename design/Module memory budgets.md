@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: in-design
 tags: [memory, allocators, architecture, renderer]
 ---
 
