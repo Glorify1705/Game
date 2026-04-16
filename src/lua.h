@@ -425,7 +425,7 @@ class Lua {
   LuaUserdataType registered_types_[kMaxUserdataTypes];
   size_t registered_type_count_ = 0;
 
-  FixedStringBuffer<1024> error_{kTruncating};
+  CmdBuffer error_{kTruncating};
   std::jmp_buf on_error_buf_;
 
   struct CachedScript {

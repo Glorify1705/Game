@@ -63,13 +63,13 @@ void TakeScreenshotToClipboard(BatchRenderer* batch_renderer,
     LOG("Cannot take screenshot: no PhysFS write directory set");
     return;
   }
-  FixedStringBuffer<512> dir(write_dir, "screenshots");
+  CmdBuffer dir(write_dir, "screenshots");
   if (MakeDirs(dir.str()).is_error()) {
     LOG("Failed to create screenshot directory: ", dir.str());
     return;
   }
-  FixedStringBuffer<512> path(dir.str(), "/screenshot_",
-                              static_cast<uint64_t>(SDL_GetTicks()), ".png");
+  CmdBuffer path(dir.str(), "/screenshot_",
+                 static_cast<uint64_t>(SDL_GetTicks()), ".png");
   ArenaAllocator scratch(allocator, Megabytes(32));
   auto screenshot = batch_renderer->TakeScreenshot(&scratch);
   int ok = stbi_write_png(path.str(), screenshot.width, screenshot.height,
@@ -288,7 +288,7 @@ void Game::RenderCrashScreen(std::string_view error) {
 
 void Game::Render() {
   engine->renderer.ClearForFrame();
-  FixedStringBuffer<1024> buf(kTruncating);
+  CmdBuffer buf(kTruncating);
   if (engine->lua.Error(&buf)) {
     RenderCrashScreen(buf.str());
   } else {

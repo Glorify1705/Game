@@ -119,7 +119,7 @@ ErrorOr<void> IterateDirectory(const char* dir, DirIterCallback callback,
   while ((ent = readdir(d)) != nullptr) {
     if (ent->d_name[0] == '.') continue;
     struct stat st;
-    FixedStringBuffer<1024> full_path(dir, "/", ent->d_name);
+    CmdBuffer full_path(dir, "/", ent->d_name);
     if (stat(full_path.str(), &st) != 0) continue;
     DirEntry entry;
     entry.name = ent->d_name;

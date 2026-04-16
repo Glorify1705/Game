@@ -244,7 +244,7 @@ int CmdConvert(Slice<const char*> args, Allocator* allocator) {
   }
 
   // Build output path if not given.
-  FixedStringBuffer<1024> out_buf;
+  CmdBuffer out_buf;
   if (output_path == nullptr) {
     const char* default_ext = DefaultOutputExtension(input_format);
     out_buf.Append(WithoutExt(input_path), ".", default_ext);

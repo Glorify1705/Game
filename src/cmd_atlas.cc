@@ -76,7 +76,7 @@ void CollectCallback(const DirEntry& entry, void* userdata) {
   auto* state = static_cast<CollectState*>(userdata);
   if (entry.type == DirEntryType::kDirectory) {
     if (state->recursive) {
-      FixedStringBuffer<1024> sub_dir(state->dir, "/", entry.name);
+      CmdBuffer sub_dir(state->dir, "/", entry.name);
       FixedStringBuffer<256> sub_prefix(state->allocator);
       if (state->prefix[0]) sub_prefix.Append(state->prefix, "/");
       sub_prefix.Append(entry.name);
@@ -88,7 +88,7 @@ void CollectCallback(const DirEntry& entry, void* userdata) {
   std::string_view ext = Extension(entry.name);
   if (!IsSupportedImage(ext)) return;
 
-  FixedStringBuffer<1024> full_path(state->dir, "/", entry.name);
+  CmdBuffer full_path(state->dir, "/", entry.name);
   uint8_t* file_data = nullptr;
   auto result = ReadEntireFile(full_path.str(), &file_data, state->allocator);
   if (result.is_error()) return;
@@ -264,8 +264,8 @@ ErrorOr<void> WriteAtlasPage(const AtlasArgs& opts, int atlas_index,
   }
 
   // Build output filenames.
-  FixedStringBuffer<1024> qoi_path;
-  FixedStringBuffer<1024> json_path;
+  CmdBuffer qoi_path;
+  CmdBuffer json_path;
   FixedStringBuffer<256> atlas_filename;
   if (is_last && atlas_index == 0) {
     qoi_path.Append(opts.output_dir, "/", opts.name, ".qoi");

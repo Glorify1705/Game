@@ -1028,7 +1028,7 @@ void Lua::SetError(std::string_view file, int line, std::string_view error) {
 }
 
 void Lua::BuildCompilationCache() {
-  FixedStringBuffer<512> sql(R"(
+  SqlBuffer sql(R"(
       SELECT c.source_name, c.compiled, c.source_hash
       FROM asset_metadata a 
       INNER JOIN compilation_cache c 

@@ -372,6 +372,7 @@ class FixedStringBuffer final : public StringBuffer {
 using Str = FixedStringBuffer<>;
 using PathBuffer = FixedStringBuffer<kMaxPathLength>;
 using LogBuffer = FixedStringBuffer<kMaxLogLineLength>;
+using CmdBuffer = FixedStringBuffer<1024>;
 using SqlBuffer = FixedStringBuffer<1024>;
 using SmallBuffer = FixedStringBuffer<64>;
 
