@@ -187,6 +187,8 @@ void Game::Run() {
     PROFILE_COUNTER("Lua Memory (KB)", engine->lua.MemoryUsage() / 1024.0);
     stats.AddSample(frame_ms);
     debug_ui.AddFrameTimeSample(static_cast<float>(frame_ms));
+    debug_ui.AddLuaMemorySample(
+        static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f);
   }
 }
 

@@ -93,9 +93,11 @@ void DebugUI::Init(SDL_Window* window, SDL_GLContext gl_context) {
   ImGui_ImplSDL3_InitForOpenGL(window, gl_context);
   ImGui_ImplOpenGL3_Init(/*glsl_version=*/"#version 150");
 
-  // Allocate the circular buffer for frame time history.
+  // Allocate circular buffers for performance history.
   frame_times_ = allocator_->New<CircularBuffer<float>>(kFrameTimeHistory,
                                                         allocator_);
+  lua_memory_samples_ = allocator_->New<CircularBuffer<float>>(
+      kFrameTimeHistory, allocator_);
 
   initialized_ = true;
   LOG("Debug UI initialized (Dear ImGui ", IMGUI_VERSION, ")");
@@ -146,6 +148,11 @@ bool DebugUI::WantCaptureKeyboard() const {
 void DebugUI::AddFrameTimeSample(float ms) {
   if (!initialized_) return;
   frame_times_->Push(ms);
+}
+
+void DebugUI::AddLuaMemorySample(float kb) {
+  if (!initialized_) return;
+  lua_memory_samples_->Push(kb);
 }
 
 void DebugUI::DrawPerformancePanel(const FrameStats& fs,
@@ -234,8 +241,33 @@ void DebugUI::DrawPerformancePanel(const FrameStats& fs,
 
   ImGui::Separator();
 
-  // Lua memory.
-  ImGui::Text("Lua memory: %.1f KB", static_cast<double>(lua_memory_kb));
+  // Lua memory graph.
+  {
+    const size_t lua_count = lua_memory_samples_->size();
+    if (lua_count > 0) {
+      float lua_min = 1e9f;
+      float lua_max = 0.0f;
+      float lua_values[kFrameTimeHistory];
+      for (size_t i = 0; i < lua_count; ++i) {
+        float v = (*lua_memory_samples_)[i];
+        lua_values[i] = v;
+        if (v < lua_min) lua_min = v;
+        if (v > lua_max) lua_max = v;
+      }
+      float lua_cur = lua_values[lua_count - 1];
+
+      char lua_overlay[64];
+      snprintf(lua_overlay, sizeof(lua_overlay), "%.1f KB (min %.1f  max %.1f)",
+               static_cast<double>(lua_cur), static_cast<double>(lua_min),
+               static_cast<double>(lua_max));
+
+      ImGui::PlotLines("Lua Memory", lua_values, static_cast<int>(lua_count),
+                       /*values_offset=*/0, lua_overlay, /*scale_min=*/0.0f,
+                       /*scale_max=*/lua_max * 1.5f, ImVec2(0, 60));
+    } else {
+      ImGui::Text("Lua memory: %.1f KB", static_cast<double>(lua_memory_kb));
+    }
+  }
 
   ImGui::Separator();
 

@@ -62,6 +62,9 @@ class DebugUI {
   // Records a frame time sample for the performance graph.
   void AddFrameTimeSample(float ms);
 
+  // Records a Lua memory sample (in KB) for the memory sparkline.
+  void AddLuaMemorySample(float kb);
+
   // Captures a log message with its severity level.
   void LogMessage(LogLevel level, const char* message);
 
@@ -96,6 +99,7 @@ class DebugUI {
   Allocator* allocator_ = nullptr;
   Lua* lua_ = nullptr;
   CircularBuffer<float>* frame_times_ = nullptr;
+  CircularBuffer<float>* lua_memory_samples_ = nullptr;
 
   // Log console state.
   CircularBuffer<LogEntry>* log_entries_ = nullptr;
@@ -129,6 +133,7 @@ class DebugUI {
   bool WantCaptureMouse() const { return false; }
   bool WantCaptureKeyboard() const { return false; }
   void AddFrameTimeSample(float) {}
+  void AddLuaMemorySample(float) {}
   void LogMessage(LogLevel, const char*) {}
   void DrawPerformancePanel(const FrameStats&, float, size_t, size_t) {}
   void DrawLogConsole() {}
