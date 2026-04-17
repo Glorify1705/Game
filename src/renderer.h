@@ -217,6 +217,12 @@ class BatchRenderer {
 
   const FrameStats& GetFrameStats() const { return frame_stats_; }
 
+  // Returns the number of bytes currently used in the command buffer.
+  size_t GetCommandBufferUsed() const { return pos_; }
+
+  // Returns the total command buffer capacity in bytes.
+  size_t GetCommandBufferCapacity() const;
+
   struct Screenshot {
     size_t width, height;
     const uint8_t* buffer;

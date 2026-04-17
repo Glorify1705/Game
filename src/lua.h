@@ -262,6 +262,10 @@ class Lua {
   void HandleTextInput(std::string_view input);
   void HandleQuit();
 
+  // Evaluates a Lua string and writes the result (or error) to output.
+  // Returns true on success, false on error.
+  bool EvalString(std::string_view code, StringBuffer* output);
+
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }
 

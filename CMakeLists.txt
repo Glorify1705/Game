@@ -9,6 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS True)
 option(ENABLE_SANITIZERS "Build with ASan+UBSan" OFF)
 option(ENABLE_CLANG_TIDY "Run clang-tidy during build" OFF)
 option(ENABLE_PROFILING "Enable trace profiler instrumentation" OFF)
+option(ENABLE_IMGUI "Build with Dear ImGui debug UI" ON)
 
 # Auto-detect ccache/sccache for faster rebuilds.
 find_program(CCACHE_PROGRAM ccache)
@@ -73,6 +74,10 @@ set(SDL_ALSA_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_PULSEAUDIO_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_X11_SHARED OFF CACHE BOOL "" FORCE)
 add_subdirectory(libraries/SDL3 EXCLUDE_FROM_ALL SYSTEM)
+
+if(ENABLE_IMGUI)
+    add_subdirectory(libraries/imgui EXCLUDE_FROM_ALL SYSTEM)
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   find_library(LIBDW_LIBRARY dw)
@@ -196,7 +201,8 @@ set(ENGINE_SRCS
     src/cmd_run.cc
     src/cmd_stubs.cc
     src/cmd_version.cc
-    src/platform.cc)
+    src/platform.cc
+    $<$<BOOL:${ENABLE_IMGUI}>:src/debug_ui.cc>)
 
 add_library(engine STATIC ${ENGINE_SRCS})
 
@@ -237,6 +243,11 @@ endif()
 
 if(ENABLE_PROFILING)
     target_compile_definitions(engine PRIVATE GAME_WITH_PROFILING)
+endif()
+
+if(ENABLE_IMGUI)
+    target_compile_definitions(engine PUBLIC GAME_WITH_IMGUI)
+    target_link_libraries(engine PUBLIC imgui)
 endif()
 
 if(ENABLE_CLANG_TIDY)
