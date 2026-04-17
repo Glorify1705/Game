@@ -266,6 +266,10 @@ class Lua {
   // Returns true on success, false on error.
   bool EvalString(std::string_view code, StringBuffer* output);
 
+  // Returns the underlying Lua state. Only safe to call from the main
+  // thread between update and draw (e.g. debug UI rendering).
+  lua_State* state() const { return state_; }
+
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }
 

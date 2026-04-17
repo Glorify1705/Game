@@ -338,6 +338,7 @@ void Game::Render() {
         fs, lua_kb, engine->batch_renderer.GetCommandBufferUsed(),
         engine->batch_renderer.GetCommandBufferCapacity());
     debug_ui.DrawLogConsole();
+    debug_ui.DrawEntityInspector();
     debug_ui.EndFrame();
   }
   {

@@ -74,6 +74,9 @@ class DebugUI {
   // Draws the log console panel with filtering and Lua eval.
   void DrawLogConsole();
 
+  // Draws the entity inspector panel showing live Lua state.
+  void DrawEntityInspector();
+
  private:
   // Rolling buffer of frame times for the PlotLines graph.
   static constexpr size_t kFrameTimeHistory = 300;
@@ -129,6 +132,7 @@ class DebugUI {
   void LogMessage(LogLevel, const char*) {}
   void DrawPerformancePanel(const FrameStats&, float, size_t, size_t) {}
   void DrawLogConsole() {}
+  void DrawEntityInspector() {}
 };
 
 }  // namespace G

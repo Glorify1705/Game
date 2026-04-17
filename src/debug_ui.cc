@@ -437,6 +437,220 @@ void DebugUI::DrawLogConsole() {
   ImGui::End();
 }
 
+namespace {
+
+// Formats a Lua value at the given stack index into a short display string.
+void FormatLuaValue(lua_State* L, int idx, char* buf, size_t buf_size) {
+  if (idx < 0 && idx > LUA_REGISTRYINDEX) idx = lua_gettop(L) + idx + 1;
+  switch (lua_type(L, idx)) {
+    case LUA_TNIL:
+      snprintf(buf, buf_size, "nil");
+      break;
+    case LUA_TBOOLEAN:
+      snprintf(buf, buf_size, "%s",
+               lua_toboolean(L, idx) ? "true" : "false");
+      break;
+    case LUA_TNUMBER:
+      snprintf(buf, buf_size, "%g", lua_tonumber(L, idx));
+      break;
+    case LUA_TSTRING: {
+      const char* s = lua_tostring(L, idx);
+      snprintf(buf, buf_size, "\"%s\"", s);
+      break;
+    }
+    case LUA_TTABLE:
+      snprintf(buf, buf_size, "{table}");
+      break;
+    case LUA_TFUNCTION:
+      snprintf(buf, buf_size, "function: %p", lua_topointer(L, idx));
+      break;
+    case LUA_TUSERDATA:
+    case LUA_TLIGHTUSERDATA: {
+      // Try to get the metatable name for a friendlier label.
+      if (lua_getmetatable(L, idx)) {
+        lua_getfield(L, -1, "__name");
+        if (lua_isstring(L, -1)) {
+          snprintf(buf, buf_size, "%s: %p", lua_tostring(L, -1),
+                   lua_topointer(L, idx));
+        } else {
+          snprintf(buf, buf_size, "userdata: %p", lua_topointer(L, idx));
+        }
+        lua_pop(L, 2);
+      } else {
+        snprintf(buf, buf_size, "userdata: %p", lua_topointer(L, idx));
+      }
+      break;
+    }
+    case LUA_TTHREAD:
+      snprintf(buf, buf_size, "thread: %p", lua_topointer(L, idx));
+      break;
+    default:
+      snprintf(buf, buf_size, "(%s)", lua_typename(L, lua_type(L, idx)));
+      break;
+  }
+}
+
+// Formats a Lua key at the given stack index for display.
+void FormatLuaKey(lua_State* L, int idx, char* buf, size_t buf_size) {
+  if (idx < 0 && idx > LUA_REGISTRYINDEX) idx = lua_gettop(L) + idx + 1;
+  switch (lua_type(L, idx)) {
+    case LUA_TSTRING:
+      snprintf(buf, buf_size, "%s", lua_tostring(L, idx));
+      break;
+    case LUA_TNUMBER:
+      snprintf(buf, buf_size, "[%g]", lua_tonumber(L, idx));
+      break;
+    default:
+      snprintf(buf, buf_size, "[%s]",
+               lua_typename(L, lua_type(L, idx)));
+      break;
+  }
+}
+
+// Recursively draws a Lua value as ImGui tree nodes. The value must be at
+// the top of the Lua stack. table_ref is the stack index of the parent
+// table (for write-back); key_idx is the stack index of the key.
+void DrawLuaValue(lua_State* L, int depth, int table_ref, int key_idx) {
+  if (depth > 10) {
+    ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "...");
+    return;
+  }
+
+  int idx = lua_gettop(L);
+  int type = lua_type(L, idx);
+
+  if (type == LUA_TTABLE) {
+    // Render each table entry as a child tree node.
+    lua_pushnil(L);
+    while (lua_next(L, idx) != 0) {
+      // Stack: ... table ... key value
+      int child_key = lua_gettop(L) - 1;
+      int child_val = lua_gettop(L);
+
+      char key_buf[128];
+      FormatLuaKey(L, child_key, key_buf, sizeof(key_buf));
+
+      if (lua_type(L, child_val) == LUA_TTABLE) {
+        bool open = ImGui::TreeNode(key_buf);
+        if (open) {
+          DrawLuaValue(L, depth + 1, idx, child_key);
+          ImGui::TreePop();
+        }
+      } else {
+        ImGui::PushID(child_key);
+        // Leaf value — editable inline.
+        char val_buf[256];
+        FormatLuaValue(L, child_val, val_buf, sizeof(val_buf));
+
+        if (lua_type(L, child_val) == LUA_TNUMBER) {
+          double v = lua_tonumber(L, child_val);
+          float fv = static_cast<float>(v);
+          ImGui::SetNextItemWidth(120);
+          if (ImGui::DragFloat(key_buf, &fv, 0.1f)) {
+            // Write back: table[key] = new value.
+            lua_pushvalue(L, child_key);
+            lua_pushnumber(L, static_cast<double>(fv));
+            lua_settable(L, idx);
+          }
+        } else if (lua_type(L, child_val) == LUA_TBOOLEAN) {
+          bool v = lua_toboolean(L, child_val) != 0;
+          if (ImGui::Checkbox(key_buf, &v)) {
+            lua_pushvalue(L, child_key);
+            lua_pushboolean(L, v ? 1 : 0);
+            lua_settable(L, idx);
+          }
+        } else {
+          ImGui::Text("%s: %s", key_buf, val_buf);
+        }
+        ImGui::PopID();
+      }
+      // Pop value, keep key for lua_next.
+      lua_pop(L, 1);
+    }
+  } else {
+    char val_buf[256];
+    FormatLuaValue(L, idx, val_buf, sizeof(val_buf));
+    ImGui::Text("%s", val_buf);
+  }
+}
+
+}  // namespace
+
+void DebugUI::DrawEntityInspector() {
+  if (!initialized_ || !visible_ || lua_ == nullptr) return;
+
+  ImGui::SetNextWindowPos(ImVec2(400, 10), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(400, 500), ImGuiCond_FirstUseEver);
+
+  if (!ImGui::Begin("Entity Inspector", nullptr,
+                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+    ImGui::End();
+    return;
+  }
+
+  lua_State* L = lua_->state();
+  int top = lua_gettop(L);
+
+  // Filter input.
+  static char filter[128] = {};
+  ImGui::SetNextItemWidth(-1);
+  ImGui::InputTextWithHint("##inspector_filter", "Filter keys...", filter,
+                           sizeof(filter));
+  ImGui::Separator();
+
+  // Walk the G global table.
+  lua_getglobal(L, "G");
+  if (!lua_istable(L, -1)) {
+    ImGui::Text("G is not a table");
+    lua_settop(L, top);
+    ImGui::End();
+    return;
+  }
+
+  int g_idx = lua_gettop(L);
+  bool has_filter = filter[0] != '\0';
+
+  lua_pushnil(L);
+  while (lua_next(L, g_idx) != 0) {
+    // Stack: G key value
+    char key_buf[128];
+    FormatLuaKey(L, -2, key_buf, sizeof(key_buf));
+
+    if (has_filter && strstr(key_buf, filter) == nullptr) {
+      lua_pop(L, 1);
+      continue;
+    }
+
+    int val_type = lua_type(L, -1);
+    if (val_type == LUA_TTABLE) {
+      bool open = ImGui::TreeNode(key_buf);
+      if (open) {
+        DrawLuaValue(L, 1, g_idx, lua_gettop(L) - 1);
+        ImGui::TreePop();
+      }
+    } else {
+      char val_buf[256];
+      FormatLuaValue(L, -1, val_buf, sizeof(val_buf));
+      ImGui::Text("G.%s = %s", key_buf, val_buf);
+    }
+    lua_pop(L, 1);
+  }
+
+  // Also show _Game table (the game module).
+  lua_getglobal(L, "_Game");
+  if (lua_istable(L, -1)) {
+    if (!has_filter || strstr("_Game", filter) != nullptr) {
+      if (ImGui::TreeNode("_Game")) {
+        DrawLuaValue(L, 1, 0, 0);
+        ImGui::TreePop();
+      }
+    }
+  }
+
+  lua_settop(L, top);
+  ImGui::End();
+}
+
 }  // namespace G
 
 #endif  // GAME_WITH_IMGUI
