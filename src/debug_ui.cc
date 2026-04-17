@@ -72,6 +72,8 @@ void DebugUI::StartLogCapture(Allocator* allocator) {
 }
 
 void DebugUI::Init(SDL_Window* window, SDL_GLContext gl_context) {
+  window_ = window;
+
   // Route ImGui's internal allocations through the engine allocator.
   ImGui::SetAllocatorFunctions(ImGuiAllocFunc, ImGuiFreeFunc, nullptr);
 
@@ -300,6 +302,54 @@ void DebugUI::DrawPerformancePanel(const FrameStats& fs,
   ImGui::PushStyleColor(ImGuiCol_PlotHistogram, bar_color);
   ImGui::ProgressBar(fill_ratio, ImVec2(-1, 0), cmd_buf_label);
   ImGui::PopStyleColor();
+
+  ImGui::Separator();
+
+  // Window size controls.
+  if (window_ != nullptr &&
+      ImGui::CollapsingHeader("Window", ImGuiTreeNodeFlags_DefaultOpen)) {
+    int w = 0, h = 0;
+    SDL_GetWindowSize(window_, &w, &h);
+
+    // Preset buttons.
+    struct Preset {
+      const char* label;
+      int w, h;
+    };
+    const Preset presets[] = {
+        {"800x600", 800, 600},     {"1280x720", 1280, 720},
+        {"1440x900", 1440, 900},   {"1920x1080", 1920, 1080},
+        {"2560x1440", 2560, 1440},
+    };
+    for (size_t i = 0; i < sizeof(presets) / sizeof(presets[0]); ++i) {
+      if (i > 0) ImGui::SameLine();
+      if (ImGui::Button(presets[i].label)) {
+        SDL_SetWindowSize(window_, presets[i].w, presets[i].h);
+      }
+    }
+
+    // Custom size inputs.
+    static int custom_w = 0, custom_h = 0;
+    if (custom_w == 0) {
+      custom_w = w;
+      custom_h = h;
+    }
+    ImGui::SetNextItemWidth(80);
+    ImGui::InputInt("##cw", &custom_w, 0);
+    ImGui::SameLine();
+    ImGui::Text("x");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(80);
+    ImGui::InputInt("##ch", &custom_h, 0);
+    ImGui::SameLine();
+    if (ImGui::Button("Apply")) {
+      if (custom_w > 0 && custom_h > 0) {
+        SDL_SetWindowSize(window_, custom_w, custom_h);
+      }
+    }
+
+    ImGui::Text("Current: %dx%d", w, h);
+  }
 
   ImGui::End();
 }

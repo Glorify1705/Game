@@ -98,6 +98,7 @@ class DebugUI {
   bool initialized_ = false;
   Allocator* allocator_ = nullptr;
   Lua* lua_ = nullptr;
+  SDL_Window* window_ = nullptr;
   CircularBuffer<float>* frame_times_ = nullptr;
   CircularBuffer<float>* lua_memory_samples_ = nullptr;
 
