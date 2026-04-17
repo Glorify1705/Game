@@ -439,6 +439,7 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   // Main loop.
   debug_ui.Init(sdl.window, sdl.gl_context);
   debug_ui.SetLua(&e->lua);
+  debug_ui.SetBatchRenderer(&e->batch_renderer);
   Game loop{e, config, opts, sdl, hot_reload, allocator, debug_ui};
   loop.Run();
   debug_ui.Shutdown();

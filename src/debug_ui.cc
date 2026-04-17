@@ -321,10 +321,18 @@ void DebugUI::DrawPerformancePanel(const FrameStats& fs,
         {"1440x900", 1440, 900},   {"1920x1080", 1920, 1080},
         {"2560x1440", 2560, 1440},
     };
+    // Helper lambda: resize the SDL window and update the engine viewport.
+    auto ResizeWindow = [&](int new_w, int new_h) {
+      SDL_SetWindowSize(window_, new_w, new_h);
+      if (batch_renderer_ != nullptr) {
+        batch_renderer_->SetViewport(IVec2(new_w, new_h));
+      }
+    };
+
     for (size_t i = 0; i < sizeof(presets) / sizeof(presets[0]); ++i) {
       if (i > 0) ImGui::SameLine();
       if (ImGui::Button(presets[i].label)) {
-        SDL_SetWindowSize(window_, presets[i].w, presets[i].h);
+        ResizeWindow(presets[i].w, presets[i].h);
       }
     }
 
@@ -344,7 +352,7 @@ void DebugUI::DrawPerformancePanel(const FrameStats& fs,
     ImGui::SameLine();
     if (ImGui::Button("Apply")) {
       if (custom_w > 0 && custom_h > 0) {
-        SDL_SetWindowSize(window_, custom_w, custom_h);
+        ResizeWindow(custom_w, custom_h);
       }
     }
 

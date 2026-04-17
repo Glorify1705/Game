@@ -36,6 +36,9 @@ class DebugUI {
   // Sets the Lua VM used by the log console's eval input.
   void SetLua(Lua* lua) { lua_ = lua; }
 
+  // Sets the batch renderer for viewport resizing from the debug UI.
+  void SetBatchRenderer(BatchRenderer* br) { batch_renderer_ = br; }
+
   // Forwards an SDL event to ImGui for input handling.
   void ProcessEvent(const SDL_Event* event);
 
@@ -99,6 +102,7 @@ class DebugUI {
   Allocator* allocator_ = nullptr;
   Lua* lua_ = nullptr;
   SDL_Window* window_ = nullptr;
+  BatchRenderer* batch_renderer_ = nullptr;
   CircularBuffer<float>* frame_times_ = nullptr;
   CircularBuffer<float>* lua_memory_samples_ = nullptr;
 
@@ -126,6 +130,7 @@ class DebugUI {
   void Init(SDL_Window*, SDL_GLContext) {}
   void Shutdown() {}
   void SetLua(Lua*) {}
+  void SetBatchRenderer(BatchRenderer*) {}
   void ProcessEvent(const SDL_Event*) {}
   void BeginFrame() {}
   void EndFrame() {}
