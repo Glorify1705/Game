@@ -1643,15 +1643,14 @@ void DebugUI::DrawAssetViewer() {
             {
               static Sound::Source preview_source = 0;
               static bool has_preview = false;
-              static const char* preview_name = nullptr;
+              static char preview_name[256] = {};
               bool is_playing =
-                  has_preview && preview_name != nullptr &&
-                  strcmp(preview_name, name) == 0;
+                  has_preview && strcmp(preview_name, name) == 0;
               if (ImGui::SmallButton(is_playing ? "Stop" : "Play")) {
                 if (is_playing) {
                   (void)sound_->Stop(preview_source);
                   has_preview = false;
-                  preview_name = nullptr;
+                  preview_name[0] = '\0';
                 } else {
                   if (has_preview) {
                     (void)sound_->Stop(preview_source);
@@ -1660,7 +1659,7 @@ void DebugUI::DrawAssetViewer() {
                       sound_->AddEffect(name, Sound::Ownership::kAutoFree);
                   if (!result.is_error()) {
                     preview_source = result.value();
-                    preview_name = name;
+                    snprintf(preview_name, sizeof(preview_name), "%s", name);
                     has_preview = true;
                     (void)sound_->StartChannel(preview_source);
                   }
