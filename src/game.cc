@@ -341,6 +341,12 @@ void Game::Render() {
         engine->batch_renderer.GetCommandBufferCapacity());
     debug_ui.DrawLogConsole();
     debug_ui.DrawEntityInspector();
+    debug_ui.DrawAudioPanel();
+    debug_ui.DrawMemoryPanel(engine->lua.MemoryUsage());
+    debug_ui.DrawRendererPanel(
+        fs, engine->batch_renderer.GetCommandBufferUsed(),
+        engine->batch_renderer.GetCommandBufferCapacity());
+    debug_ui.DrawCameraPanel();
     debug_ui.EndFrame();
   }
   {
@@ -440,6 +446,12 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   debug_ui.Init(sdl.window, sdl.gl_context);
   debug_ui.SetLua(&e->lua);
   debug_ui.SetBatchRenderer(&e->batch_renderer);
+  debug_ui.SetSound(&e->sound);
+  debug_ui.SetEngineArena(allocator);
+  debug_ui.SetFrameArena(&e->frame_allocator);
+  debug_ui.SetRenderer(&e->renderer);
+  debug_ui.SetShaders(&e->shaders);
+  debug_ui.SetCamera(&e->camera);
   Game loop{e, config, opts, sdl, hot_reload, allocator, debug_ui};
   loop.Run();
   debug_ui.Shutdown();

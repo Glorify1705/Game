@@ -9,6 +9,7 @@
 #include <imgui_impl_sdl3.h>
 
 #include "lua.h"
+#include "string_table.h"
 
 namespace G {
 
@@ -523,6 +524,485 @@ void DebugUI::DrawLogConsole() {
   // Auto-focus the input field.
   ImGui::SetItemDefaultFocus();
   if (reclaim_focus) ImGui::SetKeyboardFocusHere(-1);
+
+  ImGui::End();
+}
+
+void DebugUI::DrawAudioPanel() {
+  if (!initialized_ || !visible_ || sound_ == nullptr) return;
+
+  ImGui::SetNextWindowPos(ImVec2(620, 10), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(420, 350), ImGuiCond_FirstUseEver);
+
+  if (!ImGui::Begin("Audio", nullptr,
+                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+    ImGui::End();
+    return;
+  }
+
+  // Global volume slider.
+  float global_gain = sound_->global_gain();
+  if (ImGui::SliderFloat("Global Volume", &global_gain, 0.0f, 1.0f,
+                          "%.2f")) {
+    sound_->SetGlobalGain(global_gain);
+  }
+
+  ImGui::Separator();
+
+  // Stream slot usage.
+  size_t used = sound_->stream_count();
+  size_t total = sound_->max_streams();
+  ImGui::Text("Stream Slots: %zu / %zu", used, total);
+  float slot_ratio = (total > 0)
+                         ? static_cast<float>(used) / static_cast<float>(total)
+                         : 0.0f;
+  ImGui::ProgressBar(slot_ratio, ImVec2(-1, 0));
+
+  ImGui::Separator();
+
+  // Active streams table.
+  if (used > 0 &&
+      ImGui::BeginTable("Streams", 7,
+                        ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                            ImGuiTableFlags_Resizable |
+                            ImGuiTableFlags_ScrollY,
+                        ImVec2(0, 0))) {
+    ImGui::TableSetupColumn("Name");
+    ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed, 55);
+    ImGui::TableSetupColumn("Vol", ImGuiTableColumnFlags_WidthFixed, 40);
+    ImGui::TableSetupColumn("Pitch", ImGuiTableColumnFlags_WidthFixed, 40);
+    ImGui::TableSetupColumn("Pan", ImGuiTableColumnFlags_WidthFixed, 40);
+    ImGui::TableSetupColumn("Loop", ImGuiTableColumnFlags_WidthFixed, 35);
+    ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 55);
+    ImGui::TableHeadersRow();
+
+    Sound::StreamDebugInfo infos[128];
+    sound_->GetStreamDebugInfo(infos, 128);
+    for (size_t i = 0; i < used; ++i) {
+      const auto& info = infos[i];
+      ImGui::TableNextRow();
+      ImGui::TableNextColumn();
+      std::string_view name = StringByHandle(info.handle);
+      ImGui::TextUnformatted(name.data(), name.data() + name.size());
+
+      ImGui::TableNextColumn();
+      if (info.playing) {
+        ImGui::TextColored(ImVec4(0.2f, 0.9f, 0.2f, 1.0f), "Playing");
+      } else {
+        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Stopped");
+      }
+
+      ImGui::TableNextColumn();
+      ImGui::Text("%.2f", static_cast<double>(info.gain));
+
+      ImGui::TableNextColumn();
+      ImGui::Text("%.2f", static_cast<double>(info.pitch));
+
+      ImGui::TableNextColumn();
+      ImGui::Text("%.2f", static_cast<double>(info.pan));
+
+      ImGui::TableNextColumn();
+      ImGui::Text("%s", info.loop ? "Yes" : "No");
+
+      ImGui::TableNextColumn();
+      ImGui::Text("%s", info.managed ? "Managed" : "Auto");
+    }
+    ImGui::EndTable();
+  }
+
+  ImGui::End();
+}
+
+namespace {
+
+// Formats a byte count into a human-readable string (KB or MB).
+void FormatBytes(char* buf, size_t buf_size, size_t bytes) {
+  if (bytes >= 1024 * 1024) {
+    snprintf(buf, buf_size, "%.1f MB",
+             static_cast<double>(bytes) / (1024.0 * 1024.0));
+  } else {
+    snprintf(buf, buf_size, "%.1f KB",
+             static_cast<double>(bytes) / 1024.0);
+  }
+}
+
+// Draws a labeled memory bar with used/total.
+void DrawMemoryBar(const char* label, size_t used, size_t total) {
+  float ratio = (total > 0)
+                    ? static_cast<float>(used) / static_cast<float>(total)
+                    : 0.0f;
+  if (ratio > 1.0f) ratio = 1.0f;
+
+  ImVec4 bar_color;
+  if (ratio < 0.5f) {
+    bar_color = ImVec4(0.2f, 0.8f, 0.2f, 1.0f);
+  } else if (ratio < 0.8f) {
+    bar_color = ImVec4(0.9f, 0.7f, 0.1f, 1.0f);
+  } else {
+    bar_color = ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
+  }
+
+  char used_str[32], total_str[32], overlay[80];
+  FormatBytes(used_str, sizeof(used_str), used);
+  FormatBytes(total_str, sizeof(total_str), total);
+  snprintf(overlay, sizeof(overlay), "%s / %s", used_str, total_str);
+
+  ImGui::Text("%s", label);
+  ImGui::PushStyleColor(ImGuiCol_PlotHistogram, bar_color);
+  ImGui::ProgressBar(ratio, ImVec2(-1, 0), overlay);
+  ImGui::PopStyleColor();
+}
+
+}  // namespace
+
+void DebugUI::DrawMemoryPanel(size_t lua_memory_bytes) {
+  if (!initialized_ || !visible_) return;
+
+  ImGui::SetNextWindowPos(ImVec2(620, 370), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(380, 280), ImGuiCond_FirstUseEver);
+
+  if (!ImGui::Begin("Memory", nullptr,
+                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+    ImGui::End();
+    return;
+  }
+
+  // Engine arena allocator.
+  if (engine_arena_ != nullptr &&
+      ImGui::CollapsingHeader("Engine Arena",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    DrawMemoryBar("Used / Total", engine_arena_->used_memory(),
+                  engine_arena_->total_memory());
+    ImGui::Text("%.1f%% used",
+                static_cast<double>(engine_arena_->used_memory()) /
+                    static_cast<double>(engine_arena_->total_memory()) * 100.0);
+  }
+
+  ImGui::Separator();
+
+  // Frame allocator (reset each frame).
+  if (frame_arena_ != nullptr &&
+      ImGui::CollapsingHeader("Frame Allocator",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    DrawMemoryBar("Used / Total", frame_arena_->used_memory(),
+                  frame_arena_->total_memory());
+    ImGui::Text("%.1f%% used (resets each frame)",
+                static_cast<double>(frame_arena_->used_memory()) /
+                    static_cast<double>(frame_arena_->total_memory()) * 100.0);
+  }
+
+  ImGui::Separator();
+
+  // Lua heap.
+  if (ImGui::CollapsingHeader("Lua Heap", ImGuiTreeNodeFlags_DefaultOpen)) {
+    char lua_str[32];
+    FormatBytes(lua_str, sizeof(lua_str), lua_memory_bytes);
+    ImGui::Text("Lua memory: %s", lua_str);
+
+    // Sparkline from the existing lua_memory_samples_ buffer.
+    const size_t lua_count = lua_memory_samples_->size();
+    if (lua_count > 0) {
+      float lua_values[kFrameTimeHistory];
+      float lua_max = 0.0f;
+      for (size_t i = 0; i < lua_count; ++i) {
+        float v = (*lua_memory_samples_)[i];
+        lua_values[i] = v;
+        if (v > lua_max) lua_max = v;
+      }
+      ImGui::PlotLines("##lua_mem_sparkline", lua_values,
+                        static_cast<int>(lua_count), /*values_offset=*/0,
+                        /*overlay_text=*/nullptr, /*scale_min=*/0.0f,
+                        /*scale_max=*/lua_max * 1.5f, ImVec2(0, 40));
+    }
+  }
+
+  ImGui::Separator();
+
+  // String table stats.
+  if (ImGui::CollapsingHeader("String Table")) {
+    auto st_stats = StringTable::Instance().stats();
+    ImGui::Text("Interned strings: %d / %d", st_stats.strings_used,
+                st_stats.total_strings);
+    ImGui::Text("Buffer used: %d / %d bytes", st_stats.space_used,
+                st_stats.total_space);
+    float st_ratio = static_cast<float>(st_stats.space_used) /
+                     static_cast<float>(st_stats.total_space);
+    ImGui::ProgressBar(st_ratio, ImVec2(-1, 0));
+  }
+
+  ImGui::End();
+}
+
+namespace {
+
+// Returns a display name for a blend mode enum value.
+const char* BlendModeName(BlendMode mode) {
+  switch (mode) {
+    case BLEND_ALPHA:
+      return "Alpha";
+    case BLEND_ADD:
+      return "Additive";
+    case BLEND_MULTIPLY:
+      return "Multiply";
+    case BLEND_REPLACE:
+      return "Replace";
+    case BLEND_PREMULTIPLIED:
+      return "Premultiplied";
+  }
+  return "Unknown";
+}
+
+}  // namespace
+
+void DebugUI::DrawRendererPanel(const FrameStats& fs,
+                                 size_t cmd_buf_used,
+                                 size_t cmd_buf_capacity) {
+  if (!initialized_ || !visible_) return;
+
+  ImGui::SetNextWindowPos(ImVec2(10, 420), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(420, 450), ImGuiCond_FirstUseEver);
+
+  if (!ImGui::Begin("Renderer", nullptr,
+                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+    ImGui::End();
+    return;
+  }
+
+  // Batch stats (detailed).
+  if (ImGui::CollapsingHeader("Batch Stats",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::Text("Draw calls: %d", fs.draw_calls);
+    ImGui::Text("Vertices:   %d", fs.vertices);
+    ImGui::Text("Commands:   %d", fs.commands);
+
+    ImGui::Separator();
+    ImGui::Text("Flush Reasons:");
+    if (ImGui::BeginTable("FlushReasons", 2,
+                          ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
+      ImGui::TableSetupColumn("Reason");
+      ImGui::TableSetupColumn("Count", ImGuiTableColumnFlags_WidthFixed, 60);
+      ImGui::TableHeadersRow();
+
+      struct FlushEntry {
+        const char* name;
+        int count;
+      };
+      FlushEntry entries[] = {
+          {"Texture", fs.flush_texture},
+          {"Transform", fs.flush_transform},
+          {"Shader", fs.flush_shader},
+          {"Blend Mode", fs.flush_blend},
+          {"Canvas", fs.flush_canvas},
+          {"Line End", fs.flush_line_end},
+          {"Overflow", fs.flush_overflow},
+          {"Other", fs.flush_other},
+      };
+      for (const auto& e : entries) {
+        if (e.count == 0) continue;
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        if (e.count == fs.flush_overflow && fs.flush_overflow > 0) {
+          ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s", e.name);
+        } else {
+          ImGui::Text("%s", e.name);
+        }
+        ImGui::TableNextColumn();
+        ImGui::Text("%d", e.count);
+      }
+      ImGui::EndTable();
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Redundant Skips:");
+    int total_redundant = fs.redundant_texture + fs.redundant_transform +
+                          fs.redundant_shader + fs.redundant_blend +
+                          fs.redundant_line_width + fs.redundant_sdf_outline;
+    ImGui::Text("Total: %d", total_redundant);
+    if (total_redundant > 0 && ImGui::TreeNode("##redundant_detail")) {
+      ImGui::Text("Texture:     %d", fs.redundant_texture);
+      ImGui::Text("Transform:   %d", fs.redundant_transform);
+      ImGui::Text("Shader:      %d", fs.redundant_shader);
+      ImGui::Text("Blend:       %d", fs.redundant_blend);
+      ImGui::Text("Line Width:  %d", fs.redundant_line_width);
+      ImGui::Text("SDF Outline: %d", fs.redundant_sdf_outline);
+      ImGui::TreePop();
+    }
+
+    // Command buffer fill.
+    ImGui::Separator();
+    float used_mb =
+        static_cast<float>(cmd_buf_used) / (1024.0f * 1024.0f);
+    float total_mb =
+        static_cast<float>(cmd_buf_capacity) / (1024.0f * 1024.0f);
+    float fill_ratio = (cmd_buf_capacity > 0)
+                           ? static_cast<float>(cmd_buf_used) /
+                                 static_cast<float>(cmd_buf_capacity)
+                           : 0.0f;
+    if (fill_ratio > 1.0f) fill_ratio = 1.0f;
+    char cmd_label[64];
+    snprintf(cmd_label, sizeof(cmd_label), "%.2f / %.0f MB",
+             static_cast<double>(used_mb), static_cast<double>(total_mb));
+    ImGui::Text("Command Buffer");
+    ImVec4 bar_color;
+    if (fill_ratio < 0.5f) {
+      bar_color = ImVec4(0.2f, 0.8f, 0.2f, 1.0f);
+    } else if (fill_ratio < 0.8f) {
+      bar_color = ImVec4(0.9f, 0.7f, 0.1f, 1.0f);
+    } else {
+      bar_color = ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
+    }
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, bar_color);
+    ImGui::ProgressBar(fill_ratio, ImVec2(-1, 0), cmd_label);
+    ImGui::PopStyleColor();
+  }
+
+  ImGui::Separator();
+
+  // Loaded textures.
+  if (batch_renderer_ != nullptr &&
+      ImGui::CollapsingHeader("Textures")) {
+    ImGui::Text("Texture units: %zu", batch_renderer_->GetTextureCount());
+  }
+
+  // Loaded images.
+  if (renderer_ != nullptr && ImGui::CollapsingHeader("Loaded Images")) {
+    Slice<DbAssets::Image> images = renderer_->GetImages();
+    ImGui::Text("Count: %zu", images.size());
+    if (images.size() > 0 &&
+        ImGui::BeginTable("Images", 3,
+                          ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                              ImGuiTableFlags_ScrollY,
+                          ImVec2(0, 150))) {
+      ImGui::TableSetupColumn("Name");
+      ImGui::TableSetupColumn("Width", ImGuiTableColumnFlags_WidthFixed, 60);
+      ImGui::TableSetupColumn("Height", ImGuiTableColumnFlags_WidthFixed, 60);
+      ImGui::TableHeadersRow();
+      for (size_t i = 0; i < images.size(); ++i) {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted(images[i].name.data(),
+                               images[i].name.data() + images[i].name.size());
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", images[i].width);
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", images[i].height);
+      }
+      ImGui::EndTable();
+    }
+  }
+
+  // Active shaders.
+  if (shaders_ != nullptr && ImGui::CollapsingHeader("Shader Programs")) {
+    shaders_->programs().ForEach(
+        [](std::string_view name, const GLuint& handle) {
+          ImGui::Text("%-30.*s  (GL %u)", static_cast<int>(name.size()),
+                      name.data(), handle);
+        });
+  }
+
+  // Current state readout.
+  if (batch_renderer_ != nullptr &&
+      ImGui::CollapsingHeader("Current State")) {
+    ImGui::Text("Blend mode: %s",
+                BlendModeName(batch_renderer_->GetCurrentBlendMode()));
+    std::string_view shader_name =
+        StringByHandle(batch_renderer_->GetCurrentShader());
+    ImGui::Text("Shader: %.*s", static_cast<int>(shader_name.size()),
+                shader_name.data());
+    IVec2 vp = batch_renderer_->viewport();
+    ImGui::Text("Viewport: %dx%d", vp.x, vp.y);
+  }
+
+  ImGui::End();
+}
+
+void DebugUI::DrawCameraPanel() {
+  if (!initialized_ || !visible_ || camera_ == nullptr) return;
+
+  ImGui::SetNextWindowPos(ImVec2(440, 420), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(340, 350), ImGuiCond_FirstUseEver);
+
+  if (!ImGui::Begin("Camera", nullptr,
+                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+    ImGui::End();
+    return;
+  }
+
+  // Position.
+  FVec2 pos = camera_->GetPosition();
+  ImGui::Text("Position: (%.1f, %.1f)", static_cast<double>(pos.x),
+              static_cast<double>(pos.y));
+
+  // Zoom.
+  float zoom = camera_->GetZoom();
+  ImGui::Text("Zoom: %.3f", static_cast<double>(zoom));
+
+  // Rotation.
+  float rotation = camera_->GetRotation();
+  ImGui::Text("Rotation: %.3f rad (%.1f deg)",
+              static_cast<double>(rotation),
+              static_cast<double>(rotation * 180.0f /
+                                  static_cast<float>(M_PI)));
+
+  ImGui::Separator();
+
+  // Follow state.
+  if (ImGui::CollapsingHeader("Follow", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (camera_->IsFollowing()) {
+      FVec2 target = camera_->GetFollowTarget();
+      ImGui::TextColored(ImVec4(0.2f, 0.9f, 0.2f, 1.0f), "Following");
+      ImGui::Text("Target: (%.1f, %.1f)", static_cast<double>(target.x),
+                  static_cast<double>(target.y));
+      FVec2 lerp = camera_->GetLerp();
+      ImGui::Text("Lerp: (%.3f, %.3f)", static_cast<double>(lerp.x),
+                  static_cast<double>(lerp.y));
+    } else {
+      ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Not following");
+    }
+  }
+
+  // Deadzone.
+  if (ImGui::CollapsingHeader("Deadzone", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (camera_->HasDeadzone()) {
+      FVec2 dz = camera_->GetDeadzone();
+      ImGui::TextColored(ImVec4(0.2f, 0.9f, 0.2f, 1.0f), "Active");
+      ImGui::Text("Half-size: (%.3f, %.3f)", static_cast<double>(dz.x),
+                  static_cast<double>(dz.y));
+    } else {
+      ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Disabled");
+    }
+  }
+
+  // Bounds.
+  if (ImGui::CollapsingHeader("Bounds")) {
+    if (camera_->HasBounds()) {
+      FVec2 start = camera_->GetBoundsStart();
+      FVec2 size = camera_->GetBoundsSize();
+      ImGui::TextColored(ImVec4(0.2f, 0.9f, 0.2f, 1.0f), "Active");
+      ImGui::Text("Origin: (%.1f, %.1f)", static_cast<double>(start.x),
+                  static_cast<double>(start.y));
+      ImGui::Text("Size:   (%.1f, %.1f)", static_cast<double>(size.x),
+                  static_cast<double>(size.y));
+    } else {
+      ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No bounds set");
+    }
+  }
+
+  // Shake.
+  if (ImGui::CollapsingHeader("Shake")) {
+    float intensity = camera_->GetShakeIntensity();
+    float timer = camera_->GetShakeTimer();
+    FVec2 offset = camera_->GetShakeOffset();
+    if (timer > 0.0f) {
+      ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.2f, 1.0f), "Shaking");
+      ImGui::Text("Intensity: %.2f", static_cast<double>(intensity));
+      ImGui::Text("Remaining: %.2f s", static_cast<double>(timer));
+      ImGui::Text("Offset:    (%.1f, %.1f)", static_cast<double>(offset.x),
+                  static_cast<double>(offset.y));
+    } else {
+      ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No active shake");
+    }
+  }
 
   ImGui::End();
 }

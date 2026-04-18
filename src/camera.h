@@ -77,6 +77,39 @@ class Camera {
   // Removes world bounds.
   void ClearBounds() { bounds_enabled_ = false; }
 
+  // Returns the follow target position.
+  FVec2 GetFollowTarget() const { return follow_target_; }
+
+  // Returns true if the camera is following a target.
+  bool IsFollowing() const { return following_; }
+
+  // Returns the lerp smoothing factors.
+  FVec2 GetLerp() const { return lerp_; }
+
+  // Returns the deadzone half-size (fraction of viewport).
+  FVec2 GetDeadzone() const { return deadzone_; }
+
+  // Returns true if a deadzone is active.
+  bool HasDeadzone() const { return deadzone_enabled_; }
+
+  // Returns the world bounds origin.
+  FVec2 GetBoundsStart() const { return bounds_start_; }
+
+  // Returns the world bounds size.
+  FVec2 GetBoundsSize() const { return bounds_size_; }
+
+  // Returns true if world bounds are active.
+  bool HasBounds() const { return bounds_enabled_; }
+
+  // Returns the current shake intensity.
+  float GetShakeIntensity() const { return shake_intensity_; }
+
+  // Returns the remaining shake timer.
+  float GetShakeTimer() const { return shake_timer_; }
+
+  // Returns the current shake offset applied to the camera.
+  FVec2 GetShakeOffset() const { return shake_offset_; }
+
   // Starts a screen shake. Only replaces if the new shake is stronger.
   void Shake(float intensity, float duration, float frequency) {
     if (intensity >= shake_intensity_) {

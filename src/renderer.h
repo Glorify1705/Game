@@ -223,6 +223,18 @@ class BatchRenderer {
   // Returns the total command buffer capacity in bytes.
   size_t GetCommandBufferCapacity() const;
 
+  // Returns the number of loaded texture units.
+  size_t GetTextureCount() const { return tex_.size(); }
+
+  // Returns the current viewport size.
+  IVec2 viewport() const { return viewport_; }
+
+  // Returns the current blend mode.
+  BlendMode GetCurrentBlendMode() const { return rec_blend_; }
+
+  // Returns the current shader handle.
+  uint32_t GetCurrentShader() const { return current_shader_; }
+
   struct Screenshot {
     size_t width, height;
     const uint8_t* buffer;

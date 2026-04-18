@@ -71,6 +71,29 @@ class Sound {
   void SoundCallback(float* result, size_t samples_per_channel,
                      size_t channels);
 
+  // Debug snapshot of a single stream slot, used by the debug UI.
+  struct StreamDebugInfo {
+    uint32_t handle;  // Interned name handle (use StringByHandle to resolve).
+    bool playing;     // Whether the stream is currently producing audio.
+    bool loop;        // Whether the stream loops on completion.
+    bool managed;     // Whether the stream is Lua-managed or fire-and-forget.
+    float gain;       // Per-stream gain (0-1).
+    float pitch;      // Playback pitch multiplier.
+    float pan;        // Stereo pan (-1 left, 0 center, +1 right).
+  };
+
+  // Returns the number of allocated stream slots (including stopped ones).
+  size_t stream_count() const { return stream_; }
+
+  // Returns the maximum number of stream slots.
+  size_t max_streams() const { return kMaxStreams; }
+
+  // Returns the current global gain.
+  float global_gain() const { return global_gain_; }
+
+  // Fills an array with debug info for all allocated streams.
+  void GetStreamDebugInfo(StreamDebugInfo* out, size_t max_count) const;
+
  private:
   // Streaming QOA sampler: decodes one frame at a time.
   class QoaSampler {
@@ -201,6 +224,13 @@ class Sound {
 
     void SetOwnership(Ownership ownership) { ownership_ = ownership; }
     bool IsManaged() const { return ownership_ == Ownership::kManaged; }
+
+    // Debug accessors for the debug UI panel.
+    uint32_t debug_handle() const { return handle_; }
+    float debug_gain() const { return gain_; }
+    float debug_pitch() const { return pitch_; }
+    float debug_pan() const { return pan_; }
+    bool debug_loop() const { return loop_; }
 
    private:
     void WriteStereoOutput(float* output, size_t& written, float s_left,

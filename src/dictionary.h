@@ -64,12 +64,27 @@ class Dictionary {
     root_ = nullptr;
   }
 
+  // Calls fn(string_view key, const T& value) for every entry in the tree.
+  template <typename Fn>
+  void ForEach(Fn fn) const {
+    ForEachNode(root_, fn);
+  }
+
  private:
   struct Node {
     std::array<Node*, 4> child;
     uint32_t handle = std::numeric_limits<uint32_t>::max();
     T value;
   };
+
+  template <typename Fn>
+  void ForEachNode(Node* n, Fn& fn) const {
+    if (n == nullptr) return;
+    fn(StringByHandle(n->handle), n->value);
+    for (Node* child : n->child) {
+      ForEachNode(child, fn);
+    }
+  }
 
   void Dealloc(Node* n) {
     if (n == nullptr) return;
