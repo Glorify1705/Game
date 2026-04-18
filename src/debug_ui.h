@@ -63,6 +63,9 @@ class DebugUI {
   // Sets the physics world for the physics debug panel.
   void SetPhysics(Physics* physics) { physics_ = physics; }
 
+  // Sets the asset database for the asset viewer panel.
+  void SetDb(sqlite3* db) { db_ = db; }
+
   // Forwards an SDL event to ImGui for input handling.
   void ProcessEvent(const SDL_Event* event);
 
@@ -138,6 +141,7 @@ class DebugUI {
   Shaders* shaders_ = nullptr;
   Camera* camera_ = nullptr;
   Physics* physics_ = nullptr;
+  sqlite3* db_ = nullptr;
   SDL_Window* window_ = nullptr;
   BatchRenderer* batch_renderer_ = nullptr;
   CircularBuffer<float>* frame_times_ = nullptr;
@@ -155,6 +159,7 @@ class DebugUI {
   void DrawRendererPanel(const FrameContext& ctx);
   void DrawCameraPanel();
   void DrawPhysicsPanel();
+  void DrawAssetViewer();
 
   // Panel visibility toggles.
   bool show_performance_ = true;
@@ -165,6 +170,7 @@ class DebugUI {
   bool show_renderer_ = false;
   bool show_camera_ = false;
   bool show_physics_ = false;
+  bool show_assets_ = false;
 
   // Action requests from menu bar (consumed by game loop).
   bool screenshot_requested_ = false;
@@ -202,6 +208,7 @@ class DebugUI {
   void SetShaders(Shaders*) {}
   void SetCamera(Camera*) {}
   void SetPhysics(Physics*) {}
+  void SetDb(sqlite3*) {}
   void ProcessEvent(const SDL_Event*) {}
   void BeginFrame() {}
   void EndFrame() {}

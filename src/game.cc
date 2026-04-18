@@ -454,6 +454,7 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   debug_ui.SetShaders(&e->shaders);
   debug_ui.SetCamera(&e->camera);
   debug_ui.SetPhysics(&e->physics);
+  debug_ui.SetDb(db);
   Game loop{e, config, opts, sdl, hot_reload, allocator, debug_ui};
   loop.Run();
   debug_ui.Shutdown();

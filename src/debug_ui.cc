@@ -8,6 +8,7 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl3.h>
 
+#include "libraries/sqlite3.h"
 #include "lua.h"
 #include "string_table.h"
 
@@ -1373,6 +1374,7 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       ImGui::MenuItem("Renderer", nullptr, &show_renderer_);
       ImGui::MenuItem("Camera", nullptr, &show_camera_);
       ImGui::MenuItem("Physics", nullptr, &show_physics_);
+      ImGui::MenuItem("Assets", nullptr, &show_assets_);
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Actions")) {
@@ -1433,12 +1435,84 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   if (show_renderer_) DrawRendererPanel(ctx);
   if (show_camera_) DrawCameraPanel();
   if (show_physics_) DrawPhysicsPanel();
+  if (show_assets_) DrawAssetViewer();
 }
 
 bool DebugUI::ConsumeScreenshotRequest() {
   bool r = screenshot_requested_;
   screenshot_requested_ = false;
   return r;
+}
+
+void DebugUI::DrawAssetViewer() {
+  if (!initialized_ || !visible_ || db_ == nullptr) return;
+
+  ImGui::SetNextWindowPos(ImVec2(400, 300), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(500, 400), ImGuiCond_FirstUseEver);
+
+  if (!ImGui::Begin("Assets", nullptr,
+                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+    ImGui::End();
+    return;
+  }
+
+  // Filter input.
+  static char filter[128] = {};
+  ImGui::SetNextItemWidth(-1);
+  ImGui::InputTextWithHint("##asset_filter", "Filter by name...", filter,
+                           sizeof(filter));
+  ImGui::Separator();
+
+  // Query the asset_metadata table.
+  const char* sql =
+      "SELECT name, type, size FROM asset_metadata ORDER BY type, name";
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    ImGui::Text("Failed to query assets: %s", sqlite3_errmsg(db_));
+    ImGui::End();
+    return;
+  }
+
+  if (ImGui::BeginTable("AssetTable", 3,
+                        ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                            ImGuiTableFlags_Resizable |
+                            ImGuiTableFlags_ScrollY |
+                            ImGuiTableFlags_Sortable,
+                        ImVec2(0, 0))) {
+    ImGui::TableSetupColumn("Name");
+    ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 80);
+    ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 80);
+    ImGui::TableHeadersRow();
+
+    bool has_filter = filter[0] != '\0';
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+      const char* name =
+          reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+      const char* type =
+          reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+      int size = sqlite3_column_int(stmt, 2);
+
+      if (name == nullptr || type == nullptr) continue;
+      if (has_filter && strstr(name, filter) == nullptr &&
+          strstr(type, filter) == nullptr) {
+        continue;
+      }
+
+      ImGui::TableNextRow();
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(name);
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(type);
+      ImGui::TableNextColumn();
+      char size_str[32];
+      FormatBytes(size_str, sizeof(size_str), static_cast<size_t>(size));
+      ImGui::TextUnformatted(size_str);
+    }
+    ImGui::EndTable();
+  }
+
+  sqlite3_finalize(stmt);
+  ImGui::End();
 }
 
 bool DebugUI::ConsumeHotReloadRequest() {
