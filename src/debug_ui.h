@@ -91,6 +91,13 @@ class DebugUI {
   // Returns true if a hot-reload was requested via the quick actions menu.
   bool ConsumeHotReloadRequest();
 
+  // Returns true if a single frame step was requested (while paused).
+  bool ConsumeStepRequest();
+
+  // Handles F5-F8 panel shortcuts. Call from PollEvents before ImGui
+  // capture check so shortcuts work regardless of focus.
+  void HandleKeyShortcut(SDL_Scancode scancode);
+
  private:
   // Rolling buffer of frame times for the PlotLines graph.
   static constexpr size_t kFrameTimeHistory = 300;
@@ -142,10 +149,12 @@ class DebugUI {
   bool show_camera_ = false;
   bool show_physics_ = false;
   bool show_assets_ = false;
+  bool show_panel_selector_ = false;
 
   // Action requests from menu bar (consumed by game loop).
   bool screenshot_requested_ = false;
   bool hot_reload_requested_ = false;
+  bool step_requested_ = false;
 
   // Log console state.
   CircularBuffer<LogEntry>* log_entries_ = nullptr;
@@ -171,6 +180,17 @@ class DebugUI {
   uint32_t preview_source_ = 0;
   bool has_preview_ = false;
   PathBuffer preview_name_;
+
+  // Camera drag-to-pan override state.
+  bool camera_override_ = false;
+  float camera_saved_x_ = 0.0f;
+  float camera_saved_y_ = 0.0f;
+
+  // Texture zoom popup state.
+  GLuint zoom_texture_ = 0;
+  float zoom_tex_w_ = 0.0f;
+  float zoom_tex_h_ = 0.0f;
+  float zoom_level_ = 1.0f;
 };
 
 }  // namespace G
@@ -203,6 +223,8 @@ class DebugUI {
   void DrawAll(const FrameContext&) {}
   bool ConsumeScreenshotRequest() { return false; }
   bool ConsumeHotReloadRequest() { return false; }
+  bool ConsumeStepRequest() { return false; }
+  void HandleKeyShortcut(SDL_Scancode) {}
 };
 
 }  // namespace G

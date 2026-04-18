@@ -226,6 +226,10 @@ void Game::PollEvents() {
         debug_ui.Toggle();
       }
     }
+    // Debug UI panel shortcuts (F5-F8).
+    if (event.type == SDL_EVENT_KEY_DOWN) {
+      debug_ui.HandleKeyShortcut(event.key.scancode);
+    }
     // Skip game input when ImGui wants to capture it.
     if (debug_ui.WantCaptureKeyboard() &&
         (event.type == SDL_EVENT_KEY_DOWN ||
@@ -348,6 +352,14 @@ void Game::Render() {
     }
     if (debug_ui.ConsumeHotReloadRequest()) {
       engine->lua.RequestHotload();
+    }
+    // Frame stepping: when paused, run one tick then re-pause.
+    if (debug_ui.ConsumeStepRequest()) {
+      float saved_ts = engine->lua.TimeScale();
+      engine->lua.SetTimeScale(1.0f);
+      constexpr double kStepDt = TimeStepInSeconds();
+      UpdateTick(kStepDt);
+      engine->lua.SetTimeScale(saved_ts);
     }
   }
   {

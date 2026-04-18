@@ -11,6 +11,7 @@
 #include "engine.h"
 #include "libraries/sqlite3.h"
 #include "lua.h"
+#include "platform.h"
 #include "string_table.h"
 
 namespace G {
@@ -581,6 +582,25 @@ void DebugUI::DrawLogConsole() {
     SDL_SetClipboardText(clip);
   }
   ImGui::SameLine();
+  if (ImGui::Button("Save")) {
+    const char* write_dir = PHYSFS_getWriteDir();
+    if (write_dir != nullptr) {
+      CmdBuffer dir(write_dir, "logs");
+      (void)MakeDirs(dir.str());
+      CmdBuffer path(dir.str(), "/log_",
+                     static_cast<uint64_t>(SDL_GetTicks()), ".txt");
+      FILE* f = fopen(path.str(), "w");
+      if (f != nullptr) {
+        size_t count = log_entries_->size();
+        for (size_t i = 0; i < count; ++i) {
+          fprintf(f, "%s\n", (*log_entries_)[i].text);
+        }
+        fclose(f);
+        LogMessage(LogLevel::kInfo, path.str());
+      }
+    }
+  }
+  ImGui::SameLine();
   ImGui::Checkbox("Auto-scroll", &log_auto_scroll_);
   ImGui::SameLine();
   ImGui::SetNextItemWidth(200);
@@ -992,6 +1012,34 @@ void DebugUI::DrawCameraPanel() {
       ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No active shake");
     }
   }
+
+  ImGui::Separator();
+
+  // Drag-to-pan camera override.
+  if (camera_override_) {
+    ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.2f, 1.0f), "Override active");
+    if (ImGui::Button("Release")) {
+      camera->SetPosition(camera_saved_x_, camera_saved_y_);
+      camera_override_ = false;
+    }
+    ImGui::SameLine();
+    ImGui::Text("(drag game viewport to pan)");
+    // Check for mouse drag on the game viewport (not over any ImGui window).
+    if (!ImGui::GetIO().WantCaptureMouse && ImGui::IsMouseDragging(0)) {
+      ImVec2 delta = ImGui::GetMouseDragDelta(0);
+      ImGui::ResetMouseDragDelta(0);
+      FVec2 p = camera->GetPosition();
+      camera->SetPosition(p.x - delta.x, p.y - delta.y);
+    }
+  } else {
+    if (ImGui::Button("Pan Override")) {
+      FVec2 p = camera->GetPosition();
+      camera_saved_x_ = p.x;
+      camera_saved_y_ = p.y;
+      camera_override_ = true;
+    }
+  }
+
   ImGui::End();
 }
 
@@ -1180,6 +1228,10 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       ts = engine_->lua.TimeScale();
     }
     ImGui::SameLine();
+    if (paused && ImGui::SmallButton("Step")) {
+      step_requested_ = true;
+    }
+    ImGui::SameLine();
     ImGui::SetNextItemWidth(100);
     if (ImGui::SliderFloat("##timescale", &ts, 0.0f, 4.0f, "%.2fx")) {
       engine_->lua.SetTimeScale(ts);
@@ -1211,6 +1263,62 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   if (show_camera_) DrawCameraPanel();
   if (show_physics_) DrawPhysicsPanel();
   if (show_assets_) DrawAssetViewer();
+
+  // F8 panel selector floating window.
+  if (show_panel_selector_) {
+    ImGui::SetNextWindowPos(ImVec2(200, 200), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Panel Selector", &show_panel_selector_,
+                     ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::Checkbox("Performance", &show_performance_);
+      ImGui::Checkbox("Log Console", &show_log_console_);
+      ImGui::Checkbox("Entity Inspector", &show_entity_inspector_);
+      ImGui::Checkbox("Audio", &show_audio_);
+      ImGui::Checkbox("Memory", &show_memory_);
+      ImGui::Checkbox("Renderer", &show_renderer_);
+      ImGui::Checkbox("Camera", &show_camera_);
+      ImGui::Checkbox("Physics", &show_physics_);
+      ImGui::Checkbox("Assets", &show_assets_);
+    }
+    ImGui::End();
+  }
+
+  // Texture zoom popup.
+  if (zoom_texture_ != 0) {
+    ImGui::SetNextWindowSize(ImVec2(600, 500), ImGuiCond_FirstUseEver);
+    bool open = true;
+    if (ImGui::Begin("Texture Zoom", &open, ImGuiWindowFlags_NoFocusOnAppearing)) {
+      ImGui::SliderFloat("Zoom", &zoom_level_, 0.25f, 8.0f, "%.2fx");
+      ImGui::SameLine();
+      if (ImGui::Button("1:1")) zoom_level_ = 1.0f;
+      ImGui::SameLine();
+      if (ImGui::Button("Fit")) {
+        float avail_w = ImGui::GetContentRegionAvail().x;
+        float avail_h = ImGui::GetContentRegionAvail().y;
+        zoom_level_ =
+            (zoom_tex_w_ > 0 && zoom_tex_h_ > 0)
+                ? fmin(avail_w / zoom_tex_w_, avail_h / zoom_tex_h_)
+                : 1.0f;
+      }
+      if (ImGui::BeginChild("ZoomRegion", ImVec2(0, 0), false,
+                            ImGuiWindowFlags_HorizontalScrollbar)) {
+        float w = zoom_tex_w_ * zoom_level_;
+        float h = zoom_tex_h_ * zoom_level_;
+        ImGui::Image(
+            static_cast<ImTextureID>(static_cast<uintptr_t>(zoom_texture_)),
+            ImVec2(w, h), ImVec2(0, 1), ImVec2(1, 0));
+        // Drag to pan via scroll.
+        if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0)) {
+          ImVec2 delta = ImGui::GetMouseDragDelta(0);
+          ImGui::ResetMouseDragDelta(0);
+          ImGui::SetScrollX(ImGui::GetScrollX() - delta.x);
+          ImGui::SetScrollY(ImGui::GetScrollY() - delta.y);
+        }
+      }
+      ImGui::EndChild();
+    }
+    ImGui::End();
+    if (!open) zoom_texture_ = 0;
+  }
 }
 
 bool DebugUI::ConsumeScreenshotRequest() {
@@ -1223,6 +1331,59 @@ bool DebugUI::ConsumeHotReloadRequest() {
   bool r = hot_reload_requested_;
   hot_reload_requested_ = false;
   return r;
+}
+
+bool DebugUI::ConsumeStepRequest() {
+  bool r = step_requested_;
+  step_requested_ = false;
+  return r;
+}
+
+void DebugUI::HandleKeyShortcut(SDL_Scancode scancode) {
+  if (!initialized_ || !visible_) return;
+  switch (scancode) {
+    case SDL_SCANCODE_F5:
+      // Close all panels.
+      show_performance_ = false;
+      show_log_console_ = false;
+      show_entity_inspector_ = false;
+      show_audio_ = false;
+      show_memory_ = false;
+      show_renderer_ = false;
+      show_camera_ = false;
+      show_physics_ = false;
+      show_assets_ = false;
+      break;
+    case SDL_SCANCODE_F6:
+      // Open all panels.
+      show_performance_ = true;
+      show_log_console_ = true;
+      show_entity_inspector_ = true;
+      show_audio_ = true;
+      show_memory_ = true;
+      show_renderer_ = true;
+      show_camera_ = true;
+      show_physics_ = true;
+      show_assets_ = true;
+      break;
+    case SDL_SCANCODE_F7:
+      // Performance + Log Console only.
+      show_performance_ = true;
+      show_log_console_ = true;
+      show_entity_inspector_ = false;
+      show_audio_ = false;
+      show_memory_ = false;
+      show_renderer_ = false;
+      show_camera_ = false;
+      show_physics_ = false;
+      show_assets_ = false;
+      break;
+    case SDL_SCANCODE_F8:
+      show_panel_selector_ = !show_panel_selector_;
+      break;
+    default:
+      break;
+  }
 }
 
 void DebugUI::DrawAssetViewer() {
@@ -1268,6 +1429,12 @@ void DebugUI::DrawAssetViewer() {
                 ImVec2(static_cast<float>(img.width) * scale,
                        static_cast<float>(img.height) * scale),
                 ImVec2(0, 1), ImVec2(1, 0));
+            if (ImGui::SmallButton("Zoom")) {
+              zoom_texture_ = tex;
+              zoom_tex_w_ = static_cast<float>(img.width);
+              zoom_tex_h_ = static_cast<float>(img.height);
+              zoom_level_ = 1.0f;
+            }
           }
           ImGui::TreePop();
         }
