@@ -514,6 +514,17 @@ class Renderer {
     return MakeSlice(loaded_images_);
   }
 
+  // Returns the GL texture ID for a spritesheet/image by name, or 0.
+  GLuint GetTextureByName(std::string_view name) const {
+    uint32_t idx;
+    if (!textures_table_.Lookup(name, &idx)) return 0;
+    return textures_[idx];
+  }
+
+  Slice<DbAssets::Spritesheet> GetSpritesheets() const {
+    return MakeSlice(loaded_spritesheets_);
+  }
+
   // Returns the previous color.
   Color SetColor(Color color);
 

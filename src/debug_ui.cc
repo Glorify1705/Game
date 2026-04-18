@@ -1113,6 +1113,35 @@ void FormatLuaKey(lua_State* L, int idx, char* buf, size_t buf_size) {
 // Recursively draws a Lua value as ImGui tree nodes. The value must be at
 // the top of the Lua stack. table_ref is the stack index of the parent
 // table (for write-back); key_idx is the stack index of the key.
+// Checks if a Lua table at idx looks like a color ({r, g, b} or {r, g, b, a}).
+// If so, fills out the color array and returns the component count (3 or 4).
+// Returns 0 if not a color table.
+int CheckColorTable(lua_State* L, int idx, float* color) {
+  lua_getfield(L, idx, "r");
+  lua_getfield(L, idx, "g");
+  lua_getfield(L, idx, "b");
+  bool is_color = lua_isnumber(L, -3) && lua_isnumber(L, -2) &&
+                  lua_isnumber(L, -1);
+  if (!is_color) {
+    lua_pop(L, 3);
+    return 0;
+  }
+  color[0] = static_cast<float>(lua_tonumber(L, -3));
+  color[1] = static_cast<float>(lua_tonumber(L, -2));
+  color[2] = static_cast<float>(lua_tonumber(L, -1));
+  lua_pop(L, 3);
+
+  lua_getfield(L, idx, "a");
+  bool has_alpha = lua_isnumber(L, -1);
+  if (has_alpha) {
+    color[3] = static_cast<float>(lua_tonumber(L, -1));
+  } else {
+    color[3] = 1.0f;
+  }
+  lua_pop(L, 1);
+  return has_alpha ? 4 : 3;
+}
+
 void DrawLuaValue(lua_State* L, int depth, int table_ref, int key_idx) {
   if (depth > 10) {
     ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "...");
@@ -1134,10 +1163,39 @@ void DrawLuaValue(lua_State* L, int depth, int table_ref, int key_idx) {
       FormatLuaKey(L, child_key, key_buf, sizeof(key_buf));
 
       if (lua_type(L, child_val) == LUA_TTABLE) {
-        bool open = ImGui::TreeNode(key_buf);
-        if (open) {
-          DrawLuaValue(L, depth + 1, idx, child_key);
-          ImGui::TreePop();
+        // Check if this table is a color ({r, g, b} or {r, g, b, a}).
+        float color[4];
+        int color_components = CheckColorTable(L, child_val, color);
+        if (color_components > 0) {
+          ImGui::PushID(child_key);
+          bool changed = false;
+          if (color_components == 4) {
+            changed = ImGui::ColorEdit4(key_buf, color);
+          } else {
+            changed = ImGui::ColorEdit3(key_buf, color);
+          }
+          if (changed) {
+            lua_pushvalue(L, child_key);
+            lua_pushvalue(L, child_val);
+            lua_pushnumber(L, static_cast<double>(color[0]));
+            lua_setfield(L, -2, "r");
+            lua_pushnumber(L, static_cast<double>(color[1]));
+            lua_setfield(L, -2, "g");
+            lua_pushnumber(L, static_cast<double>(color[2]));
+            lua_setfield(L, -2, "b");
+            if (color_components == 4) {
+              lua_pushnumber(L, static_cast<double>(color[3]));
+              lua_setfield(L, -2, "a");
+            }
+            lua_pop(L, 2);
+          }
+          ImGui::PopID();
+        } else {
+          bool open = ImGui::TreeNode(key_buf);
+          if (open) {
+            DrawLuaValue(L, depth + 1, idx, child_key);
+            ImGui::TreePop();
+          }
         }
       } else {
         ImGui::PushID(child_key);
@@ -1445,10 +1503,10 @@ bool DebugUI::ConsumeScreenshotRequest() {
 }
 
 void DebugUI::DrawAssetViewer() {
-  if (!initialized_ || !visible_ || db_ == nullptr) return;
+  if (!initialized_ || !visible_) return;
 
   ImGui::SetNextWindowPos(ImVec2(400, 300), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(500, 400), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(550, 450), ImGuiCond_FirstUseEver);
 
   if (!ImGui::Begin("Assets", nullptr,
                     ImGuiWindowFlags_NoFocusOnAppearing)) {
@@ -1456,62 +1514,213 @@ void DebugUI::DrawAssetViewer() {
     return;
   }
 
-  // Filter input.
   static char filter[128] = {};
   ImGui::SetNextItemWidth(-1);
   ImGui::InputTextWithHint("##asset_filter", "Filter by name...", filter,
                            sizeof(filter));
   ImGui::Separator();
 
-  // Query the asset_metadata table.
-  const char* sql =
-      "SELECT name, type, size FROM asset_metadata ORDER BY type, name";
-  sqlite3_stmt* stmt = nullptr;
-  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-    ImGui::Text("Failed to query assets: %s", sqlite3_errmsg(db_));
-    ImGui::End();
-    return;
-  }
+  bool has_filter = filter[0] != '\0';
 
-  if (ImGui::BeginTable("AssetTable", 3,
-                        ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-                            ImGuiTableFlags_Resizable |
-                            ImGuiTableFlags_ScrollY |
-                            ImGuiTableFlags_Sortable,
-                        ImVec2(0, 0))) {
-    ImGui::TableSetupColumn("Name");
-    ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 80);
-    ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 80);
-    ImGui::TableHeadersRow();
-
-    bool has_filter = filter[0] != '\0';
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-      const char* name =
-          reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-      const char* type =
-          reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-      int size = sqlite3_column_int(stmt, 2);
-
-      if (name == nullptr || type == nullptr) continue;
-      if (has_filter && strstr(name, filter) == nullptr &&
-          strstr(type, filter) == nullptr) {
-        continue;
+  if (ImGui::BeginTabBar("AssetTabs")) {
+    // Images tab.
+    if (renderer_ != nullptr && ImGui::BeginTabItem("Images")) {
+      auto images = renderer_->GetImages();
+      for (size_t i = 0; i < images.size(); ++i) {
+        const auto& img = images[i];
+        if (has_filter && strstr(img.name.data(), filter) == nullptr) continue;
+        ImGui::PushID(static_cast<int>(i));
+        if (ImGui::TreeNode("##img", "%.*s (%zux%zu)",
+                            static_cast<int>(img.name.size()), img.name.data(),
+                            img.width, img.height)) {
+          GLuint tex = renderer_->GetTextureByName(img.name);
+          if (tex != 0) {
+            float max_w = ImGui::GetContentRegionAvail().x;
+            float scale = (static_cast<float>(img.width) > max_w)
+                              ? max_w / static_cast<float>(img.width)
+                              : 1.0f;
+            ImGui::Image(
+                static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
+                ImVec2(static_cast<float>(img.width) * scale,
+                       static_cast<float>(img.height) * scale),
+                ImVec2(0, 1), ImVec2(1, 0));
+          }
+          ImGui::TreePop();
+        }
+        ImGui::PopID();
       }
-
-      ImGui::TableNextRow();
-      ImGui::TableNextColumn();
-      ImGui::TextUnformatted(name);
-      ImGui::TableNextColumn();
-      ImGui::TextUnformatted(type);
-      ImGui::TableNextColumn();
-      char size_str[32];
-      FormatBytes(size_str, sizeof(size_str), static_cast<size_t>(size));
-      ImGui::TextUnformatted(size_str);
+      ImGui::EndTabItem();
     }
-    ImGui::EndTable();
+
+    // Sprites tab.
+    if (renderer_ != nullptr && ImGui::BeginTabItem("Sprites")) {
+      auto sprites = renderer_->GetSprites();
+      for (size_t i = 0; i < sprites.size(); ++i) {
+        const auto& spr = sprites[i];
+        if (has_filter && strstr(spr.name.data(), filter) == nullptr) continue;
+        ImGui::PushID(static_cast<int>(i));
+        auto* sheet = renderer_->GetSpritesheet(spr.spritesheet);
+        if (sheet != nullptr) {
+          if (ImGui::TreeNode("##spr", "%.*s (%zux%zu)",
+                              static_cast<int>(spr.name.size()),
+                              spr.name.data(), spr.width, spr.height)) {
+            GLuint tex = renderer_->GetTextureByName(sheet->name);
+            if (tex != 0 && sheet->width > 0 && sheet->height > 0) {
+              float u0 = static_cast<float>(spr.x) /
+                         static_cast<float>(sheet->width);
+              float v0 = static_cast<float>(spr.y) /
+                         static_cast<float>(sheet->height);
+              float u1 = static_cast<float>(spr.x + spr.width) /
+                         static_cast<float>(sheet->width);
+              float v1 = static_cast<float>(spr.y + spr.height) /
+                         static_cast<float>(sheet->height);
+              float display_w = static_cast<float>(spr.width);
+              float display_h = static_cast<float>(spr.height);
+              // Scale up small sprites for visibility.
+              if (display_w < 64) {
+                float s = 64.0f / display_w;
+                display_w *= s;
+                display_h *= s;
+              }
+              ImGui::Image(
+                  static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
+                  ImVec2(display_w, display_h),
+                  ImVec2(u0, v1), ImVec2(u1, v0));
+            }
+            ImGui::Text("Sheet: %.*s  Pos: %zu,%zu",
+                        static_cast<int>(spr.spritesheet.size()),
+                        spr.spritesheet.data(), spr.x, spr.y);
+            ImGui::TreePop();
+          }
+        }
+        ImGui::PopID();
+      }
+      ImGui::EndTabItem();
+    }
+
+    // Audio tab.
+    if (sound_ != nullptr && ImGui::BeginTabItem("Audio")) {
+      sqlite3_stmt* stmt = nullptr;
+      const char* sql =
+          "SELECT name, channels, samplerate, samples, length(contents) "
+          "FROM audios ORDER BY name";
+      if (db_ != nullptr &&
+          sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+        if (ImGui::BeginTable("AudioTable", 5,
+                              ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                                  ImGuiTableFlags_ScrollY,
+                              ImVec2(0, 0))) {
+          ImGui::TableSetupColumn("Name");
+          ImGui::TableSetupColumn("Ch", ImGuiTableColumnFlags_WidthFixed, 25);
+          ImGui::TableSetupColumn("Rate", ImGuiTableColumnFlags_WidthFixed, 50);
+          ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 65);
+          ImGui::TableSetupColumn("##play", ImGuiTableColumnFlags_WidthFixed,
+                                  40);
+          ImGui::TableHeadersRow();
+
+          while (sqlite3_step(stmt) == SQLITE_ROW) {
+            const char* name = reinterpret_cast<const char*>(
+                sqlite3_column_text(stmt, 0));
+            if (name == nullptr) continue;
+            if (has_filter && strstr(name, filter) == nullptr) continue;
+            int channels = sqlite3_column_int(stmt, 1);
+            int samplerate = sqlite3_column_int(stmt, 2);
+            int size_bytes = sqlite3_column_int(stmt, 4);
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(name);
+            ImGui::TableNextColumn();
+            ImGui::Text("%d", channels);
+            ImGui::TableNextColumn();
+            ImGui::Text("%d", samplerate);
+            ImGui::TableNextColumn();
+            char sz[32];
+            FormatBytes(sz, sizeof(sz), static_cast<size_t>(size_bytes));
+            ImGui::TextUnformatted(sz);
+            ImGui::TableNextColumn();
+            ImGui::PushID(name);
+            if (ImGui::SmallButton("Play")) {
+              (void)sound_->AddEffect(name, Sound::Ownership::kAutoFree);
+            }
+            ImGui::PopID();
+          }
+          ImGui::EndTable();
+        }
+        sqlite3_finalize(stmt);
+      }
+      ImGui::EndTabItem();
+    }
+
+    // Scripts tab.
+    if (db_ != nullptr && ImGui::BeginTabItem("Scripts")) {
+      sqlite3_stmt* stmt = nullptr;
+      const char* sql =
+          "SELECT name, length(contents) FROM scripts ORDER BY name";
+      if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+          const char* name = reinterpret_cast<const char*>(
+              sqlite3_column_text(stmt, 0));
+          int size = sqlite3_column_int(stmt, 1);
+          if (name == nullptr) continue;
+          if (has_filter && strstr(name, filter) == nullptr) continue;
+          char sz[32];
+          FormatBytes(sz, sizeof(sz), static_cast<size_t>(size));
+          ImGui::Text("%s  (%s)", name, sz);
+        }
+        sqlite3_finalize(stmt);
+      }
+      ImGui::EndTabItem();
+    }
+
+    // Shaders tab.
+    if (db_ != nullptr && ImGui::BeginTabItem("Shaders")) {
+      sqlite3_stmt* stmt = nullptr;
+      const char* sql =
+          "SELECT name, shader_type, length(contents) FROM shaders "
+          "ORDER BY name";
+      if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+          const char* name = reinterpret_cast<const char*>(
+              sqlite3_column_text(stmt, 0));
+          const char* type = reinterpret_cast<const char*>(
+              sqlite3_column_text(stmt, 1));
+          int size = sqlite3_column_int(stmt, 2);
+          if (name == nullptr) continue;
+          if (has_filter && strstr(name, filter) == nullptr) continue;
+          char sz[32];
+          FormatBytes(sz, sizeof(sz), static_cast<size_t>(size));
+          ImGui::Text("%s  [%s]  (%s)", name, type ? type : "?", sz);
+        }
+        sqlite3_finalize(stmt);
+      }
+      ImGui::EndTabItem();
+    }
+
+    // Fonts tab.
+    if (db_ != nullptr && ImGui::BeginTabItem("Fonts")) {
+      sqlite3_stmt* stmt = nullptr;
+      const char* sql =
+          "SELECT name, length(contents) FROM fonts ORDER BY name";
+      if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+          const char* name = reinterpret_cast<const char*>(
+              sqlite3_column_text(stmt, 0));
+          int size = sqlite3_column_int(stmt, 1);
+          if (name == nullptr) continue;
+          if (has_filter && strstr(name, filter) == nullptr) continue;
+          char sz[32];
+          FormatBytes(sz, sizeof(sz), static_cast<size_t>(size));
+          ImGui::Text("%s  (%s)", name, sz);
+        }
+        sqlite3_finalize(stmt);
+      }
+      ImGui::EndTabItem();
+    }
+
+    ImGui::EndTabBar();
   }
 
-  sqlite3_finalize(stmt);
   ImGui::End();
 }
 
