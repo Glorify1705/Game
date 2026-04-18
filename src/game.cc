@@ -445,16 +445,8 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
 
   // Main loop.
   debug_ui.Init(sdl.window, sdl.gl_context);
-  debug_ui.SetLua(&e->lua);
-  debug_ui.SetBatchRenderer(&e->batch_renderer);
-  debug_ui.SetSound(&e->sound);
+  debug_ui.SetEngine(e);
   debug_ui.SetEngineArena(allocator);
-  debug_ui.SetFrameArena(&e->frame_allocator);
-  debug_ui.SetRenderer(&e->renderer);
-  debug_ui.SetShaders(&e->shaders);
-  debug_ui.SetCamera(&e->camera);
-  debug_ui.SetPhysics(&e->physics);
-  debug_ui.SetDb(db);
   Game loop{e, config, opts, sdl, hot_reload, allocator, debug_ui};
   loop.Run();
   debug_ui.Shutdown();
