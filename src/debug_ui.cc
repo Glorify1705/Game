@@ -387,9 +387,37 @@ void DebugUI::DrawLogConsole() {
     return;
   }
 
-  // Toolbar: level filters, text filter, clear, auto-scroll.
+  // Toolbar: level filters, text filter, clear, copy, auto-scroll.
   if (ImGui::Button("Clear")) {
     while (!log_entries_->empty()) log_entries_->Pop();
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Copy")) {
+    // Build a string of all visible (filtered) log lines.
+    FixedStringBuffer<kMaxLogLineLength> line(kTruncating);
+    bool has_filter = log_text_filter_[0] != '\0';
+    // Estimate: use a dynamic SDL clipboard set. Build into a temporary
+    // buffer on the stack, capped at a reasonable size.
+    enum { kClipBufSize = 64 * 1024 };
+    char clip[kClipBufSize];
+    size_t pos = 0;
+    size_t count = log_entries_->size();
+    for (size_t i = 0; i < count && pos < kClipBufSize - 1; ++i) {
+      const LogEntry& entry = (*log_entries_)[i];
+      int level_idx = static_cast<int>(entry.level);
+      if (level_idx < 0 || level_idx > 5) continue;
+      if (!log_level_filter_[level_idx]) continue;
+      if (has_filter && strstr(entry.text, log_text_filter_) == nullptr) {
+        continue;
+      }
+      size_t len = strlen(entry.text);
+      if (pos + len + 1 >= kClipBufSize) break;
+      memcpy(clip + pos, entry.text, len);
+      pos += len;
+      clip[pos++] = '\n';
+    }
+    clip[pos] = '\0';
+    SDL_SetClipboardText(clip);
   }
   ImGui::SameLine();
   ImGui::Checkbox("Auto-scroll", &log_auto_scroll_);
