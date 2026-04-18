@@ -1,5 +1,5 @@
 ---
-status: in-design
+status: implemented
 tags: [debugging, ui, tooling, renderer]
 ---
 
@@ -322,67 +322,70 @@ Controls for the standalone collision system (`G.collision`):
 - **Override controls** — drag to pan, scroll to zoom, temporarily
   override the game camera for inspection.
 
-## Panel priority
+## Implementation status
 
-Based on what would save the most development time:
+| Panel | Status | Notes |
+|-------|--------|-------|
+| Performance | Done | FPS counter, frame time graph (PlotLines), draw call breakdown with flush reasons and redundant skips, Lua memory graph, command buffer fill bar, window size controls (presets + custom). |
+| Log Console | Done | Captures all engine log messages (including startup) via LogSink intercept. Color-coded by level, per-level toggle checkboxes, text filter, auto-scroll, Copy to clipboard. Lua eval input with Up/Down history. |
+| Entity Inspector | Done | Recursive Lua table walker for `G` and `_Game`. Editable numbers (DragFloat), booleans (Checkbox), color tables (`{r,g,b,a}` detected and rendered as ColorEdit3/4). Key filter. |
+| Physics | Done | Body/joint/contact counts, editable gravity sliders, solver iteration inputs, scrollable body table (type, position, velocity, angle, mass). |
+| Audio | Done | Global volume slider, stream slot progress bar, active streams table (name, status, volume, pitch, pan, loop, type). |
+| Memory | Done | Engine arena and frame allocator progress bars, Lua heap sparkline, string table stats. |
+| Renderer | Done | Batch stats table, flush reason breakdown, redundant skip counts, command buffer bar, loaded image list, shader program enumeration, current blend mode/shader/viewport readout. |
+| Camera | Done | Position, zoom, rotation display. Follow target with lerp. Deadzone status. World bounds. Shake state. |
+| Asset Viewer | Done | Tabbed (Images, Sprites, Audio, Scripts, Shaders, Fonts). Image thumbnails via ImGui::Image. Sprite preview cut from spritesheet UVs. Audio Play/Stop preview. Text filter across all tabs. |
+| Collision Debug | Deferred | CollisionWorld lives as Lua userdata per-script, not an engine-level instance. Collider state is visible through the Entity Inspector. |
 
-| Priority | Panel | Rationale |
-|----------|-------|-----------|
-| 1 | Performance | Replaces the current text overlay with actual graphs. Tiny effort with `ImGui::PlotLines`. |
-| 2 | Log Console | Eliminates context-switching to the terminal. Lua eval makes hot-tweaking instant. |
-| 3 | Entity Inspector | Live state inspection without writing debug Lua. The single most powerful debug tool. |
-| 4 | Physics Debug | `b2Draw` wire-frame rendering. Required for any serious physics work. |
-| 5 | Collision Debug | Same as physics but for the standalone collision system. |
-| 6 | Audio | Stream table + waveform. Useful when debugging spatial audio or sound bugs. |
-| 7 | Memory | Allocator dashboard. Low priority until memory budgets are implemented. |
-| 8 | Renderer | Texture atlas viewer is nice-to-have. Low priority. |
-| 9 | Camera | Useful but the camera system already has Lua-side debug. |
+### Infrastructure
 
-## Implementation plan
+| Feature | Status | Notes |
+|---------|--------|-------|
+| ImGui vendor | Done | Dear ImGui v1.91.8, SDL3 + OpenGL3 backends, compiled behind `GAME_WITH_IMGUI`. |
+| Menu bar | Done | Panels menu with checkbox toggles (Performance + Log Console default visible). Actions menu (Screenshot, Hot Reload, Run GC). Time controls (Play/Pause + 0-4x slider) inline. FPS readout on the right. |
+| Compile-time guard | Done | All code behind `#ifdef GAME_WITH_IMGUI` with matching no-op stub class. |
+| Allocator integration | Done | ImGui allocations routed through SystemAllocator. |
+| Input routing | Done | SDL events forwarded to ImGui; WantCaptureMouse/Keyboard gates game input. |
+| Engine integration | Done | Single `SetEngine(Engine*)` call. `DrawAll(FrameContext)` dispatches to enabled panels. |
 
-### Phase 1: Vendor ImGui + scaffold
+## Proposed improvements
 
-1. Vendor ImGui (core + `imgui_impl_sdl3` + `imgui_impl_opengl3`) into
-   `libraries/imgui/`.
-2. Add to CMake behind `GAME_DEV_MODE`.
-3. Create `src/debug_ui.h` with `DebugUI` class: `Init()`, `Shutdown()`,
-   `ProcessEvent(SDL_Event*)`, `BeginFrame()`, `Render()`, `Toggle()`.
-4. Wire into `Game::Render()` and `Game::PollEvents()`.
-5. Add a single `ImGui::ShowDemoWindow()` call gated behind Tab to verify
-   integration works.
+### High value
 
-### Phase 2: Performance panel
+- **Frame stepping.** The Pause button exists but there is no "advance one
+  frame" button. When debugging physics or animations, single-stepping is
+  invaluable. Needs a bool flag in the game loop that runs one update tick
+  then re-pauses.
 
-1. Replace the existing debug text block with an ImGui window.
-2. Frame time graph via `ImGui::PlotLines` backed by a circular buffer of
-   frame times.
-3. Draw call breakdown table.
-4. Lua memory readout.
+- **Console history persistence.** Eval history is lost on restart. Save/load
+  to a small file (e.g. `.claude/eval_history`) so useful debug commands
+  survive across sessions.
 
-### Phase 3: Log console + Lua eval
+### Medium value
 
-1. Capture engine log output into a ring buffer (hook into the log sink).
-2. Render as a scrollable `ImGui::TextUnformatted` with color per level.
-3. Filter by level and channel via combo boxes.
-4. Text input at the bottom that calls `luaL_loadbuffer` + `lua_pcall`
-   (same mechanism as the REPL).
+- **Physics body filter.** The body table is unfiltered. Add a type filter
+  (dynamic/static/kinematic) and a click-to-highlight that draws a box
+  around the selected body in the viewport.
 
-### Phase 4: Entity inspector
+- **Log export to file.** The Copy button copies to clipboard. For bug
+  reports, add a "Save to file" button that writes the full (unfiltered)
+  log to a timestamped file in the write directory.
 
-1. Recursive Lua table walker with `ImGui::TreeNode`.
-2. Read-only display of all `G.*` module tables.
-3. Editable number/string/boolean fields that write back to Lua.
+- **Keyboard shortcuts for panels.** F1-F9 to toggle specific panels without
+  navigating the Panels menu.
 
-### Phase 5: Physics + collision debug draw
+### Lower value / polish
 
-1. Implement `b2Draw` subclass that renders via ImGui's `ImDrawList`
-   (or the engine's `Renderer` — either works).
-2. Add collision world visualization (collider shapes, spatial hash grid).
-3. Control panel with world settings sliders.
+- **Camera drag-to-pan.** In the Camera panel, add mouse drag controls to
+  temporarily override the game camera for off-screen inspection. Release
+  snaps back.
 
-### Phase 6: Audio, memory, renderer, camera panels
+- **Texture zoom.** In the asset viewer Images tab, click a texture to open
+  a zoomable/pannable fullscreen preview at 1:1 pixel scale.
 
-Build as needed. Each is a small self-contained panel.
+- **Performance history reset.** Button to clear the frame time and Lua
+  memory graph buffers (useful after a startup spike to see steady-state
+  performance).
 
 ## Style
 
