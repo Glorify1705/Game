@@ -224,7 +224,13 @@ class BatchRenderer {
   size_t GetCommandBufferCapacity() const;
 
   // Returns the number of loaded texture units.
+  // Returns the number of loaded texture units.
   size_t GetTextureCount() const { return tex_.size(); }
+
+  // Returns the GL texture ID for a given texture index.
+  GLuint GetTextureId(size_t index) const {
+    return index < tex_.size() ? tex_[index] : 0;
+  }
 
   // Returns the current viewport size.
   IVec2 viewport() const { return viewport_; }
@@ -518,7 +524,8 @@ class Renderer {
   GLuint GetTextureByName(std::string_view name) const {
     uint32_t idx;
     if (!textures_table_.Lookup(name, &idx)) return 0;
-    return textures_[idx];
+    // textures_[idx] is a BatchRenderer texture index, not a GLuint.
+    return renderer_->GetTextureId(textures_[idx]);
   }
 
   Slice<DbAssets::Spritesheet> GetSpritesheets() const {
