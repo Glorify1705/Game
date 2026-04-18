@@ -1310,9 +1310,39 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
                             ImGuiWindowFlags_HorizontalScrollbar)) {
         float w = zoom_tex_w_ * zoom_level_;
         float h = zoom_tex_h_ * zoom_level_;
+        ImVec2 img_pos = ImGui::GetCursorScreenPos();
         ImGui::Image(
             static_cast<ImTextureID>(static_cast<uintptr_t>(zoom_texture_)),
             ImVec2(w, h), ImVec2(0, 1), ImVec2(1, 0));
+        // Color under cursor.
+        if (ImGui::IsItemHovered() && zoom_pixels_ != nullptr) {
+          ImVec2 mouse = ImGui::GetMousePos();
+          float rel_x = (mouse.x - img_pos.x) / zoom_level_;
+          float rel_y = (mouse.y - img_pos.y) / zoom_level_;
+          // Image is flipped vertically (UV 0,1 to 1,0).
+          int px = static_cast<int>(rel_x);
+          int py = static_cast<int>(zoom_tex_h_ - 1.0f - rel_y);
+          int tw = static_cast<int>(zoom_tex_w_);
+          int th = static_cast<int>(zoom_tex_h_);
+          if (px >= 0 && px < tw && py >= 0 && py < th) {
+            int offset = (py * tw + px) * 4;
+            float r = zoom_pixels_[offset + 0] / 255.0f;
+            float g = zoom_pixels_[offset + 1] / 255.0f;
+            float b = zoom_pixels_[offset + 2] / 255.0f;
+            float a = zoom_pixels_[offset + 3] / 255.0f;
+            ImVec4 color(r, g, b, a);
+            ImGui::BeginTooltip();
+            ImGui::ColorButton("##pixel", color,
+                               ImGuiColorEditFlags_AlphaPreview, ImVec2(32, 32));
+            ImGui::SameLine();
+            ImGui::Text("(%d, %d)\n#%02X%02X%02X%02X\nRGBA: %d %d %d %d",
+                        px, py, zoom_pixels_[offset], zoom_pixels_[offset + 1],
+                        zoom_pixels_[offset + 2], zoom_pixels_[offset + 3],
+                        zoom_pixels_[offset], zoom_pixels_[offset + 1],
+                        zoom_pixels_[offset + 2], zoom_pixels_[offset + 3]);
+            ImGui::EndTooltip();
+          }
+        }
         // Drag to pan via scroll.
         if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0)) {
           ImVec2 delta = ImGui::GetMouseDragDelta(0);
@@ -1324,7 +1354,14 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
       ImGui::EndChild();
     }
     ImGui::End();
-    if (!open) zoom_texture_ = 0;
+    if (!open) {
+      zoom_texture_ = 0;
+      if (zoom_pixels_ != nullptr) {
+        allocator_->Dealloc(zoom_pixels_, zoom_pixels_size_);
+        zoom_pixels_ = nullptr;
+        zoom_pixels_size_ = 0;
+      }
+    }
   }
 }
 
@@ -1414,6 +1451,17 @@ void DebugUI::DrawAssetViewer() {
               zoom_tex_w_ = static_cast<float>(img.width);
               zoom_tex_h_ = static_cast<float>(img.height);
               zoom_level_ = 1.0f;
+              // Read back pixel data for color sampling.
+              if (zoom_pixels_ != nullptr) {
+                allocator_->Dealloc(zoom_pixels_, zoom_pixels_size_);
+              }
+              zoom_pixels_size_ = img.width * img.height * 4;
+              zoom_pixels_ = static_cast<uint8_t*>(
+                  allocator_->Alloc(zoom_pixels_size_, /*align=*/1));
+              glBindTexture(GL_TEXTURE_2D, tex);
+              glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                            zoom_pixels_);
+              glBindTexture(GL_TEXTURE_2D, 0);
             }
           }
           ImGui::TreePop();

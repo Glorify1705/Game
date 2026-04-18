@@ -204,6 +204,8 @@ class DebugUI {
   float zoom_tex_w_ = 0.0f;
   float zoom_tex_h_ = 0.0f;
   float zoom_level_ = 1.0f;
+  uint8_t* zoom_pixels_ = nullptr;
+  size_t zoom_pixels_size_ = 0;
 };
 
 }  // namespace G
