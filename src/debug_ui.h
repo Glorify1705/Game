@@ -170,7 +170,7 @@ class DebugUI {
   // Audio preview state.
   uint32_t preview_source_ = 0;
   bool has_preview_ = false;
-  char preview_name_[256] = {};
+  PathBuffer preview_name_;
 };
 
 }  // namespace G

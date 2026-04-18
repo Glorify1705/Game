@@ -59,13 +59,11 @@ ImVec4 LogLevelColor(LogLevel level) {
 }
 
 // Formats a byte count into a human-readable string (KB or MB).
-void FormatBytes(char* buf, size_t buf_size, size_t bytes) {
+void FormatBytes(SmallBuffer* buf, size_t bytes) {
   if (bytes >= 1024 * 1024) {
-    snprintf(buf, buf_size, "%.1f MB",
-             static_cast<double>(bytes) / (1024.0 * 1024.0));
+    buf->AppendF("%.1f MB", static_cast<double>(bytes) / (1024.0 * 1024.0));
   } else {
-    snprintf(buf, buf_size, "%.1f KB",
-             static_cast<double>(bytes) / 1024.0);
+    buf->AppendF("%.1f KB", static_cast<double>(bytes) / 1024.0);
   }
 }
 
@@ -82,13 +80,14 @@ void DrawMemoryBar(const char* label, size_t used, size_t total) {
                     ? static_cast<float>(used) / static_cast<float>(total)
                     : 0.0f;
   if (ratio > 1.0f) ratio = 1.0f;
-  char used_str[32], total_str[32], overlay[80];
-  FormatBytes(used_str, sizeof(used_str), used);
-  FormatBytes(total_str, sizeof(total_str), total);
-  snprintf(overlay, sizeof(overlay), "%s / %s", used_str, total_str);
+  SmallBuffer used_str, total_str;
+  FormatBytes(&used_str, used);
+  FormatBytes(&total_str, total);
+  SmallBuffer overlay;
+  overlay.Append(used_str.view(), " / ", total_str.view());
   ImGui::Text("%s", label);
   ImGui::PushStyleColor(ImGuiCol_PlotHistogram, RatioColor(ratio));
-  ImGui::ProgressBar(ratio, ImVec2(-1, 0), overlay);
+  ImGui::ProgressBar(ratio, ImVec2(-1, 0), overlay.str());
   ImGui::PopStyleColor();
 }
 
@@ -763,9 +762,9 @@ void DebugUI::DrawMemoryPanel(size_t lua_memory_bytes) {
   ImGui::Separator();
 
   if (ImGui::CollapsingHeader("Lua Heap", ImGuiTreeNodeFlags_DefaultOpen)) {
-    char lua_str[32];
-    FormatBytes(lua_str, sizeof(lua_str), lua_memory_bytes);
-    ImGui::Text("Lua memory: %s", lua_str);
+    SmallBuffer lua_str;
+    FormatBytes(&lua_str, lua_memory_bytes);
+    ImGui::Text("Lua memory: %s", lua_str.str());
     size_t lua_count = lua_memory_samples_->size();
     if (lua_count > 0) {
       enum { kMax = 300 };
@@ -1359,25 +1358,26 @@ void DebugUI::DrawAssetViewer() {
             ImGui::TableNextColumn();
             ImGui::Text("%d", samplerate);
             ImGui::TableNextColumn();
-            char sz[32];
-            FormatBytes(sz, sizeof(sz), static_cast<size_t>(size_bytes));
-            ImGui::TextUnformatted(sz);
+            SmallBuffer sz;
+            FormatBytes(&sz, static_cast<size_t>(size_bytes));
+            ImGui::TextUnformatted(sz.str());
             ImGui::TableNextColumn();
             ImGui::PushID(name);
             bool is_playing =
-                has_preview_ && strcmp(preview_name_, name) == 0;
+                has_preview_ && preview_name_.view() == name;
             if (ImGui::SmallButton(is_playing ? "Stop" : "Play")) {
               if (is_playing) {
                 (void)sound->Stop(preview_source_);
                 has_preview_ = false;
-                preview_name_[0] = '\0';
+                preview_name_.Clear();
               } else {
                 if (has_preview_) (void)sound->Stop(preview_source_);
                 auto result =
                     sound->AddEffect(name, Sound::Ownership::kAutoFree);
                 if (!result.is_error()) {
                   preview_source_ = result.value();
-                  snprintf(preview_name_, sizeof(preview_name_), "%s", name);
+                  preview_name_.Clear();
+                  preview_name_.Append(name);
                   has_preview_ = true;
                   (void)sound->StartChannel(preview_source_);
                 }
@@ -1404,9 +1404,9 @@ void DebugUI::DrawAssetViewer() {
           int size = sqlite3_column_int(stmt, 1);
           if (name == nullptr) continue;
           if (has_filter && strstr(name, asset_filter_) == nullptr) continue;
-          char sz[32];
-          FormatBytes(sz, sizeof(sz), static_cast<size_t>(size));
-          ImGui::Text("%s  (%s)", name, sz);
+          SmallBuffer sz;
+          FormatBytes(&sz, static_cast<size_t>(size));
+          ImGui::Text("%s  (%s)", name, sz.str());
         }
         sqlite3_finalize(stmt);
       }
@@ -1428,9 +1428,9 @@ void DebugUI::DrawAssetViewer() {
           int size = sqlite3_column_int(stmt, 2);
           if (name == nullptr) continue;
           if (has_filter && strstr(name, asset_filter_) == nullptr) continue;
-          char sz[32];
-          FormatBytes(sz, sizeof(sz), static_cast<size_t>(size));
-          ImGui::Text("%s  [%s]  (%s)", name, type ? type : "?", sz);
+          SmallBuffer sz;
+          FormatBytes(&sz, static_cast<size_t>(size));
+          ImGui::Text("%s  [%s]  (%s)", name, type ? type : "?", sz.str());
         }
         sqlite3_finalize(stmt);
       }
@@ -1449,9 +1449,9 @@ void DebugUI::DrawAssetViewer() {
           int size = sqlite3_column_int(stmt, 1);
           if (name == nullptr) continue;
           if (has_filter && strstr(name, asset_filter_) == nullptr) continue;
-          char sz[32];
-          FormatBytes(sz, sizeof(sz), static_cast<size_t>(size));
-          ImGui::Text("%s  (%s)", name, sz);
+          SmallBuffer sz;
+          FormatBytes(&sz, static_cast<size_t>(size));
+          ImGui::Text("%s  (%s)", name, sz.str());
         }
         sqlite3_finalize(stmt);
       }
