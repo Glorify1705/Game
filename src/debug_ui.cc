@@ -1641,11 +1641,21 @@ void DebugUI::DrawAssetViewer() {
             ImGui::TableNextColumn();
             ImGui::PushID(name);
             if (ImGui::SmallButton("Play")) {
+              // Stop any previously previewed sound.
+              static Sound::Source preview_source = -1;
+              if (preview_source >= 0) {
+                (void)sound_->Stop(preview_source);
+              }
               auto result =
                   sound_->AddEffect(name, Sound::Ownership::kAutoFree);
               if (!result.is_error()) {
-                (void)sound_->StartChannel(result.value());
+                preview_source = result.value();
+                (void)sound_->StartChannel(preview_source);
               }
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Stop")) {
+              sound_->StopAll();
             }
             ImGui::PopID();
           }
