@@ -1641,7 +1641,11 @@ void DebugUI::DrawAssetViewer() {
             ImGui::TableNextColumn();
             ImGui::PushID(name);
             if (ImGui::SmallButton("Play")) {
-              (void)sound_->AddEffect(name, Sound::Ownership::kAutoFree);
+              auto result =
+                  sound_->AddEffect(name, Sound::Ownership::kAutoFree);
+              if (!result.is_error()) {
+                (void)sound_->StartChannel(result.value());
+              }
             }
             ImGui::PopID();
           }
