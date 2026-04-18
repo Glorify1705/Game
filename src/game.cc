@@ -347,6 +347,7 @@ void Game::Render() {
         fs, engine->batch_renderer.GetCommandBufferUsed(),
         engine->batch_renderer.GetCommandBufferCapacity());
     debug_ui.DrawCameraPanel();
+    debug_ui.DrawPhysicsPanel();
     debug_ui.EndFrame();
   }
   {
@@ -452,6 +453,7 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   debug_ui.SetRenderer(&e->renderer);
   debug_ui.SetShaders(&e->shaders);
   debug_ui.SetCamera(&e->camera);
+  debug_ui.SetPhysics(&e->physics);
   Game loop{e, config, opts, sdl, hot_reload, allocator, debug_ui};
   loop.Run();
   debug_ui.Shutdown();

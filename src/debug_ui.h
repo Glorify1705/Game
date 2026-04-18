@@ -8,6 +8,7 @@
 #include "camera.h"
 #include "circular_buffer.h"
 #include "logging.h"
+#include "physics.h"
 #include "renderer.h"
 #include "sound.h"
 
@@ -58,6 +59,9 @@ class DebugUI {
 
   // Sets the camera for the camera debug panel.
   void SetCamera(Camera* camera) { camera_ = camera; }
+
+  // Sets the physics world for the physics debug panel.
+  void SetPhysics(Physics* physics) { physics_ = physics; }
 
   // Forwards an SDL event to ImGui for input handling.
   void ProcessEvent(const SDL_Event* event);
@@ -117,6 +121,9 @@ class DebugUI {
   // Draws the camera panel showing position, zoom, rotation, and follow state.
   void DrawCameraPanel();
 
+  // Draws the physics debug panel with gravity, body list, and world settings.
+  void DrawPhysicsPanel();
+
  private:
   // Rolling buffer of frame times for the PlotLines graph.
   static constexpr size_t kFrameTimeHistory = 300;
@@ -141,6 +148,7 @@ class DebugUI {
   Renderer* renderer_ = nullptr;
   Shaders* shaders_ = nullptr;
   Camera* camera_ = nullptr;
+  Physics* physics_ = nullptr;
   SDL_Window* window_ = nullptr;
   BatchRenderer* batch_renderer_ = nullptr;
   CircularBuffer<float>* frame_times_ = nullptr;
@@ -177,6 +185,7 @@ class DebugUI {
   void SetRenderer(Renderer*) {}
   void SetShaders(Shaders*) {}
   void SetCamera(Camera*) {}
+  void SetPhysics(Physics*) {}
   void ProcessEvent(const SDL_Event*) {}
   void BeginFrame() {}
   void EndFrame() {}
@@ -194,6 +203,7 @@ class DebugUI {
   void DrawMemoryPanel(size_t) {}
   void DrawRendererPanel(const FrameStats&, size_t, size_t) {}
   void DrawCameraPanel() {}
+  void DrawPhysicsPanel() {}
 };
 
 }  // namespace G

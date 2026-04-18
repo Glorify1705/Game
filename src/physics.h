@@ -171,6 +171,24 @@ class Physics final : public b2ContactListener {
   int RaycastAll(FVec2 from, FVec2 to, uint16_t mask, RaycastHit *out,
                  int max_hits) const;
 
+  // Returns the number of bodies in the physics world.
+  int GetBodyCount() const { return world_.GetBodyCount(); }
+
+  // Returns the number of joints in the physics world.
+  int GetJointCount() const { return world_.GetJointCount(); }
+
+  // Returns the number of contacts in the physics world.
+  int GetContactCount() const { return world_.GetContactCount(); }
+
+  // Returns the head of the body linked list for iteration.
+  const b2Body *GetBodyList() const { return world_.GetBodyList(); }
+
+  // Returns the velocity solver iteration count.
+  int GetVelocityIterations() const { return velocity_iterations_; }
+
+  // Returns the position solver iteration count.
+  int GetPositionIterations() const { return position_iterations_; }
+
  private:
   static void DefaultDestroy(uintptr_t, void *) {}
 

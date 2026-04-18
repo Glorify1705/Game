@@ -1249,6 +1249,115 @@ void DebugUI::DrawEntityInspector() {
   ImGui::End();
 }
 
+void DebugUI::DrawPhysicsPanel() {
+  if (!initialized_ || !visible_ || physics_ == nullptr) return;
+
+  ImGui::SetNextWindowPos(ImVec2(820, 10), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(400, 450), ImGuiCond_FirstUseEver);
+
+  if (!ImGui::Begin("Physics", nullptr,
+                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+    ImGui::End();
+    return;
+  }
+
+  // World stats.
+  ImGui::Text("Bodies: %d  Joints: %d  Contacts: %d",
+              physics_->GetBodyCount(), physics_->GetJointCount(),
+              physics_->GetContactCount());
+  ImGui::Text("Pixels/meter: %.1f",
+              static_cast<double>(physics_->GetPixelsPerMeter()));
+
+  ImGui::Separator();
+
+  // Gravity sliders.
+  if (ImGui::CollapsingHeader("World Settings",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    FVec2 gravity = physics_->GetWorldGravity();
+    bool changed = false;
+    ImGui::SetNextItemWidth(150);
+    if (ImGui::DragFloat("Gravity X", &gravity.x, 1.0f)) changed = true;
+    ImGui::SetNextItemWidth(150);
+    if (ImGui::DragFloat("Gravity Y", &gravity.y, 1.0f)) changed = true;
+    if (changed) physics_->SetWorldGravity(gravity);
+
+    int vel_iter = physics_->GetVelocityIterations();
+    int pos_iter = physics_->GetPositionIterations();
+    bool iter_changed = false;
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::InputInt("Velocity Iterations", &vel_iter, 1)) {
+      if (vel_iter < 1) vel_iter = 1;
+      iter_changed = true;
+    }
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::InputInt("Position Iterations", &pos_iter, 1)) {
+      if (pos_iter < 1) pos_iter = 1;
+      iter_changed = true;
+    }
+    if (iter_changed) physics_->SetIterations(vel_iter, pos_iter);
+  }
+
+  ImGui::Separator();
+
+  // Body list.
+  if (ImGui::CollapsingHeader("Bodies")) {
+    if (ImGui::BeginTable("BodyTable", 5,
+                          ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                              ImGuiTableFlags_ScrollY |
+                              ImGuiTableFlags_Resizable,
+                          ImVec2(0, 250))) {
+      ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 60);
+      ImGui::TableSetupColumn("Position");
+      ImGui::TableSetupColumn("Velocity");
+      ImGui::TableSetupColumn("Angle", ImGuiTableColumnFlags_WidthFixed, 50);
+      ImGui::TableSetupColumn("Mass", ImGuiTableColumnFlags_WidthFixed, 55);
+      ImGui::TableHeadersRow();
+
+      float ppm = physics_->GetPixelsPerMeter();
+      for (const b2Body* body = physics_->GetBodyList(); body != nullptr;
+           body = body->GetNext()) {
+        ImGui::TableNextRow();
+
+        ImGui::TableNextColumn();
+        const char* type_str = "?";
+        switch (body->GetType()) {
+          case b2_dynamicBody:
+            type_str = "Dynamic";
+            break;
+          case b2_staticBody:
+            type_str = "Static";
+            break;
+          case b2_kinematicBody:
+            type_str = "Kinematic";
+            break;
+        }
+        ImGui::Text("%s", type_str);
+
+        ImGui::TableNextColumn();
+        b2Vec2 pos = body->GetPosition();
+        ImGui::Text("%.0f, %.0f",
+                    static_cast<double>(pos.x * ppm),
+                    static_cast<double>(pos.y * ppm));
+
+        ImGui::TableNextColumn();
+        b2Vec2 vel = body->GetLinearVelocity();
+        ImGui::Text("%.1f, %.1f",
+                    static_cast<double>(vel.x * ppm),
+                    static_cast<double>(vel.y * ppm));
+
+        ImGui::TableNextColumn();
+        ImGui::Text("%.1f", static_cast<double>(body->GetAngle()));
+
+        ImGui::TableNextColumn();
+        ImGui::Text("%.1f", static_cast<double>(body->GetMass()));
+      }
+      ImGui::EndTable();
+    }
+  }
+
+  ImGui::End();
+}
+
 }  // namespace G
 
 #endif  // GAME_WITH_IMGUI
