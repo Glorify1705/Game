@@ -158,11 +158,13 @@ void DebugUI::AddLuaMemorySample(float kb) {
   lua_memory_samples_->Push(kb);
 }
 
-void DebugUI::DrawPerformancePanel(const FrameStats& fs,
-                                   float lua_memory_kb,
-                                   size_t cmd_buf_used,
-                                   size_t cmd_buf_capacity) {
+void DebugUI::DrawPerformancePanel(const FrameContext& ctx) {
   if (!initialized_ || !visible_) return;
+
+  const auto& fs = ctx.frame_stats;
+  float lua_memory_kb = ctx.lua_memory_kb;
+  size_t cmd_buf_used = ctx.cmd_buf_used;
+  size_t cmd_buf_capacity = ctx.cmd_buf_capacity;
 
   ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(380, 400), ImGuiCond_FirstUseEver);
@@ -782,10 +784,12 @@ const char* BlendModeName(BlendMode mode) {
 
 }  // namespace
 
-void DebugUI::DrawRendererPanel(const FrameStats& fs,
-                                 size_t cmd_buf_used,
-                                 size_t cmd_buf_capacity) {
+void DebugUI::DrawRendererPanel(const FrameContext& ctx) {
   if (!initialized_ || !visible_) return;
+
+  const auto& fs = ctx.frame_stats;
+  size_t cmd_buf_used = ctx.cmd_buf_used;
+  size_t cmd_buf_capacity = ctx.cmd_buf_capacity;
 
   ImGui::SetNextWindowPos(ImVec2(10, 420), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(420, 450), ImGuiCond_FirstUseEver);
@@ -1356,6 +1360,91 @@ void DebugUI::DrawPhysicsPanel() {
   }
 
   ImGui::End();
+}
+
+void DebugUI::DrawMenuBar(const FrameContext& ctx) {
+  if (ImGui::BeginMainMenuBar()) {
+    if (ImGui::BeginMenu("Panels")) {
+      ImGui::MenuItem("Performance", nullptr, &show_performance_);
+      ImGui::MenuItem("Log Console", nullptr, &show_log_console_);
+      ImGui::MenuItem("Entity Inspector", nullptr, &show_entity_inspector_);
+      ImGui::MenuItem("Audio", nullptr, &show_audio_);
+      ImGui::MenuItem("Memory", nullptr, &show_memory_);
+      ImGui::MenuItem("Renderer", nullptr, &show_renderer_);
+      ImGui::MenuItem("Camera", nullptr, &show_camera_);
+      ImGui::MenuItem("Physics", nullptr, &show_physics_);
+      ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("Actions")) {
+      if (ImGui::MenuItem("Screenshot (F12)")) {
+        screenshot_requested_ = true;
+      }
+      if (ImGui::MenuItem("Hot Reload")) {
+        hot_reload_requested_ = true;
+      }
+      if (lua_ != nullptr && ImGui::MenuItem("Run GC")) {
+        lua_->RunGc();
+      }
+      ImGui::EndMenu();
+    }
+    // Time controls inline in the menu bar.
+    ImGui::Separator();
+    if (lua_ != nullptr) {
+      float ts = lua_->TimeScale();
+      bool paused = (ts == 0.0f);
+      if (ImGui::SmallButton(paused ? "Play" : "Pause")) {
+        if (paused) {
+          lua_->SetTimeScale(1.0f);
+        } else {
+          lua_->SetTimeScale(0.0f);
+        }
+        ts = lua_->TimeScale();
+      }
+      ImGui::SameLine();
+      ImGui::SetNextItemWidth(100);
+      if (ImGui::SliderFloat("##timescale", &ts, 0.0f, 4.0f, "%.2fx")) {
+        lua_->SetTimeScale(ts);
+      }
+    }
+    // FPS readout on the right side.
+    {
+      char fps_text[32];
+      float fps = (ctx.lua_memory_kb > 0 && frame_times_ != nullptr &&
+                   frame_times_->size() > 0)
+                      ? 1000.0f / ((*frame_times_)[frame_times_->size() - 1])
+                      : 0.0f;
+      snprintf(fps_text, sizeof(fps_text), "%.0f FPS", static_cast<double>(fps));
+      float text_width = ImGui::CalcTextSize(fps_text).x;
+      ImGui::SameLine(ImGui::GetWindowWidth() - text_width - 10);
+      ImGui::Text("%s", fps_text);
+    }
+    ImGui::EndMainMenuBar();
+  }
+}
+
+void DebugUI::DrawAll(const FrameContext& ctx) {
+  if (!initialized_ || !visible_) return;
+  DrawMenuBar(ctx);
+  if (show_performance_) DrawPerformancePanel(ctx);
+  if (show_log_console_) DrawLogConsole();
+  if (show_entity_inspector_) DrawEntityInspector();
+  if (show_audio_) DrawAudioPanel();
+  if (show_memory_) DrawMemoryPanel(ctx.lua_memory_bytes);
+  if (show_renderer_) DrawRendererPanel(ctx);
+  if (show_camera_) DrawCameraPanel();
+  if (show_physics_) DrawPhysicsPanel();
+}
+
+bool DebugUI::ConsumeScreenshotRequest() {
+  bool r = screenshot_requested_;
+  screenshot_requested_ = false;
+  return r;
+}
+
+bool DebugUI::ConsumeHotReloadRequest() {
+  bool r = hot_reload_requested_;
+  hot_reload_requested_ = false;
+  return r;
 }
 
 }  // namespace G

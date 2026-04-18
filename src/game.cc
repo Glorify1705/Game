@@ -333,22 +333,22 @@ void Game::Render() {
   // framebuffer. The OpenGL3 backend saves and restores all GL state.
   {
     PROFILE_SCOPE_N("DebugUI");
-    const auto& fs = engine->batch_renderer.GetFrameStats();
-    float lua_kb = static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f;
     debug_ui.BeginFrame();
-    debug_ui.DrawPerformancePanel(
-        fs, lua_kb, engine->batch_renderer.GetCommandBufferUsed(),
-        engine->batch_renderer.GetCommandBufferCapacity());
-    debug_ui.DrawLogConsole();
-    debug_ui.DrawEntityInspector();
-    debug_ui.DrawAudioPanel();
-    debug_ui.DrawMemoryPanel(engine->lua.MemoryUsage());
-    debug_ui.DrawRendererPanel(
-        fs, engine->batch_renderer.GetCommandBufferUsed(),
-        engine->batch_renderer.GetCommandBufferCapacity());
-    debug_ui.DrawCameraPanel();
-    debug_ui.DrawPhysicsPanel();
+    DebugUI::FrameContext ctx;
+    ctx.frame_stats = engine->batch_renderer.GetFrameStats();
+    ctx.lua_memory_kb =
+        static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f;
+    ctx.lua_memory_bytes = engine->lua.MemoryUsage();
+    ctx.cmd_buf_used = engine->batch_renderer.GetCommandBufferUsed();
+    ctx.cmd_buf_capacity = engine->batch_renderer.GetCommandBufferCapacity();
+    debug_ui.DrawAll(ctx);
     debug_ui.EndFrame();
+    if (debug_ui.ConsumeScreenshotRequest()) {
+      screenshot_requested = true;
+    }
+    if (debug_ui.ConsumeHotReloadRequest()) {
+      engine->lua.RequestHotload();
+    }
   }
   {
     PROFILE_SCOPE_N("SwapWindow");

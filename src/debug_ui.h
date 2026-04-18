@@ -95,34 +95,23 @@ class DebugUI {
   // Captures a log message with its severity level.
   void LogMessage(LogLevel level, const char* message);
 
-  // Draws the performance panel using current engine stats.
-  void DrawPerformancePanel(const FrameStats& frame_stats,
-                            float lua_memory_kb,
-                            size_t cmd_buf_used,
-                            size_t cmd_buf_capacity);
+  // Per-frame data passed to DrawAll.
+  struct FrameContext {
+    FrameStats frame_stats;
+    float lua_memory_kb;
+    size_t lua_memory_bytes;
+    size_t cmd_buf_used;
+    size_t cmd_buf_capacity;
+  };
 
-  // Draws the log console panel with filtering and Lua eval.
-  void DrawLogConsole();
+  // Draws the menu bar and all enabled panels. Call between Begin/EndFrame.
+  void DrawAll(const FrameContext& ctx);
 
-  // Draws the entity inspector panel showing live Lua state.
-  void DrawEntityInspector();
+  // Returns true if a screenshot was requested via the quick actions menu.
+  bool ConsumeScreenshotRequest();
 
-  // Draws the audio panel showing active streams and global volume.
-  void DrawAudioPanel();
-
-  // Draws the memory panel showing allocator usage.
-  void DrawMemoryPanel(size_t lua_memory_bytes);
-
-  // Draws the renderer panel showing batch stats, textures, and shaders.
-  void DrawRendererPanel(const FrameStats& frame_stats,
-                         size_t cmd_buf_used,
-                         size_t cmd_buf_capacity);
-
-  // Draws the camera panel showing position, zoom, rotation, and follow state.
-  void DrawCameraPanel();
-
-  // Draws the physics debug panel with gravity, body list, and world settings.
-  void DrawPhysicsPanel();
+  // Returns true if a hot-reload was requested via the quick actions menu.
+  bool ConsumeHotReloadRequest();
 
  private:
   // Rolling buffer of frame times for the PlotLines graph.
@@ -153,6 +142,33 @@ class DebugUI {
   BatchRenderer* batch_renderer_ = nullptr;
   CircularBuffer<float>* frame_times_ = nullptr;
   CircularBuffer<float>* lua_memory_samples_ = nullptr;
+
+  // Draws the menu bar with panel toggles, time controls, and quick actions.
+  void DrawMenuBar(const FrameContext& ctx);
+
+  // Individual panel draw methods (called by DrawAll when enabled).
+  void DrawPerformancePanel(const FrameContext& ctx);
+  void DrawLogConsole();
+  void DrawEntityInspector();
+  void DrawAudioPanel();
+  void DrawMemoryPanel(size_t lua_memory_bytes);
+  void DrawRendererPanel(const FrameContext& ctx);
+  void DrawCameraPanel();
+  void DrawPhysicsPanel();
+
+  // Panel visibility toggles.
+  bool show_performance_ = true;
+  bool show_log_console_ = true;
+  bool show_entity_inspector_ = false;
+  bool show_audio_ = false;
+  bool show_memory_ = false;
+  bool show_renderer_ = false;
+  bool show_camera_ = false;
+  bool show_physics_ = false;
+
+  // Action requests from menu bar (consumed by game loop).
+  bool screenshot_requested_ = false;
+  bool hot_reload_requested_ = false;
 
   // Log console state.
   CircularBuffer<LogEntry>* log_entries_ = nullptr;
@@ -196,14 +212,10 @@ class DebugUI {
   void AddFrameTimeSample(float) {}
   void AddLuaMemorySample(float) {}
   void LogMessage(LogLevel, const char*) {}
-  void DrawPerformancePanel(const FrameStats&, float, size_t, size_t) {}
-  void DrawLogConsole() {}
-  void DrawEntityInspector() {}
-  void DrawAudioPanel() {}
-  void DrawMemoryPanel(size_t) {}
-  void DrawRendererPanel(const FrameStats&, size_t, size_t) {}
-  void DrawCameraPanel() {}
-  void DrawPhysicsPanel() {}
+  struct FrameContext {};
+  void DrawAll(const FrameContext&) {}
+  bool ConsumeScreenshotRequest() { return false; }
+  bool ConsumeHotReloadRequest() { return false; }
 };
 
 }  // namespace G
