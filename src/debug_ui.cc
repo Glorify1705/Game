@@ -1643,23 +1643,28 @@ void DebugUI::DrawAssetViewer() {
             {
               static Sound::Source preview_source = 0;
               static bool has_preview = false;
-              if (ImGui::SmallButton("Play")) {
-                if (has_preview) {
+              static const char* preview_name = nullptr;
+              bool is_playing =
+                  has_preview && preview_name != nullptr &&
+                  strcmp(preview_name, name) == 0;
+              if (ImGui::SmallButton(is_playing ? "Stop" : "Play")) {
+                if (is_playing) {
                   (void)sound_->Stop(preview_source);
                   has_preview = false;
+                  preview_name = nullptr;
+                } else {
+                  if (has_preview) {
+                    (void)sound_->Stop(preview_source);
+                  }
+                  auto result =
+                      sound_->AddEffect(name, Sound::Ownership::kAutoFree);
+                  if (!result.is_error()) {
+                    preview_source = result.value();
+                    preview_name = name;
+                    has_preview = true;
+                    (void)sound_->StartChannel(preview_source);
+                  }
                 }
-                auto result =
-                    sound_->AddEffect(name, Sound::Ownership::kAutoFree);
-                if (!result.is_error()) {
-                  preview_source = result.value();
-                  has_preview = true;
-                  (void)sound_->StartChannel(preview_source);
-                }
-              }
-              ImGui::SameLine();
-              if (ImGui::SmallButton("Stop") && has_preview) {
-                (void)sound_->Stop(preview_source);
-                has_preview = false;
               }
             }
             ImGui::PopID();
