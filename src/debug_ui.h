@@ -139,17 +139,30 @@ class DebugUI {
   CircularBuffer<float>* frame_times_ = nullptr;
   CircularBuffer<float>* lua_memory_samples_ = nullptr;
 
-  // Panel visibility toggles.
-  bool show_performance_ = true;
-  bool show_log_console_ = true;
-  bool show_entity_inspector_ = false;
-  bool show_audio_ = false;
-  bool show_memory_ = false;
-  bool show_renderer_ = false;
-  bool show_camera_ = false;
-  bool show_physics_ = false;
-  bool show_assets_ = false;
-  bool show_panel_selector_ = false;
+  // Panel visibility as a bitset.
+  enum Panel : uint64_t {
+    kPanelPerformance = 1 << 0,
+    kPanelLogConsole = 1 << 1,
+    kPanelEntityInspector = 1 << 2,
+    kPanelAudio = 1 << 3,
+    kPanelMemory = 1 << 4,
+    kPanelRenderer = 1 << 5,
+    kPanelCamera = 1 << 6,
+    kPanelPhysics = 1 << 7,
+    kPanelAssets = 1 << 8,
+    kPanelSelector = 1 << 9,
+    kPanelAll = kPanelPerformance | kPanelLogConsole | kPanelEntityInspector |
+                kPanelAudio | kPanelMemory | kPanelRenderer | kPanelCamera |
+                kPanelPhysics | kPanelAssets,
+  };
+  uint64_t panels_ = kPanelPerformance | kPanelLogConsole;
+
+  // Helpers for panel visibility.
+  bool PanelOpen(Panel p) const { return (panels_ & p) != 0; }
+  void TogglePanel(Panel p) { panels_ ^= p; }
+
+  // Draws a menu item bound to a panel flag.
+  void PanelMenuItem(const char* label, Panel p);
 
   // Action requests from menu bar (consumed by game loop).
   bool screenshot_requested_ = false;
