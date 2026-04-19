@@ -208,30 +208,7 @@ void FormatLuaValue(lua_State* L, int idx, StringBuffer* buf) {
       break;
     case LUA_TUSERDATA:
     case LUA_TLIGHTUSERDATA:
-      if (lua_getmetatable(L, idx)) {
-        lua_getfield(L, -1, "__tostring");
-        if (lua_isfunction(L, -1)) {
-          lua_pushvalue(L, idx);
-          if (lua_pcall(L, 1, 1, 0) == 0 && lua_isstring(L, -1)) {
-            buf->Append(lua_tostring(L, -1));
-            lua_pop(L, 2);
-            break;
-          }
-          lua_pop(L, 1);
-        } else {
-          lua_pop(L, 1);
-        }
-        lua_getfield(L, -1, "__name");
-        if (lua_isstring(L, -1)) {
-          buf->AppendF("%s: %p", lua_tostring(L, -1),
-                       lua_topointer(L, idx));
-        } else {
-          buf->AppendF("userdata: %p", lua_topointer(L, idx));
-        }
-        lua_pop(L, 2);
-      } else {
-        buf->AppendF("userdata: %p", lua_topointer(L, idx));
-      }
+      FormatLuaUserdata(L, idx, buf, /*show_ptr=*/true);
       break;
     case LUA_TTHREAD:
       buf->AppendF("thread: %p", lua_topointer(L, idx));
@@ -443,9 +420,12 @@ bool CompileFennel(lua_State* L, std::string_view code, StringBuffer* output) {
         }
       }
     }
-    // Last resort: try require("fennel"). This is slow (loads the compiler
-    // from scratch) but only happens once since we cache the result.
+    // Last resort: try require("fennel"). This loads the compiler from
+    // scratch but only happens once since we cache the result.
     if (!lua_istable(L, -1)) {
+      WLOG("Fennel compiler not in _fennel or package.loaded, "
+           "falling back to require");
+
       lua_pop(L, 1);
       lua_getglobal(L, "require");
       if (lua_isfunction(L, -1)) {

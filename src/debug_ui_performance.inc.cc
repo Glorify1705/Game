@@ -56,10 +56,22 @@ void DebugUI::DrawPerformancePanel(const FrameContext& ctx) {
   // Lua memory graph.
   PlotCircularBuffer("Lua Memory", lua_memory_samples_, "KB", ImVec2(0, 60));
 
-  // Frame time breakdown.
-  if (ImGui::CollapsingHeader("Frame Breakdown",
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
-    const auto& bd = ctx.breakdown;
+  DrawFrameBreakdown(ctx);
+
+  ImGui::Separator();
+
+  // Command buffer fill.
+  DrawMemoryBar("Command Buffer", ctx.cmd_buf_used, ctx.cmd_buf_capacity);
+
+  ImGui::End();
+}
+
+void DebugUI::DrawFrameBreakdown(const FrameContext& ctx) {
+  if (!ImGui::CollapsingHeader("Frame Breakdown",
+                               ImGuiTreeNodeFlags_DefaultOpen)) {
+    return;
+  }
+  const auto& bd = ctx.breakdown;
     float total = bd.update_ms + bd.draw_ms + bd.render_ms + bd.debug_ui_ms;
 
     struct Category {
@@ -146,12 +158,4 @@ void DebugUI::DrawPerformancePanel(const FrameContext& ctx) {
       }
       ImGui::Dummy(ImVec2(chart_width, chart_height));
     }
-  }
-
-  ImGui::Separator();
-
-  // Command buffer fill.
-  DrawMemoryBar("Command Buffer", ctx.cmd_buf_used, ctx.cmd_buf_capacity);
-
-  ImGui::End();
 }

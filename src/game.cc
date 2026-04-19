@@ -132,6 +132,9 @@ struct Game {
   // Renders a frame, including debug overlay and screenshots.
   void Render();
 
+  // Renders the debug UI overlay and processes its action requests.
+  void RenderDebugUI();
+
   // Renders the error screen when Lua has a fatal error.
   void RenderCrashScreen(std::string_view error);
 };
@@ -179,7 +182,7 @@ void Game::Run() {
     const Time update_start = Now();
     RunUpdates();
     last_breakdown_.update_ms =
-        static_cast<float>(ToSeconds(Now() - update_start) * 1000.0);
+        ElapsedMs(update_start);
     first_update_done = true;
     engine->batch_renderer.SetFrameTime(static_cast<float>(t));
     {
@@ -333,7 +336,7 @@ void Game::Render() {
       engine->lua.Draw();
     }
     last_breakdown_.draw_ms =
-        static_cast<float>(ToSeconds(Now() - draw_start) * 1000.0);
+        ElapsedMs(draw_start);
   }
   if (screenshot_requested) {
     screenshot_requested = false;
@@ -348,48 +351,46 @@ void Game::Render() {
       engine->batch_renderer.Render();
     }
     last_breakdown_.render_ms =
-        static_cast<float>(ToSeconds(Now() - render_start) * 1000.0);
+        ElapsedMs(render_start);
   }
-  // Debug UI phase: ImGui renders after the batch renderer, directly to the
-  // default framebuffer. The OpenGL3 backend saves and restores all GL state.
-  {
-    const Time dbgui_start = Now();
-    PROFILE_SCOPE_N("DebugUI");
-    debug_ui->BeginFrame();
-    DebugUI::FrameContext ctx;
-    ctx.frame_stats = engine->batch_renderer.GetFrameStats();
-    ctx.lua_memory_kb =
-        static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f;
-    ctx.lua_memory_bytes = engine->lua.MemoryUsage();
-    ctx.cmd_buf_used = engine->batch_renderer.GetCommandBufferUsed();
-    ctx.cmd_buf_capacity = engine->batch_renderer.GetCommandBufferCapacity();
-    ctx.breakdown = last_breakdown_;
-    debug_ui->DrawAll(ctx);
-    debug_ui->EndFrame();
-    last_breakdown_.debug_ui_ms =
-        static_cast<float>(ToSeconds(Now() - dbgui_start) * 1000.0);
-    if (debug_ui->ConsumeScreenshotRequest()) {
-      screenshot_requested = true;
-    }
-    if (debug_ui->ConsumeHotReloadRequest()) {
-      engine->lua.RequestHotload();
-    }
-    if (debug_ui->ConsumeQuitRequest()) {
-      engine->lua.HandleQuit();
-      running = false;
-    }
-    // Frame stepping: when paused, run one tick then re-pause.
-    if (debug_ui->ConsumeStepRequest()) {
-      float saved_ts = engine->lua.TimeScale();
-      engine->lua.SetTimeScale(1.0f);
-      constexpr double kStepDt = TimeStepInSeconds();
-      UpdateTick(kStepDt);
-      engine->lua.SetTimeScale(saved_ts);
-    }
-  }
+  RenderDebugUI();
   {
     PROFILE_SCOPE_N("SwapWindow");
     SDL_GL_SwapWindow(sdl->window);
+  }
+}
+
+void Game::RenderDebugUI() {
+  const Time dbgui_start = Now();
+  PROFILE_SCOPE_N("DebugUI");
+  debug_ui->BeginFrame();
+  DebugUI::FrameContext ctx;
+  ctx.frame_stats = engine->batch_renderer.GetFrameStats();
+  ctx.lua_memory_kb =
+      static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f;
+  ctx.lua_memory_bytes = engine->lua.MemoryUsage();
+  ctx.cmd_buf_used = engine->batch_renderer.GetCommandBufferUsed();
+  ctx.cmd_buf_capacity = engine->batch_renderer.GetCommandBufferCapacity();
+  ctx.breakdown = last_breakdown_;
+  debug_ui->DrawAll(ctx);
+  debug_ui->EndFrame();
+  last_breakdown_.debug_ui_ms = ElapsedMs(dbgui_start);
+  if (debug_ui->ConsumeScreenshotRequest()) {
+    screenshot_requested = true;
+  }
+  if (debug_ui->ConsumeHotReloadRequest()) {
+    engine->lua.RequestHotload();
+  }
+  if (debug_ui->ConsumeQuitRequest()) {
+    engine->lua.HandleQuit();
+    running = false;
+  }
+  if (debug_ui->ConsumeStepRequest()) {
+    float saved_ts = engine->lua.TimeScale();
+    engine->lua.SetTimeScale(1.0f);
+    constexpr double kStepDt = TimeStepInSeconds();
+    UpdateTick(kStepDt);
+    engine->lua.SetTimeScale(saved_ts);
   }
 }
 

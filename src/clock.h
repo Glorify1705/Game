@@ -60,6 +60,11 @@ class LogTimer {
   LogTimer INTERNAL_ID(t)(__FILE__, __LINE__, __PRETTY_FUNCTION__, \
                           LogTimer::Buf(__VA_ARGS__))
 
+// Milliseconds elapsed since a given time point.
+inline float ElapsedMs(Time since) {
+  return static_cast<float>(ToSeconds(Now() - since) * 1000.0);
+}
+
 inline constexpr double TimeStepInSeconds() { return 1.0 / 60.0; }
 
 }  // namespace G

@@ -145,6 +145,7 @@ class DebugUI {
 
   // Individual panel draw methods (called by DrawAll when enabled).
   void DrawPerformancePanel(const FrameContext& ctx);
+  void DrawFrameBreakdown(const FrameContext& ctx);
   void DrawLogConsole();
   void DrawEntityInspector();
   void DrawAudioPanel();
