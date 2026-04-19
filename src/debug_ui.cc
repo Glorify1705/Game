@@ -539,6 +539,36 @@ void DebugUI::DrawPerformancePanel(const FrameContext& ctx) {
       }
     }
     ImGui::Text("Current: %dx%d", w, h);
+
+    ImGui::Separator();
+
+    // Window position controls.
+    int x = 0, y = 0;
+    SDL_GetWindowPosition(window_, &x, &y);
+    ImGui::Text("Position: (%d, %d)", x, y);
+    static int pos_x = 0, pos_y = 0;
+    static bool pos_init = false;
+    if (!pos_init) {
+      pos_x = x;
+      pos_y = y;
+      pos_init = true;
+    }
+    ImGui::SetNextItemWidth(80);
+    ImGui::InputInt("##px", &pos_x, 0);
+    ImGui::SameLine();
+    ImGui::Text(",");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(80);
+    ImGui::InputInt("##py", &pos_y, 0);
+    ImGui::SameLine();
+    if (ImGui::Button("Move")) {
+      SDL_SetWindowPosition(window_, pos_x, pos_y);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Center")) {
+      SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED,
+                            SDL_WINDOWPOS_CENTERED);
+    }
   }
 
   ImGui::End();
@@ -1226,6 +1256,8 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       if (ImGui::MenuItem("Screenshot (F12)")) screenshot_requested_ = true;
       if (ImGui::MenuItem("Hot Reload")) hot_reload_requested_ = true;
       if (ImGui::MenuItem("Run GC")) engine_->lua.RunGc();
+      ImGui::Separator();
+      if (ImGui::MenuItem("Quit")) quit_requested_ = true;
       ImGui::EndMenu();
     }
     // Time controls inline in the menu bar.
@@ -1389,6 +1421,12 @@ bool DebugUI::ConsumeHotReloadRequest() {
 bool DebugUI::ConsumeStepRequest() {
   bool r = step_requested_;
   step_requested_ = false;
+  return r;
+}
+
+bool DebugUI::ConsumeQuitRequest() {
+  bool r = quit_requested_;
+  quit_requested_ = false;
   return r;
 }
 

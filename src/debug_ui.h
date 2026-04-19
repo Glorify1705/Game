@@ -94,6 +94,9 @@ class DebugUI {
   // Returns true if a single frame step was requested (while paused).
   bool ConsumeStepRequest();
 
+  // Returns true if a quit was requested via the Actions menu.
+  bool ConsumeQuitRequest();
+
   // Handles F5/F6 panel shortcuts. Call from PollEvents before ImGui
   // capture check so shortcuts work regardless of focus.
   void HandleKeyShortcut(SDL_Scancode scancode);
@@ -174,6 +177,7 @@ class DebugUI {
   bool screenshot_requested_ = false;
   bool hot_reload_requested_ = false;
   bool step_requested_ = false;
+  bool quit_requested_ = false;
 
   // Log console state.
   CircularBuffer<LogEntry>* log_entries_ = nullptr;
@@ -245,6 +249,7 @@ class DebugUI {
   bool ConsumeScreenshotRequest() { return false; }
   bool ConsumeHotReloadRequest() { return false; }
   bool ConsumeStepRequest() { return false; }
+  bool ConsumeQuitRequest() { return false; }
   void HandleKeyShortcut(SDL_Scancode) {}
 };
 

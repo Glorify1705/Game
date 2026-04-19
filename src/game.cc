@@ -353,6 +353,10 @@ void Game::Render() {
     if (debug_ui.ConsumeHotReloadRequest()) {
       engine->lua.RequestHotload();
     }
+    if (debug_ui.ConsumeQuitRequest()) {
+      engine->lua.HandleQuit();
+      running = false;
+    }
     // Frame stepping: when paused, run one tick then re-pause.
     if (debug_ui.ConsumeStepRequest()) {
       float saved_ts = engine->lua.TimeScale();
