@@ -20,7 +20,7 @@ function Game:init()
     self.server_id = nil
 
     -- Load protobuf schema.
-    G.data.load_schema(G.filesystem.read("messages.proto"))
+    G.data.load_schema(G.filesystem.slurp("messages.proto"))
 
     -- Connect to the server.
     G.network.create_client()
