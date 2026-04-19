@@ -40,6 +40,9 @@ class DebugUI {
   // Sets the engine arena allocator for the memory panel (not owned by Engine).
   void SetEngineArena(ArenaAllocator* arena) { engine_arena_ = arena; }
 
+  // Sets whether the window should re-center after resize.
+  void SetWindowCentered(bool centered) { window_centered_ = centered; }
+
   // Forwards an SDL event to ImGui for input handling.
   void ProcessEvent(const SDL_Event* event);
 
@@ -108,7 +111,7 @@ class DebugUI {
   // Returns true if a quit was requested via the Actions menu.
   bool ConsumeQuitRequest();
 
-  // Handles F5/F6 panel shortcuts. Call from PollEvents before ImGui
+  // Handles F5/F6/F7 shortcuts. Call from PollEvents before ImGui
   // capture check so shortcuts work regardless of focus.
   void HandleKeyShortcut(SDL_Scancode scancode);
 
@@ -151,6 +154,8 @@ class DebugUI {
   void DrawRepl();
   // Returns true if a log entry passes the current level and text filters.
   bool ShouldShowLogEntry(const LogEntry& entry) const;
+  // Resizes the window and viewport, re-centering if window_centered_.
+  void ResizeWindow(int w, int h);
   // Draws the API docs browser with search.
   void DrawDocsPanel();
   // Draws the variable watch panel with live Lua path resolution.
@@ -158,6 +163,8 @@ class DebugUI {
 
   bool visible_ = false;
   bool initialized_ = false;
+  bool window_centered_ = false;
+  int window_preset_ = -1;
   Allocator* allocator_ = nullptr;
   Engine* engine_ = nullptr;
   ArenaAllocator* engine_arena_ = nullptr;
@@ -287,6 +294,7 @@ class DebugUI {
   void Shutdown() {}
   void SetEngine(Engine*) {}
   void SetEngineArena(ArenaAllocator*) {}
+  void SetWindowCentered(bool) {}
   void ProcessEvent(const SDL_Event*) {}
   void BeginFrame() {}
   void EndFrame() {}

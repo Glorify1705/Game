@@ -231,7 +231,7 @@ void Game::PollEvents() {
         debug_ui.Toggle();
       }
     }
-    // Debug UI panel shortcuts (F5/F6).
+    // Debug UI shortcuts (F5/F6/F7).
     if (event.type == SDL_EVENT_KEY_DOWN) {
       debug_ui.HandleKeyShortcut(event.key.scancode);
     }
@@ -484,6 +484,7 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   debug_ui.Init(sdl.window, sdl.gl_context);
   debug_ui.SetEngine(e);
   debug_ui.SetEngineArena(allocator);
+  debug_ui.SetWindowCentered(config.centered);
   Game loop{e, config, opts, sdl, hot_reload, allocator, debug_ui};
   loop.Run();
   debug_ui.Shutdown();

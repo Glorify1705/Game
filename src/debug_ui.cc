@@ -193,6 +193,33 @@ void DebugUI::LogMessage(LogLevel level, const char* message) {
 #include "debug_ui_watch.inc.cc"
 #include "debug_ui_assets.inc.cc"
 
+// Window resize presets shared by menu and F7 shortcut.
+struct WindowPreset {
+  const char* label;
+  int w, h;
+};
+
+constexpr WindowPreset kWindowPresets[] = {
+    {"800x600", 800, 600},     {"1280x720", 1280, 720},
+    {"1440x900", 1440, 900},   {"1920x1080", 1920, 1080},
+    {"2560x1440", 2560, 1440},
+};
+
+constexpr int kWindowPresetCount =
+    sizeof(kWindowPresets) / sizeof(kWindowPresets[0]);
+
+void DebugUI::ResizeWindow(int w, int h) {
+  if (window_ == nullptr) return;
+  SDL_SetWindowSize(window_, w, h);
+  if (engine_ != nullptr) {
+    engine_->batch_renderer.SetViewport(IVec2(w, h));
+  }
+  if (window_centered_) {
+    SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED,
+                          SDL_WINDOWPOS_CENTERED);
+  }
+}
+
 // Menu bar and dispatch.
 
 void DebugUI::DrawMenuBar(const FrameContext& ctx) {
@@ -233,23 +260,11 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       SDL_GetWindowSize(window_, &w, &h);
       ImGui::Text("Current: %dx%d", w, h);
       ImGui::Separator();
-      struct Preset {
-        const char* label;
-        int w, h;
-      };
-      const Preset presets[] = {
-          {"800x600", 800, 600},     {"1280x720", 1280, 720},
-          {"1440x900", 1440, 900},   {"1920x1080", 1920, 1080},
-          {"2560x1440", 2560, 1440},
-      };
-      for (size_t i = 0; i < sizeof(presets) / sizeof(presets[0]); ++i) {
-        bool current = (w == presets[i].w && h == presets[i].h);
-        if (ImGui::MenuItem(presets[i].label, nullptr, current)) {
-          SDL_SetWindowSize(window_, presets[i].w, presets[i].h);
-          if (engine_ != nullptr) {
-            engine_->batch_renderer.SetViewport(
-                IVec2(presets[i].w, presets[i].h));
-          }
+      for (int i = 0; i < kWindowPresetCount; ++i) {
+        bool current =
+            (w == kWindowPresets[i].w && h == kWindowPresets[i].h);
+        if (ImGui::MenuItem(kWindowPresets[i].label, nullptr, current)) {
+          ResizeWindow(kWindowPresets[i].w, kWindowPresets[i].h);
         }
       }
       ImGui::EndMenu();
@@ -458,6 +473,11 @@ void DebugUI::HandleKeyShortcut(SDL_Scancode scancode) {
     }
     case SDL_SCANCODE_F6:
       TogglePanel(kPanelSelector);
+      break;
+    case SDL_SCANCODE_F7:
+      window_preset_ = (window_preset_ + 1) % kWindowPresetCount;
+      ResizeWindow(kWindowPresets[window_preset_].w,
+                   kWindowPresets[window_preset_].h);
       break;
     default:
       break;
