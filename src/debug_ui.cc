@@ -1211,6 +1211,15 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       PanelMenuItem("Camera", kPanelCamera);
       PanelMenuItem("Physics", kPanelPhysics);
       PanelMenuItem("Assets", kPanelAssets);
+      ImGui::Separator();
+      if (ImGui::MenuItem("Cycle Presets", "F5")) {
+        static constexpr uint64_t kPresets[] = {0, kPanelAll, kPanelDefault};
+        panel_preset_ = (panel_preset_ + 1) % 3;
+        panels_ = (panels_ & ~kPanelAll) | kPresets[panel_preset_];
+      }
+      if (ImGui::MenuItem("Panel Picker", "F6")) {
+        TogglePanel(kPanelSelector);
+      }
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Actions")) {
@@ -1269,7 +1278,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   if (PanelOpen(kPanelPhysics)) DrawPhysicsPanel();
   if (PanelOpen(kPanelAssets)) DrawAssetViewer();
 
-  // F8 panel selector floating window.
+  // F6 panel selector floating window.
   if (PanelOpen(kPanelSelector)) {
     ImGui::SetNextWindowPos(ImVec2(200, 200), ImGuiCond_FirstUseEver);
     bool open = true;
@@ -1386,16 +1395,14 @@ bool DebugUI::ConsumeStepRequest() {
 void DebugUI::HandleKeyShortcut(SDL_Scancode scancode) {
   if (!initialized_ || !visible_) return;
   switch (scancode) {
-    case SDL_SCANCODE_F5:
-      panels_ &= ~kPanelAll;
+    case SDL_SCANCODE_F5: {
+      // Cycle presets: none -> all -> default (perf+logs) -> none.
+      static constexpr uint64_t kPresets[] = {0, kPanelAll, kPanelDefault};
+      panel_preset_ = (panel_preset_ + 1) % 3;
+      panels_ = (panels_ & ~kPanelAll) | kPresets[panel_preset_];
       break;
+    }
     case SDL_SCANCODE_F6:
-      panels_ |= kPanelAll;
-      break;
-    case SDL_SCANCODE_F7:
-      panels_ = (panels_ & ~kPanelAll) | kPanelPerformance | kPanelLogConsole;
-      break;
-    case SDL_SCANCODE_F8:
       TogglePanel(kPanelSelector);
       break;
     default:

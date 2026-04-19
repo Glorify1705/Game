@@ -226,7 +226,7 @@ void Game::PollEvents() {
         debug_ui.Toggle();
       }
     }
-    // Debug UI panel shortcuts (F5-F8).
+    // Debug UI panel shortcuts (F5/F6).
     if (event.type == SDL_EVENT_KEY_DOWN) {
       debug_ui.HandleKeyShortcut(event.key.scancode);
     }

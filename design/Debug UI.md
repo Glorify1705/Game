@@ -342,50 +342,130 @@ Controls for the standalone collision system (`G.collision`):
 | Feature | Status | Notes |
 |---------|--------|-------|
 | ImGui vendor | Done | Dear ImGui v1.91.8, SDL3 + OpenGL3 backends, compiled behind `GAME_WITH_IMGUI`. |
-| Menu bar | Done | Panels menu with checkbox toggles (Performance + Log Console default visible). Actions menu (Screenshot, Hot Reload, Run GC). Time controls (Play/Pause + 0-4x slider) inline. FPS readout on the right. |
+| Menu bar | Done | Panels menu with checkbox toggles, F5 preset cycling, F6 panel picker. Actions menu (Screenshot, Hot Reload, Run GC). Time controls (Play/Pause + 0-4x slider) inline. FPS readout on the right. |
 | Compile-time guard | Done | All code behind `#ifdef GAME_WITH_IMGUI` with matching no-op stub class. |
 | Allocator integration | Done | ImGui allocations routed through SystemAllocator. |
 | Input routing | Done | SDL events forwarded to ImGui; WantCaptureMouse/Keyboard gates game input. |
 | Engine integration | Done | Single `SetEngine(Engine*)` call. `DrawAll(FrameContext)` dispatches to enabled panels. |
 
-## Proposed improvements
+## Proposed improvements (v1)
 
-### High value
+Items from the original design, now mostly done:
 
-- **Frame stepping.** The Pause button exists but there is no "advance one
-  frame" button. When debugging physics or animations, single-stepping is
-  invaluable. Needs a bool flag in the game loop that runs one update tick
-  then re-pauses.
-
+- ~~**Frame stepping.**~~ Done. Pause + Step button, F9/F10 shortcuts.
 - **Console history persistence.** Eval history is lost on restart. Save/load
-  to a small file (e.g. `.claude/eval_history`) so useful debug commands
-  survive across sessions.
-
-### Medium value
-
+  to a small file so useful debug commands survive across sessions.
 - **Physics body filter.** The body table is unfiltered. Add a type filter
   (dynamic/static/kinematic) and a click-to-highlight that draws a box
   around the selected body in the viewport.
-
-- **Log export to file.** The Copy button copies to clipboard. For bug
-  reports, add a "Save to file" button that writes the full (unfiltered)
-  log to a timestamped file in the write directory.
-
-- **Keyboard shortcuts for panels.** F1-F9 to toggle specific panels without
-  navigating the Panels menu.
-
-### Lower value / polish
-
-- **Camera drag-to-pan.** In the Camera panel, add mouse drag controls to
-  temporarily override the game camera for off-screen inspection. Release
-  snaps back.
-
-- **Texture zoom.** In the asset viewer Images tab, click a texture to open
-  a zoomable/pannable fullscreen preview at 1:1 pixel scale.
-
+- ~~**Log export to file.**~~ Done. Save button writes timestamped log file.
+- ~~**Keyboard shortcuts for panels.**~~ Done. F5 cycles presets (none / all
+  / default), F6 opens panel picker.
+- ~~**Camera drag-to-pan.**~~ Done. Middle-click drag in viewport when Camera
+  panel is open.
+- ~~**Texture zoom.**~~ Done. Click image in asset viewer to open zoomable
+  preview with pixel color readout.
 - **Performance history reset.** Button to clear the frame time and Lua
   memory graph buffers (useful after a startup spike to see steady-state
   performance).
+
+## v2 proposals
+
+Four new features inspired by game engine debug UIs (Quake/id Tech console,
+Minecraft F3, Unity inspector, Unreal stat unit, Jonathan Blow's Jai/Witness
+debug tools).
+
+### 1. Frame time breakdown bars
+
+Show a stacked horizontal bar in the Performance panel breaking down where
+frame time is spent. Answers "why is this frame slow?" at a glance.
+
+**Categories:** Update (Lua update + timers + physics), Draw (Lua draw
+callback), Render (FlushFrame + BatchRenderer::Render), Debug UI (ImGui
+frame).
+
+**Implementation sketch:**
+
+- New `FrameBreakdown` struct with four `float` fields (one per category).
+- Add to `FrameContext`. Add `CircularBuffer<FrameBreakdown>` for history
+  (300 samples, matching `kFrameTimeHistory`).
+- In `game.cc`, capture `Now()` timestamps around each phase in `Run()` and
+  `Render()`. Use one-frame-lagged values to avoid chicken-and-egg timing
+  (debug UI measures its own render time from the previous frame).
+- Draw a stacked horizontal bar using `ImDrawList` colored rectangles.
+  Colors: Update = blue, Draw = green, Render = orange, DebugUI = purple.
+  Tooltip on hover with exact ms values.
+- Optionally add a stacked area chart from the history buffer below the
+  existing frame time graph.
+- SwapWindow time is intentionally excluded (VSync idle would dominate and
+  is not actionable). The gap between sum-of-categories and total frame
+  time is the idle/VSync component.
+
+### 2. Variable watch / pin panel
+
+Persistent panel where users type Lua variable paths (e.g.
+`_Game.player.pos.x`, `G.physics.gravity`) and see live values each frame.
+
+**Implementation sketch:**
+
+- New panel: `kPanelWatch = 1 << 10`, added to `kPanelAll`.
+- Fixed array of 32 `WatchEntry` structs (`char path[128]`, `bool active`).
+  No allocator needed (~4 KB static).
+- File-local `ResolveLuaPath(lua_State*, const char*)`: splits path on `.`,
+  walks with `lua_getglobal` then `lua_getfield`, returns value on stack.
+  Cleanup with `lua_settop(L, top)`.
+- Table display: Path | Type | Value. Text input to add, X button to
+  remove. Reuse `FormatLuaValue()` for display.
+- Skip resolution when `engine->lua.HasError()` (show "Error" for all).
+- Stretch: add a "Watch" button in the Entity Inspector next to each key
+  that pins the full dotted path.
+
+### 3. Drop-down console
+
+Lightweight Lua eval console accessible via backtick (`` ` ``) without
+opening the full debug overlay. Inspired by the Quake/id Tech/Source engine
+console that slides down from the top of the screen.
+
+**Architecture change:** The mini HUD and drop-down console must render
+independently of `visible_`. Add `needs_imgui_frame()` returning
+`visible_ || console_visible_ || mini_hud_visible_` and use it in
+`BeginFrame`, `EndFrame`, `WantCaptureMouse`, `WantCaptureKeyboard`. In
+`DrawAll`, draw independent overlays before the `visible_` gate.
+
+**Implementation sketch:**
+
+- Toggle with backtick. Handle the key event *before* `ProcessEvent()` in
+  `PollEvents()` so ImGui never sees it (prevents the `` ` `` character
+  from appearing in any input field). Also consume the corresponding
+  `SDL_EVENT_TEXT_INPUT`.
+- Full-width window pinned to top of screen, ~40% height, no title bar,
+  semi-transparent dark background (`WindowBg` alpha ~0.9).
+- Shows last ~50 log entries from the shared `log_entries_` ring buffer,
+  color-coded by level.
+- Eval input at bottom with history callback (shared eval history, separate
+  input buffer and history position from the Log Console panel).
+- Auto-focus input when console appears.
+- Factor shared eval+history logic into a private helper used by both
+  `DrawLogConsole` and `DrawDropDownConsole`.
+
+### 4. Mini stats HUD
+
+Tiny always-on corner overlay showing FPS, frame time, draw calls, and Lua
+memory. Visible even when the full debug overlay is hidden. Like Minecraft's
+F3 screen or Source engine's `net_graph`.
+
+**Implementation sketch:**
+
+- Toggle with F3 (Minecraft convention). Handle in `PollEvents` alongside
+  Tab, after `ProcessEvent`, before capture check.
+- `ImGuiWindowFlags_NoDecoration | NoInputs | AlwaysAutoResize |
+  NoFocusOnAppearing | NoNav`. Semi-transparent (alpha ~0.5), positioned
+  top-right.
+- Four text lines: FPS, frame time (ms), draw calls, Lua memory (KB).
+  Reads from existing `frame_times_` and `FrameContext`.
+- Uses the `needs_imgui_frame()` mechanism from Feature 3 to render
+  independently of the full overlay.
+- Shares the architecture change with the drop-down console.
 
 ## Style
 

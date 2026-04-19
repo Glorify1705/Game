@@ -94,7 +94,7 @@ class DebugUI {
   // Returns true if a single frame step was requested (while paused).
   bool ConsumeStepRequest();
 
-  // Handles F5-F8 panel shortcuts. Call from PollEvents before ImGui
+  // Handles F5/F6 panel shortcuts. Call from PollEvents before ImGui
   // capture check so shortcuts work regardless of focus.
   void HandleKeyShortcut(SDL_Scancode scancode);
 
@@ -155,7 +155,13 @@ class DebugUI {
                 kPanelAudio | kPanelMemory | kPanelRenderer | kPanelCamera |
                 kPanelPhysics | kPanelAssets,
   };
-  uint64_t panels_ = kPanelPerformance | kPanelLogConsole;
+  // Default panels (also preset index 2).
+  static constexpr uint64_t kPanelDefault =
+      kPanelPerformance | kPanelLogConsole;
+  uint64_t panels_ = kPanelDefault;
+
+  // F5 preset cycle index: 0 = none, 1 = all, 2 = default.
+  int panel_preset_ = 2;
 
   // Helpers for panel visibility.
   bool PanelOpen(Panel p) const { return (panels_ & p) != 0; }
