@@ -95,6 +95,7 @@ struct Game {
 
   Stats stats = {};
   Time last_frame = {};
+  DebugUI::FrameBreakdown last_breakdown_ = {};
   double t = 0;
   double real_t = 0;
   double accum = 0;
@@ -175,7 +176,10 @@ void Game::Run() {
         !opts.test_mode && first_update_done &&
         (SDL_GetWindowFlags(sdl.window) & SDL_WINDOW_INPUT_FOCUS) == 0;
     if (paused) accum = 0;
+    const Time update_start = Now();
     RunUpdates();
+    last_breakdown_.update_ms =
+        static_cast<float>(ToSeconds(Now() - update_start) * 1000.0);
     first_update_done = true;
     engine->batch_renderer.SetFrameTime(static_cast<float>(t));
     {
@@ -189,6 +193,7 @@ void Game::Run() {
     debug_ui.AddFrameTimeSample(static_cast<float>(frame_ms));
     debug_ui.AddLuaMemorySample(
         static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f);
+    debug_ui.AddBreakdownSample(last_breakdown_);
   }
 }
 
@@ -316,26 +321,39 @@ void Game::RenderCrashScreen(std::string_view error) {
 }
 
 void Game::Render() {
+  // Draw phase: Lua draw callback (or crash screen).
   engine->renderer.ClearForFrame();
-  CmdBuffer buf(kTruncating);
-  if (engine->lua.Error(&buf)) {
-    RenderCrashScreen(buf.str());
-  } else {
-    PROFILE_SCOPE_N("Lua::Draw");
-    engine->lua.Draw();
+  {
+    const Time draw_start = Now();
+    CmdBuffer buf(kTruncating);
+    if (engine->lua.Error(&buf)) {
+      RenderCrashScreen(buf.str());
+    } else {
+      PROFILE_SCOPE_N("Lua::Draw");
+      engine->lua.Draw();
+    }
+    last_breakdown_.draw_ms =
+        static_cast<float>(ToSeconds(Now() - draw_start) * 1000.0);
   }
   if (screenshot_requested) {
     screenshot_requested = false;
     TakeScreenshotToClipboard(&engine->batch_renderer, allocator);
   }
-  engine->renderer.FlushFrame();
+  // Render phase: flush commands and submit to GPU.
   {
-    PROFILE_SCOPE_N("BatchRenderer::Render");
-    engine->batch_renderer.Render();
+    const Time render_start = Now();
+    engine->renderer.FlushFrame();
+    {
+      PROFILE_SCOPE_N("BatchRenderer::Render");
+      engine->batch_renderer.Render();
+    }
+    last_breakdown_.render_ms =
+        static_cast<float>(ToSeconds(Now() - render_start) * 1000.0);
   }
-  // ImGui renders after the batch renderer, directly to the default
-  // framebuffer. The OpenGL3 backend saves and restores all GL state.
+  // Debug UI phase: ImGui renders after the batch renderer, directly to the
+  // default framebuffer. The OpenGL3 backend saves and restores all GL state.
   {
+    const Time dbgui_start = Now();
     PROFILE_SCOPE_N("DebugUI");
     debug_ui.BeginFrame();
     DebugUI::FrameContext ctx;
@@ -345,8 +363,11 @@ void Game::Render() {
     ctx.lua_memory_bytes = engine->lua.MemoryUsage();
     ctx.cmd_buf_used = engine->batch_renderer.GetCommandBufferUsed();
     ctx.cmd_buf_capacity = engine->batch_renderer.GetCommandBufferCapacity();
+    ctx.breakdown = last_breakdown_;
     debug_ui.DrawAll(ctx);
     debug_ui.EndFrame();
+    last_breakdown_.debug_ui_ms =
+        static_cast<float>(ToSeconds(Now() - dbgui_start) * 1000.0);
     if (debug_ui.ConsumeScreenshotRequest()) {
       screenshot_requested = true;
     }

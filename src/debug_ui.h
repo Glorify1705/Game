@@ -70,6 +70,17 @@ class DebugUI {
   // Records a Lua memory sample (in KB) for the memory sparkline.
   void AddLuaMemorySample(float kb);
 
+  // Per-phase frame time breakdown (one frame lagged).
+  struct FrameBreakdown {
+    float update_ms = 0;
+    float draw_ms = 0;
+    float render_ms = 0;
+    float debug_ui_ms = 0;
+  };
+
+  // Records a frame breakdown sample for the stacked history chart.
+  void AddBreakdownSample(const FrameBreakdown& bd);
+
   // Captures a log message with its severity level.
   void LogMessage(LogLevel level, const char* message);
 
@@ -80,6 +91,7 @@ class DebugUI {
     size_t lua_memory_bytes;
     size_t cmd_buf_used;
     size_t cmd_buf_capacity;
+    FrameBreakdown breakdown;
   };
 
   // Draws the menu bar and all enabled panels. Call between Begin/EndFrame.
@@ -145,6 +157,7 @@ class DebugUI {
   SDL_Window* window_ = nullptr;
   CircularBuffer<float>* frame_times_ = nullptr;
   CircularBuffer<float>* lua_memory_samples_ = nullptr;
+  CircularBuffer<FrameBreakdown>* breakdown_history_ = nullptr;
 
   // Panel visibility as a bitset.
   enum Panel : uint64_t {
@@ -262,6 +275,8 @@ class DebugUI {
   bool WantCaptureKeyboard() const { return false; }
   void AddFrameTimeSample(float) {}
   void AddLuaMemorySample(float) {}
+  struct FrameBreakdown {};
+  void AddBreakdownSample(const FrameBreakdown&) {}
   void LogMessage(LogLevel, const char*) {}
   struct FrameContext {};
   void DrawAll(const FrameContext&) {}

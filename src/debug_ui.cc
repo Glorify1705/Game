@@ -459,6 +459,8 @@ void DebugUI::Init(SDL_Window* window, SDL_GLContext gl_context) {
                                                         allocator_);
   lua_memory_samples_ = allocator_->New<CircularBuffer<float>>(
       kFrameTimeHistory, allocator_);
+  breakdown_history_ = allocator_->New<CircularBuffer<FrameBreakdown>>(
+      kFrameTimeHistory, allocator_);
   initialized_ = true;
   LOG("Debug UI initialized (Dear ImGui ", IMGUI_VERSION, ")");
 }
@@ -542,6 +544,11 @@ void DebugUI::AddLuaMemorySample(float kb) {
   lua_memory_samples_->Push(kb);
 }
 
+void DebugUI::AddBreakdownSample(const DebugUI::FrameBreakdown& bd) {
+  if (!initialized_) return;
+  breakdown_history_->Push(bd);
+}
+
 void DebugUI::LogMessage(LogLevel level, const char* message) {
   if (log_entries_ == nullptr) return;
   LogEntry entry;
@@ -609,6 +616,98 @@ void DebugUI::DrawPerformancePanel(const FrameContext& ctx) {
 
   // Lua memory graph.
   PlotCircularBuffer("Lua Memory", lua_memory_samples_, "KB", ImVec2(0, 60));
+
+  // Frame time breakdown.
+  if (ImGui::CollapsingHeader("Frame Breakdown",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    const auto& bd = ctx.breakdown;
+    float total = bd.update_ms + bd.draw_ms + bd.render_ms + bd.debug_ui_ms;
+
+    struct Category {
+      const char* name;
+      float ms;
+      ImU32 color;
+    };
+    Category cats[] = {
+        {"Update", bd.update_ms, IM_COL32(74, 144, 217, 255)},
+        {"Draw", bd.draw_ms, IM_COL32(80, 200, 120, 255)},
+        {"Render", bd.render_ms, IM_COL32(232, 150, 58, 255)},
+        {"DebugUI", bd.debug_ui_ms, IM_COL32(155, 89, 182, 255)},
+    };
+
+    // Stacked bar.
+    if (total > 0.0f) {
+      float bar_width = ImGui::GetContentRegionAvail().x;
+      float bar_height = 20.0f;
+      ImVec2 cursor = ImGui::GetCursorScreenPos();
+      ImDrawList* dl = ImGui::GetWindowDrawList();
+      float x = cursor.x;
+      for (auto& cat : cats) {
+        float w = (cat.ms / total) * bar_width;
+        if (w < 1.0f) w = 1.0f;
+        dl->AddRectFilled(ImVec2(x, cursor.y),
+                          ImVec2(x + w, cursor.y + bar_height), cat.color);
+        x += w;
+      }
+      ImGui::Dummy(ImVec2(bar_width, bar_height));
+
+      // Legend.
+      for (size_t i = 0; i < 4; ++i) {
+        if (i > 0) ImGui::SameLine();
+        ImGui::ColorButton(cats[i].name,
+                           ImColor(cats[i].color).Value,
+                           ImGuiColorEditFlags_NoTooltip |
+                               ImGuiColorEditFlags_NoPicker,
+                           ImVec2(10, 10));
+        ImGui::SameLine();
+        ImGui::Text("%s %.1f", cats[i].name,
+                    static_cast<double>(cats[i].ms));
+      }
+    }
+
+    // Stacked history chart.
+    size_t count = breakdown_history_->size();
+    if (count > 0) {
+      float chart_width = ImGui::GetContentRegionAvail().x;
+      float chart_height = 80.0f;
+      ImVec2 cursor = ImGui::GetCursorScreenPos();
+      ImDrawList* dl = ImGui::GetWindowDrawList();
+
+      // Find max total for Y scale.
+      float max_total = 0.0f;
+      for (size_t i = 0; i < count; ++i) {
+        const auto& s = (*breakdown_history_)[i];
+        float t = s.update_ms + s.draw_ms + s.render_ms + s.debug_ui_ms;
+        if (t > max_total) max_total = t;
+      }
+      if (max_total < 1.0f) max_total = 1.0f;
+      max_total *= 1.2f;
+
+      // Background.
+      dl->AddRectFilled(cursor,
+                        ImVec2(cursor.x + chart_width,
+                               cursor.y + chart_height),
+                        IM_COL32(30, 30, 30, 200));
+
+      float col_width = chart_width / static_cast<float>(count);
+      for (size_t i = 0; i < count; ++i) {
+        const auto& s = (*breakdown_history_)[i];
+        float vals[] = {s.update_ms, s.draw_ms, s.render_ms, s.debug_ui_ms};
+        ImU32 cols[] = {cats[0].color, cats[1].color, cats[2].color,
+                        cats[3].color};
+        float x = cursor.x + static_cast<float>(i) * col_width;
+        float y_bottom = cursor.y + chart_height;
+        for (int j = 0; j < 4; ++j) {
+          float h = (vals[j] / max_total) * chart_height;
+          if (h < 0.5f) continue;
+          dl->AddRectFilled(ImVec2(x, y_bottom - h),
+                            ImVec2(x + col_width, y_bottom), cols[j]);
+          y_bottom -= h;
+        }
+      }
+      ImGui::Dummy(ImVec2(chart_width, chart_height));
+    }
+  }
 
   ImGui::Separator();
 
