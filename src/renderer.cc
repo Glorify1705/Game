@@ -295,9 +295,10 @@ void BatchRenderer::SetViewport(IVec2 viewport) {
   if (viewport_ == viewport) return;
   LOG("Resizing viewport from ", viewport_, " to ", viewport);
   viewport_ = viewport;
-  // Delete the framebuffers and recreate them.
+  // Delete the framebuffers, renderbuffer, and textures, then recreate them.
   std::array<GLuint, 2> frame_buffers = {render_target_, downsampled_target_};
   OPENGL_CALL(glDeleteFramebuffers(frame_buffers.size(), frame_buffers.data()));
+  OPENGL_CALL(glDeleteRenderbuffers(1, &depth_buffer_));
   std::array<GLuint, 2> render_target_textures = {render_texture_,
                                                   downsampled_texture_};
   OPENGL_CALL(glDeleteTextures(render_target_textures.size(),
@@ -317,10 +318,11 @@ size_t BatchRenderer::LoadTexture(const DbAssets::Image& image) {
 }
 
 BatchRenderer::~BatchRenderer() {
-  std::array<GLuint, 4> object_buffers = {vbo_, ebo_, screen_quad_vbo_};
+  std::array<GLuint, 3> object_buffers = {vbo_, ebo_, screen_quad_vbo_};
   OPENGL_CALL(glDeleteBuffers(object_buffers.size(), object_buffers.data()));
   std::array<GLuint, 2> frame_buffers = {render_target_, downsampled_target_};
   OPENGL_CALL(glDeleteFramebuffers(frame_buffers.size(), frame_buffers.data()));
+  OPENGL_CALL(glDeleteRenderbuffers(1, &depth_buffer_));
   OPENGL_CALL(glDeleteVertexArrays(1, &vao_));
   OPENGL_CALL(glDeleteVertexArrays(1, &screen_quad_vao_));
   std::array<GLuint, 2> render_target_textures = {render_texture_,
