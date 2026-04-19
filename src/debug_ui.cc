@@ -546,23 +546,13 @@ void DebugUI::DrawPerformancePanel(const FrameContext& ctx) {
     int x = 0, y = 0;
     SDL_GetWindowPosition(window_, &x, &y);
     ImGui::Text("Position: (%d, %d)", x, y);
-    static int pos_x = 0, pos_y = 0;
-    static bool pos_init = false;
-    if (!pos_init) {
-      pos_x = x;
-      pos_y = y;
-      pos_init = true;
-    }
-    ImGui::SetNextItemWidth(80);
-    ImGui::InputInt("##px", &pos_x, 0);
-    ImGui::SameLine();
-    ImGui::Text(",");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(80);
-    ImGui::InputInt("##py", &pos_y, 0);
-    ImGui::SameLine();
-    if (ImGui::Button("Move")) {
-      SDL_SetWindowPosition(window_, pos_x, pos_y);
+    // Drag handle: hold and drag to reposition the window on screen.
+    ImGui::Button("Drag to move");
+    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0)) {
+      ImVec2 delta = ImGui::GetMouseDragDelta(0);
+      ImGui::ResetMouseDragDelta(0);
+      SDL_SetWindowPosition(window_, x + static_cast<int>(delta.x),
+                            y + static_cast<int>(delta.y));
     }
     ImGui::SameLine();
     if (ImGui::Button("Center")) {
@@ -1260,8 +1250,10 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       if (ImGui::MenuItem("Quit")) quit_requested_ = true;
       ImGui::EndMenu();
     }
-    // Time controls inline in the menu bar.
+    // Time controls and quit inline in the menu bar.
     ImGui::Separator();
+    if (ImGui::SmallButton("Quit")) quit_requested_ = true;
+    ImGui::SameLine();
     float ts = engine_->lua.TimeScale();
     bool paused = (ts == 0.0f);
     if (ImGui::SmallButton(paused ? "Play" : "Pause")) {
