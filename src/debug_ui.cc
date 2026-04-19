@@ -345,11 +345,26 @@ bool CompileFennel(lua_State* L, std::string_view code, StringBuffer* output) {
   if (g_fennel_ref != LUA_NOREF) {
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_fennel_ref);
   } else {
-    // Find the fennel module: try _fennel global first.
+    // Find the fennel module: try _fennel global, package.loaded, require.
     lua_getglobal(L, "_fennel");
     if (!lua_istable(L, -1)) {
       lua_pop(L, 1);
-      // Fall back to require("fennel").
+      lua_getfield(L, LUA_GLOBALSINDEX, "package");
+      if (lua_istable(L, -1)) {
+        lua_getfield(L, -1, "loaded");
+        if (lua_istable(L, -1)) {
+          lua_getfield(L, -1, "fennel");
+          lua_replace(L, -3);
+          lua_pop(L, 1);
+        } else {
+          lua_pop(L, 1);
+        }
+      }
+    }
+    // Last resort: try require("fennel"). This is slow (loads the compiler
+    // from scratch) but only happens once since we cache the result.
+    if (!lua_istable(L, -1)) {
+      lua_pop(L, 1);
       lua_getglobal(L, "require");
       if (lua_isfunction(L, -1)) {
         lua_pushstring(L, "fennel");
