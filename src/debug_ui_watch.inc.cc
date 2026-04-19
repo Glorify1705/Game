@@ -92,6 +92,8 @@ void DebugUI::DrawRepl() {
   ImGui::SameLine();
   if (ImGui::SmallButton(repl_lang_ == kFennel ? "Fennel" : "Lua")) {
     repl_lang_ = (repl_lang_ == kLua) ? kFennel : kLua;
+    repl_editor_.SetLanguage(repl_lang_ == kFennel ? FennelLanguage()
+                                                   : TextEditor::Language::Lua());
   }
   ImGui::SameLine();
   if (ImGui::SmallButton("Run") ||

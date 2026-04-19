@@ -484,3 +484,77 @@ bool CompileFennel(lua_State* L, std::string_view code, StringBuffer* output) {
   lua_settop(L, top);
   return true;
 }
+
+// Returns true if ch is a valid Fennel identifier character (Lisp-style).
+bool IsFennelIdentChar(ImWchar ch) {
+  if (TextEditor::CodePoint::isXidContinue(ch)) return true;
+  return ch == '-' || ch == '?' || ch == '!' || ch == '*' || ch == '+' ||
+         ch == '/' || ch == '<' || ch == '>' || ch == '=' || ch == '.';
+}
+
+// Tokenizes a Fennel identifier (allows Lisp-style chars like - ? ! etc).
+TextEditor::Iterator GetFennelIdentifier(TextEditor::Iterator start,
+                                         TextEditor::Iterator end) {
+  if (start < end && (TextEditor::CodePoint::isXidStart(*start) ||
+                      *start == '-' || *start == '?' || *start == '!' ||
+                      *start == '*' || *start == '+' || *start == '/')) {
+    ++start;
+    while (start < end && IsFennelIdentChar(*start)) ++start;
+  }
+  return start;
+}
+
+// Returns the Fennel language definition for ImGuiColorTextEdit.
+const TextEditor::Language* FennelLanguage() {
+  static bool initialized = false;
+  static TextEditor::Language language;
+
+  if (!initialized) {
+    language.name = "Fennel";
+    language.singleLineComment = ";";
+    language.hasSingleQuotedStrings = false;
+    language.hasDoubleQuotedStrings = true;
+    language.stringEscape = '\\';
+
+    static const char* const keywords[] = {
+        "fn",       "lambda",    "hashfn",   "let",       "local",
+        "var",      "set",       "tset",     "global",    "do",
+        "if",       "when",      "each",     "for",       "while",
+        "match",    "match-try", "case",     "guard",
+        "collect",  "icollect",  "fcollect", "accumulate",
+        "doto",     "->",        "->>",      "-?>",       "-?>>",
+        "macro",    "macros",    "import-macros",
+        "require",  "include",   "eval-compiler",
+        "and",      "or",        "not",
+        "true",     "false",     "nil",
+        "values",   "pick-values",
+        "with-open", "partial",  "pick-args",
+        "comment",  "doc",       "assert",
+        "error",    "pcall",     "xpcall",
+        "ipairs",   "pairs",     "unpack",
+        "select",   "type",      "tostring", "tonumber",
+        "string",   "table",     "math",     "io",        "os",
+        "print",    "length",
+    };
+
+    for (auto& kw : keywords) language.keywords.insert(kw);
+
+    static const char* const declarations[] = {
+        "fn", "lambda", "macro", "local", "var", "global",
+    };
+
+    for (auto& decl : declarations) language.declarations.insert(decl);
+
+    language.isPunctuation = [](ImWchar ch) -> bool {
+      return ch == '(' || ch == ')' || ch == '[' || ch == ']' ||
+             ch == '{' || ch == '}' || ch == ':' || ch == '#' ||
+             ch == '~' || ch == '@' || ch == ',' || ch == '`' ||
+             ch == '\'';
+    };
+    language.getIdentifier = GetFennelIdentifier;
+    language.getNumber = nullptr;
+    initialized = true;
+  }
+
+  return &language;
+}

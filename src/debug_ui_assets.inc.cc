@@ -220,7 +220,17 @@ void DrawCodeEditorTab(Engine* engine, const char* table_name,
                     sqlite3_column_text(load_stmt, 0));
                 if (contents != nullptr) {
                   editor->SetText(contents);
-                  editor->SetLanguage(lang);
+                  // Auto-detect language from extension if not specified.
+                  if (lang != nullptr) {
+                    editor->SetLanguage(lang);
+                  } else {
+                    std::string_view sv(name);
+                    if (sv.size() > 4 && sv.substr(sv.size() - 4) == ".fnl") {
+                      editor->SetLanguage(FennelLanguage());
+                    } else {
+                      editor->SetLanguage(TextEditor::Language::Lua());
+                    }
+                  }
                   loaded_name->Clear();
                   loaded_name->Append(name);
                   *read_only = true;
@@ -282,7 +292,7 @@ void DrawCodeEditorTab(Engine* engine, const char* table_name,
 }  // namespace
 
 void DebugUI::DrawAssetScriptsTab() {
-  DrawCodeEditorTab(engine_, "scripts", TextEditor::Language::Lua(),
+  DrawCodeEditorTab(engine_, "scripts", /*lang=*/nullptr,
                     asset_filter_, &script_editor_);
 }
 
