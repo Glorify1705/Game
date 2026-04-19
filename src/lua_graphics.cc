@@ -1191,6 +1191,13 @@ constexpr luaL_Reg kCanvasMethods[] = {
        lua_pushinteger(state, c->height);
        return 1;
      }},
+    {"__gc",
+     [](lua_State* state) {
+       auto* c = AsUserdata<Canvas>(state, 1);
+       glDeleteFramebuffers(1, &c->fbo);
+       glDeleteTextures(1, &c->texture);
+       return 0;
+     }},
     {"__tostring", [](lua_State* state) {
        auto* c = AsUserdata<Canvas>(state, 1);
        lua_pushfstring(state, "canvas(%dx%d)", c->width, c->height);
