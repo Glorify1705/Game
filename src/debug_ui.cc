@@ -341,103 +341,101 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   if (PanelOpen(kPanelAssets)) DrawAssetViewer();
   if (PanelOpen(kPanelDocs)) DrawDocsPanel();
   if (PanelOpen(kPanelWatch)) DrawWatchPanel();
+  if (PanelOpen(kPanelSelector)) DrawPanelSelector();
+  if (zoom_texture_ != 0) DrawTextureZoom();
+}
 
-  // F6 panel selector floating window.
-  if (PanelOpen(kPanelSelector)) {
-    ImGui::SetNextWindowPos(ImVec2(200, 200), ImGuiCond_FirstUseEver);
-    bool open = true;
-    if (ImGui::Begin("Panel Selector", &open,
-                     ImGuiWindowFlags_AlwaysAutoResize)) {
-      PanelMenuItem("Performance", kPanelPerformance);
-      PanelMenuItem("Log Console", kPanelLogConsole);
-      PanelMenuItem("Entity Inspector", kPanelEntityInspector);
-      PanelMenuItem("Audio", kPanelAudio);
-      PanelMenuItem("Memory", kPanelMemory);
-      PanelMenuItem("Renderer", kPanelRenderer);
-      PanelMenuItem("Camera", kPanelCamera);
-      PanelMenuItem("Physics", kPanelPhysics);
-      PanelMenuItem("Assets", kPanelAssets);
-      PanelMenuItem("API Docs", kPanelDocs);
-      PanelMenuItem("Watch", kPanelWatch);
-    }
-    ImGui::End();
-    if (!open) TogglePanel(kPanelSelector);
+void DebugUI::DrawPanelSelector() {
+  ImGui::SetNextWindowPos(ImVec2(200, 200), ImGuiCond_FirstUseEver);
+  bool open = true;
+  if (ImGui::Begin("Panel Selector", &open,
+                   ImGuiWindowFlags_AlwaysAutoResize)) {
+    PanelMenuItem("Performance", kPanelPerformance);
+    PanelMenuItem("Log Console", kPanelLogConsole);
+    PanelMenuItem("Entity Inspector", kPanelEntityInspector);
+    PanelMenuItem("Audio", kPanelAudio);
+    PanelMenuItem("Memory", kPanelMemory);
+    PanelMenuItem("Renderer", kPanelRenderer);
+    PanelMenuItem("Camera", kPanelCamera);
+    PanelMenuItem("Physics", kPanelPhysics);
+    PanelMenuItem("Assets", kPanelAssets);
+    PanelMenuItem("API Docs", kPanelDocs);
+    PanelMenuItem("Watch", kPanelWatch);
   }
+  ImGui::End();
+  if (!open) TogglePanel(kPanelSelector);
+}
 
-  // Texture zoom popup.
-  if (zoom_texture_ != 0) {
-    ImGui::SetNextWindowSize(ImVec2(600, 500), ImGuiCond_FirstUseEver);
-    bool open = true;
-    if (ImGui::Begin("Texture Zoom", &open,
-                     ImGuiWindowFlags_NoFocusOnAppearing)) {
-      ImGui::SliderFloat("Zoom", &zoom_level_, 0.25f, 8.0f, "%.2fx");
-      ImGui::SameLine();
-      if (ImGui::Button("1:1")) zoom_level_ = 1.0f;
-      ImGui::SameLine();
-      if (ImGui::Button("Fit")) {
-        float avail_w = ImGui::GetContentRegionAvail().x;
-        float avail_h = ImGui::GetContentRegionAvail().y;
-        zoom_level_ =
-            (zoom_tex_w_ > 0 && zoom_tex_h_ > 0)
-                ? fmin(avail_w / zoom_tex_w_, avail_h / zoom_tex_h_)
-                : 1.0f;
-      }
-      if (ImGui::BeginChild("ZoomRegion", ImVec2(0, 0), false,
-                            ImGuiWindowFlags_HorizontalScrollbar)) {
-        float w = zoom_tex_w_ * zoom_level_;
-        float h = zoom_tex_h_ * zoom_level_;
-        ImVec2 img_pos = ImGui::GetCursorScreenPos();
-        ImGui::Image(
-            static_cast<ImTextureID>(static_cast<uintptr_t>(zoom_texture_)),
-            ImVec2(w, h), ImVec2(0, 1), ImVec2(1, 0));
-        // Color under cursor.
-        if (ImGui::IsItemHovered() && zoom_pixels_ != nullptr) {
-          ImVec2 mouse = ImGui::GetMousePos();
-          float rel_x = (mouse.x - img_pos.x) / zoom_level_;
-          float rel_y = (mouse.y - img_pos.y) / zoom_level_;
-          int px = static_cast<int>(rel_x);
-          int py = static_cast<int>(zoom_tex_h_ - 1.0f - rel_y);
-          int tw = static_cast<int>(zoom_tex_w_);
-          int th = static_cast<int>(zoom_tex_h_);
-          if (px >= 0 && px < tw && py >= 0 && py < th) {
-            int offset = (py * tw + px) * 4;
-            float r = zoom_pixels_[offset + 0] / 255.0f;
-            float g = zoom_pixels_[offset + 1] / 255.0f;
-            float b = zoom_pixels_[offset + 2] / 255.0f;
-            float a = zoom_pixels_[offset + 3] / 255.0f;
-            ImVec4 color(r, g, b, a);
-            ImGui::BeginTooltip();
-            ImGui::ColorButton("##pixel", color,
-                               ImGuiColorEditFlags_AlphaPreview,
-                               ImVec2(32, 32));
-            ImGui::SameLine();
-            ImGui::Text("(%d, %d)\n#%02X%02X%02X%02X\nRGBA: %d %d %d %d",
-                        px, py, zoom_pixels_[offset],
-                        zoom_pixels_[offset + 1], zoom_pixels_[offset + 2],
-                        zoom_pixels_[offset + 3], zoom_pixels_[offset],
-                        zoom_pixels_[offset + 1], zoom_pixels_[offset + 2],
-                        zoom_pixels_[offset + 3]);
-            ImGui::EndTooltip();
-          }
-        }
-        // Drag to pan via scroll.
-        if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0)) {
-          ImVec2 delta = ImGui::GetMouseDragDelta(0);
-          ImGui::ResetMouseDragDelta(0);
-          ImGui::SetScrollX(ImGui::GetScrollX() - delta.x);
-          ImGui::SetScrollY(ImGui::GetScrollY() - delta.y);
-        }
-      }
-      ImGui::EndChild();
+void DebugUI::DrawTextureZoom() {
+  ImGui::SetNextWindowSize(ImVec2(600, 500), ImGuiCond_FirstUseEver);
+  bool open = true;
+  if (ImGui::Begin("Texture Zoom", &open,
+                   ImGuiWindowFlags_NoFocusOnAppearing)) {
+    ImGui::SliderFloat("Zoom", &zoom_level_, 0.25f, 8.0f, "%.2fx");
+    ImGui::SameLine();
+    if (ImGui::Button("1:1")) zoom_level_ = 1.0f;
+    ImGui::SameLine();
+    if (ImGui::Button("Fit")) {
+      float avail_w = ImGui::GetContentRegionAvail().x;
+      float avail_h = ImGui::GetContentRegionAvail().y;
+      zoom_level_ =
+          (zoom_tex_w_ > 0 && zoom_tex_h_ > 0)
+              ? fmin(avail_w / zoom_tex_w_, avail_h / zoom_tex_h_)
+              : 1.0f;
     }
-    ImGui::End();
-    if (!open) {
-      zoom_texture_ = 0;
-      if (zoom_pixels_ != nullptr) {
-        allocator_->Dealloc(zoom_pixels_, zoom_pixels_size_);
-        zoom_pixels_ = nullptr;
-        zoom_pixels_size_ = 0;
+    if (ImGui::BeginChild("ZoomRegion", ImVec2(0, 0), false,
+                          ImGuiWindowFlags_HorizontalScrollbar)) {
+      float w = zoom_tex_w_ * zoom_level_;
+      float h = zoom_tex_h_ * zoom_level_;
+      ImVec2 img_pos = ImGui::GetCursorScreenPos();
+      ImGui::Image(
+          static_cast<ImTextureID>(static_cast<uintptr_t>(zoom_texture_)),
+          ImVec2(w, h), ImVec2(0, 1), ImVec2(1, 0));
+      if (ImGui::IsItemHovered() && zoom_pixels_ != nullptr) {
+        ImVec2 mouse = ImGui::GetMousePos();
+        float rel_x = (mouse.x - img_pos.x) / zoom_level_;
+        float rel_y = (mouse.y - img_pos.y) / zoom_level_;
+        int px = static_cast<int>(rel_x);
+        int py = static_cast<int>(zoom_tex_h_ - 1.0f - rel_y);
+        int tw = static_cast<int>(zoom_tex_w_);
+        int th = static_cast<int>(zoom_tex_h_);
+        if (px >= 0 && px < tw && py >= 0 && py < th) {
+          int offset = (py * tw + px) * 4;
+          float r = zoom_pixels_[offset + 0] / 255.0f;
+          float g = zoom_pixels_[offset + 1] / 255.0f;
+          float b = zoom_pixels_[offset + 2] / 255.0f;
+          float a = zoom_pixels_[offset + 3] / 255.0f;
+          ImVec4 color(r, g, b, a);
+          ImGui::BeginTooltip();
+          ImGui::ColorButton("##pixel", color,
+                             ImGuiColorEditFlags_AlphaPreview,
+                             ImVec2(32, 32));
+          ImGui::SameLine();
+          ImGui::Text("(%d, %d)\n#%02X%02X%02X%02X\nRGBA: %d %d %d %d",
+                      px, py, zoom_pixels_[offset],
+                      zoom_pixels_[offset + 1], zoom_pixels_[offset + 2],
+                      zoom_pixels_[offset + 3], zoom_pixels_[offset],
+                      zoom_pixels_[offset + 1], zoom_pixels_[offset + 2],
+                      zoom_pixels_[offset + 3]);
+          ImGui::EndTooltip();
+        }
       }
+      if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0)) {
+        ImVec2 delta = ImGui::GetMouseDragDelta(0);
+        ImGui::ResetMouseDragDelta(0);
+        ImGui::SetScrollX(ImGui::GetScrollX() - delta.x);
+        ImGui::SetScrollY(ImGui::GetScrollY() - delta.y);
+      }
+    }
+    ImGui::EndChild();
+  }
+  ImGui::End();
+  if (!open) {
+    zoom_texture_ = 0;
+    if (zoom_pixels_ != nullptr) {
+      allocator_->Dealloc(zoom_pixels_, zoom_pixels_size_);
+      zoom_pixels_ = nullptr;
+      zoom_pixels_size_ = 0;
     }
   }
 }

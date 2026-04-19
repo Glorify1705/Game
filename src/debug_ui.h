@@ -160,6 +160,10 @@ class DebugUI {
   void DrawAssetDbTab(const char* label, const char* sql);
   void DrawAssetScriptsTab();
   void DrawAssetShadersTab();
+  // Draws the floating panel picker window (F6).
+  void DrawPanelSelector();
+  // Draws the texture zoom popup opened from the asset viewer.
+  void DrawTextureZoom();
   // Draws the REPL input and output area (embedded in Watch panel).
   void DrawRepl();
   // Returns true if a log entry passes the current level and text filters.
