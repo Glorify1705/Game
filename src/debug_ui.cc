@@ -1080,46 +1080,63 @@ void DebugUI::DrawEntityInspector() {
                            inspector_filter_, sizeof(inspector_filter_));
   ImGui::Separator();
 
-  lua_getglobal(L, "G");
-  if (!lua_istable(L, -1)) {
-    ImGui::Text("G is not a table");
-    lua_settop(L, top);
-    ImGui::End();
-    return;
-  }
-
-  int g_idx = lua_gettop(L);
   bool has_filter = inspector_filter_[0] != '\0';
-  lua_pushnil(L);
-  while (lua_next(L, g_idx) != 0) {
-    char key_buf[128];
-    FormatLuaKey(L, -2, key_buf, sizeof(key_buf));
-    if (has_filter && strstr(key_buf, inspector_filter_) == nullptr) {
-      lua_pop(L, 1);
-      continue;
-    }
-    if (lua_type(L, -1) == LUA_TTABLE) {
-      bool open = ImGui::TreeNode(key_buf);
-      if (open) {
-        DrawLuaValue(L, 1, g_idx, lua_gettop(L) - 1);
-        ImGui::TreePop();
-      }
-    } else {
-      char val_buf[256];
-      FormatLuaValue(L, -1, val_buf, sizeof(val_buf));
-      ImGui::Text("G.%s = %s", key_buf, val_buf);
-    }
-    lua_pop(L, 1);
-  }
 
+  // Show _Game first — this is the primary game state table.
   lua_getglobal(L, "_Game");
   if (lua_istable(L, -1)) {
     if (!has_filter || strstr("_Game", inspector_filter_) != nullptr) {
-      if (ImGui::TreeNode("_Game")) {
+      if (ImGui::TreeNodeEx("_Game", ImGuiTreeNodeFlags_DefaultOpen)) {
         DrawLuaValue(L, 1, 0, 0);
         ImGui::TreePop();
       }
     }
+  }
+  lua_pop(L, 1);
+
+  // Show user globals (skip internal tables: G, _Game, _G, _VERSION, and
+  // standard Lua globals like string/table/math/etc).
+  lua_pushvalue(L, LUA_GLOBALSINDEX);
+  int globals_idx = lua_gettop(L);
+  bool has_user_globals = false;
+  lua_pushnil(L);
+  while (lua_next(L, globals_idx) != 0) {
+    if (lua_type(L, -2) == LUA_TSTRING) {
+      const char* key = lua_tostring(L, -2);
+      // Skip engine/Lua internals.
+      if (strcmp(key, "G") == 0 || strcmp(key, "_Game") == 0 ||
+          strcmp(key, "_G") == 0 || strcmp(key, "_VERSION") == 0 ||
+          strcmp(key, "string") == 0 || strcmp(key, "table") == 0 ||
+          strcmp(key, "math") == 0 || strcmp(key, "io") == 0 ||
+          strcmp(key, "os") == 0 || strcmp(key, "coroutine") == 0 ||
+          strcmp(key, "debug") == 0 || strcmp(key, "package") == 0 ||
+          strcmp(key, "arg") == 0 ||
+          // Standard Lua functions.
+          lua_type(L, -1) == LUA_TFUNCTION) {
+        lua_pop(L, 1);
+        continue;
+      }
+      if (has_filter && strstr(key, inspector_filter_) == nullptr) {
+        lua_pop(L, 1);
+        continue;
+      }
+      if (!has_user_globals) {
+        has_user_globals = true;
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Globals");
+      }
+      if (lua_type(L, -1) == LUA_TTABLE) {
+        if (ImGui::TreeNode(key)) {
+          DrawLuaValue(L, 1, globals_idx, lua_gettop(L) - 1);
+          ImGui::TreePop();
+        }
+      } else {
+        char val_buf[256];
+        FormatLuaValue(L, -1, val_buf, sizeof(val_buf));
+        ImGui::Text("%s = %s", key, val_buf);
+      }
+    }
+    lua_pop(L, 1);
   }
 
   lua_settop(L, top);
