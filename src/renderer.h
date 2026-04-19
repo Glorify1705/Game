@@ -31,6 +31,9 @@ struct Canvas {
   GLuint texture;       // Color texture attached to the FBO.
   size_t texture_unit;  // Texture unit index used when sampling this canvas.
   int width, height;    // Dimensions of the canvas in pixels.
+
+  // Releases the GPU resources owned by this canvas.
+  void Destroy();
 };
 
 // Per-frame rendering statistics populated by BatchRenderer::Render().

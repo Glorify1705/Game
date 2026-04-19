@@ -1193,9 +1193,7 @@ constexpr luaL_Reg kCanvasMethods[] = {
      }},
     {"__gc",
      [](lua_State* state) {
-       auto* c = AsUserdata<Canvas>(state, 1);
-       glDeleteFramebuffers(1, &c->fbo);
-       glDeleteTextures(1, &c->texture);
+       AsUserdata<Canvas>(state, 1)->Destroy();
        return 0;
      }},
     {"__tostring", [](lua_State* state) {

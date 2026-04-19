@@ -425,6 +425,11 @@ Canvas BatchRenderer::CreateCanvas(int width, int height, bool nearest_filter) {
   return c;
 }
 
+void Canvas::Destroy() {
+  glDeleteFramebuffers(1, &fbo);
+  glDeleteTextures(1, &texture);
+}
+
 void BatchRenderer::SetupGLState() {
   OPENGL_CALL(glEnable(GL_MULTISAMPLE));
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
