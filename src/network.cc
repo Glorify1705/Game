@@ -120,8 +120,16 @@ void Network::Disconnect() {
   enet_host_flush(host_);
 }
 
+void Network::FreeReceivedPackets() {
+  for (size_t i = 0; i < received_packet_count_; ++i) {
+    enet_packet_destroy(received_packets_[i]);
+  }
+  received_packet_count_ = 0;
+}
+
 void Network::Poll(int timeout_ms) {
   event_count_ = 0;
+  received_packet_count_ = 0;
   if (host_ == nullptr) return;
   ENetEvent event;
   while (enet_host_service(host_, &event, timeout_ms) > 0) {
@@ -153,6 +161,7 @@ void Network::Poll(int timeout_ms) {
         e.channel = event.channelID;
         e.data = event.packet->data;
         e.data_length = event.packet->dataLength;
+        received_packets_[received_packet_count_++] = event.packet;
         ++event_count_;
         break;
       default:

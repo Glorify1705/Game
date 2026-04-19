@@ -63,6 +63,9 @@ class Network {
   const Event* events() const { return events_; }
   size_t event_count() const { return event_count_; }
 
+  // Frees ENet packets from the last Poll(). Call after dispatching events.
+  void FreeReceivedPackets();
+
  private:
   ENetHost* host_ = nullptr;
   Allocator* allocator_;
@@ -72,6 +75,10 @@ class Network {
   static constexpr size_t kMaxEventsPerFrame = 256;
   Event events_[kMaxEventsPerFrame];
   size_t event_count_ = 0;
+
+  // Packets received during Poll() that need freeing after dispatch.
+  ENetPacket* received_packets_[kMaxEventsPerFrame] = {};
+  size_t received_packet_count_ = 0;
 };
 
 }  // namespace G

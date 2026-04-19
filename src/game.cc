@@ -138,6 +138,9 @@ struct Game {
 
   // Renders the error screen when Lua has a fatal error.
   void RenderCrashScreen(std::string_view error);
+
+  // Dispatches queued network events to Lua callbacks.
+  void DispatchNetworkEvents();
 };
 
 void Game::Run() {
@@ -188,6 +191,11 @@ void Game::Run() {
         !opts->test_mode && first_update_done &&
         (SDL_GetWindowFlags(sdl->window) & SDL_WINDOW_INPUT_FOCUS) == 0;
     if (paused) accum = 0;
+    // Poll network events and dispatch to Lua callbacks before game update.
+    if (engine->network.IsActive()) {
+      engine->network.Poll();
+      DispatchNetworkEvents();
+    }
     const Time update_start = Now();
     { ZONE("RunUpdates"); RunUpdates(); }
     last_breakdown_.update_ms =
@@ -355,6 +363,25 @@ void Game::RenderCrashScreen(std::string_view error) {
                             FVec(viewport.x, viewport.y), /*angle=*/0);
   engine->renderer.SetColor(Color::White());
   engine->renderer.DrawString("debug_font.ttf", 24, error, FVec(50, 50));
+}
+
+void Game::DispatchNetworkEvents() {
+  for (size_t i = 0; i < engine->network.event_count(); ++i) {
+    const auto& e = engine->network.events()[i];
+    switch (e.type) {
+      case Network::Event::kConnect:
+        engine->lua.HandleNetworkConnect(e.peer_id);
+        break;
+      case Network::Event::kDisconnect:
+        engine->lua.HandleNetworkDisconnect(e.peer_id);
+        break;
+      case Network::Event::kReceive:
+        engine->lua.HandleNetworkReceive(e.peer_id, e.data, e.data_length,
+                                         e.channel);
+        break;
+    }
+  }
+  engine->network.FreeReceivedPackets();
 }
 
 void Game::Render() {

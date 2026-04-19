@@ -303,6 +303,12 @@ class Lua {
   // thread between update and draw (e.g. debug UI rendering).
   lua_State* state() const { return state_; }
 
+  // Network event callbacks dispatched to _Game:on_connect/on_receive/on_disconnect.
+  void HandleNetworkConnect(uint32_t peer_id);
+  void HandleNetworkDisconnect(uint32_t peer_id);
+  void HandleNetworkReceive(uint32_t peer_id, const void* data, size_t length,
+                            uint8_t channel);
+
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }
 
