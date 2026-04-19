@@ -144,67 +144,157 @@ int LuaAbsIndex(lua_State* L, int idx) {
   return idx;
 }
 
+// RAII guard that restores the Lua stack to its original depth on scope exit.
+struct LuaStackGuard {
+  lua_State* L;
+  int top;
+  LuaStackGuard(lua_State* state) : L(state), top(lua_gettop(state)) {}
+  ~LuaStackGuard() { lua_settop(L, top); }
+};
+
+// Gets a string field from the table at idx. Returns empty view if missing.
+std::string_view LuaGetString(lua_State* L, int idx, const char* field) {
+  lua_getfield(L, idx, field);
+  std::string_view result;
+  if (lua_isstring(L, -1)) {
+    const char* s = lua_tostring(L, -1);
+    if (s != nullptr) result = s;
+  }
+  lua_pop(L, 1);
+  return result;
+}
+
+// Sets a number field on the table at idx.
+void LuaSetNumber(lua_State* L, int idx, const char* field, double val) {
+  lua_pushnumber(L, val);
+  lua_setfield(L, idx < 0 ? idx - 1 : idx, field);
+}
+
+// Pushes a global table onto the stack. Returns its absolute index, or 0.
+int LuaPushGlobalTable(lua_State* L, const char* name) {
+  lua_getglobal(L, name);
+  if (!lua_istable(L, -1)) {
+    lua_pop(L, 1);
+    return 0;
+  }
+  return lua_gettop(L);
+}
+
+// Calls fn(key_cstr, key_sv) for each string-keyed entry in table at
+// table_idx. The value is at the top of the Lua stack inside the callback.
+// Return true from fn to stop iteration early.
+template <typename F>
+void LuaTableForEach(lua_State* L, int table_idx, F&& fn) {
+  lua_pushnil(L);
+  while (lua_next(L, table_idx) != 0) {
+    if (lua_type(L, -2) == LUA_TSTRING) {
+      const char* key_cstr = lua_tostring(L, -2);
+      std::string_view key = key_cstr;
+      if (fn(key_cstr, key)) {
+        lua_pop(L, 2);
+        return;
+      }
+    }
+    lua_pop(L, 1);
+  }
+}
+
+// Calls fn(i) for each element in the array at table_idx (1-indexed).
+// The element is at the top of the Lua stack inside the callback.
+template <typename F>
+void LuaArrayForEach(lua_State* L, int table_idx, F&& fn) {
+  int n = static_cast<int>(lua_objlen(L, table_idx));
+  for (int i = 1; i <= n; ++i) {
+    lua_rawgeti(L, table_idx, i);
+    fn(i);
+    lua_pop(L, 1);
+  }
+}
+
 // Formats a Lua value at the given stack index into a short display string.
-void FormatLuaValue(lua_State* L, int idx, char* buf, size_t buf_size) {
+void FormatLuaValue(lua_State* L, int idx, StringBuffer* buf) {
   idx = LuaAbsIndex(L, idx);
   switch (lua_type(L, idx)) {
     case LUA_TNIL:
-      snprintf(buf, buf_size, "nil");
+      buf->Append("nil");
       break;
     case LUA_TBOOLEAN:
-      snprintf(buf, buf_size, "%s",
-               lua_toboolean(L, idx) ? "true" : "false");
+      buf->Append(lua_toboolean(L, idx) ? "true" : "false");
       break;
     case LUA_TNUMBER:
-      snprintf(buf, buf_size, "%g", lua_tonumber(L, idx));
+      buf->AppendF("%g", lua_tonumber(L, idx));
       break;
     case LUA_TSTRING:
-      snprintf(buf, buf_size, "\"%s\"", lua_tostring(L, idx));
+      buf->AppendF("\"%s\"", lua_tostring(L, idx));
       break;
     case LUA_TTABLE:
-      snprintf(buf, buf_size, "{table}");
+      buf->Append("{table}");
       break;
     case LUA_TFUNCTION:
-      snprintf(buf, buf_size, "function: %p", lua_topointer(L, idx));
+      buf->AppendF("function: %p", lua_topointer(L, idx));
       break;
     case LUA_TUSERDATA:
     case LUA_TLIGHTUSERDATA:
       if (lua_getmetatable(L, idx)) {
         lua_getfield(L, -1, "__name");
         if (lua_isstring(L, -1)) {
-          snprintf(buf, buf_size, "%s: %p", lua_tostring(L, -1),
-                   lua_topointer(L, idx));
+          buf->AppendF("%s: %p", lua_tostring(L, -1),
+                       lua_topointer(L, idx));
         } else {
-          snprintf(buf, buf_size, "userdata: %p", lua_topointer(L, idx));
+          buf->AppendF("userdata: %p", lua_topointer(L, idx));
         }
         lua_pop(L, 2);
       } else {
-        snprintf(buf, buf_size, "userdata: %p", lua_topointer(L, idx));
+        buf->AppendF("userdata: %p", lua_topointer(L, idx));
       }
       break;
     case LUA_TTHREAD:
-      snprintf(buf, buf_size, "thread: %p", lua_topointer(L, idx));
+      buf->AppendF("thread: %p", lua_topointer(L, idx));
       break;
     default:
-      snprintf(buf, buf_size, "(%s)", lua_typename(L, lua_type(L, idx)));
+      buf->AppendF("(%s)", lua_typename(L, lua_type(L, idx)));
       break;
   }
 }
 
 // Formats a Lua key at the given stack index for display.
-void FormatLuaKey(lua_State* L, int idx, char* buf, size_t buf_size) {
+void FormatLuaKey(lua_State* L, int idx, StringBuffer* buf) {
   idx = LuaAbsIndex(L, idx);
   switch (lua_type(L, idx)) {
     case LUA_TSTRING:
-      snprintf(buf, buf_size, "%s", lua_tostring(L, idx));
+      buf->Append(lua_tostring(L, idx));
       break;
     case LUA_TNUMBER:
-      snprintf(buf, buf_size, "[%g]", lua_tonumber(L, idx));
+      buf->AppendF("[%g]", lua_tonumber(L, idx));
       break;
     default:
-      snprintf(buf, buf_size, "[%s]", lua_typename(L, lua_type(L, idx)));
+      buf->AppendF("[%s]", lua_typename(L, lua_type(L, idx)));
       break;
   }
+}
+
+// Builds "name(arg1, arg2, ...)" from a _Docs function table at func_idx.
+void FormatLuaSignature(lua_State* L, int func_idx, const char* name,
+                        StringBuffer* buf) {
+  buf->Append(name, "(");
+  lua_getfield(L, func_idx, "args");
+  if (lua_istable(L, -1)) {
+    int args_idx = lua_gettop(L);
+    int nargs = static_cast<int>(lua_objlen(L, args_idx));
+    for (int i = 1; i <= nargs; ++i) {
+      lua_rawgeti(L, args_idx, i);
+      if (lua_istable(L, -1)) {
+        auto aname = LuaGetString(L, -1, "name");
+        if (!aname.empty()) {
+          if (i > 1) buf->Append(", ");
+          buf->Append(aname);
+        }
+      }
+      lua_pop(L, 1);
+    }
+  }
+  lua_pop(L, 1);
+  buf->Append(")");
 }
 
 // Checks if a Lua table looks like a color ({r, g, b} or {r, g, b, a}).
@@ -243,69 +333,61 @@ void DrawLuaValue(lua_State* L, int depth, int table_ref, int key_idx) {
     while (lua_next(L, idx) != 0) {
       int child_key = lua_gettop(L) - 1;
       int child_val = lua_gettop(L);
-      char key_buf[128];
-      FormatLuaKey(L, child_key, key_buf, sizeof(key_buf));
+      SmallBuffer key_buf;
+      FormatLuaKey(L, child_key, &key_buf);
       if (lua_type(L, child_val) == LUA_TTABLE) {
         float color[4];
         int cc = CheckColorTable(L, child_val, color);
         if (cc > 0) {
           ImGui::PushID(child_key);
-          bool changed = (cc == 4) ? ImGui::ColorEdit4(key_buf, color)
-                                   : ImGui::ColorEdit3(key_buf, color);
+          bool changed = (cc == 4) ? ImGui::ColorEdit4(key_buf.str(), color)
+                                   : ImGui::ColorEdit3(key_buf.str(), color);
           if (changed) {
             lua_pushvalue(L, child_key);
             lua_pushvalue(L, child_val);
-            lua_pushnumber(L, static_cast<double>(color[0]));
-            lua_setfield(L, -2, "r");
-            lua_pushnumber(L, static_cast<double>(color[1]));
-            lua_setfield(L, -2, "g");
-            lua_pushnumber(L, static_cast<double>(color[2]));
-            lua_setfield(L, -2, "b");
-            if (cc == 4) {
-              lua_pushnumber(L, static_cast<double>(color[3]));
-              lua_setfield(L, -2, "a");
-            }
+            LuaSetNumber(L, -1, "r", color[0]);
+            LuaSetNumber(L, -1, "g", color[1]);
+            LuaSetNumber(L, -1, "b", color[2]);
+            if (cc == 4) LuaSetNumber(L, -1, "a", color[3]);
             lua_pop(L, 2);
           }
           ImGui::PopID();
         } else {
-          bool open = ImGui::TreeNode(key_buf);
-          if (open) {
+          if (ImGui::TreeNode(key_buf.str())) {
             DrawLuaValue(L, depth + 1, idx, child_key);
             ImGui::TreePop();
           }
         }
       } else {
         ImGui::PushID(child_key);
-        char val_buf[256];
-        FormatLuaValue(L, child_val, val_buf, sizeof(val_buf));
         if (lua_type(L, child_val) == LUA_TNUMBER) {
-          double v = lua_tonumber(L, child_val);
-          float fv = static_cast<float>(v);
+          float fv = static_cast<float>(lua_tonumber(L, child_val));
           ImGui::SetNextItemWidth(120);
-          if (ImGui::DragFloat(key_buf, &fv, 0.1f)) {
+          if (ImGui::DragFloat(key_buf.str(), &fv, 0.1f)) {
             lua_pushvalue(L, child_key);
             lua_pushnumber(L, static_cast<double>(fv));
             lua_settable(L, idx);
           }
         } else if (lua_type(L, child_val) == LUA_TBOOLEAN) {
           bool v = lua_toboolean(L, child_val) != 0;
-          if (ImGui::Checkbox(key_buf, &v)) {
+          if (ImGui::Checkbox(key_buf.str(), &v)) {
             lua_pushvalue(L, child_key);
             lua_pushboolean(L, v ? 1 : 0);
             lua_settable(L, idx);
           }
         } else {
-          ImGui::Text("%s: %s", key_buf, val_buf);
+          Str val_buf;
+          FormatLuaValue(L, child_val, &val_buf);
+          ImGui::Text("%s: %s", key_buf.str(), val_buf.str());
         }
         ImGui::PopID();
       }
       lua_pop(L, 1);
     }
   } else {
-    char val_buf[256];
-    FormatLuaValue(L, idx, val_buf, sizeof(val_buf));
-    ImGui::Text("%s", val_buf);
+    Str val_buf;
+    FormatLuaValue(L, idx, &val_buf);
+    ImGui::Text("%s", val_buf.str());
   }
 }
 
@@ -1018,7 +1100,7 @@ void DebugUI::DrawCameraPanel() {
 
 void DebugUI::DrawEntityInspector() {
   lua_State* L = engine_->lua.state();
-  int top = lua_gettop(L);
+  LuaStackGuard guard(L);
 
   ImGui::SetNextWindowPos(ImVec2(400, 30), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(400, 500), ImGuiCond_FirstUseEver);
@@ -1033,68 +1115,56 @@ void DebugUI::DrawEntityInspector() {
                            inspector_filter_, sizeof(inspector_filter_));
   ImGui::Separator();
 
-  bool has_filter = inspector_filter_[0] != '\0';
+  std::string_view filter = inspector_filter_;
+  bool has_filter = !filter.empty();
 
   // Show _Game first — this is the primary game state table.
-  lua_getglobal(L, "_Game");
-  if (lua_istable(L, -1)) {
+  int game_idx = LuaPushGlobalTable(L, "_Game");
+  if (game_idx != 0) {
     if (!has_filter ||
-        std::string_view("_Game").find(inspector_filter_) !=
-            std::string_view::npos) {
+        std::string_view("_Game").find(filter) != std::string_view::npos) {
       if (ImGui::TreeNodeEx("_Game", ImGuiTreeNodeFlags_DefaultOpen)) {
         DrawLuaValue(L, 1, 0, 0);
         ImGui::TreePop();
       }
     }
-  }
-  lua_pop(L, 1);
-
-  // Show user globals (skip internal tables: G, _Game, _G, _VERSION, and
-  // standard Lua globals like string/table/math/etc).
-  lua_pushvalue(L, LUA_GLOBALSINDEX);
-  int globals_idx = lua_gettop(L);
-  bool has_user_globals = false;
-  lua_pushnil(L);
-  while (lua_next(L, globals_idx) != 0) {
-    if (lua_type(L, -2) == LUA_TSTRING) {
-      const char* key_cstr = lua_tostring(L, -2);
-      std::string_view key = key_cstr;
-      // Skip engine/Lua internals.
-      if (key == "G" || key == "_Game" || key == "_G" || key == "_Docs" ||
-          key == "_VERSION" || key == "string" || key == "table" ||
-          key == "math" || key == "io" || key == "os" ||
-          key == "coroutine" || key == "debug" || key == "package" ||
-          key == "arg" ||
-          // Standard Lua functions.
-          lua_type(L, -1) == LUA_TFUNCTION) {
-        lua_pop(L, 1);
-        continue;
-      }
-      if (has_filter &&
-          key.find(inspector_filter_) == std::string_view::npos) {
-        lua_pop(L, 1);
-        continue;
-      }
-      if (!has_user_globals) {
-        has_user_globals = true;
-        ImGui::Separator();
-        ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Globals");
-      }
-      if (lua_type(L, -1) == LUA_TTABLE) {
-        if (ImGui::TreeNode(key_cstr)) {
-          DrawLuaValue(L, 1, globals_idx, lua_gettop(L) - 1);
-          ImGui::TreePop();
-        }
-      } else {
-        char val_buf[256];
-        FormatLuaValue(L, -1, val_buf, sizeof(val_buf));
-        ImGui::Text("%s = %s", key_cstr, val_buf);
-      }
-    }
     lua_pop(L, 1);
   }
 
-  lua_settop(L, top);
+  // Show user globals (skip internal tables and standard Lua modules).
+  lua_pushvalue(L, LUA_GLOBALSINDEX);
+  int globals_idx = lua_gettop(L);
+  bool has_user_globals = false;
+  LuaTableForEach(L, globals_idx, [&](const char* key_cstr,
+                                      std::string_view key) {
+    if (key == "G" || key == "_Game" || key == "_G" || key == "_Docs" ||
+        key == "_VERSION" || key == "string" || key == "table" ||
+        key == "math" || key == "io" || key == "os" ||
+        key == "coroutine" || key == "debug" || key == "package" ||
+        key == "arg" || lua_type(L, -1) == LUA_TFUNCTION) {
+      return false;
+    }
+    if (has_filter && key.find(filter) == std::string_view::npos) {
+      return false;
+    }
+    if (!has_user_globals) {
+      has_user_globals = true;
+      ImGui::Separator();
+      ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Globals");
+    }
+    if (lua_type(L, -1) == LUA_TTABLE) {
+      if (ImGui::TreeNode(key_cstr)) {
+        DrawLuaValue(L, 1, globals_idx, lua_gettop(L) - 1);
+        ImGui::TreePop();
+      }
+    } else {
+      Str val_buf;
+      FormatLuaValue(L, -1, &val_buf);
+      ImGui::Text("%s = %s", key_cstr, val_buf.str());
+    }
+    return false;
+  });
+
   ImGui::End();
 }
 
@@ -1458,7 +1528,7 @@ void DebugUI::HandleKeyShortcut(SDL_Scancode scancode) {
 
 void DebugUI::DrawDocsPanel() {
   lua_State* L = engine_->lua.state();
-  int top = lua_gettop(L);
+  LuaStackGuard guard(L);
 
   ImGui::SetNextWindowPos(ImVec2(420, 50), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(480, 550), ImGuiCond_FirstUseEver);
@@ -1473,197 +1543,114 @@ void DebugUI::DrawDocsPanel() {
                            docs_filter_, sizeof(docs_filter_));
   ImGui::Separator();
 
-  lua_getglobal(L, "_Docs");
-  if (!lua_istable(L, -1)) {
+  int docs_idx = LuaPushGlobalTable(L, "_Docs");
+  if (docs_idx == 0) {
     ImGui::Text("_Docs table not found");
-    lua_settop(L, top);
     ImGui::End();
     return;
   }
-  int docs_idx = lua_gettop(L);
-  bool has_filter = docs_filter_[0] != '\0';
+  std::string_view filter = docs_filter_;
+  bool has_filter = !filter.empty();
+
+  // Checks whether any function in a library matches the filter.
+  auto LibraryMatchesFilter = [&](int lib_idx,
+                                  std::string_view lib_name) -> bool {
+    if (ContainsCI(lib_name, filter)) return true;
+    bool found = false;
+    LuaTableForEach(L, lib_idx, [&](const char*, std::string_view fname) {
+      if (ContainsCI(fname, filter)) { found = true; return true; }
+      auto ds = LuaGetString(L, -1, "docstring");
+      if (!ds.empty() && ContainsCI(ds, filter)) { found = true; return true; }
+      return false;
+    });
+    return found;
+  };
 
   // Iterate libraries (e.g. graphics, physics, sound).
-  lua_pushnil(L);
-  while (lua_next(L, docs_idx) != 0) {
-    if (lua_type(L, -2) != LUA_TSTRING || !lua_istable(L, -1)) {
-      lua_pop(L, 1);
-      continue;
+  LuaTableForEach(L, docs_idx, [&](const char* lib_cstr,
+                                   std::string_view lib_name) {
+    if (!lua_istable(L, -1)) return false;
+    if (has_filter && !LibraryMatchesFilter(lua_gettop(L), lib_name)) {
+      return false;
     }
-    const char* lib_name = lua_tostring(L, -2);
     int lib_idx = lua_gettop(L);
 
-    // When filtering, check if any function in this library matches.
-    bool lib_has_match = !has_filter;
-    if (has_filter) {
-      // Check library name itself.
-      if (ContainsCI(lib_name, docs_filter_)) {
-        lib_has_match = true;
-      } else {
-        // Check function names and docstrings.
-        lua_pushnil(L);
-        while (lua_next(L, lib_idx) != 0) {
-          if (lua_type(L, -2) == LUA_TSTRING) {
-            const char* fname = lua_tostring(L, -2);
-            if (ContainsCI(fname, docs_filter_)) {
-              lib_has_match = true;
-              lua_pop(L, 2);
-              break;
-            }
-            // Check docstring.
-            if (lua_istable(L, -1)) {
-              lua_getfield(L, -1, "docstring");
-              if (lua_isstring(L, -1)) {
-                const char* ds = lua_tostring(L, -1);
-                if (ds != nullptr &&
-                    ContainsCI(ds, docs_filter_)) {
-                  lib_has_match = true;
-                  lua_pop(L, 3);
-                  break;
-                }
-              }
-              lua_pop(L, 1);
-            }
-          }
-          lua_pop(L, 1);
-        }
-      }
-    }
-
-    if (!lib_has_match) {
-      lua_pop(L, 1);
-      continue;
-    }
-
-    // Open library as a tree node (open by default when filtering).
     ImGuiTreeNodeFlags lib_flags = has_filter ? ImGuiTreeNodeFlags_DefaultOpen
                                              : ImGuiTreeNodeFlags_None;
-    char lib_label[128];
-    snprintf(lib_label, sizeof(lib_label), "G.%s", lib_name);
-    if (ImGui::TreeNodeEx(lib_label, lib_flags)) {
-      // Iterate functions in the library.
-      lua_pushnil(L);
-      while (lua_next(L, lib_idx) != 0) {
-        if (lua_type(L, -2) != LUA_TSTRING || !lua_istable(L, -1)) {
-          lua_pop(L, 1);
-          continue;
-        }
-        const char* func_name = lua_tostring(L, -2);
-        int func_idx = lua_gettop(L);
+    SmallBuffer lib_label;
+    lib_label.Append("G.", lib_cstr);
+    if (!ImGui::TreeNodeEx(lib_label.str(), lib_flags)) return false;
 
-        // Filter individual functions.
-        if (has_filter && !ContainsCI(lib_name, docs_filter_) &&
-            !ContainsCI(func_name, docs_filter_)) {
-          // Also check docstring.
-          lua_getfield(L, func_idx, "docstring");
-          bool ds_match = false;
-          if (lua_isstring(L, -1)) {
-            const char* ds = lua_tostring(L, -1);
-            ds_match = ds != nullptr &&
-                       ContainsCI(ds, docs_filter_);
-          }
-          lua_pop(L, 1);
-          if (!ds_match) {
-            lua_pop(L, 1);
-            continue;
-          }
-        }
+    // Iterate functions in the library.
+    LuaTableForEach(L, lib_idx, [&](const char* func_cstr,
+                                    std::string_view func_name) {
+      if (!lua_istable(L, -1)) return false;
+      int func_idx = lua_gettop(L);
 
-        // Build signature: func_name(arg1, arg2, ...)
-        char sig[256];
-        int sig_len = snprintf(sig, sizeof(sig), "%s(", func_name);
-        lua_getfield(L, func_idx, "args");
-        if (lua_istable(L, -1)) {
-          int args_idx = lua_gettop(L);
-          int nargs = static_cast<int>(lua_objlen(L, args_idx));
-          for (int i = 1; i <= nargs && sig_len < (int)sizeof(sig) - 3; ++i) {
-            lua_rawgeti(L, args_idx, i);
-            if (lua_istable(L, -1)) {
-              lua_getfield(L, -1, "name");
-              const char* aname = lua_tostring(L, -1);
-              if (aname != nullptr) {
-                if (i > 1)
-                  sig_len +=
-                      snprintf(sig + sig_len, sizeof(sig) - sig_len, ", ");
-                sig_len +=
-                    snprintf(sig + sig_len, sizeof(sig) - sig_len, "%s", aname);
-              }
-              lua_pop(L, 1);
-            }
-            lua_pop(L, 1);
-          }
-        }
-        lua_pop(L, 1);
-        snprintf(sig + sig_len, sizeof(sig) - sig_len, ")");
-
-        if (ImGui::TreeNode(func_name, "%s", sig)) {
-          // Docstring.
-          lua_getfield(L, func_idx, "docstring");
-          if (lua_isstring(L, -1)) {
-            const char* ds = lua_tostring(L, -1);
-            if (ds != nullptr && ds[0] != '\0') {
-              ImGui::TextWrapped("%s", ds);
-            }
-          }
-          lua_pop(L, 1);
-
-          // Arguments detail.
-          lua_getfield(L, func_idx, "args");
-          if (lua_istable(L, -1)) {
-            int args_idx2 = lua_gettop(L);
-            int nargs = static_cast<int>(lua_objlen(L, args_idx2));
-            if (nargs > 0) {
-              ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Args:");
-              for (int i = 1; i <= nargs; ++i) {
-                lua_rawgeti(L, args_idx2, i);
-                if (lua_istable(L, -1)) {
-                  lua_getfield(L, -1, "name");
-                  lua_getfield(L, -2, "docstring");
-                  const char* aname = lua_tostring(L, -2);
-                  const char* adoc = lua_tostring(L, -1);
-                  if (aname != nullptr) {
-                    if (adoc != nullptr && adoc[0] != '\0') {
-                      ImGui::BulletText("%s - %s", aname, adoc);
-                    } else {
-                      ImGui::BulletText("%s", aname);
-                    }
-                  }
-                  lua_pop(L, 2);
-                }
-                lua_pop(L, 1);
-              }
-            }
-          }
-          lua_pop(L, 1);
-
-          // Return values.
-          lua_getfield(L, func_idx, "returns");
-          if (lua_istable(L, -1)) {
-            int ret_idx = lua_gettop(L);
-            int nrets = static_cast<int>(lua_objlen(L, ret_idx));
-            if (nrets > 0) {
-              ImGui::TextColored(ImVec4(0.6f, 1.0f, 0.6f, 1.0f), "Returns:");
-              for (int i = 1; i <= nrets; ++i) {
-                lua_rawgeti(L, ret_idx, i);
-                if (lua_isstring(L, -1)) {
-                  ImGui::BulletText("%s", lua_tostring(L, -1));
-                }
-                lua_pop(L, 1);
-              }
-            }
-          }
-          lua_pop(L, 1);
-
-          ImGui::TreePop();
-        }
-        lua_pop(L, 1);
+      // Filter individual functions.
+      if (has_filter && !ContainsCI(lib_name, filter) &&
+          !ContainsCI(func_name, filter)) {
+        auto ds = LuaGetString(L, func_idx, "docstring");
+        if (ds.empty() || !ContainsCI(ds, filter)) return false;
       }
-      ImGui::TreePop();
-    }
-    lua_pop(L, 1);
-  }
 
-  lua_settop(L, top);
+      Str sig;
+      FormatLuaSignature(L, func_idx, func_cstr, &sig);
+      if (!ImGui::TreeNode(func_cstr, "%s", sig.str())) return false;
+
+      // Docstring.
+      auto docstring = LuaGetString(L, func_idx, "docstring");
+      if (!docstring.empty()) {
+        ImGui::TextWrapped("%.*s", static_cast<int>(docstring.size()),
+                           docstring.data());
+      }
+
+      // Arguments detail.
+      lua_getfield(L, func_idx, "args");
+      if (lua_istable(L, -1)) {
+        int args_idx = lua_gettop(L);
+        if (lua_objlen(L, args_idx) > 0) {
+          ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Args:");
+          LuaArrayForEach(L, args_idx, [&](int) {
+            if (!lua_istable(L, -1)) return;
+            auto aname = LuaGetString(L, -1, "name");
+            auto adoc = LuaGetString(L, -1, "docstring");
+            if (aname.empty()) return;
+            if (!adoc.empty()) {
+              ImGui::BulletText("%.*s - %.*s",
+                                static_cast<int>(aname.size()), aname.data(),
+                                static_cast<int>(adoc.size()), adoc.data());
+            } else {
+              ImGui::BulletText("%.*s",
+                                static_cast<int>(aname.size()), aname.data());
+            }
+          });
+        }
+      }
+      lua_pop(L, 1);
+
+      // Return values.
+      lua_getfield(L, func_idx, "returns");
+      if (lua_istable(L, -1)) {
+        int ret_idx = lua_gettop(L);
+        if (lua_objlen(L, ret_idx) > 0) {
+          ImGui::TextColored(ImVec4(0.6f, 1.0f, 0.6f, 1.0f), "Returns:");
+          LuaArrayForEach(L, ret_idx, [&](int) {
+            if (lua_isstring(L, -1)) {
+              ImGui::BulletText("%s", lua_tostring(L, -1));
+            }
+          });
+        }
+      }
+      lua_pop(L, 1);
+
+      ImGui::TreePop();
+      return false;
+    });
+    ImGui::TreePop();
+    return false;
+  });
+
   ImGui::End();
 }
 
