@@ -184,10 +184,12 @@ void DebugUI::DrawAssetDbTab(const char* label, const char* sql) {
 // displays in a TextEditor, and optionally saves + triggers hot reload.
 namespace {
 
-void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
+void DrawCodeEditorTab(Engine* engine, const char* table_name,
                        const TextEditor::Language* lang, const char* filter,
-                       TextEditor* editor, std::string* loaded_name,
-                       bool* read_only) {
+                       DebugUI::CodeEditorState* state) {
+  TextEditor* editor = &state->editor;
+  PathBuffer* loaded_name = &state->loaded_name;
+  bool* read_only = &state->read_only;
   sqlite3* db = engine->db;
   if (db == nullptr) return;
 
@@ -203,7 +205,7 @@ void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
             sqlite3_column_text(stmt, 0));
         if (name == nullptr) continue;
         if (!MatchesFilter(name, filter)) continue;
-        bool selected = (*loaded_name == name);
+        bool selected = (loaded_name->view() == name);
         if (ImGui::Selectable(name, selected)) {
           if (!selected) {
             SmallBuffer load_sql;
@@ -219,7 +221,8 @@ void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
                 if (contents != nullptr) {
                   editor->SetText(contents);
                   editor->SetLanguage(lang);
-                  *loaded_name = name;
+                  loaded_name->Clear();
+                  loaded_name->Append(name);
                   *read_only = true;
                   editor->SetReadOnlyEnabled(true);
                 }
@@ -238,11 +241,11 @@ void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
 
   // Right: editor.
   if (ImGui::BeginChild("##editor", ImVec2(0, 0))) {
-    if (loaded_name->empty()) {
+    if (loaded_name->view().empty()) {
       ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
                          "Select a file from the list.");
     } else {
-      ImGui::Text("%s", loaded_name->c_str());
+      ImGui::Text("%s", loaded_name->str());
       ImGui::SameLine();
       if (ImGui::SmallButton(*read_only ? "Edit" : "Read-only")) {
         *read_only = !*read_only;
@@ -260,7 +263,7 @@ void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
                                  nullptr) == SQLITE_OK) {
             sqlite3_bind_text(save_stmt, 1, text.c_str(),
                               static_cast<int>(text.size()), SQLITE_STATIC);
-            sqlite3_bind_text(save_stmt, 2, loaded_name->c_str(),
+            sqlite3_bind_text(save_stmt, 2, loaded_name->str(),
                               static_cast<int>(loaded_name->size()),
                               SQLITE_STATIC);
             sqlite3_step(save_stmt);
@@ -279,15 +282,13 @@ void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
 }  // namespace
 
 void DebugUI::DrawAssetScriptsTab() {
-  DrawCodeEditorTab(this, engine_, "scripts", TextEditor::Language::Lua(),
-                    asset_filter_, &asset_editor_, &asset_editor_name_,
-                    &asset_editor_read_only_);
+  DrawCodeEditorTab(engine_, "scripts", TextEditor::Language::Lua(),
+                    asset_filter_, &script_editor_);
 }
 
 void DebugUI::DrawAssetShadersTab() {
-  DrawCodeEditorTab(this, engine_, "shaders", TextEditor::Language::Glsl(),
-                    asset_filter_, &asset_editor_, &asset_editor_name_,
-                    &asset_editor_read_only_);
+  DrawCodeEditorTab(engine_, "shaders", TextEditor::Language::Glsl(),
+                    asset_filter_, &shader_editor_);
 }
 
 void DebugUI::DrawAssetViewer() {

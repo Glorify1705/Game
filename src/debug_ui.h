@@ -116,6 +116,13 @@ class DebugUI {
   // capture check so shortcuts work regardless of focus.
   void HandleKeyShortcut(SDL_Scancode scancode);
 
+  // Shared state for script/shader code editor tabs.
+  struct CodeEditorState {
+    TextEditor editor;
+    PathBuffer loaded_name;
+    bool read_only = true;
+  };
+
  private:
   // Rolling buffer of frame times for the PlotLines graph.
   static constexpr size_t kFrameTimeHistory = 300;
@@ -260,9 +267,8 @@ class DebugUI {
   bool repl_editor_init_ = false;
 
   // Script/shader editor state.
-  TextEditor asset_editor_;
-  std::string asset_editor_name_;
-  bool asset_editor_read_only_ = true;
+  CodeEditorState script_editor_;
+  CodeEditorState shader_editor_;
 
   // ImGui callback for REPL history Up/Down navigation.
   static int ReplHistoryCallback(ImGuiInputTextCallbackData* data);
