@@ -283,6 +283,25 @@ if (ptr == nullptr) return;
 for (size_t i = 0; i < n; ++i) total += data[i];
 ```
 
+### Ternary Operator
+
+Only use the ternary operator (`? :`) for simple value selection where both
+branches are plain values or short identifiers:
+
+```cpp
+// Good: simple value selection.
+const char* label = paused ? "Play" : "Pause";
+int components = has_alpha ? 4 : 3;
+
+// Bad: complex expressions in branches — use if/else instead.
+float ratio = (total > 0)
+    ? static_cast<float>(used) / static_cast<float>(total)
+    : 0.0f;
+```
+
+If either branch contains a function call, cast, arithmetic, or spans
+multiple lines, use `if`/`else` instead.
+
 ### Trailing Whitespace and Newlines
 
 No trailing whitespace. Files end with exactly one newline. At most one
