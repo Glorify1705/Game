@@ -1,4 +1,5 @@
 // Asset viewer with image, sprite, audio, script, shader, and font tabs.
+// Included by debug_ui.cc (unity build). Not a standalone translation unit.
 void DebugUI::DrawAssetImagesTab() {
   Renderer* renderer = &engine_->renderer;
   auto images = renderer->GetImages();

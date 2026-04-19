@@ -1,4 +1,5 @@
 // API documentation browser with search.
+// Included by debug_ui.cc (unity build). Not a standalone translation unit.
 void DebugUI::DrawDocsPanel() {
   lua_State* L = engine_->lua.state();
   LuaStackGuard guard(L);

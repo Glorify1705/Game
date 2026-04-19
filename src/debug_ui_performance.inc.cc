@@ -1,4 +1,5 @@
 // Performance panel with frame time graph and breakdown.
+// Included by debug_ui.cc (unity build). Not a standalone translation unit.
 void DebugUI::DrawPerformancePanel(const FrameContext& ctx) {
   ImGui::SetNextWindowPos(ImVec2(10, 30), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(380, 400), ImGuiCond_FirstUseEver);

@@ -1,4 +1,5 @@
 // Audio, Memory, Renderer, Camera, and Physics panels.
+// Included by debug_ui.cc (unity build). Not a standalone translation unit.
 void DebugUI::DrawAudioPanel() {
   Sound* sound = &engine_->sound;
   ImGui::SetNextWindowPos(ImVec2(620, 30), ImGuiCond_FirstUseEver);

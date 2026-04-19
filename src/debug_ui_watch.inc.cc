@@ -1,4 +1,5 @@
 // Watch panel with live Lua expression evaluation and REPL.
+// Included by debug_ui.cc (unity build). Not a standalone translation unit.
 void DebugUI::DrawWatchPanel() {
   ImGui::SetNextWindowPos(ImVec2(820, 30), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(380, 350), ImGuiCond_FirstUseEver);

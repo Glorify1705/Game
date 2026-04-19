@@ -1,4 +1,5 @@
 // Entity inspector showing _Game state and user globals.
+// Included by debug_ui.cc (unity build). Not a standalone translation unit.
 void DebugUI::DrawEntityInspector() {
   lua_State* L = engine_->lua.state();
   LuaStackGuard guard(L);

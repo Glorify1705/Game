@@ -1,4 +1,5 @@
 // Log console with level filtering, text search, and Lua eval.
+// Included by debug_ui.cc (unity build). Not a standalone translation unit.
 bool DebugUI::ShouldShowLogEntry(const LogEntry& entry) const {
   int level_idx = static_cast<int>(entry.level);
   if (level_idx < 0 || level_idx > 5) return false;
