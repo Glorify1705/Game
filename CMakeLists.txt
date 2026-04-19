@@ -307,6 +307,24 @@ if(WIN32)
     VERBATIM)
 endif()
 
+# Dedicated headless server — Lua + ENet + protobuf, no SDL/GL.
+add_executable(Server src/server.cc libraries/enet.cc libraries/lua-protobuf/pb.c)
+set_target_properties(Server PROPERTIES OUTPUT_NAME "server")
+target_compile_features(Server PRIVATE cxx_std_17)
+target_include_directories(Server PRIVATE
+    "${PROJECT_SOURCE_DIR}"
+    "${PROJECT_SOURCE_DIR}/libraries/lua/src")
+target_compile_definitions(Server PRIVATE PB_STATIC_API)
+target_compile_options(Server PRIVATE
+    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Wno-unused-parameter;-fno-exceptions;-fno-rtti>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4>)
+set_source_files_properties(libraries/lua-protobuf/pb.c PROPERTIES
+    COMPILE_OPTIONS "-Wno-error")
+target_link_libraries(Server PRIVATE
+    lua
+    physfs-static
+    $<$<BOOL:${WIN32}>:ws2_32;winmm>)
+
 # Tests link the engine library directly instead of recompiling sources.
 if(NOT CMAKE_CROSSCOMPILING)
   enable_testing()
