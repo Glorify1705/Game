@@ -1838,57 +1838,53 @@ void DebugUI::DrawWatchPanel() {
   }
   ImGui::Separator();
 
-  if (watch_count_ == 0) {
-    ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
-                       "No watches. Type a Lua expression above.");
-    ImGui::End();
-    return;
-  }
+  if (watch_count_ > 0) {
+    bool has_error = engine_->lua.HasError();
+    int remove_idx = -1;
 
-  bool has_error = engine_->lua.HasError();
-  int remove_idx = -1;
+    if (ImGui::BeginTable("##watches", 3,
+                          ImGuiTableFlags_BordersInnerV |
+                              ImGuiTableFlags_RowBg)) {
+      ImGui::TableSetupColumn("Expr", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("##rm", ImGuiTableColumnFlags_WidthFixed,
+                              20.0f);
+      ImGui::TableHeadersRow();
 
-  if (ImGui::BeginTable("##watches", 3,
-                        ImGuiTableFlags_BordersInnerV |
-                            ImGuiTableFlags_RowBg)) {
-    ImGui::TableSetupColumn("Expr", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("##rm", ImGuiTableColumnFlags_WidthFixed, 20.0f);
-    ImGui::TableHeadersRow();
+      for (int i = 0; i < watch_count_; ++i) {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted(watches_[i].path);
 
-    for (int i = 0; i < watch_count_; ++i) {
-      ImGui::TableNextRow();
-      ImGui::TableNextColumn();
-      ImGui::TextUnformatted(watches_[i].path);
-
-      ImGui::TableNextColumn();
-      if (has_error) {
-        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "error");
-      } else {
-        Str result;
-        if (engine_->lua.EvalString(watches_[i].path, &result)) {
-          ImGui::TextUnformatted(result.str());
+        ImGui::TableNextColumn();
+        if (has_error) {
+          ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "error");
         } else {
-          ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s",
-                             result.str());
+          Str result;
+          if (engine_->lua.EvalString(watches_[i].path, &result)) {
+            ImGui::TextUnformatted(result.str());
+          } else {
+            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s",
+                               result.str());
+          }
         }
+
+        ImGui::TableNextColumn();
+        ImGui::PushID(i);
+        if (ImGui::SmallButton("X")) remove_idx = i;
+        ImGui::PopID();
       }
-
-      ImGui::TableNextColumn();
-      ImGui::PushID(i);
-      if (ImGui::SmallButton("X")) remove_idx = i;
-      ImGui::PopID();
+      ImGui::EndTable();
     }
-    ImGui::EndTable();
-  }
 
-  // Remove entry by shifting.
-  if (remove_idx >= 0) {
-    for (int i = remove_idx; i < watch_count_ - 1; ++i) {
-      watches_[i] = watches_[i + 1];
+    // Remove entry by shifting.
+    if (remove_idx >= 0) {
+      for (int i = remove_idx; i < watch_count_ - 1; ++i) {
+        watches_[i] = watches_[i + 1];
+      }
+      --watch_count_;
+      watches_[watch_count_].path[0] = '\0';
     }
-    --watch_count_;
-    watches_[watch_count_].path[0] = '\0';
   }
 
   ImGui::Separator();
