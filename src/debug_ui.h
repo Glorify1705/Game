@@ -134,6 +134,8 @@ class DebugUI {
   void DrawAssetViewer();
   // Draws the API docs browser with search.
   void DrawDocsPanel();
+  // Draws the variable watch panel with live Lua path resolution.
+  void DrawWatchPanel();
 
   bool visible_ = false;
   bool initialized_ = false;
@@ -157,9 +159,10 @@ class DebugUI {
     kPanelAssets = 1 << 8,
     kPanelSelector = 1 << 9,
     kPanelDocs = 1 << 10,
+    kPanelWatch = 1 << 11,
     kPanelAll = kPanelPerformance | kPanelLogConsole | kPanelEntityInspector |
                 kPanelAudio | kPanelMemory | kPanelRenderer | kPanelCamera |
-                kPanelPhysics | kPanelAssets | kPanelDocs,
+                kPanelPhysics | kPanelAssets | kPanelDocs | kPanelWatch,
   };
   // Default panels (also preset index 2).
   static constexpr uint64_t kPanelDefault =
@@ -201,6 +204,16 @@ class DebugUI {
 
   // API docs browser state.
   char docs_filter_[128] = {};
+
+  // Watch panel state.
+  static constexpr size_t kMaxWatches = 32;
+  static constexpr size_t kWatchPathSize = 128;
+  struct WatchEntry {
+    char path[kWatchPathSize] = {};
+  };
+  WatchEntry watches_[kMaxWatches] = {};
+  int watch_count_ = 0;
+  char watch_input_[kWatchPathSize] = {};
 
   // Asset viewer state.
   char asset_filter_[128] = {};

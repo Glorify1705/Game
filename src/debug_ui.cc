@@ -320,6 +320,68 @@ int CheckColorTable(lua_State* L, int idx, float* color) {
   return has_alpha ? 4 : 3;
 }
 
+// Checks if a Lua table looks like a vec2 ({x, y} with both numbers).
+// Returns true and fills xy[2] if so.
+bool CheckVec2Table(lua_State* L, int idx, float* xy) {
+  lua_getfield(L, idx, "x");
+  lua_getfield(L, idx, "y");
+  bool is_vec2 = lua_isnumber(L, -2) && lua_isnumber(L, -1);
+  if (!is_vec2) {
+    lua_pop(L, 2);
+    return false;
+  }
+  xy[0] = static_cast<float>(lua_tonumber(L, -2));
+  xy[1] = static_cast<float>(lua_tonumber(L, -1));
+  lua_pop(L, 2);
+  return true;
+}
+
+// Resolves a dotted Lua path (e.g. "_Game.player.pos.x") by walking globals
+// and table fields. On success, the resolved value is on top of the stack and
+// the function returns true. On failure, the stack is unchanged and it returns
+// false.
+bool ResolveLuaPath(lua_State* L, std::string_view path) {
+  if (path.empty()) return false;
+  int top = lua_gettop(L);
+
+  // Walk segments separated by '.'.
+  size_t start = 0;
+  bool first = true;
+  while (start < path.size()) {
+    size_t dot = path.find('.', start);
+    if (dot == std::string_view::npos) dot = path.size();
+    std::string_view segment = path.substr(start, dot - start);
+    if (segment.empty()) {
+      lua_settop(L, top);
+      return false;
+    }
+    // Need a null-terminated copy for Lua C API.
+    char seg_buf[128];
+    size_t len = segment.size() < sizeof(seg_buf) - 1 ? segment.size()
+                                                      : sizeof(seg_buf) - 1;
+    memcpy(seg_buf, segment.data(), len);
+    seg_buf[len] = '\0';
+
+    if (first) {
+      lua_getglobal(L, seg_buf);
+      first = false;
+    } else {
+      if (!lua_istable(L, -1)) {
+        lua_settop(L, top);
+        return false;
+      }
+      lua_getfield(L, -1, seg_buf);
+      lua_remove(L, -2);
+    }
+    start = dot + 1;
+  }
+  if (lua_type(L, -1) == LUA_TNIL && lua_gettop(L) == top + 1) {
+    lua_settop(L, top);
+    return false;
+  }
+  return true;
+}
+
 // Recursively draws a Lua value as ImGui tree nodes.
 void DrawLuaValue(lua_State* L, int depth, int table_ref, int key_idx) {
   if (depth > 10) {
@@ -336,20 +398,25 @@ void DrawLuaValue(lua_State* L, int depth, int table_ref, int key_idx) {
       SmallBuffer key_buf;
       FormatLuaKey(L, child_key, &key_buf);
       if (lua_type(L, child_val) == LUA_TTABLE) {
+        float xy[2];
         float color[4];
-        int cc = CheckColorTable(L, child_val, color);
-        if (cc > 0) {
+        if (CheckVec2Table(L, child_val, xy)) {
+          ImGui::PushID(child_key);
+          ImGui::SetNextItemWidth(180);
+          if (ImGui::DragFloat2(key_buf.str(), xy, 0.1f)) {
+            LuaSetNumber(L, child_val, "x", xy[0]);
+            LuaSetNumber(L, child_val, "y", xy[1]);
+          }
+          ImGui::PopID();
+        } else if (int cc = CheckColorTable(L, child_val, color); cc > 0) {
           ImGui::PushID(child_key);
           bool changed = (cc == 4) ? ImGui::ColorEdit4(key_buf.str(), color)
                                    : ImGui::ColorEdit3(key_buf.str(), color);
           if (changed) {
-            lua_pushvalue(L, child_key);
-            lua_pushvalue(L, child_val);
-            LuaSetNumber(L, -1, "r", color[0]);
-            LuaSetNumber(L, -1, "g", color[1]);
-            LuaSetNumber(L, -1, "b", color[2]);
-            if (cc == 4) LuaSetNumber(L, -1, "a", color[3]);
-            lua_pop(L, 2);
+            LuaSetNumber(L, child_val, "r", color[0]);
+            LuaSetNumber(L, child_val, "g", color[1]);
+            LuaSetNumber(L, child_val, "b", color[2]);
+            if (cc == 4) LuaSetNumber(L, child_val, "a", color[3]);
           }
           ImGui::PopID();
         } else {
@@ -1274,6 +1341,7 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       PanelMenuItem("Physics", kPanelPhysics);
       PanelMenuItem("Assets", kPanelAssets);
       PanelMenuItem("API Docs", kPanelDocs);
+      PanelMenuItem("Watch", kPanelWatch);
       ImGui::Separator();
       if (ImGui::MenuItem("Cycle Presets", "F5")) {
         static constexpr uint64_t kPresets[] = {0, kPanelAll, kPanelDefault};
@@ -1386,6 +1454,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   if (PanelOpen(kPanelPhysics)) DrawPhysicsPanel();
   if (PanelOpen(kPanelAssets)) DrawAssetViewer();
   if (PanelOpen(kPanelDocs)) DrawDocsPanel();
+  if (PanelOpen(kPanelWatch)) DrawWatchPanel();
 
   // F6 panel selector floating window.
   if (PanelOpen(kPanelSelector)) {
@@ -1403,6 +1472,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
       PanelMenuItem("Physics", kPanelPhysics);
       PanelMenuItem("Assets", kPanelAssets);
       PanelMenuItem("API Docs", kPanelDocs);
+      PanelMenuItem("Watch", kPanelWatch);
     }
     ImGui::End();
     if (!open) TogglePanel(kPanelSelector);
@@ -1650,6 +1720,89 @@ void DebugUI::DrawDocsPanel() {
     ImGui::TreePop();
     return false;
   });
+
+  ImGui::End();
+}
+
+void DebugUI::DrawWatchPanel() {
+  lua_State* L = engine_->lua.state();
+  LuaStackGuard guard(L);
+
+  ImGui::SetNextWindowPos(ImVec2(820, 30), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(380, 350), ImGuiCond_FirstUseEver);
+  if (!ImGui::Begin("Watch", nullptr,
+                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+    ImGui::End();
+    return;
+  }
+
+  // Input to add a new watch.
+  ImGui::SetNextItemWidth(-60);
+  bool add = ImGui::InputTextWithHint(
+      "##watch_add", "_Game.player.x", watch_input_, kWatchPathSize,
+      ImGuiInputTextFlags_EnterReturnsTrue);
+  ImGui::SameLine();
+  if (ImGui::Button("Add") || add) {
+    if (watch_input_[0] != '\0' && watch_count_ < (int)kMaxWatches) {
+      snprintf(watches_[watch_count_].path, kWatchPathSize, "%s",
+               watch_input_);
+      ++watch_count_;
+      watch_input_[0] = '\0';
+    }
+  }
+  ImGui::Separator();
+
+  if (watch_count_ == 0) {
+    ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
+                       "No watches. Type a Lua path above.");
+    ImGui::End();
+    return;
+  }
+
+  bool has_error = engine_->lua.HasError();
+  int remove_idx = -1;
+
+  if (ImGui::BeginTable("##watches", 3,
+                        ImGuiTableFlags_BordersInnerV |
+                            ImGuiTableFlags_RowBg)) {
+    ImGui::TableSetupColumn("Path", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("##rm", ImGuiTableColumnFlags_WidthFixed, 20.0f);
+    ImGui::TableHeadersRow();
+
+    for (int i = 0; i < watch_count_; ++i) {
+      ImGui::TableNextRow();
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(watches_[i].path);
+
+      ImGui::TableNextColumn();
+      if (has_error) {
+        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "error");
+      } else if (ResolveLuaPath(L, watches_[i].path)) {
+        Str val_buf;
+        FormatLuaValue(L, -1, &val_buf);
+        ImGui::TextUnformatted(val_buf.str());
+        lua_pop(L, 1);
+      } else {
+        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "N/A");
+      }
+
+      ImGui::TableNextColumn();
+      ImGui::PushID(i);
+      if (ImGui::SmallButton("X")) remove_idx = i;
+      ImGui::PopID();
+    }
+    ImGui::EndTable();
+  }
+
+  // Remove entry by shifting.
+  if (remove_idx >= 0) {
+    for (int i = remove_idx; i < watch_count_ - 1; ++i) {
+      watches_[i] = watches_[i + 1];
+    }
+    --watch_count_;
+    watches_[watch_count_].path[0] = '\0';
+  }
 
   ImGui::End();
 }
