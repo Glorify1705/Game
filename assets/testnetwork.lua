@@ -19,10 +19,8 @@ function Game:init()
     self.connected = false
     self.server_id = nil
 
-    -- Load protobuf schema.
-    G.data.load_schema(G.filesystem.slurp("messages.proto"))
-
-    -- Connect to the server.
+    -- Proto schemas are compiled at pack time and loaded automatically.
+    -- Just connect to the server.
     G.network.create_client()
     G.network.connect("127.0.0.1", 7777)
 end

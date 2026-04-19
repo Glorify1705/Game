@@ -1423,6 +1423,20 @@ void Lua::HandleQuit() {
   }
 }
 
+bool Lua::LoadProtoDescriptor(const void* data, size_t length) {
+  LUA_CHECK_STACK(state_);
+  lua_getglobal(state_, "pb");
+  lua_getfield(state_, -1, "load");
+  lua_pushlstring(state_, static_cast<const char*>(data), length);
+  if (lua_pcall(state_, 1, 1, 0) != 0) {
+    LOG("Failed to load proto descriptor: ", lua_tostring(state_, -1));
+    lua_pop(state_, 2);  // error + pb
+    return false;
+  }
+  lua_pop(state_, 2);  // result + pb
+  return true;
+}
+
 void Lua::HandleNetworkConnect(uint32_t peer_id) {
   LUA_CHECK_STACK(state_);
   if (!error_.empty()) return;

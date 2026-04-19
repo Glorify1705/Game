@@ -104,6 +104,30 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
   text_files_table_.Insert(file.name, &text_files_.back());
 }
 
+void DbAssets::LoadProtoDescriptor(std::string_view filename, uint8_t* buffer,
+                                   size_t size, ChecksumType checksum) {
+  constexpr std::string_view sql =
+      "SELECT contents FROM proto_descriptors WHERE name = ?";
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
+                         nullptr) != SQLITE_OK) {
+    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
+  }
+  DEFER([&] { sqlite3_finalize(stmt); });
+  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
+  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No proto descriptor ", filename);
+  auto contents =
+      reinterpret_cast<const uint8_t*>(sqlite3_column_blob(stmt, 0));
+  size_t blob_size = sqlite3_column_bytes(stmt, 0);
+  std::memcpy(buffer, contents, blob_size);
+  ProtoDescriptor desc;
+  desc.name = filename;
+  desc.contents = buffer;
+  desc.size = blob_size;
+  desc.checksum = checksum;
+  proto_loader_.Load(&desc);
+}
+
 void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
                                size_t size, ChecksumType checksum) {
   {
@@ -189,6 +213,7 @@ void DbAssets::Load() {
       {.name = "font", .load = &DbAssets::LoadFont},
       {.name = "shader", .load = &DbAssets::LoadShader},
       {.name = "text", .load = &DbAssets::LoadText},
+      {.name = "proto", .load = &DbAssets::LoadProtoDescriptor},
       {.name = std::string_view(), .load = nullptr},
   };
   SqlStmt stmt(db_,

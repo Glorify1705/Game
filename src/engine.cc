@@ -146,6 +146,16 @@ void Engine::Initialize() {
         return {};
       },
       this);
+  assets->RegisterProtoLoad(
+      [](DbAssets::ProtoDescriptor* desc, void* ud) -> ErrorOr<void> {
+        auto* self = static_cast<Engine*>(ud);
+        if (!self->lua.LoadProtoDescriptor(desc->contents, desc->size)) {
+          return Error::Message("Failed to load proto descriptor");
+        }
+        LOG("Loaded proto schema ", desc->name);
+        return {};
+      },
+      this);
   assets->Load();
   auto* controller_db = assets->LookupTextFile("gamecontrollerdb");
   if (controller_db) {

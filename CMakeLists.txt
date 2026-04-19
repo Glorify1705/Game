@@ -148,6 +148,16 @@ if(ENABLE_SANITIZERS)
       $<${IS_GCC_LIKE}:-fsanitize=address,undefined>)
 endif()
 
+# Embed protoc.lua as a C string constant for compile-time proto compilation.
+add_custom_command(
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h"
+    COMMAND "${CMAKE_COMMAND}"
+        -DINPUT="${PROJECT_SOURCE_DIR}/libraries/lua-protobuf/protoc.lua"
+        -DOUTPUT="${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h"
+        -P "${PROJECT_SOURCE_DIR}/cmake/EmbedProtoc.cmake"
+    DEPENDS "${PROJECT_SOURCE_DIR}/libraries/lua-protobuf/protoc.lua"
+    COMMENT "Embedding protoc.lua")
+
 # Engine static library. All engine code except main().
 set(ENGINE_SRCS
     src/assets.cc
@@ -208,7 +218,6 @@ set(ENGINE_SRCS
     src/cmd_run.cc
     src/cmd_stubs.cc
     src/cmd_version.cc
-<<<<<<< HEAD
     src/network.cc
     src/lua_data.cc
     src/lua_network.cc
@@ -216,7 +225,7 @@ set(ENGINE_SRCS
     $<$<BOOL:${ENABLE_IMGUI}>:src/debug_ui.cc>
     libraries/lua-protobuf/pb.c)
 
-add_library(engine STATIC ${ENGINE_SRCS})
+add_library(engine STATIC ${ENGINE_SRCS} "${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h")
 
 target_compile_features(engine PUBLIC cxx_std_17)
 

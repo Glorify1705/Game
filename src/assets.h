@@ -76,6 +76,14 @@ class DbAssets {
     ChecksumType checksum;
   };
 
+  // Binary protobuf FileDescriptorSet compiled from a .proto file.
+  struct ProtoDescriptor {
+    std::string_view name;
+    size_t size;
+    uint8_t* contents;
+    ChecksumType checksum;
+  };
+
   enum class ShaderType { kVertex, kFragment };
 
   struct Shader {
@@ -149,6 +157,11 @@ class DbAssets {
     font_loader_.ud = ud;
   }
 
+  void RegisterProtoLoad(LoadCallback<ProtoDescriptor> load, void* ud) {
+    proto_loader_.fn = load;
+    proto_loader_.ud = ud;
+  }
+
   // Returns the text file with the given name, or nullptr if not found.
   TextFile* LookupTextFile(std::string_view name);
 
@@ -189,6 +202,8 @@ class DbAssets {
                 ChecksumType checksum);
   void LoadSpritesheet(std::string_view name, uint8_t* buffer, size_t size,
                        ChecksumType checksum);
+  void LoadProtoDescriptor(std::string_view name, uint8_t* buffer, size_t size,
+                           ChecksumType checksum);
 
   sqlite3* db_;
   Allocator* allocator_;
@@ -208,6 +223,7 @@ class DbAssets {
   LoadFn<DbAssets::Sprite> sprite_loader_;
   LoadFn<DbAssets::Font> font_loader_;
   LoadFn<DbAssets::Sound> sound_loader_;
+  LoadFn<DbAssets::ProtoDescriptor> proto_loader_;
 
   FixedArray<TextFile> text_files_;
   Dictionary<TextFile*> text_files_table_;

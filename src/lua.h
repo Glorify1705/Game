@@ -304,6 +304,9 @@ class Lua {
   lua_State* state() const { return state_; }
 
   // Network event callbacks dispatched to _Game:on_connect/on_receive/on_disconnect.
+  // Loads a binary protobuf FileDescriptorSet into the pb type registry.
+  bool LoadProtoDescriptor(const void* data, size_t length);
+
   void HandleNetworkConnect(uint32_t peer_id);
   void HandleNetworkDisconnect(uint32_t peer_id);
   void HandleNetworkReceive(uint32_t peer_id, const void* data, size_t length,
