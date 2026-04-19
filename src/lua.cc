@@ -789,6 +789,31 @@ void Lua::LogValue(lua_State* state, int pos, int depth, StringBuffer* buf) {
         buf->Append(ptr);
       }
     }; break;
+    case LUA_TUSERDATA:
+      if (lua_getmetatable(state, abs_pos)) {
+        lua_getfield(state, -1, "__tostring");
+        if (lua_isfunction(state, -1)) {
+          lua_pushvalue(state, abs_pos);
+          if (lua_pcall(state, 1, 1, 0) == 0 && lua_isstring(state, -1)) {
+            buf->Append(lua_tostring(state, -1));
+            lua_pop(state, 2);
+            break;
+          }
+          lua_pop(state, 1);
+        } else {
+          lua_pop(state, 1);
+        }
+        lua_getfield(state, -1, "__name");
+        if (lua_isstring(state, -1)) {
+          buf->Append(lua_tostring(state, -1));
+        } else {
+          buf->Append("userdata");
+        }
+        lua_pop(state, 2);
+      } else {
+        buf->Append("userdata");
+      }
+      break;
     default:
       buf->Append("?? (", lua_typename(state, lua_type(state, pos)), ")");
       break;

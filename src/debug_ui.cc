@@ -337,19 +337,17 @@ int CheckColorTable(lua_State* L, int idx, float* color) {
 // Returns true with compiled Lua in output, false with error in output.
 bool CompileFennel(lua_State* L, std::string_view code, StringBuffer* output) {
   int top = lua_gettop(L);
-  // Try _fennel global first, then package.loaded.fennel.
+
+  // Find the fennel module: try _fennel global, then package.loaded.fennel.
   lua_getglobal(L, "_fennel");
   if (!lua_istable(L, -1)) {
     lua_pop(L, 1);
-    lua_getfield(L, LUA_GLOBALSINDEX, "package");
-    if (lua_istable(L, -1)) {
-      lua_getfield(L, -1, "loaded");
-      if (lua_istable(L, -1)) {
-        lua_getfield(L, -1, "fennel");
-        lua_replace(L, -3);
+    // Try package.loaded.fennel.
+    lua_getglobal(L, "require");
+    if (lua_isfunction(L, -1)) {
+      lua_pushstring(L, "fennel");
+      if (lua_pcall(L, 1, 1, 0) != 0) {
         lua_pop(L, 1);
-      } else {
-        lua_pop(L, 2);
         lua_pushnil(L);
       }
     }
@@ -359,10 +357,12 @@ bool CompileFennel(lua_State* L, std::string_view code, StringBuffer* output) {
     output->Append("Fennel compiler not loaded");
     return false;
   }
+
+  // Call fennel.compileString(code).
   lua_getfield(L, -1, "compileString");
   if (!lua_isfunction(L, -1)) {
     lua_settop(L, top);
-    output->Append("_fennel.compileString not found");
+    output->Append("fennel.compileString not found");
     return false;
   }
   lua_pushlstring(L, code.data(), code.size());
