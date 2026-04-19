@@ -80,21 +80,12 @@ void DebugUI::DrawWatchPanel() {
 }
 
 void DebugUI::DrawRepl() {
-  static TextEditor repl_editor;
-  static bool repl_editor_init = false;
-  if (!repl_editor_init) {
-    repl_editor.SetLanguage(TextEditor::Language::Lua());
-    repl_editor.SetShowLineNumbersEnabled(false);
-    repl_editor.SetTabSize(2);
-    repl_editor.SetPalette(TextEditor::GetDarkPalette());
-    repl_editor_init = true;
-  }
-
-  // Update language when toggled.
-  static ReplLang last_lang = kLua;
-  if (repl_lang_ != last_lang) {
-    repl_editor.SetLanguage(TextEditor::Language::Lua());
-    last_lang = repl_lang_;
+  if (!repl_editor_init_) {
+    repl_editor_.SetLanguage(TextEditor::Language::Lua());
+    repl_editor_.SetShowLineNumbersEnabled(false);
+    repl_editor_.SetTabSize(2);
+    repl_editor_.SetPalette(TextEditor::GetDarkPalette());
+    repl_editor_init_ = true;
   }
 
   ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "REPL");
@@ -106,7 +97,7 @@ void DebugUI::DrawRepl() {
   if (ImGui::SmallButton("Run") ||
       (ImGui::IsKeyDown(ImGuiMod_Ctrl) &&
        ImGui::IsKeyPressed(ImGuiKey_Enter))) {
-    std::string code = repl_editor.GetText();
+    std::string code = repl_editor_.GetText();
     // Trim trailing whitespace/newlines.
     while (!code.empty() && (code.back() == '\n' || code.back() == '\r' ||
                              code.back() == ' ')) {
@@ -146,7 +137,7 @@ void DebugUI::DrawRepl() {
                      formatted.view());
         repl_entries_->Push(result_entry);
       }
-      repl_editor.ClearText();
+      repl_editor_.ClearText();
       repl_scroll_to_bottom_ = true;
     }
   }
@@ -186,6 +177,6 @@ void DebugUI::DrawRepl() {
   ImGui::Spacing();
   ImGui::Separator();
   ImGui::Spacing();
-  repl_editor.Render("##repl_editor",
+  repl_editor_.Render("##repl_editor",
                      ImVec2(0, ImGui::GetContentRegionAvail().y));
 }

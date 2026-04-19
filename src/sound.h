@@ -225,14 +225,9 @@ class Sound {
     void SetOwnership(Ownership ownership) { ownership_ = ownership; }
     bool IsManaged() const { return ownership_ == Ownership::kManaged; }
 
-    // Debug accessors for the debug UI panel.
-    uint32_t debug_handle() const { return handle_; }
-    float debug_gain() const { return gain_; }
-    float debug_pitch() const { return pitch_; }
-    float debug_pan() const { return pan_; }
-    bool debug_loop() const { return loop_; }
-
    private:
+    friend class Sound;
+
     void WriteStereoOutput(float* output, size_t& written, float s_left,
                            float s_right) {
       output[written++] = gain_ * left_gain_ * s_left;

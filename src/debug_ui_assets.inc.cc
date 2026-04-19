@@ -185,11 +185,9 @@ void DebugUI::DrawAssetDbTab(const char* label, const char* sql) {
 namespace {
 
 void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
-                       const TextEditor::Language* lang, const char* filter) {
-  static TextEditor editor;
-  static std::string loaded_name;
-  static bool read_only = true;
-
+                       const TextEditor::Language* lang, const char* filter,
+                       TextEditor* editor, std::string* loaded_name,
+                       bool* read_only) {
   sqlite3* db = engine->db;
   if (db == nullptr) return;
 
@@ -205,10 +203,9 @@ void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
             sqlite3_column_text(stmt, 0));
         if (name == nullptr) continue;
         if (!MatchesFilter(name, filter)) continue;
-        bool selected = (loaded_name == name);
+        bool selected = (*loaded_name == name);
         if (ImGui::Selectable(name, selected)) {
           if (!selected) {
-            // Load content.
             SmallBuffer load_sql;
             load_sql.AppendF("SELECT contents FROM %s WHERE name = ?",
                              table_name);
@@ -220,11 +217,11 @@ void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
                 const char* contents = reinterpret_cast<const char*>(
                     sqlite3_column_text(load_stmt, 0));
                 if (contents != nullptr) {
-                  editor.SetText(contents);
-                  editor.SetLanguage(lang);
-                  loaded_name = name;
-                  read_only = true;
-                  editor.SetReadOnlyEnabled(true);
+                  editor->SetText(contents);
+                  editor->SetLanguage(lang);
+                  *loaded_name = name;
+                  *read_only = true;
+                  editor->SetReadOnlyEnabled(true);
                 }
               }
               sqlite3_finalize(load_stmt);
@@ -241,20 +238,20 @@ void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
 
   // Right: editor.
   if (ImGui::BeginChild("##editor", ImVec2(0, 0))) {
-    if (loaded_name.empty()) {
+    if (loaded_name->empty()) {
       ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
                          "Select a file from the list.");
     } else {
-      ImGui::Text("%s", loaded_name.c_str());
+      ImGui::Text("%s", loaded_name->c_str());
       ImGui::SameLine();
-      if (ImGui::SmallButton(read_only ? "Edit" : "Read-only")) {
-        read_only = !read_only;
-        editor.SetReadOnlyEnabled(read_only);
+      if (ImGui::SmallButton(*read_only ? "Edit" : "Read-only")) {
+        *read_only = !*read_only;
+        editor->SetReadOnlyEnabled(*read_only);
       }
-      if (!read_only) {
+      if (!*read_only) {
         ImGui::SameLine();
         if (ImGui::SmallButton("Save & Reload")) {
-          std::string text = editor.GetText();
+          std::string text = editor->GetText();
           SmallBuffer save_sql;
           save_sql.AppendF("UPDATE %s SET contents = ? WHERE name = ?",
                            table_name);
@@ -263,8 +260,8 @@ void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
                                  nullptr) == SQLITE_OK) {
             sqlite3_bind_text(save_stmt, 1, text.c_str(),
                               static_cast<int>(text.size()), SQLITE_STATIC);
-            sqlite3_bind_text(save_stmt, 2, loaded_name.c_str(),
-                              static_cast<int>(loaded_name.size()),
+            sqlite3_bind_text(save_stmt, 2, loaded_name->c_str(),
+                              static_cast<int>(loaded_name->size()),
                               SQLITE_STATIC);
             sqlite3_step(save_stmt);
             sqlite3_finalize(save_stmt);
@@ -272,8 +269,8 @@ void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
           }
         }
       }
-      editor.Render("##code_editor",
-                    ImVec2(0, ImGui::GetContentRegionAvail().y));
+      editor->Render("##code_editor",
+                     ImVec2(0, ImGui::GetContentRegionAvail().y));
     }
   }
   ImGui::EndChild();
@@ -283,12 +280,14 @@ void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
 
 void DebugUI::DrawAssetScriptsTab() {
   DrawCodeEditorTab(this, engine_, "scripts", TextEditor::Language::Lua(),
-                    asset_filter_);
+                    asset_filter_, &asset_editor_, &asset_editor_name_,
+                    &asset_editor_read_only_);
 }
 
 void DebugUI::DrawAssetShadersTab() {
   DrawCodeEditorTab(this, engine_, "shaders", TextEditor::Language::Glsl(),
-                    asset_filter_);
+                    asset_filter_, &asset_editor_, &asset_editor_name_,
+                    &asset_editor_read_only_);
 }
 
 void DebugUI::DrawAssetViewer() {

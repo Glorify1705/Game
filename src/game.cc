@@ -86,12 +86,12 @@ void TakeScreenshotToClipboard(BatchRenderer* batch_renderer,
 // Owns the main loop state and orchestrates per-frame work.
 struct Game {
   Engine* engine;
-  const GameConfig& config;
-  const GameOptions& opts;
-  SdlContext& sdl;
-  HotReloadManager& hot_reload;
+  const GameConfig* config;
+  const GameOptions* opts;
+  SdlContext* sdl;
+  HotReloadManager* hot_reload;
   Allocator* allocator;
-  DebugUI& debug_ui;
+  DebugUI* debug_ui;
 
   Stats stats = {};
   Time last_frame = {};
@@ -103,9 +103,9 @@ struct Game {
   bool first_update_done = false;
   bool running = true;
 
-  Game(Engine* engine_, const GameConfig& config_, const GameOptions& opts_,
-       SdlContext& sdl_, HotReloadManager& hot_reload_, Allocator* allocator_,
-       DebugUI& debug_ui_)
+  Game(Engine* engine_, const GameConfig* config_, const GameOptions* opts_,
+       SdlContext* sdl_, HotReloadManager* hot_reload_, Allocator* allocator_,
+       DebugUI* debug_ui_)
       : engine(engine_),
         config(config_),
         opts(opts_),
@@ -137,7 +137,7 @@ struct Game {
 };
 
 void Game::Run() {
-  SDL_ResumeAudioDevice(sdl.audio_device);
+  SDL_ResumeAudioDevice(sdl->audio_device);
   last_frame = Now();
   constexpr double kStep = TimeStepInSeconds();
   while (running) {
@@ -160,10 +160,10 @@ void Game::Run() {
     {
       PROFILE_SCOPE_N("StartFrame");
       engine->StartFrame();
-      SDL_StartTextInput(sdl.window);
+      SDL_StartTextInput(sdl->window);
     }
     PollEvents();
-    if (opts.test_mode) {
+    if (opts->test_mode) {
       engine->lua.ResumeTestCoroutine();
     }
     // Pause simulation while the window lacks keyboard focus. Rendering and
@@ -173,8 +173,8 @@ void Game::Run() {
     // start unfocused (launched from a terminal) and `draw` commonly
     // depends on state that `update` must set at least once.
     const bool paused =
-        !opts.test_mode && first_update_done &&
-        (SDL_GetWindowFlags(sdl.window) & SDL_WINDOW_INPUT_FOCUS) == 0;
+        !opts->test_mode && first_update_done &&
+        (SDL_GetWindowFlags(sdl->window) & SDL_WINDOW_INPUT_FOCUS) == 0;
     if (paused) accum = 0;
     const Time update_start = Now();
     RunUpdates();
@@ -190,18 +190,18 @@ void Game::Run() {
     PROFILE_COUNTER("Frame Time (ms)", frame_ms);
     PROFILE_COUNTER("Lua Memory (KB)", engine->lua.MemoryUsage() / 1024.0);
     stats.AddSample(frame_ms);
-    debug_ui.AddFrameTimeSample(static_cast<float>(frame_ms));
-    debug_ui.AddLuaMemorySample(
+    debug_ui->AddFrameTimeSample(static_cast<float>(frame_ms));
+    debug_ui->AddLuaMemorySample(
         static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f);
-    debug_ui.AddBreakdownSample(last_breakdown_);
+    debug_ui->AddBreakdownSample(last_breakdown_);
   }
 }
 
 void Game::HandleHotReload() {
-  if (!hot_reload.PendingChanges()) return;
+  if (!hot_reload->PendingChanges()) return;
   PROFILE_SCOPE_N("HotReload");
   TIMER("Hotload requested");
-  auto changes = hot_reload.ConsumePendingChanges();
+  auto changes = hot_reload->ConsumePendingChanges();
   engine->lua.ClearError();
   engine->Reload(changes);
   if (changes.has_script_changes) {
@@ -222,27 +222,27 @@ void Game::PollEvents() {
       return;
     }
     // Forward every event to ImGui before the engine processes it.
-    debug_ui.ProcessEvent(&event);
+    debug_ui->ProcessEvent(&event);
     // Toggle the debug UI with Tab (processed before capture check so
     // Tab always works regardless of ImGui focus state).
     if (event.type == SDL_EVENT_KEY_DOWN &&
         event.key.scancode == SDL_SCANCODE_TAB) {
-      if (config.enable_debug_rendering) {
-        debug_ui.Toggle();
+      if (config->enable_debug_rendering) {
+        debug_ui->Toggle();
       }
     }
     // Debug UI shortcuts (F5/F6/F7).
     if (event.type == SDL_EVENT_KEY_DOWN) {
-      debug_ui.HandleKeyShortcut(event.key.scancode);
+      debug_ui->HandleKeyShortcut(event.key.scancode);
     }
     // Skip game input when ImGui wants to capture it.
-    if (debug_ui.WantCaptureKeyboard() &&
+    if (debug_ui->WantCaptureKeyboard() &&
         (event.type == SDL_EVENT_KEY_DOWN ||
          event.type == SDL_EVENT_KEY_UP ||
          event.type == SDL_EVENT_TEXT_INPUT)) {
       continue;
     }
-    if (debug_ui.WantCaptureMouse() &&
+    if (debug_ui->WantCaptureMouse() &&
         (event.type == SDL_EVENT_MOUSE_MOTION ||
          event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
          event.type == SDL_EVENT_MOUSE_BUTTON_UP ||
@@ -292,7 +292,7 @@ void Game::UpdateTick(double scaled_dt) {
 void Game::RunUpdates() {
   PROFILE_SCOPE_N("Update");
   constexpr double kStep = TimeStepInSeconds();
-  if (opts.test_mode) {
+  if (opts->test_mode) {
     // In test mode, run exactly one update per frame for determinism.
     const double scaled_dt = kStep * engine->lua.TimeScale();
     UpdateTick(scaled_dt);
@@ -355,7 +355,7 @@ void Game::Render() {
   {
     const Time dbgui_start = Now();
     PROFILE_SCOPE_N("DebugUI");
-    debug_ui.BeginFrame();
+    debug_ui->BeginFrame();
     DebugUI::FrameContext ctx;
     ctx.frame_stats = engine->batch_renderer.GetFrameStats();
     ctx.lua_memory_kb =
@@ -364,22 +364,22 @@ void Game::Render() {
     ctx.cmd_buf_used = engine->batch_renderer.GetCommandBufferUsed();
     ctx.cmd_buf_capacity = engine->batch_renderer.GetCommandBufferCapacity();
     ctx.breakdown = last_breakdown_;
-    debug_ui.DrawAll(ctx);
-    debug_ui.EndFrame();
+    debug_ui->DrawAll(ctx);
+    debug_ui->EndFrame();
     last_breakdown_.debug_ui_ms =
         static_cast<float>(ToSeconds(Now() - dbgui_start) * 1000.0);
-    if (debug_ui.ConsumeScreenshotRequest()) {
+    if (debug_ui->ConsumeScreenshotRequest()) {
       screenshot_requested = true;
     }
-    if (debug_ui.ConsumeHotReloadRequest()) {
+    if (debug_ui->ConsumeHotReloadRequest()) {
       engine->lua.RequestHotload();
     }
-    if (debug_ui.ConsumeQuitRequest()) {
+    if (debug_ui->ConsumeQuitRequest()) {
       engine->lua.HandleQuit();
       running = false;
     }
     // Frame stepping: when paused, run one tick then re-pause.
-    if (debug_ui.ConsumeStepRequest()) {
+    if (debug_ui->ConsumeStepRequest()) {
       float saved_ts = engine->lua.TimeScale();
       engine->lua.SetTimeScale(1.0f);
       constexpr double kStepDt = TimeStepInSeconds();
@@ -389,7 +389,7 @@ void Game::Render() {
   }
   {
     PROFILE_SCOPE_N("SwapWindow");
-    SDL_GL_SwapWindow(sdl.window);
+    SDL_GL_SwapWindow(sdl->window);
   }
 }
 
@@ -485,7 +485,7 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   debug_ui.SetEngine(e);
   debug_ui.SetEngineArena(allocator);
   debug_ui.SetWindowCentered(config.centered);
-  Game loop{e, config, opts, sdl, hot_reload, allocator, debug_ui};
+  Game loop{e, &config, &opts, &sdl, &hot_reload, allocator, &debug_ui};
   loop.Run();
   debug_ui.Shutdown();
 

@@ -717,6 +717,13 @@ static ColorTable table;  // Only safe if ColorTable has a trivial destructor
 Do not use `std::unique_ptr`, `std::shared_ptr`, or `std::weak_ptr`. Lifetime
 is managed through allocators, arenas, and explicit cleanup.
 
+### Reference Fields
+
+Do not store references (`T&`) as struct or class members. Use pointers
+(`T*`) instead. References cannot be rebound, make assignment operators
+impossible, and obscure nullability. Pass references as function parameters
+(where they express "non-null, non-owning") but store pointers in fields.
+
 ### Streams for Formatting
 
 Do not use `std::ostringstream`, `std::stringstream`, or iostream-based

@@ -5,6 +5,7 @@
 #include <SDL3/SDL.h>
 
 #include <imgui.h>
+#include <TextEditor.h>
 
 #include "allocators.h"
 #include "circular_buffer.h"
@@ -255,6 +256,13 @@ class DebugUI {
   bool repl_scroll_to_bottom_ = false;
   enum ReplLang { kLua, kFennel };
   ReplLang repl_lang_ = kLua;
+  TextEditor repl_editor_;
+  bool repl_editor_init_ = false;
+
+  // Script/shader editor state.
+  TextEditor asset_editor_;
+  std::string asset_editor_name_;
+  bool asset_editor_read_only_ = true;
 
   // ImGui callback for REPL history Up/Down navigation.
   static int ReplHistoryCallback(ImGuiInputTextCallbackData* data);
