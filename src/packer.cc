@@ -620,7 +620,8 @@ class DbPacker {
         {".vert", &DbPacker::InsertShader, "shader"},
         {".frag", &DbPacker::InsertShader, "shader"},
         {".json", &DbPacker::InsertTextFile, "text"},
-        {".txt", &DbPacker::InsertTextFile, "text"}};
+        {".txt", &DbPacker::InsertTextFile, "text"},
+        {".proto", &DbPacker::InsertTextFile, "proto"}};
 
     FixedStringBuffer<kMaxPathLength> path(directory, "/", filename);
 

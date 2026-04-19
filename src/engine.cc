@@ -87,7 +87,7 @@ void Engine::Initialize() {
   AddSystemLibrary(&lua);
   AddAssetsLibrary(&lua);
   AddCollisionLibrary(&lua);
-  AddDataLibrary(&lua);
+  AddDataLibrary(&lua, assets);
   AddNetworkLibrary(&lua);
   AddJsonLibrary(&lua);
   AddTestLibrary(&lua);

@@ -62,17 +62,32 @@ const struct LuaApiFunction kDataLib[] = {
      {{"proto_text", "protobuf schema definition", "string"}},
      {{"ok", "true if schema loaded successfully", "boolean"}},
      [](lua_State* state) {
-       // protoc:load(text)
+       // Lazy-load protoc on first use.
        lua_getglobal(state, "pb");
        lua_getfield(state, -1, "_protoc");
-       lua_remove(state, -2);
        if (lua_isnil(state, -1)) {
-         return luaL_error(state, "protoc not loaded");
+         lua_pop(state, 1);  // pop nil
+         // require("protoc").new()
+         lua_getglobal(state, "require");
+         lua_pushstring(state, "protoc");
+         if (lua_pcall(state, 1, 1, 0) != 0) {
+           return luaL_error(state, "failed to load protoc.lua: %s",
+                             lua_tostring(state, -1));
+         }
+         lua_getfield(state, -1, "new");
+         lua_call(state, 0, 1);
+         // Store in pb._protoc for future calls.
+         lua_pushvalue(state, -1);
+         lua_setfield(state, -4, "_protoc");  // pb._protoc = instance
+         lua_remove(state, -2);  // remove protoc module
        }
+       // Stack: pb, protoc_instance
        lua_getfield(state, -1, "load");
-       lua_pushvalue(state, -2);  // self (protoc instance)
+       lua_pushvalue(state, -2);  // self
        lua_pushvalue(state, 1);   // proto text
        int status = lua_pcall(state, 2, 1, 0);
+       lua_remove(state, -2);  // remove protoc instance
+       lua_remove(state, -2);  // remove pb
        if (status != 0) {
          return luaL_error(state, "load_schema failed: %s",
                            lua_tostring(state, -1));
@@ -106,10 +121,12 @@ const struct LuaApiFunction kDataLib[] = {
 
 }  // namespace
 
-void AddDataLibrary(Lua* lua) {
+void AddDataLibrary(Lua* lua, DbAssets* /*db_assets*/) {
+  lua_State* L = lua->state_;
+
   // Open the pb C module as a global 'pb'.
-  luaopen_pb(lua->state_);
-  lua_setglobal(lua->state_, "pb");
+  luaopen_pb(L);
+  lua_setglobal(L, "pb");
 
   // Register G.data library.
   lua->AddLibrary("data", kDataLib);

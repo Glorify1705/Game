@@ -402,7 +402,7 @@ class Lua {
   friend void AddCameraLibrary(Lua* lua);
   friend void AddTimerLibrary(Lua* lua);
   friend void AddTestLibrary(Lua* lua);
-  friend void AddDataLibrary(Lua* lua);
+  friend void AddDataLibrary(Lua* lua, DbAssets* db_assets);
   friend void AddNetworkLibrary(Lua* lua);
 
  private:
