@@ -411,33 +411,33 @@ frame).
   is not actionable). The gap between sum-of-categories and total frame
   time is the idle/VSync component.
 
-### 3. Drop-down console
+### 3. Drop-down Lua/Fennel REPL
 
-Lightweight Lua eval console accessible via backtick (`` ` ``) without
-opening the full debug overlay. Inspired by the Quake/id Tech/Source engine
-console that slides down from the top of the screen.
+A proper interactive REPL accessible via backtick (`` ` ``) without
+opening the full debug overlay. Goes beyond a simple eval console: supports
+multi-line input, maintains state across evaluations, and shows a scrollable
+output history. Closer to a Lua interactive session than a Quake console.
 
-**Architecture change:** The mini HUD and drop-down console must render
-independently of `visible_`. Add `needs_imgui_frame()` returning
-`visible_ || console_visible_ || mini_hud_visible_` and use it in
+**Architecture change:** The REPL and mini HUD must render independently of
+`visible_`. Add `needs_imgui_frame()` returning
+`visible_ || repl_visible_ || mini_hud_visible_` and use it in
 `BeginFrame`, `EndFrame`, `WantCaptureMouse`, `WantCaptureKeyboard`. In
 `DrawAll`, draw independent overlays before the `visible_` gate.
 
 **Implementation sketch:**
 
 - Toggle with backtick. Handle the key event *before* `ProcessEvent()` in
-  `PollEvents()` so ImGui never sees it (prevents the `` ` `` character
-  from appearing in any input field). Also consume the corresponding
-  `SDL_EVENT_TEXT_INPUT`.
+  `PollEvents()` so ImGui never sees it.
 - Full-width window pinned to top of screen, ~40% height, no title bar,
-  semi-transparent dark background (`WindowBg` alpha ~0.9).
-- Shows last ~50 log entries from the shared `log_entries_` ring buffer,
-  color-coded by level.
-- Eval input at bottom with history callback (shared eval history, separate
-  input buffer and history position from the Log Console panel).
-- Auto-focus input when console appears.
-- Factor shared eval+history logic into a private helper used by both
-  `DrawLogConsole` and `DrawDropDownConsole`.
+  semi-transparent dark background.
+- Scrollable output area showing `> input` and results/errors, not the
+  engine log (that's what the Log Console panel is for).
+- Multi-line input with Ctrl+Enter to evaluate (Enter inserts newline).
+  Or Enter to evaluate single-line, Shift+Enter for newline.
+- Command history with Up/Down.
+- Fennel support: detect `(` as first character and route through Fennel
+  compiler before evaluation.
+- Auto-focus input when REPL appears.
 
 ### 4. Mini stats HUD
 
