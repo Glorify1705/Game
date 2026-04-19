@@ -326,15 +326,17 @@ Controls for the standalone collision system (`G.collision`):
 
 | Panel | Status | Notes |
 |-------|--------|-------|
-| Performance | Done | FPS counter, frame time graph (PlotLines), draw call breakdown with flush reasons and redundant skips, Lua memory graph, command buffer fill bar, window size controls (presets + custom). |
+| Performance | Done | FPS counter, frame time graph (PlotLines), draw call breakdown with flush reasons and redundant skips, Lua memory graph, command buffer fill bar. |
 | Log Console | Done | Captures all engine log messages (including startup) via LogSink intercept. Color-coded by level, per-level toggle checkboxes, text filter, auto-scroll, Copy to clipboard. Lua eval input with Up/Down history. |
-| Entity Inspector | Done | Recursive Lua table walker for `G` and `_Game`. Editable numbers (DragFloat), booleans (Checkbox), color tables (`{r,g,b,a}` detected and rendered as ColorEdit3/4). Key filter. |
+| Entity Inspector | Done | Focuses on `_Game` (expanded by default) and user globals, filtering out engine internals. Editable numbers (DragFloat), booleans (Checkbox), vec2 tables (`{x,y}` as DragFloat2), color tables (`{r,g,b,a}` as ColorEdit3/4). Key filter. |
 | Physics | Done | Body/joint/contact counts, editable gravity sliders, solver iteration inputs, scrollable body table (type, position, velocity, angle, mass). |
 | Audio | Done | Global volume slider, stream slot progress bar, active streams table (name, status, volume, pitch, pan, loop, type). |
 | Memory | Done | Engine arena and frame allocator progress bars, Lua heap sparkline, string table stats. |
 | Renderer | Done | Batch stats table, flush reason breakdown, redundant skip counts, command buffer bar, loaded image list, shader program enumeration, current blend mode/shader/viewport readout. |
 | Camera | Done | Position, zoom, rotation display. Follow target with lerp. Deadzone status. World bounds. Shake state. |
 | Asset Viewer | Done | Tabbed (Images, Sprites, Audio, Scripts, Shaders, Fonts). Image thumbnails via ImGui::Image. Sprite preview cut from spritesheet UVs. Audio Play/Stop preview. Text filter across all tabs. |
+| API Docs | Done | Reads `_Docs` Lua table, shows all engine API functions by library with signatures, docstrings, argument details, return values. Case-insensitive search. |
+| Watch | Done | Evaluates arbitrary Lua expressions each frame via `EvalString`. Compact table with expression, result, remove button. Errors shown in red. |
 | Collision Debug | Deferred | CollisionWorld lives as Lua userdata per-script, not an engine-level instance. Collider state is visible through the Entity Inspector. |
 
 ### Infrastructure
@@ -342,11 +344,12 @@ Controls for the standalone collision system (`G.collision`):
 | Feature | Status | Notes |
 |---------|--------|-------|
 | ImGui vendor | Done | Dear ImGui v1.91.8, SDL3 + OpenGL3 backends, compiled behind `GAME_WITH_IMGUI`. |
-| Menu bar | Done | Panels menu with checkbox toggles, F5 preset cycling, F6 panel picker. Actions menu (Screenshot, Hot Reload, Run GC). Time controls (Play/Pause + 0-4x slider) inline. FPS readout on the right. |
+| Menu bar | Done | Panels menu with checkbox toggles, F5 preset cycling, F6 panel picker. Actions menu (Screenshot, Hot Reload, Run GC, Quit). Window menu (resolution presets). Inline controls: Quit, Pause/Play, Step, timescale slider, Center, Drag-to-move. FPS readout on the right. |
 | Compile-time guard | Done | All code behind `#ifdef GAME_WITH_IMGUI` with matching no-op stub class. |
 | Allocator integration | Done | ImGui allocations routed through SystemAllocator. |
 | Input routing | Done | SDL events forwarded to ImGui; WantCaptureMouse/Keyboard gates game input. |
 | Engine integration | Done | Single `SetEngine(Engine*)` call. `DrawAll(FrameContext)` dispatches to enabled panels. |
+| Lua helpers | Done | File-local abstractions: `LuaStackGuard` (RAII stack restore), `LuaGetString`, `LuaSetNumber`, `LuaPushGlobalTable`, `LuaTableForEach`, `LuaArrayForEach`, `FormatLuaValue`/`FormatLuaKey` (StringBuffer), `FormatLuaSignature`, `CheckVec2Table`, `CheckColorTable`. |
 
 ## Proposed improvements (v1)
 
@@ -371,11 +374,18 @@ Items from the original design, now mostly done:
 
 ## v2 proposals
 
-Four new features inspired by game engine debug UIs (Quake/id Tech console,
+Features inspired by game engine debug UIs (Quake/id Tech console,
 Minecraft F3, Unity inspector, Unreal stat unit, Jonathan Blow's Jai/Witness
 debug tools).
 
-### 1. Frame time breakdown bars
+### ~~1. Watch panel~~ — Done
+
+Implemented as a Lua expression evaluator rather than a path resolver.
+Expressions are evaluated via `EvalString` each frame, supporting arbitrary
+Lua: `_Game.player.x`, `#_Game.enemies`, `math.floor(score / 10)`, etc.
+Errors shown inline in red. Up to 32 simultaneous watches.
+
+### 2. Frame time breakdown bars
 
 Show a stacked horizontal bar in the Performance panel breaking down where
 frame time is spent. Answers "why is this frame slow?" at a glance.
@@ -400,25 +410,6 @@ frame).
 - SwapWindow time is intentionally excluded (VSync idle would dominate and
   is not actionable). The gap between sum-of-categories and total frame
   time is the idle/VSync component.
-
-### 2. Variable watch / pin panel
-
-Persistent panel where users type Lua variable paths (e.g.
-`_Game.player.pos.x`, `G.physics.gravity`) and see live values each frame.
-
-**Implementation sketch:**
-
-- New panel: `kPanelWatch = 1 << 10`, added to `kPanelAll`.
-- Fixed array of 32 `WatchEntry` structs (`char path[128]`, `bool active`).
-  No allocator needed (~4 KB static).
-- File-local `ResolveLuaPath(lua_State*, const char*)`: splits path on `.`,
-  walks with `lua_getglobal` then `lua_getfield`, returns value on stack.
-  Cleanup with `lua_settop(L, top)`.
-- Table display: Path | Type | Value. Text input to add, X button to
-  remove. Reuse `FormatLuaValue()` for display.
-- Skip resolution when `engine->lua.HasError()` (show "Error" for all).
-- Stretch: add a "Watch" button in the Entity Inspector next to each key
-  that pins the full dotted path.
 
 ### 3. Drop-down console
 
@@ -466,6 +457,90 @@ F3 screen or Source engine's `net_graph`.
 - Uses the `needs_imgui_frame()` mechanism from Feature 3 to render
   independently of the full overlay.
 - Shares the architecture change with the drop-down console.
+
+### 5. Hot zones profiler
+
+Live profiling panel showing the hottest code sections ranked by time, with
+running statistics (avg, p50, p90, p99). Inspired by Unreal's `stat`
+commands and Jonathan Blow's profiler visualizations.
+
+**Separate from the existing Profiler**, which is designed for offline
+Chrome Tracing export. This is a lightweight live system.
+
+**C++ API — `ZONE(name)` macro:**
+
+New RAII guard similar to `PROFILE_SCOPE_N` but feeds into a live `ZoneStats`
+table instead of the profiler ring buffer. Measures wall time of the scoped
+block and records it.
+
+```cpp
+void Game::RunUpdates() {
+  ZONE("Update");
+  // ...
+  {
+    ZONE("Physics::Update");
+    engine->physics.Update(scaled_dt);
+  }
+}
+```
+
+**Lua API — `G.system.zone(name, fn)`:**
+
+Wraps a Lua function call with zone timing. The function is called
+immediately; its wall time is recorded under the given zone name.
+
+```lua
+function Game.update(t, dt)
+  G.system.zone("ai", function() update_ai(dt) end)
+  G.system.zone("spawner", function() run_spawner(dt) end)
+end
+```
+
+Or in Fennel: `(G.system.zone :ai (fn [] (update-ai dt)))`
+
+**ZoneStats class (`src/zone_stats.h`):**
+
+- Fixed-capacity flat array mapping zone name (`std::string_view`, must be
+  static/literal) to a `Stats` instance. No STL containers.
+- Linear scan for lookup — zone count is small (~20-50 max).
+- `Record(std::string_view name, double ms)` — finds or creates zone,
+  calls `Stats::AddSample`.
+- `Reset()` — clears all zones.
+- Thread-safe: not needed (all zones recorded on main thread).
+- Global singleton accessed via `GetZoneStats()`.
+
+**ZONE macro implementation:**
+
+```cpp
+struct ZoneGuard {
+  std::string_view name;
+  Time start;
+  ZoneGuard(std::string_view n) : name(n), start(Now()) {}
+  ~ZoneGuard() {
+    double ms = ToSeconds(Now() - start) * 1000.0;
+    GetZoneStats()->Record(name, ms);
+  }
+};
+#define ZONE(name) ZoneGuard INTERNAL_ID(zone)(name)
+```
+
+**Debug UI panel — "Hot Zones":**
+
+- New panel `kPanelZones`.
+- Table with columns: Zone | Calls | Avg (ms) | p50 | p90 | p99 | Max.
+- Sorted by average time descending (hottest first).
+- Color-coded rows: green (<1ms), yellow (1-5ms), red (>5ms).
+- "Reset" button to clear all stats.
+- Updates live each frame from `GetZoneStats()`.
+
+**Coexistence with Profiler:**
+
+`ZONE` and `PROFILE_SCOPE_N` serve different purposes and can coexist:
+- `PROFILE_SCOPE_N` → offline trace export (Chrome Tracing JSON)
+- `ZONE` → live in-engine stats display
+
+A call site can use both if desired. The `ZONE` macro has minimal overhead
+(two clock reads + one hash lookup per scope).
 
 ## Style
 
