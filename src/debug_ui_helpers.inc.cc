@@ -69,9 +69,10 @@ ImVec4 RatioColor(float ratio) {
 
 // Draws a labeled progress bar with used/total formatted as bytes.
 void DrawMemoryBar(const char* label, size_t used, size_t total) {
-  float ratio = (total > 0)
-                    ? static_cast<float>(used) / static_cast<float>(total)
-                    : 0.0f;
+  float ratio = 0.0f;
+  if (total > 0) {
+    ratio = static_cast<float>(used) / static_cast<float>(total);
+  }
   if (ratio > 1.0f) ratio = 1.0f;
   SmallBuffer used_str, total_str;
   FormatBytes(&used_str, used);

@@ -20,9 +20,10 @@ void DebugUI::DrawAudioPanel() {
   size_t used = sound->stream_count();
   size_t total = sound->max_streams();
   ImGui::Text("Stream Slots: %zu / %zu", used, total);
-  float slot_ratio = (total > 0)
-                         ? static_cast<float>(used) / static_cast<float>(total)
-                         : 0.0f;
+  float slot_ratio = 0.0f;
+  if (total > 0) {
+    slot_ratio = static_cast<float>(used) / static_cast<float>(total);
+  }
   ImGui::ProgressBar(slot_ratio, ImVec2(-1, 0));
   ImGui::Separator();
 

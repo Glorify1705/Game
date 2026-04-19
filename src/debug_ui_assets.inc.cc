@@ -13,9 +13,10 @@ void DebugUI::DrawAssetImagesTab() {
       GLuint tex = renderer->GetTextureByName(img.name);
       if (tex != 0) {
         float max_w = ImGui::GetContentRegionAvail().x;
-        float scale = (static_cast<float>(img.width) > max_w)
-                          ? max_w / static_cast<float>(img.width)
-                          : 1.0f;
+        float scale = 1.0f;
+        if (static_cast<float>(img.width) > max_w) {
+          scale = max_w / static_cast<float>(img.width);
+        }
         ImGui::Image(
             static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
             ImVec2(static_cast<float>(img.width) * scale,

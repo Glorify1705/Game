@@ -118,10 +118,10 @@ int DebugUI::EvalHistoryCallback(ImGuiInputTextCallbackData* data) {
       }
     }
   }
-  const char* text = (ui->eval_history_pos_ >= 0)
-                         ? ui->eval_history_entries_[ui->eval_history_pos_ %
-                                                     kEvalHistoryMax]
-                         : "";
+  const char* text = "";
+  if (ui->eval_history_pos_ >= 0) {
+    text = ui->eval_history_entries_[ui->eval_history_pos_ % kEvalHistoryMax];
+  }
   data->DeleteChars(0, data->BufTextLen);
   data->InsertChars(0, text);
   return 0;
@@ -378,10 +378,11 @@ void DebugUI::DrawTextureZoom() {
     if (ImGui::Button("Fit")) {
       float avail_w = ImGui::GetContentRegionAvail().x;
       float avail_h = ImGui::GetContentRegionAvail().y;
-      zoom_level_ =
-          (zoom_tex_w_ > 0 && zoom_tex_h_ > 0)
-              ? fmin(avail_w / zoom_tex_w_, avail_h / zoom_tex_h_)
-              : 1.0f;
+      if (zoom_tex_w_ > 0 && zoom_tex_h_ > 0) {
+        zoom_level_ = fmin(avail_w / zoom_tex_w_, avail_h / zoom_tex_h_);
+      } else {
+        zoom_level_ = 1.0f;
+      }
     }
     if (ImGui::BeginChild("ZoomRegion", ImVec2(0, 0), false,
                           ImGuiWindowFlags_HorizontalScrollbar)) {
