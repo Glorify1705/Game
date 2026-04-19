@@ -144,6 +144,14 @@ class DebugUI {
   void DrawPhysicsPanel();
   // Draws the asset viewer with tabbed image, sprite, audio, script views.
   void DrawAssetViewer();
+  void DrawAssetImagesTab();
+  void DrawAssetSpritesTab();
+  void DrawAssetAudioTab();
+  void DrawAssetDbTab(const char* label, const char* sql);
+  // Draws the REPL input and output area (embedded in Watch panel).
+  void DrawRepl();
+  // Returns true if a log entry passes the current level and text filters.
+  bool ShouldShowLogEntry(const LogEntry& entry) const;
   // Draws the API docs browser with search.
   void DrawDocsPanel();
   // Draws the variable watch panel with live Lua path resolution.

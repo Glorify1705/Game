@@ -127,15 +127,21 @@ void PlotCircularBuffer(const char* label, CircularBuffer<float>* buf,
     if (v < min_val) min_val = v;
     if (v > max_val) max_val = v;
   }
-  char overlay[80];
-  snprintf(overlay, sizeof(overlay), "%.1f %s (min %.1f  avg %.1f  max %.1f)",
-           static_cast<double>(values[count - 1]), unit,
-           static_cast<double>(min_val),
-           static_cast<double>(sum / static_cast<float>(count)),
-           static_cast<double>(max_val));
+  SmallBuffer overlay;
+  overlay.AppendF("%.1f %s (min %.1f  avg %.1f  max %.1f)",
+                  static_cast<double>(values[count - 1]), unit,
+                  static_cast<double>(min_val),
+                  static_cast<double>(sum / static_cast<float>(count)),
+                  static_cast<double>(max_val));
   ImGui::PlotLines(label, values, static_cast<int>(count),
-                   /*values_offset=*/0, overlay, /*scale_min=*/0.0f,
+                   /*values_offset=*/0, overlay.str(), /*scale_min=*/0.0f,
                    /*scale_max=*/max_val * 1.5f, size);
+}
+
+// Returns true if name contains the filter substring (or filter is empty).
+bool MatchesFilter(std::string_view name, const char* filter) {
+  if (filter[0] == '\0') return true;
+  return name.find(filter) != std::string_view::npos;
 }
 
 // Converts a Lua stack index to an absolute index (Lua 5.1 compat).
@@ -808,6 +814,13 @@ void DebugUI::DrawPerformancePanel(const FrameContext& ctx) {
   ImGui::End();
 }
 
+bool DebugUI::ShouldShowLogEntry(const LogEntry& entry) const {
+  int level_idx = static_cast<int>(entry.level);
+  if (level_idx < 0 || level_idx > 5) return false;
+  if (!log_level_filter_[level_idx]) return false;
+  return MatchesFilter(entry.text, log_text_filter_);
+}
+
 void DebugUI::DrawLogConsole() {
   ImGui::SetNextWindowPos(ImVec2(10, 440), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(600, 400), ImGuiCond_FirstUseEver);
@@ -823,20 +836,13 @@ void DebugUI::DrawLogConsole() {
   }
   ImGui::SameLine();
   if (ImGui::Button("Copy")) {
-    bool has_filter = log_text_filter_[0] != '\0';
     enum { kClipBufSize = 64 * 1024 };
     char clip[kClipBufSize];
     size_t pos = 0;
     size_t count = log_entries_->size();
     for (size_t i = 0; i < count && pos < kClipBufSize - 1; ++i) {
       const LogEntry& entry = (*log_entries_)[i];
-      int level_idx = static_cast<int>(entry.level);
-      if (level_idx < 0 || level_idx > 5) continue;
-      if (!log_level_filter_[level_idx]) continue;
-      if (has_filter && std::string_view(entry.text).find(log_text_filter_) ==
-              std::string_view::npos) {
-        continue;
-      }
+      if (!ShouldShowLogEntry(entry)) continue;
       size_t len = strlen(entry.text);
       if (pos + len + 1 >= kClipBufSize) break;
       memcpy(clip + pos, entry.text, len);
@@ -851,7 +857,8 @@ void DebugUI::DrawLogConsole() {
     const char* write_dir = PHYSFS_getWriteDir();
     if (write_dir != nullptr) {
       CmdBuffer dir(write_dir, "logs");
-      (void)MakeDirs(dir.str());
+      auto mkdir_result = MakeDirs(dir.str());
+      if (mkdir_result.is_error()) return;
       CmdBuffer path(dir.str(), "/log_",
                      static_cast<uint64_t>(SDL_GetTicks()), ".txt");
       FILE* f = fopen(path.str(), "w");
@@ -890,18 +897,10 @@ void DebugUI::DrawLogConsole() {
       ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
   if (ImGui::BeginChild("LogScrollRegion", ImVec2(0, -footer_height), false,
                         ImGuiWindowFlags_HorizontalScrollbar)) {
-    bool has_text_filter = log_text_filter_[0] != '\0';
     size_t count = log_entries_->size();
     for (size_t i = 0; i < count; ++i) {
       const LogEntry& entry = (*log_entries_)[i];
-      int level_idx = static_cast<int>(entry.level);
-      if (level_idx < 0 || level_idx > 5) continue;
-      if (!log_level_filter_[level_idx]) continue;
-      if (has_text_filter &&
-          std::string_view(entry.text).find(log_text_filter_) ==
-              std::string_view::npos) {
-        continue;
-      }
+      if (!ShouldShowLogEntry(entry)) continue;
       ImGui::PushStyleColor(ImGuiCol_Text, LogLevelColor(entry.level));
       ImGui::TextUnformatted(entry.text);
       ImGui::PopStyleColor();
@@ -933,8 +932,8 @@ void DebugUI::DrawLogConsole() {
                                                  kEvalHistoryMax]) !=
               eval_input_) {
         int idx = eval_history_count_ % kEvalHistoryMax;
-        snprintf(eval_history_entries_[idx], kEvalInputSize, "%s",
-                 eval_input_);
+        strncpy(eval_history_entries_[idx], eval_input_, kEvalInputSize - 1);
+        eval_history_entries_[idx][kEvalInputSize - 1] = '\0';
         eval_history_count_++;
       }
       eval_history_pos_ = -1;
@@ -1569,12 +1568,11 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
     if (frame_times_ != nullptr && frame_times_->size() > 0) {
       float last_ms = (*frame_times_)[frame_times_->size() - 1];
       float fps = (last_ms > 0.0f) ? 1000.0f / last_ms : 0.0f;
-      char fps_text[32];
-      snprintf(fps_text, sizeof(fps_text), "%.0f FPS",
-               static_cast<double>(fps));
-      float text_width = ImGui::CalcTextSize(fps_text).x;
+      SmallBuffer fps_text;
+      fps_text.AppendF("%.0f FPS", static_cast<double>(fps));
+      float text_width = ImGui::CalcTextSize(fps_text.str()).x;
       ImGui::SameLine(ImGui::GetWindowWidth() - text_width - 10);
-      ImGui::Text("%s", fps_text);
+      ImGui::TextUnformatted(fps_text.str());
     }
     ImGui::EndMainMenuBar();
   }
@@ -1885,8 +1883,8 @@ void DebugUI::DrawWatchPanel() {
   ImGui::SameLine();
   if (ImGui::Button("Add") || add) {
     if (watch_input_[0] != '\0' && watch_count_ < (int)kMaxWatches) {
-      snprintf(watches_[watch_count_].path, kWatchPathSize, "%s",
-               watch_input_);
+      strncpy(watches_[watch_count_].path, watch_input_, kWatchPathSize - 1);
+      watches_[watch_count_].path[kWatchPathSize - 1] = '\0';
       ++watch_count_;
       watch_input_[0] = '\0';
     }
@@ -1943,8 +1941,12 @@ void DebugUI::DrawWatchPanel() {
   }
 
   ImGui::Separator();
+  DrawRepl();
 
-  // REPL section.
+  ImGui::End();
+}
+
+void DebugUI::DrawRepl() {
   ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "REPL");
   ImGui::SameLine();
   if (ImGui::SmallButton(repl_lang_ == kFennel ? "Fennel" : "Lua")) {
@@ -1956,7 +1958,8 @@ void DebugUI::DrawWatchPanel() {
   }
 
   // Scrollable output.
-  float footer = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
+  float footer =
+      ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
   if (ImGui::BeginChild("##repl_output", ImVec2(0, -footer), false,
                         ImGuiWindowFlags_HorizontalScrollbar)) {
     size_t count = repl_entries_->size();
@@ -1964,15 +1967,11 @@ void DebugUI::DrawWatchPanel() {
       const auto& entry = (*repl_entries_)[i];
       if (entry.is_input) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-        ImGui::TextUnformatted(entry.text);
-        ImGui::PopStyleColor();
       } else if (entry.is_error) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
-        ImGui::TextUnformatted(entry.text);
-        ImGui::PopStyleColor();
-      } else {
-        ImGui::TextUnformatted(entry.text);
       }
+      ImGui::TextUnformatted(entry.text);
+      if (entry.is_input || entry.is_error) ImGui::PopStyleColor();
     }
     if (repl_scroll_to_bottom_) {
       ImGui::SetScrollHereY(1.0f);
@@ -1981,7 +1980,7 @@ void DebugUI::DrawWatchPanel() {
   }
   ImGui::EndChild();
 
-  // REPL input.
+  // Input.
   bool reclaim_focus = false;
   ImGuiInputTextFlags input_flags =
       ImGuiInputTextFlags_EnterReturnsTrue |
@@ -1991,12 +1990,14 @@ void DebugUI::DrawWatchPanel() {
   if (ImGui::InputText("##repl_eval", repl_input_, kEvalInputSize,
                        input_flags, ReplHistoryCallback, this)) {
     if (repl_input_[0] != '\0' && engine_ != nullptr) {
-      // Add input echo.
+      // Echo input.
       ReplEntry input_entry;
       input_entry.is_input = true;
       input_entry.is_error = false;
-      snprintf(input_entry.text, sizeof(input_entry.text), "> %s",
-               repl_input_);
+      FixedStringBuffer<kMaxLogLineLength> echo(kTruncating);
+      echo.Append("> ", repl_input_);
+      strncpy(input_entry.text, echo.str(), sizeof(input_entry.text) - 1);
+      input_entry.text[sizeof(input_entry.text) - 1] = '\0';
       repl_entries_->Push(input_entry);
 
       // Add to shared eval history (skip consecutive duplicates).
@@ -2005,8 +2006,8 @@ void DebugUI::DrawWatchPanel() {
                                                  kEvalHistoryMax]) !=
               repl_input_) {
         int idx = eval_history_count_ % kEvalHistoryMax;
-        snprintf(eval_history_entries_[idx], kEvalInputSize, "%s",
-                 repl_input_);
+        strncpy(eval_history_entries_[idx], repl_input_, kEvalInputSize - 1);
+        eval_history_entries_[idx][kEvalInputSize - 1] = '\0';
         eval_history_count_++;
       }
       eval_history_pos_ = -1;
@@ -2024,12 +2025,16 @@ void DebugUI::DrawWatchPanel() {
       } else {
         ok = engine_->lua.EvalString(repl_input_, &result);
       }
-      if (result.view().size() > 0) {
+      if (!result.view().empty()) {
         ReplEntry result_entry;
         result_entry.is_input = false;
         result_entry.is_error = !ok;
-        snprintf(result_entry.text, sizeof(result_entry.text), "%s%s",
-                 ok ? "=> " : "", result.str());
+        FixedStringBuffer<kMaxLogLineLength> formatted(kTruncating);
+        if (ok) formatted.Append("=> ");
+        formatted.Append(result.view());
+        strncpy(result_entry.text, formatted.str(),
+                sizeof(result_entry.text) - 1);
+        result_entry.text[sizeof(result_entry.text) - 1] = '\0';
         repl_entries_->Push(result_entry);
       }
       repl_input_[0] = '\0';
@@ -2038,8 +2043,186 @@ void DebugUI::DrawWatchPanel() {
     reclaim_focus = true;
   }
   if (reclaim_focus) ImGui::SetKeyboardFocusHere(-1);
+}
 
-  ImGui::End();
+void DebugUI::DrawAssetImagesTab() {
+  Renderer* renderer = &engine_->renderer;
+  auto images = renderer->GetImages();
+  for (size_t i = 0; i < images.size(); ++i) {
+    const auto& img = images[i];
+    if (!MatchesFilter(img.name.data(), asset_filter_)) continue;
+    ImGui::PushID(static_cast<int>(i));
+    if (ImGui::TreeNode("##img", "%.*s (%zux%zu)",
+                        static_cast<int>(img.name.size()), img.name.data(),
+                        img.width, img.height)) {
+      GLuint tex = renderer->GetTextureByName(img.name);
+      if (tex != 0) {
+        float max_w = ImGui::GetContentRegionAvail().x;
+        float scale = (static_cast<float>(img.width) > max_w)
+                          ? max_w / static_cast<float>(img.width)
+                          : 1.0f;
+        ImGui::Image(
+            static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
+            ImVec2(static_cast<float>(img.width) * scale,
+                   static_cast<float>(img.height) * scale),
+            ImVec2(0, 1), ImVec2(1, 0));
+        if (ImGui::SmallButton("Zoom")) {
+          zoom_texture_ = tex;
+          zoom_tex_w_ = static_cast<float>(img.width);
+          zoom_tex_h_ = static_cast<float>(img.height);
+          zoom_level_ = 1.0f;
+          if (zoom_pixels_ != nullptr) {
+            allocator_->Dealloc(zoom_pixels_, zoom_pixels_size_);
+          }
+          zoom_pixels_size_ = img.width * img.height * 4;
+          zoom_pixels_ = static_cast<uint8_t*>(
+              allocator_->Alloc(zoom_pixels_size_, /*align=*/1));
+          glBindTexture(GL_TEXTURE_2D, tex);
+          glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                        zoom_pixels_);
+          glBindTexture(GL_TEXTURE_2D, 0);
+        }
+      }
+      ImGui::TreePop();
+    }
+    ImGui::PopID();
+  }
+}
+
+void DebugUI::DrawAssetSpritesTab() {
+  Renderer* renderer = &engine_->renderer;
+  auto sprites = renderer->GetSprites();
+  for (size_t i = 0; i < sprites.size(); ++i) {
+    const auto& spr = sprites[i];
+    if (!MatchesFilter(spr.name.data(), asset_filter_)) continue;
+    ImGui::PushID(static_cast<int>(i));
+    auto* sheet = renderer->GetSpritesheet(spr.spritesheet);
+    if (sheet != nullptr) {
+      if (ImGui::TreeNode("##spr", "%.*s (%zux%zu)",
+                          static_cast<int>(spr.name.size()),
+                          spr.name.data(), spr.width, spr.height)) {
+        GLuint tex = renderer->GetTextureByName(sheet->name);
+        if (tex != 0 && sheet->width > 0 && sheet->height > 0) {
+          float u0 = static_cast<float>(spr.x) /
+                     static_cast<float>(sheet->width);
+          float v0 = static_cast<float>(spr.y) /
+                     static_cast<float>(sheet->height);
+          float u1 = static_cast<float>(spr.x + spr.width) /
+                     static_cast<float>(sheet->width);
+          float v1 = static_cast<float>(spr.y + spr.height) /
+                     static_cast<float>(sheet->height);
+          float display_w = static_cast<float>(spr.width);
+          float display_h = static_cast<float>(spr.height);
+          if (display_w < 64) {
+            float s = 64.0f / display_w;
+            display_w *= s;
+            display_h *= s;
+          }
+          ImGui::Image(
+              static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
+              ImVec2(display_w, display_h), ImVec2(u0, v1),
+              ImVec2(u1, v0));
+        }
+        ImGui::Text("Sheet: %.*s  Pos: %zu,%zu",
+                    static_cast<int>(spr.spritesheet.size()),
+                    spr.spritesheet.data(), spr.x, spr.y);
+        ImGui::TreePop();
+      }
+    }
+    ImGui::PopID();
+  }
+}
+
+void DebugUI::DrawAssetAudioTab() {
+  Sound* sound = &engine_->sound;
+  sqlite3* db = engine_->db;
+  sqlite3_stmt* stmt = nullptr;
+  const char* sql =
+      "SELECT name, channels, samplerate, samples, length(contents) "
+      "FROM audios ORDER BY name";
+  if (db == nullptr ||
+      sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return;
+  }
+  if (ImGui::BeginTable("AudioTable", 5,
+                        ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                            ImGuiTableFlags_ScrollY,
+                        ImVec2(0, 0))) {
+    ImGui::TableSetupColumn("Name");
+    ImGui::TableSetupColumn("Ch", ImGuiTableColumnFlags_WidthFixed, 25);
+    ImGui::TableSetupColumn("Rate", ImGuiTableColumnFlags_WidthFixed, 50);
+    ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 65);
+    ImGui::TableSetupColumn("##play", ImGuiTableColumnFlags_WidthFixed, 40);
+    ImGui::TableHeadersRow();
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+      const char* name = reinterpret_cast<const char*>(
+          sqlite3_column_text(stmt, 0));
+      if (name == nullptr) continue;
+      if (!MatchesFilter(name, asset_filter_)) continue;
+      int channels = sqlite3_column_int(stmt, 1);
+      int samplerate = sqlite3_column_int(stmt, 2);
+      int size_bytes = sqlite3_column_int(stmt, 4);
+      ImGui::TableNextRow();
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(name);
+      ImGui::TableNextColumn();
+      ImGui::Text("%d", channels);
+      ImGui::TableNextColumn();
+      ImGui::Text("%d", samplerate);
+      ImGui::TableNextColumn();
+      SmallBuffer sz;
+      FormatBytes(&sz, static_cast<size_t>(size_bytes));
+      ImGui::TextUnformatted(sz.str());
+      ImGui::TableNextColumn();
+      ImGui::PushID(name);
+      bool is_playing = has_preview_ && preview_name_.view() == name;
+      if (ImGui::SmallButton(is_playing ? "Stop" : "Play")) {
+        if (is_playing) {
+          auto stop = sound->Stop(preview_source_);
+          if (!stop.is_error()) has_preview_ = false;
+          preview_name_.Clear();
+        } else {
+          if (has_preview_) {
+            auto stop = sound->Stop(preview_source_);
+            if (!stop.is_error()) has_preview_ = false;
+          }
+          auto result =
+              sound->AddEffect(name, Sound::Ownership::kAutoFree);
+          if (!result.is_error()) {
+            preview_source_ = result.value();
+            preview_name_.Clear();
+            preview_name_.Append(name);
+            has_preview_ = true;
+            auto start = sound->StartChannel(preview_source_);
+            if (start.is_error()) has_preview_ = false;
+          }
+        }
+      }
+      ImGui::PopID();
+    }
+    ImGui::EndTable();
+  }
+  sqlite3_finalize(stmt);
+}
+
+void DebugUI::DrawAssetDbTab(const char* label, const char* sql) {
+  sqlite3* db = engine_->db;
+  if (db == nullptr || !ImGui::BeginTabItem(label)) return;
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+      const char* name = reinterpret_cast<const char*>(
+          sqlite3_column_text(stmt, 0));
+      int size = sqlite3_column_int(stmt, 1);
+      if (name == nullptr) continue;
+      if (!MatchesFilter(name, asset_filter_)) continue;
+      SmallBuffer sz;
+      FormatBytes(&sz, static_cast<size_t>(size));
+      ImGui::Text("%s  (%s)", name, sz.str());
+    }
+    sqlite3_finalize(stmt);
+  }
+  ImGui::EndTabItem();
 }
 
 void DebugUI::DrawAssetViewer() {
@@ -2056,248 +2239,25 @@ void DebugUI::DrawAssetViewer() {
                            asset_filter_, sizeof(asset_filter_));
   ImGui::Separator();
 
-  bool has_filter = asset_filter_[0] != '\0';
-  Renderer* renderer = &engine_->renderer;
-  Sound* sound = &engine_->sound;
-  sqlite3* db = engine_->db;
-
   if (ImGui::BeginTabBar("AssetTabs")) {
-    // Images tab.
     if (ImGui::BeginTabItem("Images")) {
-      auto images = renderer->GetImages();
-      for (size_t i = 0; i < images.size(); ++i) {
-        const auto& img = images[i];
-        if (has_filter && std::string_view(img.name.data()).find(asset_filter_) ==
-                    std::string_view::npos) {
-          continue;
-        }
-        ImGui::PushID(static_cast<int>(i));
-        if (ImGui::TreeNode("##img", "%.*s (%zux%zu)",
-                            static_cast<int>(img.name.size()), img.name.data(),
-                            img.width, img.height)) {
-          GLuint tex = renderer->GetTextureByName(img.name);
-          if (tex != 0) {
-            float max_w = ImGui::GetContentRegionAvail().x;
-            float scale = (static_cast<float>(img.width) > max_w)
-                              ? max_w / static_cast<float>(img.width)
-                              : 1.0f;
-            ImGui::Image(
-                static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
-                ImVec2(static_cast<float>(img.width) * scale,
-                       static_cast<float>(img.height) * scale),
-                ImVec2(0, 1), ImVec2(1, 0));
-            if (ImGui::SmallButton("Zoom")) {
-              zoom_texture_ = tex;
-              zoom_tex_w_ = static_cast<float>(img.width);
-              zoom_tex_h_ = static_cast<float>(img.height);
-              zoom_level_ = 1.0f;
-              // Read back pixel data for color sampling.
-              if (zoom_pixels_ != nullptr) {
-                allocator_->Dealloc(zoom_pixels_, zoom_pixels_size_);
-              }
-              zoom_pixels_size_ = img.width * img.height * 4;
-              zoom_pixels_ = static_cast<uint8_t*>(
-                  allocator_->Alloc(zoom_pixels_size_, /*align=*/1));
-              glBindTexture(GL_TEXTURE_2D, tex);
-              glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                            zoom_pixels_);
-              glBindTexture(GL_TEXTURE_2D, 0);
-            }
-          }
-          ImGui::TreePop();
-        }
-        ImGui::PopID();
-      }
+      DrawAssetImagesTab();
       ImGui::EndTabItem();
     }
-
-    // Sprites tab.
     if (ImGui::BeginTabItem("Sprites")) {
-      auto sprites = renderer->GetSprites();
-      for (size_t i = 0; i < sprites.size(); ++i) {
-        const auto& spr = sprites[i];
-        if (has_filter && std::string_view(spr.name.data()).find(asset_filter_) ==
-                    std::string_view::npos) {
-          continue;
-        }
-        ImGui::PushID(static_cast<int>(i));
-        auto* sheet = renderer->GetSpritesheet(spr.spritesheet);
-        if (sheet != nullptr) {
-          if (ImGui::TreeNode("##spr", "%.*s (%zux%zu)",
-                              static_cast<int>(spr.name.size()),
-                              spr.name.data(), spr.width, spr.height)) {
-            GLuint tex = renderer->GetTextureByName(sheet->name);
-            if (tex != 0 && sheet->width > 0 && sheet->height > 0) {
-              float u0 = static_cast<float>(spr.x) /
-                         static_cast<float>(sheet->width);
-              float v0 = static_cast<float>(spr.y) /
-                         static_cast<float>(sheet->height);
-              float u1 = static_cast<float>(spr.x + spr.width) /
-                         static_cast<float>(sheet->width);
-              float v1 = static_cast<float>(spr.y + spr.height) /
-                         static_cast<float>(sheet->height);
-              float display_w = static_cast<float>(spr.width);
-              float display_h = static_cast<float>(spr.height);
-              if (display_w < 64) {
-                float s = 64.0f / display_w;
-                display_w *= s;
-                display_h *= s;
-              }
-              ImGui::Image(
-                  static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
-                  ImVec2(display_w, display_h), ImVec2(u0, v1),
-                  ImVec2(u1, v0));
-            }
-            ImGui::Text("Sheet: %.*s  Pos: %zu,%zu",
-                        static_cast<int>(spr.spritesheet.size()),
-                        spr.spritesheet.data(), spr.x, spr.y);
-            ImGui::TreePop();
-          }
-        }
-        ImGui::PopID();
-      }
+      DrawAssetSpritesTab();
       ImGui::EndTabItem();
     }
-
-    // Audio tab.
     if (ImGui::BeginTabItem("Audio")) {
-      sqlite3_stmt* stmt = nullptr;
-      const char* sql =
-          "SELECT name, channels, samplerate, samples, length(contents) "
-          "FROM audios ORDER BY name";
-      if (db != nullptr &&
-          sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
-        if (ImGui::BeginTable("AudioTable", 5,
-                              ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-                                  ImGuiTableFlags_ScrollY,
-                              ImVec2(0, 0))) {
-          ImGui::TableSetupColumn("Name");
-          ImGui::TableSetupColumn("Ch", ImGuiTableColumnFlags_WidthFixed, 25);
-          ImGui::TableSetupColumn("Rate", ImGuiTableColumnFlags_WidthFixed, 50);
-          ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 65);
-          ImGui::TableSetupColumn("##play", ImGuiTableColumnFlags_WidthFixed,
-                                  40);
-          ImGui::TableHeadersRow();
-          while (sqlite3_step(stmt) == SQLITE_ROW) {
-            const char* name = reinterpret_cast<const char*>(
-                sqlite3_column_text(stmt, 0));
-            if (name == nullptr) continue;
-            if (has_filter && std::string_view(name).find(asset_filter_) ==
-                    std::string_view::npos) continue;
-            int channels = sqlite3_column_int(stmt, 1);
-            int samplerate = sqlite3_column_int(stmt, 2);
-            int size_bytes = sqlite3_column_int(stmt, 4);
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(name);
-            ImGui::TableNextColumn();
-            ImGui::Text("%d", channels);
-            ImGui::TableNextColumn();
-            ImGui::Text("%d", samplerate);
-            ImGui::TableNextColumn();
-            SmallBuffer sz;
-            FormatBytes(&sz, static_cast<size_t>(size_bytes));
-            ImGui::TextUnformatted(sz.str());
-            ImGui::TableNextColumn();
-            ImGui::PushID(name);
-            bool is_playing =
-                has_preview_ && preview_name_.view() == name;
-            if (ImGui::SmallButton(is_playing ? "Stop" : "Play")) {
-              if (is_playing) {
-                (void)sound->Stop(preview_source_);
-                has_preview_ = false;
-                preview_name_.Clear();
-              } else {
-                if (has_preview_) (void)sound->Stop(preview_source_);
-                auto result =
-                    sound->AddEffect(name, Sound::Ownership::kAutoFree);
-                if (!result.is_error()) {
-                  preview_source_ = result.value();
-                  preview_name_.Clear();
-                  preview_name_.Append(name);
-                  has_preview_ = true;
-                  (void)sound->StartChannel(preview_source_);
-                }
-              }
-            }
-            ImGui::PopID();
-          }
-          ImGui::EndTable();
-        }
-        sqlite3_finalize(stmt);
-      }
+      DrawAssetAudioTab();
       ImGui::EndTabItem();
     }
-
-    // Scripts tab.
-    if (db != nullptr && ImGui::BeginTabItem("Scripts")) {
-      sqlite3_stmt* stmt = nullptr;
-      const char* sql =
-          "SELECT name, length(contents) FROM scripts ORDER BY name";
-      if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-          const char* name = reinterpret_cast<const char*>(
-              sqlite3_column_text(stmt, 0));
-          int size = sqlite3_column_int(stmt, 1);
-          if (name == nullptr) continue;
-          if (has_filter && std::string_view(name).find(asset_filter_) ==
-                    std::string_view::npos) continue;
-          SmallBuffer sz;
-          FormatBytes(&sz, static_cast<size_t>(size));
-          ImGui::Text("%s  (%s)", name, sz.str());
-        }
-        sqlite3_finalize(stmt);
-      }
-      ImGui::EndTabItem();
-    }
-
-    // Shaders tab.
-    if (db != nullptr && ImGui::BeginTabItem("Shaders")) {
-      sqlite3_stmt* stmt = nullptr;
-      const char* sql =
-          "SELECT name, shader_type, length(contents) FROM shaders "
-          "ORDER BY name";
-      if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-          const char* name = reinterpret_cast<const char*>(
-              sqlite3_column_text(stmt, 0));
-          const char* type = reinterpret_cast<const char*>(
-              sqlite3_column_text(stmt, 1));
-          int size = sqlite3_column_int(stmt, 2);
-          if (name == nullptr) continue;
-          if (has_filter && std::string_view(name).find(asset_filter_) ==
-                    std::string_view::npos) continue;
-          SmallBuffer sz;
-          FormatBytes(&sz, static_cast<size_t>(size));
-          ImGui::Text("%s  [%s]  (%s)", name, type ? type : "?", sz.str());
-        }
-        sqlite3_finalize(stmt);
-      }
-      ImGui::EndTabItem();
-    }
-
-    // Fonts tab.
-    if (db != nullptr && ImGui::BeginTabItem("Fonts")) {
-      sqlite3_stmt* stmt = nullptr;
-      const char* sql =
-          "SELECT name, length(contents) FROM fonts ORDER BY name";
-      if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-          const char* name = reinterpret_cast<const char*>(
-              sqlite3_column_text(stmt, 0));
-          int size = sqlite3_column_int(stmt, 1);
-          if (name == nullptr) continue;
-          if (has_filter && std::string_view(name).find(asset_filter_) ==
-                    std::string_view::npos) continue;
-          SmallBuffer sz;
-          FormatBytes(&sz, static_cast<size_t>(size));
-          ImGui::Text("%s  (%s)", name, sz.str());
-        }
-        sqlite3_finalize(stmt);
-      }
-      ImGui::EndTabItem();
-    }
-
+    DrawAssetDbTab("Scripts",
+                   "SELECT name, length(contents) FROM scripts ORDER BY name");
+    DrawAssetDbTab("Shaders",
+                   "SELECT name, length(contents) FROM shaders ORDER BY name");
+    DrawAssetDbTab("Fonts",
+                   "SELECT name, length(contents) FROM fonts ORDER BY name");
     ImGui::EndTabBar();
   }
   ImGui::End();
