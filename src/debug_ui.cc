@@ -320,6 +320,35 @@ int CheckColorTable(lua_State* L, int idx, float* color) {
   return has_alpha ? 4 : 3;
 }
 
+// Compiles a Fennel string to Lua source using _fennel.compileString.
+// Returns true with compiled Lua in output, false with error in output.
+bool CompileFennel(lua_State* L, std::string_view code, StringBuffer* output) {
+  int top = lua_gettop(L);
+  lua_getglobal(L, "_fennel");
+  if (!lua_istable(L, -1)) {
+    lua_settop(L, top);
+    output->Append("Fennel compiler not loaded");
+    return false;
+  }
+  lua_getfield(L, -1, "compileString");
+  if (!lua_isfunction(L, -1)) {
+    lua_settop(L, top);
+    output->Append("_fennel.compileString not found");
+    return false;
+  }
+  lua_pushlstring(L, code.data(), code.size());
+  if (lua_pcall(L, 1, 1, 0) != 0) {
+    if (lua_isstring(L, -1)) output->Append(lua_tostring(L, -1));
+    lua_settop(L, top);
+    return false;
+  }
+  if (lua_isstring(L, -1)) {
+    output->Append(lua_tostring(L, -1));
+  }
+  lua_settop(L, top);
+  return true;
+}
+
 // Checks if a Lua table looks like a vec2 ({x, y} with both numbers).
 // Returns true and fills xy[2] if so.
 bool CheckVec2Table(lua_State* L, int idx, float* xy) {
@@ -1867,6 +1896,10 @@ void DebugUI::DrawWatchPanel() {
   // REPL section.
   ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "REPL");
   ImGui::SameLine();
+  if (ImGui::SmallButton(repl_fennel_ ? "Fennel" : "Lua")) {
+    repl_fennel_ = !repl_fennel_;
+  }
+  ImGui::SameLine();
   if (ImGui::SmallButton("Clear")) {
     while (!repl_entries_->empty()) repl_entries_->Pop();
   }
@@ -1927,9 +1960,19 @@ void DebugUI::DrawWatchPanel() {
       }
       eval_history_pos_ = -1;
 
-      // Evaluate.
+      // Evaluate (compile Fennel to Lua first if in Fennel mode).
       FixedStringBuffer<kMaxLogLineLength> result(kTruncating);
-      bool ok = engine_->lua.EvalString(repl_input_, &result);
+      bool ok = false;
+      if (repl_fennel_) {
+        FixedStringBuffer<kMaxLogLineLength> compiled(kTruncating);
+        if (CompileFennel(engine_->lua.state(), repl_input_, &compiled)) {
+          ok = engine_->lua.EvalString(compiled.view(), &result);
+        } else {
+          result.Append(compiled.view());
+        }
+      } else {
+        ok = engine_->lua.EvalString(repl_input_, &result);
+      }
       if (result.view().size() > 0) {
         ReplEntry result_entry;
         result_entry.is_input = false;
