@@ -332,30 +332,41 @@ int CheckColorTable(lua_State* L, int idx, float* color) {
   return has_alpha ? 4 : 3;
 }
 
+// Lua registry reference for the cached fennel compiler table.
+int g_fennel_ref = LUA_NOREF;
+
 // Compiles a Fennel string to Lua source using fennel.compileString.
-// Looks for the compiler in _fennel global or package.loaded.fennel.
+// Caches the fennel module reference after first lookup.
 // Returns true with compiled Lua in output, false with error in output.
 bool CompileFennel(lua_State* L, std::string_view code, StringBuffer* output) {
   int top = lua_gettop(L);
 
-  // Find the fennel module: try _fennel global, then package.loaded.fennel.
-  lua_getglobal(L, "_fennel");
-  if (!lua_istable(L, -1)) {
-    lua_pop(L, 1);
-    // Try package.loaded.fennel.
-    lua_getglobal(L, "require");
-    if (lua_isfunction(L, -1)) {
-      lua_pushstring(L, "fennel");
-      if (lua_pcall(L, 1, 1, 0) != 0) {
-        lua_pop(L, 1);
-        lua_pushnil(L);
+  // Use cached reference if available.
+  if (g_fennel_ref != LUA_NOREF) {
+    lua_rawgeti(L, LUA_REGISTRYINDEX, g_fennel_ref);
+  } else {
+    // Find the fennel module: try _fennel global first.
+    lua_getglobal(L, "_fennel");
+    if (!lua_istable(L, -1)) {
+      lua_pop(L, 1);
+      // Fall back to require("fennel").
+      lua_getglobal(L, "require");
+      if (lua_isfunction(L, -1)) {
+        lua_pushstring(L, "fennel");
+        if (lua_pcall(L, 1, 1, 0) != 0) {
+          lua_pop(L, 1);
+          lua_pushnil(L);
+        }
       }
     }
-  }
-  if (!lua_istable(L, -1)) {
-    lua_settop(L, top);
-    output->Append("Fennel compiler not loaded");
-    return false;
+    if (!lua_istable(L, -1)) {
+      lua_settop(L, top);
+      output->Append("Fennel compiler not loaded");
+      return false;
+    }
+    // Cache the reference for future calls.
+    lua_pushvalue(L, -1);
+    g_fennel_ref = luaL_ref(L, LUA_REGISTRYINDEX);
   }
 
   // Call fennel.compileString(code).
