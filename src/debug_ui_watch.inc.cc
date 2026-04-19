@@ -183,6 +183,9 @@ void DebugUI::DrawRepl() {
   ImGui::EndChild();
 
   // Editor input.
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
   repl_editor.Render("##repl_editor",
                      ImVec2(0, ImGui::GetContentRegionAvail().y));
 }
