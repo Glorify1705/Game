@@ -461,6 +461,8 @@ void DebugUI::Init(SDL_Window* window, SDL_GLContext gl_context) {
       kFrameTimeHistory, allocator_);
   breakdown_history_ = allocator_->New<CircularBuffer<FrameBreakdown>>(
       kFrameTimeHistory, allocator_);
+  repl_entries_ = allocator_->New<CircularBuffer<ReplEntry>>(
+      kMaxReplEntries, allocator_);
   initialized_ = true;
   LOG("Debug UI initialized (Dear ImGui ", IMGUI_VERSION, ")");
 }
@@ -502,6 +504,11 @@ int DebugUI::EvalHistoryCallback(ImGuiInputTextCallbackData* data) {
   data->DeleteChars(0, data->BufTextLen);
   data->InsertChars(0, text);
   return 0;
+}
+
+int DebugUI::ReplHistoryCallback(ImGuiInputTextCallbackData* data) {
+  // Shares eval_history_entries_ with the Log Console.
+  return EvalHistoryCallback(data);
 }
 
 void DebugUI::ProcessEvent(const SDL_Event* event) {
@@ -1854,6 +1861,89 @@ void DebugUI::DrawWatchPanel() {
     --watch_count_;
     watches_[watch_count_].path[0] = '\0';
   }
+
+  ImGui::Separator();
+
+  // REPL section.
+  ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "REPL");
+  ImGui::SameLine();
+  if (ImGui::SmallButton("Clear")) {
+    while (!repl_entries_->empty()) repl_entries_->Pop();
+  }
+
+  // Scrollable output.
+  float footer = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
+  if (ImGui::BeginChild("##repl_output", ImVec2(0, -footer), false,
+                        ImGuiWindowFlags_HorizontalScrollbar)) {
+    size_t count = repl_entries_->size();
+    for (size_t i = 0; i < count; ++i) {
+      const auto& entry = (*repl_entries_)[i];
+      if (entry.is_input) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+        ImGui::TextUnformatted(entry.text);
+        ImGui::PopStyleColor();
+      } else if (entry.is_error) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+        ImGui::TextUnformatted(entry.text);
+        ImGui::PopStyleColor();
+      } else {
+        ImGui::TextUnformatted(entry.text);
+      }
+    }
+    if (repl_scroll_to_bottom_) {
+      ImGui::SetScrollHereY(1.0f);
+      repl_scroll_to_bottom_ = false;
+    }
+  }
+  ImGui::EndChild();
+
+  // REPL input.
+  bool reclaim_focus = false;
+  ImGuiInputTextFlags input_flags =
+      ImGuiInputTextFlags_EnterReturnsTrue |
+      ImGuiInputTextFlags_EscapeClearsAll |
+      ImGuiInputTextFlags_CallbackHistory;
+  ImGui::SetNextItemWidth(-1);
+  if (ImGui::InputText("##repl_eval", repl_input_, kEvalInputSize,
+                       input_flags, ReplHistoryCallback, this)) {
+    if (repl_input_[0] != '\0' && engine_ != nullptr) {
+      // Add input echo.
+      ReplEntry input_entry;
+      input_entry.is_input = true;
+      input_entry.is_error = false;
+      snprintf(input_entry.text, sizeof(input_entry.text), "> %s",
+               repl_input_);
+      repl_entries_->Push(input_entry);
+
+      // Add to shared eval history (skip consecutive duplicates).
+      if (eval_history_count_ == 0 ||
+          std::string_view(eval_history_entries_[(eval_history_count_ - 1) %
+                                                 kEvalHistoryMax]) !=
+              repl_input_) {
+        int idx = eval_history_count_ % kEvalHistoryMax;
+        snprintf(eval_history_entries_[idx], kEvalInputSize, "%s",
+                 repl_input_);
+        eval_history_count_++;
+      }
+      eval_history_pos_ = -1;
+
+      // Evaluate.
+      FixedStringBuffer<kMaxLogLineLength> result(kTruncating);
+      bool ok = engine_->lua.EvalString(repl_input_, &result);
+      if (result.view().size() > 0) {
+        ReplEntry result_entry;
+        result_entry.is_input = false;
+        result_entry.is_error = !ok;
+        snprintf(result_entry.text, sizeof(result_entry.text), "%s%s",
+                 ok ? "=> " : "", result.str());
+        repl_entries_->Push(result_entry);
+      }
+      repl_input_[0] = '\0';
+      repl_scroll_to_bottom_ = true;
+    }
+    reclaim_focus = true;
+  }
+  if (reclaim_focus) ImGui::SetKeyboardFocusHere(-1);
 
   ImGui::End();
 }

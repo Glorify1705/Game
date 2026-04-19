@@ -228,6 +228,20 @@ class DebugUI {
   int watch_count_ = 0;
   char watch_input_[kWatchPathSize] = {};
 
+  // REPL state (embedded in Watch panel).
+  struct ReplEntry {
+    char text[kMaxLogLineLength + 1] = {};
+    bool is_input;
+    bool is_error;
+  };
+  static constexpr size_t kMaxReplEntries = 256;
+  CircularBuffer<ReplEntry>* repl_entries_ = nullptr;
+  char repl_input_[kEvalInputSize] = {};
+  bool repl_scroll_to_bottom_ = false;
+
+  // ImGui callback for REPL history Up/Down navigation.
+  static int ReplHistoryCallback(ImGuiInputTextCallbackData* data);
+
   // Asset viewer state.
   char asset_filter_[128] = {};
 
