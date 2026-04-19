@@ -1896,8 +1896,8 @@ void DebugUI::DrawWatchPanel() {
   // REPL section.
   ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "REPL");
   ImGui::SameLine();
-  if (ImGui::SmallButton(repl_fennel_ ? "Fennel" : "Lua")) {
-    repl_fennel_ = !repl_fennel_;
+  if (ImGui::SmallButton(repl_lang_ == kFennel ? "Fennel" : "Lua")) {
+    repl_lang_ = (repl_lang_ == kLua) ? kFennel : kLua;
   }
   ImGui::SameLine();
   if (ImGui::SmallButton("Clear")) {
@@ -1963,7 +1963,7 @@ void DebugUI::DrawWatchPanel() {
       // Evaluate (compile Fennel to Lua first if in Fennel mode).
       FixedStringBuffer<kMaxLogLineLength> result(kTruncating);
       bool ok = false;
-      if (repl_fennel_) {
+      if (repl_lang_ == kFennel) {
         FixedStringBuffer<kMaxLogLineLength> compiled(kTruncating);
         if (CompileFennel(engine_->lua.state(), repl_input_, &compiled)) {
           ok = engine_->lua.EvalString(compiled.view(), &result);

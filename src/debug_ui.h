@@ -238,7 +238,8 @@ class DebugUI {
   CircularBuffer<ReplEntry>* repl_entries_ = nullptr;
   char repl_input_[kEvalInputSize] = {};
   bool repl_scroll_to_bottom_ = false;
-  bool repl_fennel_ = false;
+  enum ReplLang { kLua, kFennel };
+  ReplLang repl_lang_ = kLua;
 
   // ImGui callback for REPL history Up/Down navigation.
   static int ReplHistoryCallback(ImGuiInputTextCallbackData* data);
