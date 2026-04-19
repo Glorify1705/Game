@@ -1,6 +1,13 @@
 // Debug UI shared helpers. Included by debug_ui.cc (unity build).
 // This file is not a standalone translation unit.
 
+// Copies src into a fixed-size char buffer with guaranteed null termination.
+void CopyToBuffer(char* dst, size_t dst_size, std::string_view src) {
+  size_t len = src.size() < dst_size - 1 ? src.size() : dst_size - 1;
+  memcpy(dst, src.data(), len);
+  dst[len] = '\0';
+}
+
 // Case-insensitive substring search.
 bool ContainsCI(std::string_view haystack, std::string_view needle) {
   if (needle.empty()) return true;

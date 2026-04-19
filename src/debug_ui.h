@@ -4,18 +4,17 @@
 
 #include <SDL3/SDL.h>
 
+#include <imgui.h>
+
 #include "allocators.h"
 #include "circular_buffer.h"
+#include "engine.h"
 #include "logging.h"
 #include "renderer.h"
-
-struct ImGuiInputTextCallbackData;
 
 #ifdef GAME_WITH_IMGUI
 
 namespace G {
-
-struct Engine;
 
 // ImGui-based debug overlay rendered on top of the game. Manages its own
 // OpenGL state and renders after the engine's batch renderer. Compiled out
@@ -279,8 +278,6 @@ class DebugUI {
 #else  // !GAME_WITH_IMGUI
 
 namespace G {
-
-struct Engine;
 
 // Stub implementation when ImGui is compiled out. All methods are no-ops.
 class DebugUI {

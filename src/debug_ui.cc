@@ -179,10 +179,7 @@ void DebugUI::LogMessage(LogLevel level, const char* message) {
   if (log_entries_ == nullptr) return;
   LogEntry entry;
   entry.level = level;
-  size_t len = strlen(message);
-  if (len > kMaxLogLineLength) len = kMaxLogLineLength;
-  memcpy(entry.text, message, len);
-  entry.text[len] = '\0';
+  CopyToBuffer(entry.text, sizeof(entry.text), message);
   log_entries_->Push(entry);
   if (log_auto_scroll_) log_scroll_to_bottom_ = true;
 }

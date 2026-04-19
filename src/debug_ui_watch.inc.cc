@@ -17,8 +17,7 @@ void DebugUI::DrawWatchPanel() {
   ImGui::SameLine();
   if (ImGui::Button("Add") || add) {
     if (watch_input_[0] != '\0' && watch_count_ < (int)kMaxWatches) {
-      strncpy(watches_[watch_count_].path, watch_input_, kWatchPathSize - 1);
-      watches_[watch_count_].path[kWatchPathSize - 1] = '\0';
+      CopyToBuffer(watches_[watch_count_].path, kWatchPathSize, watch_input_);
       ++watch_count_;
       watch_input_[0] = '\0';
     }
@@ -130,8 +129,7 @@ void DebugUI::DrawRepl() {
       input_entry.is_error = false;
       FixedStringBuffer<kMaxLogLineLength> echo(kTruncating);
       echo.Append("> ", repl_input_);
-      strncpy(input_entry.text, echo.str(), sizeof(input_entry.text) - 1);
-      input_entry.text[sizeof(input_entry.text) - 1] = '\0';
+      CopyToBuffer(input_entry.text, sizeof(input_entry.text), echo.view());
       repl_entries_->Push(input_entry);
 
       // Add to shared eval history (skip consecutive duplicates).
@@ -140,8 +138,7 @@ void DebugUI::DrawRepl() {
                                                  kEvalHistoryMax]) !=
               repl_input_) {
         int idx = eval_history_count_ % kEvalHistoryMax;
-        strncpy(eval_history_entries_[idx], repl_input_, kEvalInputSize - 1);
-        eval_history_entries_[idx][kEvalInputSize - 1] = '\0';
+        CopyToBuffer(eval_history_entries_[idx], kEvalInputSize, repl_input_);
         eval_history_count_++;
       }
       eval_history_pos_ = -1;
@@ -166,9 +163,8 @@ void DebugUI::DrawRepl() {
         FixedStringBuffer<kMaxLogLineLength> formatted(kTruncating);
         if (ok) formatted.Append("=> ");
         formatted.Append(result.view());
-        strncpy(result_entry.text, formatted.str(),
-                sizeof(result_entry.text) - 1);
-        result_entry.text[sizeof(result_entry.text) - 1] = '\0';
+        CopyToBuffer(result_entry.text, sizeof(result_entry.text),
+                     formatted.view());
         repl_entries_->Push(result_entry);
       }
       repl_input_[0] = '\0';

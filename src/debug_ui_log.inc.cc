@@ -118,8 +118,7 @@ void DebugUI::DrawLogConsole() {
                                                  kEvalHistoryMax]) !=
               eval_input_) {
         int idx = eval_history_count_ % kEvalHistoryMax;
-        strncpy(eval_history_entries_[idx], eval_input_, kEvalInputSize - 1);
-        eval_history_entries_[idx][kEvalInputSize - 1] = '\0';
+        CopyToBuffer(eval_history_entries_[idx], kEvalInputSize, eval_input_);
         eval_history_count_++;
       }
       eval_history_pos_ = -1;
