@@ -172,27 +172,23 @@ ErrorOr<void> WriteEntireFile(const char* path, ByteSlice data) {
 ErrorOr<void> WriteFile(const char* path, const char* contents) {
   FILE* f = fopen(path, "w");
   if (f == nullptr) return Error::Errno(errno);
+  DEFER([f] { fclose(f); });
   fputs(contents, f);
-  fclose(f);
   return {};
 }
 
 ErrorOr<void> CopyFile(const char* src, const char* dst) {
   FILE* in = fopen(src, "rb");
   if (in == nullptr) return Error::Errno(errno);
+  DEFER([in] { fclose(in); });
   FILE* out = fopen(dst, "wb");
-  if (out == nullptr) {
-    int saved_errno = errno;
-    fclose(in);
-    return Error::Errno(saved_errno);
-  }
+  if (out == nullptr) return Error::Errno(errno);
+  DEFER([out] { fclose(out); });
   char buf[8192];
   size_t n;
   while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
-    fwrite(buf, 1, n, out);
+    if (fwrite(buf, 1, n, out) != n) return Error::Errno(errno);
   }
-  fclose(in);
-  fclose(out);
   return {};
 }
 

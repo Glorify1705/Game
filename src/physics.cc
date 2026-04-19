@@ -77,15 +77,22 @@ struct AllRaycastCallback : b2RayCastCallback {
 
 }  // namespace
 
+// Sets the Box2D allocator and returns the gravity vector. Called from the
+// member initializer list so the allocator is installed before b2World's
+// constructor runs (which allocates internal data structures).
+b2Vec2 SetupBox2dAllocator(b2Allocator* alloc, Allocator* engine_alloc) {
+  alloc->Alloc = Box2dAlloc;
+  alloc->Free = Box2dFree;
+  alloc->ctx = engine_alloc;
+  b2SetAllocator(alloc);
+  return b2Vec2(0, 0);
+}
+
 Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
                  Allocator* allocator)
     : pixels_per_meter_(pixels_per_meter),
       world_dimensions_(pixel_dimensions / pixels_per_meter),
-      world_(b2Vec2(0, 0)) {
-  box2d_allocator_.Alloc = Box2dAlloc;
-  box2d_allocator_.Free = Box2dFree;
-  box2d_allocator_.ctx = allocator;
-  b2SetAllocator(&box2d_allocator_);
+      world_(SetupBox2dAllocator(&box2d_allocator_, allocator)) {
   world_.SetContactListener(this);
 }
 

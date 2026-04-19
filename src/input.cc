@@ -34,7 +34,7 @@ Keyboard::Keyboard(Allocator* allocator)
     const char* name = SDL_GetScancodeName(scancode);
     if (name == nullptr) continue;
     if (!*name) continue;
-    strcpy(buf, name);
+    snprintf(buf, sizeof(buf), "%s", name);
     for (char* c = buf; *c; c++) {
       if (*c >= 'A' && *c <= 'Z') *c = *c - 'A' + 'a';
     }

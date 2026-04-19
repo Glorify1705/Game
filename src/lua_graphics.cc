@@ -1167,7 +1167,7 @@ static const LuaApiFunction kWindowLib[] = {
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        lua_pushboolean(state,
-                       SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
+                       SDL_GetWindowFlags(window) & SDL_WINDOW_MOUSE_FOCUS);
        return 1;
      }}};
 
@@ -1190,6 +1190,11 @@ constexpr luaL_Reg kCanvasMethods[] = {
        auto* c = AsUserdata<Canvas>(state, 1);
        lua_pushinteger(state, c->height);
        return 1;
+     }},
+    {"__gc",
+     [](lua_State* state) {
+       AsUserdata<Canvas>(state, 1)->Destroy();
+       return 0;
      }},
     {"__tostring", [](lua_State* state) {
        auto* c = AsUserdata<Canvas>(state, 1);

@@ -52,7 +52,7 @@ tags: [index]
 | Document | Tags | Summary |
 |----------|------|---------|
 | [Audio features](Audio%20features.md) | audio, lua-api | Pitch, looping, panning done; seek/tell, 3D audio, effects pending |
-| [Bug fixes and minor improvements](Bug%20fixes%20and%20minor%20improvements.md) | bugs, code-quality, testing | Some code quality fixes done (override, ErrorOr returns); allocator instrumentation, platform watchers, and most test coverage pending |
+| [Bug fixes and minor improvements](Bug%20fixes%20and%20minor%20improvements.md) | bugs, code-quality, testing | ASan-confirmed leaks (Box2D alloc mismatch, Canvas __gc, renderbuffer), logic bugs (has_mouse_focus flag), defensive fixes; some code quality done, platform watchers and test coverage pending |
 | [CMake and CTest improvements](CMake%20and%20CTest%20improvements.md) | build, testing, cmake, ctest | Phases 1–2 done (preset fix, ctest execution, timeouts, labels, parallel); test file split and coverage expansion pending |
 | [Physics system expansion](Physics%20system%20expansion.md) | physics, lua-api | Phase 1 mostly done (kinematic bodies, material properties, filtering, sensors, raycasting, per-body properties, world config); joints, advanced shapes, debug draw, deferred destruction pending |
 | [Profiling and tracing](Profiling%20and%20tracing.md) | profiling, performance | Chrome Tracing done; perf and pprof are external devenv tools, not engine integration |
