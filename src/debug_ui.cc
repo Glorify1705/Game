@@ -236,6 +236,18 @@ void FormatLuaValue(lua_State* L, int idx, StringBuffer* buf) {
     case LUA_TUSERDATA:
     case LUA_TLIGHTUSERDATA:
       if (lua_getmetatable(L, idx)) {
+        lua_getfield(L, -1, "__tostring");
+        if (lua_isfunction(L, -1)) {
+          lua_pushvalue(L, idx);
+          if (lua_pcall(L, 1, 1, 0) == 0 && lua_isstring(L, -1)) {
+            buf->Append(lua_tostring(L, -1));
+            lua_pop(L, 2);
+            break;
+          }
+          lua_pop(L, 1);
+        } else {
+          lua_pop(L, 1);
+        }
         lua_getfield(L, -1, "__name");
         if (lua_isstring(L, -1)) {
           buf->AppendF("%s: %p", lua_tostring(L, -1),
