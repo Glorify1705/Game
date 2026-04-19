@@ -164,7 +164,7 @@ class DebugUI {
   bool visible_ = false;
   bool initialized_ = false;
   bool window_centered_ = false;
-  int window_preset_ = -1;
+  bool window_menu_requested_ = false;
   Allocator* allocator_ = nullptr;
   Engine* engine_ = nullptr;
   ArenaAllocator* engine_arena_ = nullptr;

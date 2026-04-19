@@ -255,6 +255,10 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       if (ImGui::MenuItem("Quit")) quit_requested_ = true;
       ImGui::EndMenu();
     }
+    if (window_menu_requested_) {
+      ImGui::OpenPopup("Window");
+      window_menu_requested_ = false;
+    }
     if (window_ != nullptr && ImGui::BeginMenu("Window")) {
       int w = 0, h = 0;
       SDL_GetWindowSize(window_, &w, &h);
@@ -475,9 +479,7 @@ void DebugUI::HandleKeyShortcut(SDL_Scancode scancode) {
       TogglePanel(kPanelSelector);
       break;
     case SDL_SCANCODE_F7:
-      window_preset_ = (window_preset_ + 1) % kWindowPresetCount;
-      ResizeWindow(kWindowPresets[window_preset_].w,
-                   kWindowPresets[window_preset_].h);
+      window_menu_requested_ = true;
       break;
     default:
       break;
