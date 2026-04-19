@@ -1036,7 +1036,8 @@ void DebugUI::DrawEntityInspector() {
       const char* key = lua_tostring(L, -2);
       // Skip engine/Lua internals.
       if (strcmp(key, "G") == 0 || strcmp(key, "_Game") == 0 ||
-          strcmp(key, "_G") == 0 || strcmp(key, "_VERSION") == 0 ||
+          strcmp(key, "_G") == 0 || strcmp(key, "_Docs") == 0 ||
+          strcmp(key, "_VERSION") == 0 ||
           strcmp(key, "string") == 0 || strcmp(key, "table") == 0 ||
           strcmp(key, "math") == 0 || strcmp(key, "io") == 0 ||
           strcmp(key, "os") == 0 || strcmp(key, "coroutine") == 0 ||
@@ -1179,6 +1180,7 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       PanelMenuItem("Camera", kPanelCamera);
       PanelMenuItem("Physics", kPanelPhysics);
       PanelMenuItem("Assets", kPanelAssets);
+      PanelMenuItem("API Docs", kPanelDocs);
       ImGui::Separator();
       if (ImGui::MenuItem("Cycle Presets", "F5")) {
         static constexpr uint64_t kPresets[] = {0, kPanelAll, kPanelDefault};
@@ -1290,6 +1292,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   if (PanelOpen(kPanelCamera)) DrawCameraPanel();
   if (PanelOpen(kPanelPhysics)) DrawPhysicsPanel();
   if (PanelOpen(kPanelAssets)) DrawAssetViewer();
+  if (PanelOpen(kPanelDocs)) DrawDocsPanel();
 
   // F6 panel selector floating window.
   if (PanelOpen(kPanelSelector)) {
@@ -1306,6 +1309,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
       PanelMenuItem("Camera", kPanelCamera);
       PanelMenuItem("Physics", kPanelPhysics);
       PanelMenuItem("Assets", kPanelAssets);
+      PanelMenuItem("API Docs", kPanelDocs);
     }
     ImGui::End();
     if (!open) TogglePanel(kPanelSelector);
@@ -1427,6 +1431,217 @@ void DebugUI::HandleKeyShortcut(SDL_Scancode scancode) {
     default:
       break;
   }
+}
+
+void DebugUI::DrawDocsPanel() {
+  lua_State* L = engine_->lua.state();
+  int top = lua_gettop(L);
+
+  ImGui::SetNextWindowPos(ImVec2(420, 50), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(480, 550), ImGuiCond_FirstUseEver);
+  if (!ImGui::Begin("API Docs", nullptr,
+                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+    ImGui::End();
+    return;
+  }
+
+  ImGui::SetNextItemWidth(-1);
+  ImGui::InputTextWithHint("##docs_filter", "Search functions...",
+                           docs_filter_, sizeof(docs_filter_));
+  ImGui::Separator();
+
+  lua_getglobal(L, "_Docs");
+  if (!lua_istable(L, -1)) {
+    ImGui::Text("_Docs table not found");
+    lua_settop(L, top);
+    ImGui::End();
+    return;
+  }
+  int docs_idx = lua_gettop(L);
+  bool has_filter = docs_filter_[0] != '\0';
+
+  // Iterate libraries (e.g. graphics, physics, sound).
+  lua_pushnil(L);
+  while (lua_next(L, docs_idx) != 0) {
+    if (lua_type(L, -2) != LUA_TSTRING || !lua_istable(L, -1)) {
+      lua_pop(L, 1);
+      continue;
+    }
+    const char* lib_name = lua_tostring(L, -2);
+    int lib_idx = lua_gettop(L);
+
+    // When filtering, check if any function in this library matches.
+    bool lib_has_match = !has_filter;
+    if (has_filter) {
+      // Check library name itself.
+      if (strcasestr(lib_name, docs_filter_) != nullptr) {
+        lib_has_match = true;
+      } else {
+        // Check function names and docstrings.
+        lua_pushnil(L);
+        while (lua_next(L, lib_idx) != 0) {
+          if (lua_type(L, -2) == LUA_TSTRING) {
+            const char* fname = lua_tostring(L, -2);
+            if (strcasestr(fname, docs_filter_) != nullptr) {
+              lib_has_match = true;
+              lua_pop(L, 2);
+              break;
+            }
+            // Check docstring.
+            if (lua_istable(L, -1)) {
+              lua_getfield(L, -1, "docstring");
+              if (lua_isstring(L, -1)) {
+                const char* ds = lua_tostring(L, -1);
+                if (ds != nullptr &&
+                    strcasestr(ds, docs_filter_) != nullptr) {
+                  lib_has_match = true;
+                  lua_pop(L, 3);
+                  break;
+                }
+              }
+              lua_pop(L, 1);
+            }
+          }
+          lua_pop(L, 1);
+        }
+      }
+    }
+
+    if (!lib_has_match) {
+      lua_pop(L, 1);
+      continue;
+    }
+
+    // Open library as a tree node (open by default when filtering).
+    ImGuiTreeNodeFlags lib_flags = has_filter ? ImGuiTreeNodeFlags_DefaultOpen
+                                             : ImGuiTreeNodeFlags_None;
+    char lib_label[128];
+    snprintf(lib_label, sizeof(lib_label), "G.%s", lib_name);
+    if (ImGui::TreeNodeEx(lib_label, lib_flags)) {
+      // Iterate functions in the library.
+      lua_pushnil(L);
+      while (lua_next(L, lib_idx) != 0) {
+        if (lua_type(L, -2) != LUA_TSTRING || !lua_istable(L, -1)) {
+          lua_pop(L, 1);
+          continue;
+        }
+        const char* func_name = lua_tostring(L, -2);
+        int func_idx = lua_gettop(L);
+
+        // Filter individual functions.
+        if (has_filter && strcasestr(lib_name, docs_filter_) == nullptr &&
+            strcasestr(func_name, docs_filter_) == nullptr) {
+          // Also check docstring.
+          lua_getfield(L, func_idx, "docstring");
+          bool ds_match = false;
+          if (lua_isstring(L, -1)) {
+            const char* ds = lua_tostring(L, -1);
+            ds_match = ds != nullptr &&
+                       strcasestr(ds, docs_filter_) != nullptr;
+          }
+          lua_pop(L, 1);
+          if (!ds_match) {
+            lua_pop(L, 1);
+            continue;
+          }
+        }
+
+        // Build signature: func_name(arg1, arg2, ...)
+        char sig[256];
+        int sig_len = snprintf(sig, sizeof(sig), "%s(", func_name);
+        lua_getfield(L, func_idx, "args");
+        if (lua_istable(L, -1)) {
+          int args_idx = lua_gettop(L);
+          int nargs = static_cast<int>(lua_objlen(L, args_idx));
+          for (int i = 1; i <= nargs && sig_len < (int)sizeof(sig) - 3; ++i) {
+            lua_rawgeti(L, args_idx, i);
+            if (lua_istable(L, -1)) {
+              lua_getfield(L, -1, "name");
+              const char* aname = lua_tostring(L, -1);
+              if (aname != nullptr) {
+                if (i > 1)
+                  sig_len +=
+                      snprintf(sig + sig_len, sizeof(sig) - sig_len, ", ");
+                sig_len +=
+                    snprintf(sig + sig_len, sizeof(sig) - sig_len, "%s", aname);
+              }
+              lua_pop(L, 1);
+            }
+            lua_pop(L, 1);
+          }
+        }
+        lua_pop(L, 1);
+        snprintf(sig + sig_len, sizeof(sig) - sig_len, ")");
+
+        if (ImGui::TreeNode(func_name, "%s", sig)) {
+          // Docstring.
+          lua_getfield(L, func_idx, "docstring");
+          if (lua_isstring(L, -1)) {
+            const char* ds = lua_tostring(L, -1);
+            if (ds != nullptr && ds[0] != '\0') {
+              ImGui::TextWrapped("%s", ds);
+            }
+          }
+          lua_pop(L, 1);
+
+          // Arguments detail.
+          lua_getfield(L, func_idx, "args");
+          if (lua_istable(L, -1)) {
+            int args_idx2 = lua_gettop(L);
+            int nargs = static_cast<int>(lua_objlen(L, args_idx2));
+            if (nargs > 0) {
+              ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Args:");
+              for (int i = 1; i <= nargs; ++i) {
+                lua_rawgeti(L, args_idx2, i);
+                if (lua_istable(L, -1)) {
+                  lua_getfield(L, -1, "name");
+                  lua_getfield(L, -2, "docstring");
+                  const char* aname = lua_tostring(L, -2);
+                  const char* adoc = lua_tostring(L, -1);
+                  if (aname != nullptr) {
+                    if (adoc != nullptr && adoc[0] != '\0') {
+                      ImGui::BulletText("%s - %s", aname, adoc);
+                    } else {
+                      ImGui::BulletText("%s", aname);
+                    }
+                  }
+                  lua_pop(L, 2);
+                }
+                lua_pop(L, 1);
+              }
+            }
+          }
+          lua_pop(L, 1);
+
+          // Return values.
+          lua_getfield(L, func_idx, "returns");
+          if (lua_istable(L, -1)) {
+            int ret_idx = lua_gettop(L);
+            int nrets = static_cast<int>(lua_objlen(L, ret_idx));
+            if (nrets > 0) {
+              ImGui::TextColored(ImVec4(0.6f, 1.0f, 0.6f, 1.0f), "Returns:");
+              for (int i = 1; i <= nrets; ++i) {
+                lua_rawgeti(L, ret_idx, i);
+                if (lua_isstring(L, -1)) {
+                  ImGui::BulletText("%s", lua_tostring(L, -1));
+                }
+                lua_pop(L, 1);
+              }
+            }
+          }
+          lua_pop(L, 1);
+
+          ImGui::TreePop();
+        }
+        lua_pop(L, 1);
+      }
+      ImGui::TreePop();
+    }
+    lua_pop(L, 1);
+  }
+
+  lua_settop(L, top);
+  ImGui::End();
 }
 
 void DebugUI::DrawAssetViewer() {

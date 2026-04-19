@@ -132,6 +132,8 @@ class DebugUI {
   void DrawPhysicsPanel();
   // Draws the asset viewer with tabbed image, sprite, audio, script views.
   void DrawAssetViewer();
+  // Draws the API docs browser with search.
+  void DrawDocsPanel();
 
   bool visible_ = false;
   bool initialized_ = false;
@@ -154,9 +156,10 @@ class DebugUI {
     kPanelPhysics = 1 << 7,
     kPanelAssets = 1 << 8,
     kPanelSelector = 1 << 9,
+    kPanelDocs = 1 << 10,
     kPanelAll = kPanelPerformance | kPanelLogConsole | kPanelEntityInspector |
                 kPanelAudio | kPanelMemory | kPanelRenderer | kPanelCamera |
-                kPanelPhysics | kPanelAssets,
+                kPanelPhysics | kPanelAssets | kPanelDocs,
   };
   // Default panels (also preset index 2).
   static constexpr uint64_t kPanelDefault =
@@ -195,6 +198,9 @@ class DebugUI {
 
   // Entity inspector state.
   char inspector_filter_[128] = {};
+
+  // API docs browser state.
+  char docs_filter_[128] = {};
 
   // Asset viewer state.
   char asset_filter_[128] = {};
