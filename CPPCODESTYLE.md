@@ -642,7 +642,10 @@ as they do not introduce implicit heap allocations.
   ```
 - **`std::string_view`** — non-owning string references. The default way to
   pass strings. Prefer `std::string_view` over `const char*` when comparing
-  strings — use `==` on `string_view` instead of `strcmp`.
+  strings — use `==` on `string_view` instead of `strcmp`. **Never use
+  `strcmp`/`strcasecmp`**; wrap `const char*` values in `std::string_view`
+  and compare with `==`. Use `strncmp` only when comparing a prefix of
+  known length and `string_view` cannot apply.
 - **`[[nodiscard]]`** — on functions where ignoring the return is likely a bug.
 - **`[[maybe_unused]]`** — to suppress warnings on intentionally unused
   variables or conditionally-used parameters (e.g. `#ifdef` branches). For

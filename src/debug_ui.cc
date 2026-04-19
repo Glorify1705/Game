@@ -2,7 +2,9 @@
 
 #ifdef GAME_WITH_IMGUI
 
+#include <cctype>
 #include <cstring>
+#include <string_view>
 
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
@@ -17,6 +19,24 @@
 namespace G {
 
 namespace {
+
+// Case-insensitive substring search.
+bool ContainsCI(std::string_view haystack, std::string_view needle) {
+  if (needle.empty()) return true;
+  if (needle.size() > haystack.size()) return false;
+  for (size_t i = 0; i <= haystack.size() - needle.size(); ++i) {
+    bool match = true;
+    for (size_t j = 0; j < needle.size(); ++j) {
+      if (tolower(static_cast<unsigned char>(haystack[i + j])) !=
+          tolower(static_cast<unsigned char>(needle[j]))) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return true;
+  }
+  return false;
+}
 
 // Global pointer used by the LogSink callback to route messages to the
 // DebugUI ring buffer. Only one DebugUI instance exists at a time.
@@ -520,7 +540,8 @@ void DebugUI::DrawLogConsole() {
       int level_idx = static_cast<int>(entry.level);
       if (level_idx < 0 || level_idx > 5) continue;
       if (!log_level_filter_[level_idx]) continue;
-      if (has_filter && strstr(entry.text, log_text_filter_) == nullptr) {
+      if (has_filter && std::string_view(entry.text).find(log_text_filter_) ==
+              std::string_view::npos) {
         continue;
       }
       size_t len = strlen(entry.text);
@@ -584,7 +605,8 @@ void DebugUI::DrawLogConsole() {
       if (level_idx < 0 || level_idx > 5) continue;
       if (!log_level_filter_[level_idx]) continue;
       if (has_text_filter &&
-          strstr(entry.text, log_text_filter_) == nullptr) {
+          std::string_view(entry.text).find(log_text_filter_) ==
+              std::string_view::npos) {
         continue;
       }
       ImGui::PushStyleColor(ImGuiCol_Text, LogLevelColor(entry.level));
@@ -614,9 +636,9 @@ void DebugUI::DrawLogConsole() {
       LogMessage(LogLevel::kInfo, echo.str());
       // Add to history (skip consecutive duplicates).
       if (eval_history_count_ == 0 ||
-          strcmp(eval_history_entries_[(eval_history_count_ - 1) %
-                                      kEvalHistoryMax],
-                 eval_input_) != 0) {
+          std::string_view(eval_history_entries_[(eval_history_count_ - 1) %
+                                                 kEvalHistoryMax]) !=
+              eval_input_) {
         int idx = eval_history_count_ % kEvalHistoryMax;
         snprintf(eval_history_entries_[idx], kEvalInputSize, "%s",
                  eval_input_);
@@ -1016,7 +1038,9 @@ void DebugUI::DrawEntityInspector() {
   // Show _Game first — this is the primary game state table.
   lua_getglobal(L, "_Game");
   if (lua_istable(L, -1)) {
-    if (!has_filter || strstr("_Game", inspector_filter_) != nullptr) {
+    if (!has_filter ||
+        std::string_view("_Game").find(inspector_filter_) !=
+            std::string_view::npos) {
       if (ImGui::TreeNodeEx("_Game", ImGuiTreeNodeFlags_DefaultOpen)) {
         DrawLuaValue(L, 1, 0, 0);
         ImGui::TreePop();
@@ -1033,22 +1057,21 @@ void DebugUI::DrawEntityInspector() {
   lua_pushnil(L);
   while (lua_next(L, globals_idx) != 0) {
     if (lua_type(L, -2) == LUA_TSTRING) {
-      const char* key = lua_tostring(L, -2);
+      const char* key_cstr = lua_tostring(L, -2);
+      std::string_view key = key_cstr;
       // Skip engine/Lua internals.
-      if (strcmp(key, "G") == 0 || strcmp(key, "_Game") == 0 ||
-          strcmp(key, "_G") == 0 || strcmp(key, "_Docs") == 0 ||
-          strcmp(key, "_VERSION") == 0 ||
-          strcmp(key, "string") == 0 || strcmp(key, "table") == 0 ||
-          strcmp(key, "math") == 0 || strcmp(key, "io") == 0 ||
-          strcmp(key, "os") == 0 || strcmp(key, "coroutine") == 0 ||
-          strcmp(key, "debug") == 0 || strcmp(key, "package") == 0 ||
-          strcmp(key, "arg") == 0 ||
+      if (key == "G" || key == "_Game" || key == "_G" || key == "_Docs" ||
+          key == "_VERSION" || key == "string" || key == "table" ||
+          key == "math" || key == "io" || key == "os" ||
+          key == "coroutine" || key == "debug" || key == "package" ||
+          key == "arg" ||
           // Standard Lua functions.
           lua_type(L, -1) == LUA_TFUNCTION) {
         lua_pop(L, 1);
         continue;
       }
-      if (has_filter && strstr(key, inspector_filter_) == nullptr) {
+      if (has_filter &&
+          key.find(inspector_filter_) == std::string_view::npos) {
         lua_pop(L, 1);
         continue;
       }
@@ -1058,14 +1081,14 @@ void DebugUI::DrawEntityInspector() {
         ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Globals");
       }
       if (lua_type(L, -1) == LUA_TTABLE) {
-        if (ImGui::TreeNode(key)) {
+        if (ImGui::TreeNode(key_cstr)) {
           DrawLuaValue(L, 1, globals_idx, lua_gettop(L) - 1);
           ImGui::TreePop();
         }
       } else {
         char val_buf[256];
         FormatLuaValue(L, -1, val_buf, sizeof(val_buf));
-        ImGui::Text("%s = %s", key, val_buf);
+        ImGui::Text("%s = %s", key_cstr, val_buf);
       }
     }
     lua_pop(L, 1);
@@ -1474,7 +1497,7 @@ void DebugUI::DrawDocsPanel() {
     bool lib_has_match = !has_filter;
     if (has_filter) {
       // Check library name itself.
-      if (strcasestr(lib_name, docs_filter_) != nullptr) {
+      if (ContainsCI(lib_name, docs_filter_)) {
         lib_has_match = true;
       } else {
         // Check function names and docstrings.
@@ -1482,7 +1505,7 @@ void DebugUI::DrawDocsPanel() {
         while (lua_next(L, lib_idx) != 0) {
           if (lua_type(L, -2) == LUA_TSTRING) {
             const char* fname = lua_tostring(L, -2);
-            if (strcasestr(fname, docs_filter_) != nullptr) {
+            if (ContainsCI(fname, docs_filter_)) {
               lib_has_match = true;
               lua_pop(L, 2);
               break;
@@ -1493,7 +1516,7 @@ void DebugUI::DrawDocsPanel() {
               if (lua_isstring(L, -1)) {
                 const char* ds = lua_tostring(L, -1);
                 if (ds != nullptr &&
-                    strcasestr(ds, docs_filter_) != nullptr) {
+                    ContainsCI(ds, docs_filter_)) {
                   lib_has_match = true;
                   lua_pop(L, 3);
                   break;
@@ -1529,15 +1552,15 @@ void DebugUI::DrawDocsPanel() {
         int func_idx = lua_gettop(L);
 
         // Filter individual functions.
-        if (has_filter && strcasestr(lib_name, docs_filter_) == nullptr &&
-            strcasestr(func_name, docs_filter_) == nullptr) {
+        if (has_filter && !ContainsCI(lib_name, docs_filter_) &&
+            !ContainsCI(func_name, docs_filter_)) {
           // Also check docstring.
           lua_getfield(L, func_idx, "docstring");
           bool ds_match = false;
           if (lua_isstring(L, -1)) {
             const char* ds = lua_tostring(L, -1);
             ds_match = ds != nullptr &&
-                       strcasestr(ds, docs_filter_) != nullptr;
+                       ContainsCI(ds, docs_filter_);
           }
           lua_pop(L, 1);
           if (!ds_match) {
@@ -1669,7 +1692,8 @@ void DebugUI::DrawAssetViewer() {
       auto images = renderer->GetImages();
       for (size_t i = 0; i < images.size(); ++i) {
         const auto& img = images[i];
-        if (has_filter && strstr(img.name.data(), asset_filter_) == nullptr) {
+        if (has_filter && std::string_view(img.name.data()).find(asset_filter_) ==
+                    std::string_view::npos) {
           continue;
         }
         ImGui::PushID(static_cast<int>(i));
@@ -1717,7 +1741,8 @@ void DebugUI::DrawAssetViewer() {
       auto sprites = renderer->GetSprites();
       for (size_t i = 0; i < sprites.size(); ++i) {
         const auto& spr = sprites[i];
-        if (has_filter && strstr(spr.name.data(), asset_filter_) == nullptr) {
+        if (has_filter && std::string_view(spr.name.data()).find(asset_filter_) ==
+                    std::string_view::npos) {
           continue;
         }
         ImGui::PushID(static_cast<int>(i));
@@ -1782,7 +1807,8 @@ void DebugUI::DrawAssetViewer() {
             const char* name = reinterpret_cast<const char*>(
                 sqlite3_column_text(stmt, 0));
             if (name == nullptr) continue;
-            if (has_filter && strstr(name, asset_filter_) == nullptr) continue;
+            if (has_filter && std::string_view(name).find(asset_filter_) ==
+                    std::string_view::npos) continue;
             int channels = sqlite3_column_int(stmt, 1);
             int samplerate = sqlite3_column_int(stmt, 2);
             int size_bytes = sqlite3_column_int(stmt, 4);
@@ -1839,7 +1865,8 @@ void DebugUI::DrawAssetViewer() {
               sqlite3_column_text(stmt, 0));
           int size = sqlite3_column_int(stmt, 1);
           if (name == nullptr) continue;
-          if (has_filter && strstr(name, asset_filter_) == nullptr) continue;
+          if (has_filter && std::string_view(name).find(asset_filter_) ==
+                    std::string_view::npos) continue;
           SmallBuffer sz;
           FormatBytes(&sz, static_cast<size_t>(size));
           ImGui::Text("%s  (%s)", name, sz.str());
@@ -1863,7 +1890,8 @@ void DebugUI::DrawAssetViewer() {
               sqlite3_column_text(stmt, 1));
           int size = sqlite3_column_int(stmt, 2);
           if (name == nullptr) continue;
-          if (has_filter && strstr(name, asset_filter_) == nullptr) continue;
+          if (has_filter && std::string_view(name).find(asset_filter_) ==
+                    std::string_view::npos) continue;
           SmallBuffer sz;
           FormatBytes(&sz, static_cast<size_t>(size));
           ImGui::Text("%s  [%s]  (%s)", name, type ? type : "?", sz.str());
@@ -1884,7 +1912,8 @@ void DebugUI::DrawAssetViewer() {
               sqlite3_column_text(stmt, 0));
           int size = sqlite3_column_int(stmt, 1);
           if (name == nullptr) continue;
-          if (has_filter && strstr(name, asset_filter_) == nullptr) continue;
+          if (has_filter && std::string_view(name).find(asset_filter_) ==
+                    std::string_view::npos) continue;
           SmallBuffer sz;
           FormatBytes(&sz, static_cast<size_t>(size));
           ImGui::Text("%s  (%s)", name, sz.str());
