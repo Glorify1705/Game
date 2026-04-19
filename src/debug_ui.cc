@@ -492,75 +492,6 @@ void DebugUI::DrawPerformancePanel(const FrameContext& ctx) {
   // Command buffer fill.
   DrawMemoryBar("Command Buffer", ctx.cmd_buf_used, ctx.cmd_buf_capacity);
 
-  ImGui::Separator();
-
-  // Window size controls.
-  if (window_ != nullptr &&
-      ImGui::CollapsingHeader("Window", ImGuiTreeNodeFlags_DefaultOpen)) {
-    int w = 0, h = 0;
-    SDL_GetWindowSize(window_, &w, &h);
-    struct Preset {
-      const char* label;
-      int w, h;
-    };
-    const Preset presets[] = {
-        {"800x600", 800, 600},     {"1280x720", 1280, 720},
-        {"1440x900", 1440, 900},   {"1920x1080", 1920, 1080},
-        {"2560x1440", 2560, 1440},
-    };
-    auto ResizeWindow = [&](int new_w, int new_h) {
-      SDL_SetWindowSize(window_, new_w, new_h);
-      if (engine_ != nullptr) {
-        engine_->batch_renderer.SetViewport(IVec2(new_w, new_h));
-      }
-    };
-    for (size_t i = 0; i < sizeof(presets) / sizeof(presets[0]); ++i) {
-      if (i > 0) ImGui::SameLine();
-      if (ImGui::Button(presets[i].label)) {
-        ResizeWindow(presets[i].w, presets[i].h);
-      }
-    }
-    static int custom_w = 0, custom_h = 0;
-    if (custom_w == 0) {
-      custom_w = w;
-      custom_h = h;
-    }
-    ImGui::SetNextItemWidth(80);
-    ImGui::InputInt("##cw", &custom_w, 0);
-    ImGui::SameLine();
-    ImGui::Text("x");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(80);
-    ImGui::InputInt("##ch", &custom_h, 0);
-    ImGui::SameLine();
-    if (ImGui::Button("Apply")) {
-      if (custom_w > 0 && custom_h > 0) {
-        ResizeWindow(custom_w, custom_h);
-      }
-    }
-    ImGui::Text("Current: %dx%d", w, h);
-
-    ImGui::Separator();
-
-    // Window position controls.
-    int x = 0, y = 0;
-    SDL_GetWindowPosition(window_, &x, &y);
-    ImGui::Text("Position: (%d, %d)", x, y);
-    // Drag handle: hold and drag to reposition the window on screen.
-    ImGui::Button("Drag to move");
-    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0)) {
-      ImVec2 delta = ImGui::GetMouseDragDelta(0);
-      ImGui::ResetMouseDragDelta(0);
-      SDL_SetWindowPosition(window_, x + static_cast<int>(delta.x),
-                            y + static_cast<int>(delta.y));
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Center")) {
-      SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED,
-                            SDL_WINDOWPOS_CENTERED);
-    }
-  }
-
   ImGui::End();
 }
 
@@ -1267,7 +1198,33 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       if (ImGui::MenuItem("Quit")) quit_requested_ = true;
       ImGui::EndMenu();
     }
-    // Time controls and quit inline in the menu bar.
+    if (window_ != nullptr && ImGui::BeginMenu("Window")) {
+      int w = 0, h = 0;
+      SDL_GetWindowSize(window_, &w, &h);
+      ImGui::Text("Current: %dx%d", w, h);
+      ImGui::Separator();
+      struct Preset {
+        const char* label;
+        int w, h;
+      };
+      const Preset presets[] = {
+          {"800x600", 800, 600},     {"1280x720", 1280, 720},
+          {"1440x900", 1440, 900},   {"1920x1080", 1920, 1080},
+          {"2560x1440", 2560, 1440},
+      };
+      for (size_t i = 0; i < sizeof(presets) / sizeof(presets[0]); ++i) {
+        bool current = (w == presets[i].w && h == presets[i].h);
+        if (ImGui::MenuItem(presets[i].label, nullptr, current)) {
+          SDL_SetWindowSize(window_, presets[i].w, presets[i].h);
+          if (engine_ != nullptr) {
+            engine_->batch_renderer.SetViewport(
+                IVec2(presets[i].w, presets[i].h));
+          }
+        }
+      }
+      ImGui::EndMenu();
+    }
+    // Inline controls: Quit, Pause/Play, Step, timescale, Center, Drag.
     ImGui::Separator();
     if (ImGui::SmallButton("Quit")) quit_requested_ = true;
     ImGui::SameLine();
@@ -1285,6 +1242,21 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
     ImGui::SetNextItemWidth(100);
     if (ImGui::SliderFloat("##timescale", &ts, 0.0f, 4.0f, "%.2fx")) {
       engine_->lua.SetTimeScale(ts);
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Center")) {
+      SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED,
+                            SDL_WINDOWPOS_CENTERED);
+    }
+    ImGui::SameLine();
+    ImGui::SmallButton("Drag");
+    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0)) {
+      int wx = 0, wy = 0;
+      SDL_GetWindowPosition(window_, &wx, &wy);
+      ImVec2 delta = ImGui::GetMouseDragDelta(0);
+      ImGui::ResetMouseDragDelta(0);
+      SDL_SetWindowPosition(window_, wx + static_cast<int>(delta.x),
+                            wy + static_cast<int>(delta.y));
     }
     // FPS readout on the right.
     if (frame_times_ != nullptr && frame_times_->size() > 0) {
