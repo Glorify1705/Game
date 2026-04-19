@@ -336,52 +336,6 @@ bool CheckVec2Table(lua_State* L, int idx, float* xy) {
   return true;
 }
 
-// Resolves a dotted Lua path (e.g. "_Game.player.pos.x") by walking globals
-// and table fields. On success, the resolved value is on top of the stack and
-// the function returns true. On failure, the stack is unchanged and it returns
-// false.
-bool ResolveLuaPath(lua_State* L, std::string_view path) {
-  if (path.empty()) return false;
-  int top = lua_gettop(L);
-
-  // Walk segments separated by '.'.
-  size_t start = 0;
-  bool first = true;
-  while (start < path.size()) {
-    size_t dot = path.find('.', start);
-    if (dot == std::string_view::npos) dot = path.size();
-    std::string_view segment = path.substr(start, dot - start);
-    if (segment.empty()) {
-      lua_settop(L, top);
-      return false;
-    }
-    // Need a null-terminated copy for Lua C API.
-    char seg_buf[128];
-    size_t len = segment.size() < sizeof(seg_buf) - 1 ? segment.size()
-                                                      : sizeof(seg_buf) - 1;
-    memcpy(seg_buf, segment.data(), len);
-    seg_buf[len] = '\0';
-
-    if (first) {
-      lua_getglobal(L, seg_buf);
-      first = false;
-    } else {
-      if (!lua_istable(L, -1)) {
-        lua_settop(L, top);
-        return false;
-      }
-      lua_getfield(L, -1, seg_buf);
-      lua_remove(L, -2);
-    }
-    start = dot + 1;
-  }
-  if (lua_type(L, -1) == LUA_TNIL && lua_gettop(L) == top + 1) {
-    lua_settop(L, top);
-    return false;
-  }
-  return true;
-}
-
 // Recursively draws a Lua value as ImGui tree nodes.
 void DrawLuaValue(lua_State* L, int depth, int table_ref, int key_idx) {
   if (depth > 10) {
@@ -1725,9 +1679,6 @@ void DebugUI::DrawDocsPanel() {
 }
 
 void DebugUI::DrawWatchPanel() {
-  lua_State* L = engine_->lua.state();
-  LuaStackGuard guard(L);
-
   ImGui::SetNextWindowPos(ImVec2(820, 30), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(380, 350), ImGuiCond_FirstUseEver);
   if (!ImGui::Begin("Watch", nullptr,
@@ -1736,10 +1687,10 @@ void DebugUI::DrawWatchPanel() {
     return;
   }
 
-  // Input to add a new watch.
+  // Input to add a new watch expression.
   ImGui::SetNextItemWidth(-60);
   bool add = ImGui::InputTextWithHint(
-      "##watch_add", "_Game.player.x", watch_input_, kWatchPathSize,
+      "##watch_add", "#_Game.enemies", watch_input_, kWatchPathSize,
       ImGuiInputTextFlags_EnterReturnsTrue);
   ImGui::SameLine();
   if (ImGui::Button("Add") || add) {
@@ -1754,7 +1705,7 @@ void DebugUI::DrawWatchPanel() {
 
   if (watch_count_ == 0) {
     ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
-                       "No watches. Type a Lua path above.");
+                       "No watches. Type a Lua expression above.");
     ImGui::End();
     return;
   }
@@ -1765,7 +1716,7 @@ void DebugUI::DrawWatchPanel() {
   if (ImGui::BeginTable("##watches", 3,
                         ImGuiTableFlags_BordersInnerV |
                             ImGuiTableFlags_RowBg)) {
-    ImGui::TableSetupColumn("Path", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("Expr", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("##rm", ImGuiTableColumnFlags_WidthFixed, 20.0f);
     ImGui::TableHeadersRow();
@@ -1778,13 +1729,14 @@ void DebugUI::DrawWatchPanel() {
       ImGui::TableNextColumn();
       if (has_error) {
         ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "error");
-      } else if (ResolveLuaPath(L, watches_[i].path)) {
-        Str val_buf;
-        FormatLuaValue(L, -1, &val_buf);
-        ImGui::TextUnformatted(val_buf.str());
-        lua_pop(L, 1);
       } else {
-        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "N/A");
+        Str result;
+        if (engine_->lua.EvalString(watches_[i].path, &result)) {
+          ImGui::TextUnformatted(result.str());
+        } else {
+          ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s",
+                             result.str());
+        }
       }
 
       ImGui::TableNextColumn();
