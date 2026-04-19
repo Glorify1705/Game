@@ -172,8 +172,8 @@ ErrorOr<void> WriteEntireFile(const char* path, ByteSlice data) {
 ErrorOr<void> WriteFile(const char* path, const char* contents) {
   FILE* f = fopen(path, "w");
   if (f == nullptr) return Error::Errno(errno);
+  DEFER([f] { fclose(f); });
   fputs(contents, f);
-  fclose(f);
   return {};
 }
 

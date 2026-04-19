@@ -5,6 +5,7 @@
 #include <cstdio>
 
 #include "constants.h"
+#include "defer.h"
 #include "logging.h"
 #include "stringlib.h"
 
@@ -87,6 +88,7 @@ void Profiler::Flush() {
     LOG("Profiler: failed to open ", path.str(), " for writing");
     return;
   }
+  DEFER([f] { fclose(f); });
 
   fputs("[\n", f);
 
@@ -126,7 +128,6 @@ void Profiler::Flush() {
   }
 
   fputs("\n]\n", f);
-  fclose(f);
   LOG("Profiler: wrote ", count_, " events to ", path.str());
 }
 
