@@ -1167,7 +1167,7 @@ static const LuaApiFunction kWindowLib[] = {
      [](lua_State* state) {
        auto* window = Registry<SDL_Window>::Retrieve(state);
        lua_pushboolean(state,
-                       SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
+                       SDL_GetWindowFlags(window) & SDL_WINDOW_MOUSE_FOCUS);
        return 1;
      }}};
 
