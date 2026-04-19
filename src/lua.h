@@ -136,6 +136,39 @@ inline std::string_view GetLuaString(lua_State* state, int index) {
   return std::string_view(data, len);
 }
 
+// Formats a userdata value at idx into buf. Tries __tostring first, falls
+// back to __name, then "userdata". If show_ptr is true, appends ": 0xADDR"
+// when __tostring is not available.
+inline void FormatLuaUserdata(lua_State* L, int idx, StringBuffer* buf,
+                              bool show_ptr = false) {
+  if (lua_getmetatable(L, idx)) {
+    lua_getfield(L, -1, "__tostring");
+    if (lua_isfunction(L, -1)) {
+      lua_pushvalue(L, idx);
+      if (lua_pcall(L, 1, 1, 0) == 0 && lua_isstring(L, -1)) {
+        buf->Append(lua_tostring(L, -1));
+        lua_pop(L, 2);
+        return;
+      }
+      lua_pop(L, 1);
+    } else {
+      lua_pop(L, 1);
+    }
+    lua_getfield(L, -1, "__name");
+    if (lua_isstring(L, -1)) {
+      buf->Append(lua_tostring(L, -1));
+      if (show_ptr) buf->AppendF(": %p", lua_topointer(L, idx));
+    } else {
+      buf->Append("userdata");
+      if (show_ptr) buf->AppendF(": %p", lua_topointer(L, idx));
+    }
+    lua_pop(L, 2);
+  } else {
+    buf->Append("userdata");
+    if (show_ptr) buf->AppendF(": %p", lua_topointer(L, idx));
+  }
+}
+
 struct LuaApiFunctionArg {
   const char* name = {0};
   const char* docs = {0};
@@ -261,6 +294,14 @@ class Lua {
   void HandleMouseMoved(FVec2 pos, FVec2 delta);
   void HandleTextInput(std::string_view input);
   void HandleQuit();
+
+  // Evaluates a Lua string and writes the result (or error) to output.
+  // Returns true on success, false on error.
+  bool EvalString(std::string_view code, StringBuffer* output);
+
+  // Returns the underlying Lua state. Only safe to call from the main
+  // thread between update and draw (e.g. debug UI rendering).
+  lua_State* state() const { return state_; }
 
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }

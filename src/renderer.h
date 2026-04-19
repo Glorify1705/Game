@@ -217,6 +217,30 @@ class BatchRenderer {
 
   const FrameStats& GetFrameStats() const { return frame_stats_; }
 
+  // Returns the number of bytes currently used in the command buffer.
+  size_t GetCommandBufferUsed() const { return pos_; }
+
+  // Returns the total command buffer capacity in bytes.
+  size_t GetCommandBufferCapacity() const;
+
+  // Returns the number of loaded texture units.
+  // Returns the number of loaded texture units.
+  size_t GetTextureCount() const { return tex_.size(); }
+
+  // Returns the GL texture ID for a given texture index.
+  GLuint GetTextureId(size_t index) const {
+    return index < tex_.size() ? tex_[index] : 0;
+  }
+
+  // Returns the current viewport size.
+  IVec2 viewport() const { return viewport_; }
+
+  // Returns the current blend mode.
+  BlendMode GetCurrentBlendMode() const { return rec_blend_; }
+
+  // Returns the current shader handle.
+  uint32_t GetCurrentShader() const { return current_shader_; }
+
   struct Screenshot {
     size_t width, height;
     const uint8_t* buffer;
@@ -494,6 +518,18 @@ class Renderer {
 
   Slice<DbAssets::Image> GetImages() const {
     return MakeSlice(loaded_images_);
+  }
+
+  // Returns the GL texture ID for a spritesheet/image by name, or 0.
+  GLuint GetTextureByName(std::string_view name) const {
+    uint32_t idx;
+    if (!textures_table_.Lookup(name, &idx)) return 0;
+    // textures_[idx] is a BatchRenderer texture index, not a GLuint.
+    return renderer_->GetTextureId(textures_[idx]);
+  }
+
+  Slice<DbAssets::Spritesheet> GetSpritesheets() const {
+    return MakeSlice(loaded_spritesheets_);
   }
 
   // Returns the previous color.

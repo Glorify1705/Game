@@ -137,6 +137,12 @@ class Shaders {
     glUniform1f(uniform, value);
   }
 
+  // Returns the compiled programs dictionary for debug inspection.
+  const Dictionary<GLuint>& programs() const { return compiled_programs_; }
+
+  // Returns the compiled shaders dictionary for debug inspection.
+  const Dictionary<GLuint>& shaders() const { return compiled_shaders_; }
+
   bool HasUniform(const char* name) const {
     if (!current_program_) return false;
     return glGetUniformLocation(current_program_, name) != -1;

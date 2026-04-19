@@ -1,5 +1,5 @@
 ---
-status: in-design
+status: implemented
 tags: [debugging, ui, tooling, renderer]
 ---
 
@@ -322,67 +322,225 @@ Controls for the standalone collision system (`G.collision`):
 - **Override controls** — drag to pan, scroll to zoom, temporarily
   override the game camera for inspection.
 
-## Panel priority
+## Implementation status
 
-Based on what would save the most development time:
+| Panel | Status | Notes |
+|-------|--------|-------|
+| Performance | Done | FPS counter, frame time graph (PlotLines), draw call breakdown with flush reasons and redundant skips, Lua memory graph, command buffer fill bar. |
+| Log Console | Done | Captures all engine log messages (including startup) via LogSink intercept. Color-coded by level, per-level toggle checkboxes, text filter, auto-scroll, Copy to clipboard. Lua eval input with Up/Down history. |
+| Entity Inspector | Done | Focuses on `_Game` (expanded by default) and user globals, filtering out engine internals. Editable numbers (DragFloat), booleans (Checkbox), vec2 tables (`{x,y}` as DragFloat2), color tables (`{r,g,b,a}` as ColorEdit3/4). Key filter. |
+| Physics | Done | Body/joint/contact counts, editable gravity sliders, solver iteration inputs, scrollable body table (type, position, velocity, angle, mass). |
+| Audio | Done | Global volume slider, stream slot progress bar, active streams table (name, status, volume, pitch, pan, loop, type). |
+| Memory | Done | Engine arena and frame allocator progress bars, Lua heap sparkline, string table stats. |
+| Renderer | Done | Batch stats table, flush reason breakdown, redundant skip counts, command buffer bar, loaded image list, shader program enumeration, current blend mode/shader/viewport readout. |
+| Camera | Done | Position, zoom, rotation display. Follow target with lerp. Deadzone status. World bounds. Shake state. |
+| Asset Viewer | Done | Tabbed (Images, Sprites, Audio, Scripts, Shaders, Fonts). Image thumbnails via ImGui::Image. Sprite preview cut from spritesheet UVs. Audio Play/Stop preview. Text filter across all tabs. |
+| API Docs | Done | Reads `_Docs` Lua table, shows all engine API functions by library with signatures, docstrings, argument details, return values. Case-insensitive search. |
+| Watch | Done | Evaluates arbitrary Lua expressions each frame via `EvalString`. Compact table with expression, result, remove button. Errors shown in red. |
+| Collision Debug | Deferred | CollisionWorld lives as Lua userdata per-script, not an engine-level instance. Collider state is visible through the Entity Inspector. |
 
-| Priority | Panel | Rationale |
-|----------|-------|-----------|
-| 1 | Performance | Replaces the current text overlay with actual graphs. Tiny effort with `ImGui::PlotLines`. |
-| 2 | Log Console | Eliminates context-switching to the terminal. Lua eval makes hot-tweaking instant. |
-| 3 | Entity Inspector | Live state inspection without writing debug Lua. The single most powerful debug tool. |
-| 4 | Physics Debug | `b2Draw` wire-frame rendering. Required for any serious physics work. |
-| 5 | Collision Debug | Same as physics but for the standalone collision system. |
-| 6 | Audio | Stream table + waveform. Useful when debugging spatial audio or sound bugs. |
-| 7 | Memory | Allocator dashboard. Low priority until memory budgets are implemented. |
-| 8 | Renderer | Texture atlas viewer is nice-to-have. Low priority. |
-| 9 | Camera | Useful but the camera system already has Lua-side debug. |
+### Infrastructure
 
-## Implementation plan
+| Feature | Status | Notes |
+|---------|--------|-------|
+| ImGui vendor | Done | Dear ImGui v1.91.8, SDL3 + OpenGL3 backends, compiled behind `GAME_WITH_IMGUI`. |
+| Menu bar | Done | Panels menu with checkbox toggles, F5 preset cycling, F6 panel picker. Actions menu (Screenshot, Hot Reload, Run GC, Quit). Window menu (resolution presets). Inline controls: Quit, Pause/Play, Step, timescale slider, Center, Drag-to-move. FPS readout on the right. |
+| Compile-time guard | Done | All code behind `#ifdef GAME_WITH_IMGUI` with matching no-op stub class. |
+| Allocator integration | Done | ImGui allocations routed through SystemAllocator. |
+| Input routing | Done | SDL events forwarded to ImGui; WantCaptureMouse/Keyboard gates game input. |
+| Engine integration | Done | Single `SetEngine(Engine*)` call. `DrawAll(FrameContext)` dispatches to enabled panels. |
+| Lua helpers | Done | File-local abstractions: `LuaStackGuard` (RAII stack restore), `LuaGetString`, `LuaSetNumber`, `LuaPushGlobalTable`, `LuaTableForEach`, `LuaArrayForEach`, `FormatLuaValue`/`FormatLuaKey` (StringBuffer), `FormatLuaSignature`, `CheckVec2Table`, `CheckColorTable`. |
 
-### Phase 1: Vendor ImGui + scaffold
+## Proposed improvements (v1)
 
-1. Vendor ImGui (core + `imgui_impl_sdl3` + `imgui_impl_opengl3`) into
-   `libraries/imgui/`.
-2. Add to CMake behind `GAME_DEV_MODE`.
-3. Create `src/debug_ui.h` with `DebugUI` class: `Init()`, `Shutdown()`,
-   `ProcessEvent(SDL_Event*)`, `BeginFrame()`, `Render()`, `Toggle()`.
-4. Wire into `Game::Render()` and `Game::PollEvents()`.
-5. Add a single `ImGui::ShowDemoWindow()` call gated behind Tab to verify
-   integration works.
+Items from the original design, now mostly done:
 
-### Phase 2: Performance panel
+- ~~**Frame stepping.**~~ Done. Pause + Step button, F9/F10 shortcuts.
+- **Console history persistence.** Eval history is lost on restart. Save/load
+  to a small file so useful debug commands survive across sessions.
+- **Physics body filter.** The body table is unfiltered. Add a type filter
+  (dynamic/static/kinematic) and a click-to-highlight that draws a box
+  around the selected body in the viewport.
+- ~~**Log export to file.**~~ Done. Save button writes timestamped log file.
+- ~~**Keyboard shortcuts for panels.**~~ Done. F5 cycles presets (none / all
+  / default), F6 opens panel picker.
+- ~~**Camera drag-to-pan.**~~ Done. Middle-click drag in viewport when Camera
+  panel is open.
+- ~~**Texture zoom.**~~ Done. Click image in asset viewer to open zoomable
+  preview with pixel color readout.
+- **Performance history reset.** Button to clear the frame time and Lua
+  memory graph buffers (useful after a startup spike to see steady-state
+  performance).
 
-1. Replace the existing debug text block with an ImGui window.
-2. Frame time graph via `ImGui::PlotLines` backed by a circular buffer of
-   frame times.
-3. Draw call breakdown table.
-4. Lua memory readout.
+## v2 proposals
 
-### Phase 3: Log console + Lua eval
+Features inspired by game engine debug UIs (Quake/id Tech console,
+Minecraft F3, Unity inspector, Unreal stat unit, Jonathan Blow's Jai/Witness
+debug tools).
 
-1. Capture engine log output into a ring buffer (hook into the log sink).
-2. Render as a scrollable `ImGui::TextUnformatted` with color per level.
-3. Filter by level and channel via combo boxes.
-4. Text input at the bottom that calls `luaL_loadbuffer` + `lua_pcall`
-   (same mechanism as the REPL).
+### ~~1. Watch panel~~ — Done
 
-### Phase 4: Entity inspector
+Implemented as a Lua expression evaluator rather than a path resolver.
+Expressions are evaluated via `EvalString` each frame, supporting arbitrary
+Lua: `_Game.player.x`, `#_Game.enemies`, `math.floor(score / 10)`, etc.
+Errors shown inline in red. Up to 32 simultaneous watches.
 
-1. Recursive Lua table walker with `ImGui::TreeNode`.
-2. Read-only display of all `G.*` module tables.
-3. Editable number/string/boolean fields that write back to Lua.
+### 2. Frame time breakdown bars
 
-### Phase 5: Physics + collision debug draw
+Show a stacked horizontal bar in the Performance panel breaking down where
+frame time is spent. Answers "why is this frame slow?" at a glance.
 
-1. Implement `b2Draw` subclass that renders via ImGui's `ImDrawList`
-   (or the engine's `Renderer` — either works).
-2. Add collision world visualization (collider shapes, spatial hash grid).
-3. Control panel with world settings sliders.
+**Categories:** Update (Lua update + timers + physics), Draw (Lua draw
+callback), Render (FlushFrame + BatchRenderer::Render), Debug UI (ImGui
+frame).
 
-### Phase 6: Audio, memory, renderer, camera panels
+**Implementation sketch:**
 
-Build as needed. Each is a small self-contained panel.
+- New `FrameBreakdown` struct with four `float` fields (one per category).
+- Add to `FrameContext`. Add `CircularBuffer<FrameBreakdown>` for history
+  (300 samples, matching `kFrameTimeHistory`).
+- In `game.cc`, capture `Now()` timestamps around each phase in `Run()` and
+  `Render()`. Use one-frame-lagged values to avoid chicken-and-egg timing
+  (debug UI measures its own render time from the previous frame).
+- Draw a stacked horizontal bar using `ImDrawList` colored rectangles.
+  Colors: Update = blue, Draw = green, Render = orange, DebugUI = purple.
+  Tooltip on hover with exact ms values.
+- Optionally add a stacked area chart from the history buffer below the
+  existing frame time graph.
+- SwapWindow time is intentionally excluded (VSync idle would dominate and
+  is not actionable). The gap between sum-of-categories and total frame
+  time is the idle/VSync component.
+
+### 3. Drop-down Lua/Fennel REPL
+
+A proper interactive REPL accessible via backtick (`` ` ``) without
+opening the full debug overlay. Goes beyond a simple eval console: supports
+multi-line input, maintains state across evaluations, and shows a scrollable
+output history. Closer to a Lua interactive session than a Quake console.
+
+**Architecture change:** The REPL and mini HUD must render independently of
+`visible_`. Add `needs_imgui_frame()` returning
+`visible_ || repl_visible_ || mini_hud_visible_` and use it in
+`BeginFrame`, `EndFrame`, `WantCaptureMouse`, `WantCaptureKeyboard`. In
+`DrawAll`, draw independent overlays before the `visible_` gate.
+
+**Implementation sketch:**
+
+- Toggle with backtick. Handle the key event *before* `ProcessEvent()` in
+  `PollEvents()` so ImGui never sees it.
+- Full-width window pinned to top of screen, ~40% height, no title bar,
+  semi-transparent dark background.
+- Scrollable output area showing `> input` and results/errors, not the
+  engine log (that's what the Log Console panel is for).
+- Multi-line input with Ctrl+Enter to evaluate (Enter inserts newline).
+  Or Enter to evaluate single-line, Shift+Enter for newline.
+- Command history with Up/Down.
+- Fennel support: detect `(` as first character and route through Fennel
+  compiler before evaluation.
+- Auto-focus input when REPL appears.
+
+### 4. Mini stats HUD
+
+Tiny always-on corner overlay showing FPS, frame time, draw calls, and Lua
+memory. Visible even when the full debug overlay is hidden. Like Minecraft's
+F3 screen or Source engine's `net_graph`.
+
+**Implementation sketch:**
+
+- Toggle with F3 (Minecraft convention). Handle in `PollEvents` alongside
+  Tab, after `ProcessEvent`, before capture check.
+- `ImGuiWindowFlags_NoDecoration | NoInputs | AlwaysAutoResize |
+  NoFocusOnAppearing | NoNav`. Semi-transparent (alpha ~0.5), positioned
+  top-right.
+- Four text lines: FPS, frame time (ms), draw calls, Lua memory (KB).
+  Reads from existing `frame_times_` and `FrameContext`.
+- Uses the `needs_imgui_frame()` mechanism from Feature 3 to render
+  independently of the full overlay.
+- Shares the architecture change with the drop-down console.
+
+### 5. Hot zones profiler
+
+Live profiling panel showing the hottest code sections ranked by time, with
+running statistics (avg, p50, p90, p99). Inspired by Unreal's `stat`
+commands and Jonathan Blow's profiler visualizations.
+
+**Separate from the existing Profiler**, which is designed for offline
+Chrome Tracing export. This is a lightweight live system.
+
+**C++ API — `ZONE(name)` macro:**
+
+New RAII guard similar to `PROFILE_SCOPE_N` but feeds into a live `ZoneStats`
+table instead of the profiler ring buffer. Measures wall time of the scoped
+block and records it.
+
+```cpp
+void Game::RunUpdates() {
+  ZONE("Update");
+  // ...
+  {
+    ZONE("Physics::Update");
+    engine->physics.Update(scaled_dt);
+  }
+}
+```
+
+**Lua API — `G.system.zone(name, fn)`:**
+
+Wraps a Lua function call with zone timing. The function is called
+immediately; its wall time is recorded under the given zone name.
+
+```lua
+function Game.update(t, dt)
+  G.system.zone("ai", function() update_ai(dt) end)
+  G.system.zone("spawner", function() run_spawner(dt) end)
+end
+```
+
+Or in Fennel: `(G.system.zone :ai (fn [] (update-ai dt)))`
+
+**ZoneStats class (`src/zone_stats.h`):**
+
+- Fixed-capacity flat array mapping zone name (`std::string_view`, must be
+  static/literal) to a `Stats` instance. No STL containers.
+- Linear scan for lookup — zone count is small (~20-50 max).
+- `Record(std::string_view name, double ms)` — finds or creates zone,
+  calls `Stats::AddSample`.
+- `Reset()` — clears all zones.
+- Thread-safe: not needed (all zones recorded on main thread).
+- Global singleton accessed via `GetZoneStats()`.
+
+**ZONE macro implementation:**
+
+```cpp
+struct ZoneGuard {
+  std::string_view name;
+  Time start;
+  ZoneGuard(std::string_view n) : name(n), start(Now()) {}
+  ~ZoneGuard() {
+    double ms = ToSeconds(Now() - start) * 1000.0;
+    GetZoneStats()->Record(name, ms);
+  }
+};
+#define ZONE(name) ZoneGuard INTERNAL_ID(zone)(name)
+```
+
+**Debug UI panel — "Hot Zones":**
+
+- New panel `kPanelZones`.
+- Table with columns: Zone | Calls | Avg (ms) | p50 | p90 | p99 | Max.
+- Sorted by average time descending (hottest first).
+- Color-coded rows: green (<1ms), yellow (1-5ms), red (>5ms).
+- "Reset" button to clear all stats.
+- Updates live each frame from `GetZoneStats()`.
+
+**Coexistence with Profiler:**
+
+`ZONE` and `PROFILE_SCOPE_N` serve different purposes and can coexist:
+- `PROFILE_SCOPE_N` → offline trace export (Chrome Tracing JSON)
+- `ZONE` → live in-engine stats display
+
+A call site can use both if desired. The `ZONE` macro has minimal overhead
+(two clock reads + one hash lookup per scope).
 
 ## Style
 

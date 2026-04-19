@@ -92,7 +92,7 @@
     (tset g :dimensions [sx sy])
     (for [_ 1 10] (add-rectangle! g 0)))
   (G.sound.set_global_volume 0.8)
-  (G.sound.play :weapons_mode.ogg))
+  (tset g :music (G.sound.play :weapons_mode.ogg)))
 
 (fn Game.quit [g]
   (print "Thanks for playing!"))
@@ -102,7 +102,7 @@
   (tset g :t t)
   (let [(sx sy) (G.window.dimensions)]
     (tset g :dimensions [sx sy]))
-  (when (< g.timer 0) (G.sound.stop))
+  (when (< g.timer 0) (G.sound.stop_source g.music))
   (when (> g.timer 0)
     (tset g :timer (- g.timer dt))
     (let [(mx my) (G.input.mouse_position)]

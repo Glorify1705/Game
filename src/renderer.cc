@@ -45,6 +45,10 @@ constexpr uint64_t kSDFCacheVersion = 1;
 
 constexpr size_t kCommandMemory = Megabytes(64);
 
+size_t BatchRenderer::GetCommandBufferCapacity() const {
+  return kCommandMemory;
+}
+
 // Size of each command in command_buffer_: sizeof rounded up to
 // alignof(Command) so every command starts on a Command-aligned offset.
 // This lets CommandIterator::Read return a const Command* directly into

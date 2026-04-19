@@ -424,4 +424,18 @@ void Sound::SoundCallback(float* result, size_t samples_per_channel,
   }
 }
 
+void Sound::GetStreamDebugInfo(StreamDebugInfo* out, size_t max_count) const {
+  LockMutex l(mu_);
+  size_t count = stream_ < max_count ? stream_ : max_count;
+  for (size_t i = 0; i < count; ++i) {
+    out[i].handle = streams_[i].handle_;
+    out[i].playing = streams_[i].IsPlaying();
+    out[i].loop = streams_[i].loop_;
+    out[i].managed = streams_[i].IsManaged();
+    out[i].gain = streams_[i].gain_;
+    out[i].pitch = streams_[i].pitch_;
+    out[i].pan = streams_[i].pan_;
+  }
+}
+
 }  // namespace G

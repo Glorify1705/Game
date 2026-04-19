@@ -10,6 +10,7 @@
 #include "cli.h"
 #include "clock.h"
 #include "config.h"
+#include "debug_ui.h"
 #include "engine.h"
 #include "executor.h"
 #include "libraries/sqlite3.h"
@@ -85,30 +86,33 @@ void TakeScreenshotToClipboard(BatchRenderer* batch_renderer,
 // Owns the main loop state and orchestrates per-frame work.
 struct Game {
   Engine* engine;
-  const GameConfig& config;
-  const GameOptions& opts;
-  SdlContext& sdl;
-  HotReloadManager& hot_reload;
+  const GameConfig* config;
+  const GameOptions* opts;
+  SdlContext* sdl;
+  HotReloadManager* hot_reload;
   Allocator* allocator;
+  DebugUI* debug_ui;
 
   Stats stats = {};
   Time last_frame = {};
+  DebugUI::FrameBreakdown last_breakdown_ = {};
   double t = 0;
   double real_t = 0;
   double accum = 0;
-  bool debug = false;
   bool screenshot_requested = false;
   bool first_update_done = false;
   bool running = true;
 
-  Game(Engine* engine_, const GameConfig& config_, const GameOptions& opts_,
-       SdlContext& sdl_, HotReloadManager& hot_reload_, Allocator* allocator_)
+  Game(Engine* engine_, const GameConfig* config_, const GameOptions* opts_,
+       SdlContext* sdl_, HotReloadManager* hot_reload_, Allocator* allocator_,
+       DebugUI* debug_ui_)
       : engine(engine_),
         config(config_),
         opts(opts_),
         sdl(sdl_),
         hot_reload(hot_reload_),
-        allocator(allocator_) {}
+        allocator(allocator_),
+        debug_ui(debug_ui_) {}
 
   // Runs the game loop until quit or Lua stop.
   void Run();
@@ -128,12 +132,15 @@ struct Game {
   // Renders a frame, including debug overlay and screenshots.
   void Render();
 
+  // Renders the debug UI overlay and processes its action requests.
+  void RenderDebugUI();
+
   // Renders the error screen when Lua has a fatal error.
   void RenderCrashScreen(std::string_view error);
 };
 
 void Game::Run() {
-  SDL_ResumeAudioDevice(sdl.audio_device);
+  SDL_ResumeAudioDevice(sdl->audio_device);
   last_frame = Now();
   constexpr double kStep = TimeStepInSeconds();
   while (running) {
@@ -156,10 +163,10 @@ void Game::Run() {
     {
       PROFILE_SCOPE_N("StartFrame");
       engine->StartFrame();
-      SDL_StartTextInput(sdl.window);
+      SDL_StartTextInput(sdl->window);
     }
     PollEvents();
-    if (opts.test_mode) {
+    if (opts->test_mode) {
       engine->lua.ResumeTestCoroutine();
     }
     // Pause simulation while the window lacks keyboard focus. Rendering and
@@ -169,27 +176,35 @@ void Game::Run() {
     // start unfocused (launched from a terminal) and `draw` commonly
     // depends on state that `update` must set at least once.
     const bool paused =
-        !opts.test_mode && first_update_done &&
-        (SDL_GetWindowFlags(sdl.window) & SDL_WINDOW_INPUT_FOCUS) == 0;
+        !opts->test_mode && first_update_done &&
+        (SDL_GetWindowFlags(sdl->window) & SDL_WINDOW_INPUT_FOCUS) == 0;
     if (paused) accum = 0;
+    const Time update_start = Now();
     RunUpdates();
+    last_breakdown_.update_ms =
+        ElapsedMs(update_start);
     first_update_done = true;
     engine->batch_renderer.SetFrameTime(static_cast<float>(t));
     {
       PROFILE_SCOPE_N("Render");
       Render();
     }
-    PROFILE_COUNTER("Frame Time (ms)", ToSeconds(Now() - frame_start) * 1000.0);
+    double frame_ms = ToSeconds(Now() - frame_start) * 1000.0;
+    PROFILE_COUNTER("Frame Time (ms)", frame_ms);
     PROFILE_COUNTER("Lua Memory (KB)", engine->lua.MemoryUsage() / 1024.0);
-    stats.AddSample(ToSeconds(Now() - frame_start) * 1000.0);
+    stats.AddSample(frame_ms);
+    debug_ui->AddFrameTimeSample(static_cast<float>(frame_ms));
+    debug_ui->AddLuaMemorySample(
+        static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f);
+    debug_ui->AddBreakdownSample(last_breakdown_);
   }
 }
 
 void Game::HandleHotReload() {
-  if (!hot_reload.PendingChanges()) return;
+  if (!hot_reload->PendingChanges()) return;
   PROFILE_SCOPE_N("HotReload");
   TIMER("Hotload requested");
-  auto changes = hot_reload.ConsumePendingChanges();
+  auto changes = hot_reload->ConsumePendingChanges();
   engine->lua.ClearError();
   engine->Reload(changes);
   if (changes.has_script_changes) {
@@ -209,13 +224,35 @@ void Game::PollEvents() {
       running = false;
       return;
     }
-    engine->HandleEvent(event);
+    // Forward every event to ImGui before the engine processes it.
+    debug_ui->ProcessEvent(&event);
+    // Toggle the debug UI with Tab (processed before capture check so
+    // Tab always works regardless of ImGui focus state).
     if (event.type == SDL_EVENT_KEY_DOWN &&
-        engine->keyboard.IsDown(SDL_SCANCODE_TAB)) {
-      if (config.enable_debug_rendering) {
-        debug = !debug;
+        event.key.scancode == SDL_SCANCODE_TAB) {
+      if (config->enable_debug_rendering) {
+        debug_ui->Toggle();
       }
     }
+    // Debug UI shortcuts (F5/F6/F7).
+    if (event.type == SDL_EVENT_KEY_DOWN) {
+      debug_ui->HandleKeyShortcut(event.key.scancode);
+    }
+    // Skip game input when ImGui wants to capture it.
+    if (debug_ui->WantCaptureKeyboard() &&
+        (event.type == SDL_EVENT_KEY_DOWN ||
+         event.type == SDL_EVENT_KEY_UP ||
+         event.type == SDL_EVENT_TEXT_INPUT)) {
+      continue;
+    }
+    if (debug_ui->WantCaptureMouse() &&
+        (event.type == SDL_EVENT_MOUSE_MOTION ||
+         event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
+         event.type == SDL_EVENT_MOUSE_BUTTON_UP ||
+         event.type == SDL_EVENT_MOUSE_WHEEL)) {
+      continue;
+    }
+    engine->HandleEvent(event);
     if (event.type == SDL_EVENT_KEY_DOWN &&
         engine->keyboard.IsDown(SDL_SCANCODE_F12)) {
       screenshot_requested = true;
@@ -258,7 +295,7 @@ void Game::UpdateTick(double scaled_dt) {
 void Game::RunUpdates() {
   PROFILE_SCOPE_N("Update");
   constexpr double kStep = TimeStepInSeconds();
-  if (opts.test_mode) {
+  if (opts->test_mode) {
     // In test mode, run exactly one update per frame for determinism.
     const double scaled_dt = kStep * engine->lua.TimeScale();
     UpdateTick(scaled_dt);
@@ -287,47 +324,73 @@ void Game::RenderCrashScreen(std::string_view error) {
 }
 
 void Game::Render() {
+  // Draw phase: Lua draw callback (or crash screen).
   engine->renderer.ClearForFrame();
-  CmdBuffer buf(kTruncating);
-  if (engine->lua.Error(&buf)) {
-    RenderCrashScreen(buf.str());
-  } else {
-    PROFILE_SCOPE_N("Lua::Draw");
-    engine->lua.Draw();
-  }
-  // Draw FPS counter in debug mode.
-  if (debug && stats.samples() > 0) {
-    FixedStringBuffer<kMaxLogLineLength> log(kTruncating);
-    const auto& fs = engine->batch_renderer.GetFrameStats();
-    log.Append("FPS: ", (1000.0 / stats.avg()), " Stats = ", stats,
-               "\nDraw calls: ", fs.draw_calls, "  Vertices: ", fs.vertices,
-               "  Commands: ", fs.commands,
-               "\nRedundant skipped: tex=", fs.redundant_texture,
-               " xform=", fs.redundant_transform,
-               " shader=", fs.redundant_shader,
-               "\nLua memory usage: ", (engine->lua.MemoryUsage() / 1024.0f));
-    if (fs.flush_overflow > 0) {
-      log.Append("\nCmd buffer overflows: ", fs.flush_overflow);
+  {
+    const Time draw_start = Now();
+    CmdBuffer buf(kTruncating);
+    if (engine->lua.Error(&buf)) {
+      RenderCrashScreen(buf.str());
+    } else {
+      PROFILE_SCOPE_N("Lua::Draw");
+      engine->lua.Draw();
     }
-    const IVec2 dims =
-        engine->renderer.TextDimensions("debug_font.ttf", 16, log.str());
-    const IVec2 viewport = engine->batch_renderer.GetViewport();
-    const FVec2 text_pos(viewport.x - dims.x, viewport.y - dims.y);
-    engine->renderer.SetColor(Color::White());
-    engine->renderer.DrawString("debug_font.ttf", 16, log.str(), text_pos);
+    last_breakdown_.draw_ms =
+        ElapsedMs(draw_start);
   }
   if (screenshot_requested) {
     screenshot_requested = false;
     TakeScreenshotToClipboard(&engine->batch_renderer, allocator);
   }
-  engine->renderer.FlushFrame();
+  // Render phase: flush commands and submit to GPU.
   {
-    PROFILE_SCOPE_N("BatchRenderer::Render");
-    engine->batch_renderer.Render();
+    const Time render_start = Now();
+    engine->renderer.FlushFrame();
+    {
+      PROFILE_SCOPE_N("BatchRenderer::Render");
+      engine->batch_renderer.Render();
+    }
+    last_breakdown_.render_ms =
+        ElapsedMs(render_start);
   }
+  RenderDebugUI();
   {
     PROFILE_SCOPE_N("SwapWindow");
-    SDL_GL_SwapWindow(sdl.window);
+    SDL_GL_SwapWindow(sdl->window);
+  }
+}
+
+void Game::RenderDebugUI() {
+  const Time dbgui_start = Now();
+  PROFILE_SCOPE_N("DebugUI");
+  debug_ui->BeginFrame();
+  DebugUI::FrameContext ctx;
+  ctx.frame_stats = engine->batch_renderer.GetFrameStats();
+  ctx.lua_memory_kb =
+      static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f;
+  ctx.lua_memory_bytes = engine->lua.MemoryUsage();
+  ctx.cmd_buf_used = engine->batch_renderer.GetCommandBufferUsed();
+  ctx.cmd_buf_capacity = engine->batch_renderer.GetCommandBufferCapacity();
+  ctx.breakdown = last_breakdown_;
+  debug_ui->DrawAll(ctx);
+  debug_ui->EndFrame();
+  last_breakdown_.debug_ui_ms = ElapsedMs(dbgui_start);
+  if (debug_ui->ConsumeScreenshotRequest()) {
+    screenshot_requested = true;
+  }
+  if (debug_ui->ConsumeHotReloadRequest()) {
+    engine->lua.RequestHotload();
+  }
+  if (debug_ui->ConsumeQuitRequest()) {
+    engine->lua.HandleQuit();
+    running = false;
+  }
+  if (debug_ui->ConsumeStepRequest()) {
+    float saved_ts = engine->lua.TimeScale();
+    engine->lua.SetTimeScale(1.0f);
+    constexpr double kStepDt = TimeStepInSeconds();
+    UpdateTick(kStepDt);
+    engine->lua.SetTimeScale(saved_ts);
   }
 }
 
@@ -347,6 +410,12 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   // Setup.
   TIMER("Setup");
   InitializeLogging();
+
+  // Start capturing log messages into the debug UI ring buffer before any
+  // LOG calls so that no startup messages are lost.
+  DebugUI debug_ui;
+  debug_ui.StartLogCapture(allocator);
+
   for (size_t i = 0; i < opts.all_args.size(); ++i) {
     LOG("args[", i, "]: ", opts.all_args[i]);
   }
@@ -413,8 +482,13 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   hot_reload.Start();
 
   // Main loop.
-  Game loop{e, config, opts, sdl, hot_reload, allocator};
+  debug_ui.Init(sdl.window, sdl.gl_context);
+  debug_ui.SetEngine(e);
+  debug_ui.SetEngineArena(allocator);
+  debug_ui.SetWindowCentered(config.centered);
+  Game loop{e, &config, &opts, &sdl, &hot_reload, allocator, &debug_ui};
   loop.Run();
+  debug_ui.Shutdown();
 
   // Tear down in reverse order: hot-reload watcher, thread pool, audio
   // stream (before Engine, which owns the Sound mutex), then Engine.

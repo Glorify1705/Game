@@ -789,10 +789,46 @@ void Lua::LogValue(lua_State* state, int pos, int depth, StringBuffer* buf) {
         buf->Append(ptr);
       }
     }; break;
+    case LUA_TUSERDATA:
+      FormatLuaUserdata(state, abs_pos, buf);
+      break;
     default:
       buf->Append("?? (", lua_typename(state, lua_type(state, pos)), ")");
       break;
   }
+}
+
+bool Lua::EvalString(std::string_view code, StringBuffer* output) {
+  LUA_CHECK_STACK(state_);
+  int top = lua_gettop(state_);
+  // Try loading as an expression first (prepend "return ").
+  FixedStringBuffer<kMaxLogLineLength> expr(kTruncating);
+  expr.Append("return ", code);
+  bool loaded =
+      luaL_loadbuffer(state_, expr.str(), strlen(expr.str()), "=eval") == 0;
+  if (!loaded) {
+    lua_pop(state_, 1);
+    // Fall back to loading as a statement.
+    loaded = luaL_loadbuffer(state_, code.data(), code.size(), "=eval") == 0;
+  }
+  if (!loaded) {
+    output->Append(luaL_checkstring(state_, -1));
+    lua_settop(state_, top);
+    return false;
+  }
+  if (lua_pcall(state_, 0, LUA_MULTRET, 0) != 0) {
+    output->Append(luaL_checkstring(state_, -1));
+    lua_settop(state_, top);
+    return false;
+  }
+  // Format all return values.
+  int nresults = lua_gettop(state_) - top;
+  for (int i = 1; i <= nresults; ++i) {
+    if (i > 1) output->Append("\t");
+    LogValue(state_, top + i, /*depth=*/0, output);
+  }
+  lua_settop(state_, top);
+  return true;
 }
 
 void Lua::InsertIntoCache(std::string_view script_name, lua_State* state) {

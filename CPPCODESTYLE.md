@@ -283,6 +283,25 @@ if (ptr == nullptr) return;
 for (size_t i = 0; i < n; ++i) total += data[i];
 ```
 
+### Ternary Operator
+
+Only use the ternary operator (`? :`) for simple value selection where both
+branches are plain values or short identifiers:
+
+```cpp
+// Good: simple value selection.
+const char* label = paused ? "Play" : "Pause";
+int components = has_alpha ? 4 : 3;
+
+// Bad: complex expressions in branches — use if/else instead.
+float ratio = (total > 0)
+    ? static_cast<float>(used) / static_cast<float>(total)
+    : 0.0f;
+```
+
+If either branch contains a function call, cast, arithmetic, or spans
+multiple lines, use `if`/`else` instead.
+
 ### Trailing Whitespace and Newlines
 
 No trailing whitespace. Files end with exactly one newline. At most one
@@ -642,7 +661,10 @@ as they do not introduce implicit heap allocations.
   ```
 - **`std::string_view`** — non-owning string references. The default way to
   pass strings. Prefer `std::string_view` over `const char*` when comparing
-  strings — use `==` on `string_view` instead of `strcmp`.
+  strings — use `==` on `string_view` instead of `strcmp`. **Never use
+  `strcmp`/`strcasecmp`**; wrap `const char*` values in `std::string_view`
+  and compare with `==`. Use `strncmp` only when comparing a prefix of
+  known length and `string_view` cannot apply.
 - **`[[nodiscard]]`** — on functions where ignoring the return is likely a bug.
 - **`[[maybe_unused]]`** — to suppress warnings on intentionally unused
   variables or conditionally-used parameters (e.g. `#ifdef` branches). For
@@ -713,6 +735,13 @@ static ColorTable table;  // Only safe if ColorTable has a trivial destructor
 
 Do not use `std::unique_ptr`, `std::shared_ptr`, or `std::weak_ptr`. Lifetime
 is managed through allocators, arenas, and explicit cleanup.
+
+### Reference Fields
+
+Do not store references (`T&`) as struct or class members. Use pointers
+(`T*`) instead. References cannot be rebound, make assignment operators
+impossible, and obscure nullability. Pass references as function parameters
+(where they express "non-null, non-owning") but store pointers in fields.
 
 ### Streams for Formatting
 
