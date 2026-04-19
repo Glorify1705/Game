@@ -299,7 +299,6 @@ ErrorOr<void> WritePixelsToImage(const char *filename, uint8_t *data,
   auto *encoded =
       reinterpret_cast<char *>(QoiEncode(data, &desc, &size, allocator));
   if (encoded == nullptr) {
-    allocator->Dealloc(encoded, size);
     return Error::Message("Failed to encode data to QOI");
   }
 
