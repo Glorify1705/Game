@@ -121,7 +121,8 @@ add_library(vendored STATIC
     libraries/stb_image_all.cc
     libraries/stb_vorbis.cc
     libraries/yyjson.c
-    libraries/backward.cc)
+    libraries/backward.cc
+    libraries/enet.cc)
 
 target_include_directories(vendored PUBLIC "${PROJECT_SOURCE_DIR}")
 target_compile_features(vendored PRIVATE cxx_std_17)
@@ -136,6 +137,9 @@ set_source_files_properties(libraries/stb_image_write.cc PROPERTIES
     COMPILE_OPTIONS "-Wno-missing-field-initializers")
 set_source_files_properties(libraries/sqlite3.c PROPERTIES
     COMPILE_DEFINITIONS SQLITE_ENABLE_MEMSYS5)
+set_source_files_properties(libraries/lua-protobuf/pb.c PROPERTIES
+    COMPILE_DEFINITIONS "PB_STATIC_API"
+    COMPILE_OPTIONS "-Wno-error")
 
 if(ENABLE_SANITIZERS)
   target_compile_options(vendored PRIVATE
@@ -204,8 +208,13 @@ set(ENGINE_SRCS
     src/cmd_run.cc
     src/cmd_stubs.cc
     src/cmd_version.cc
+<<<<<<< HEAD
+    src/network.cc
+    src/lua_data.cc
+    src/lua_network.cc
     src/platform.cc
-    $<$<BOOL:${ENABLE_IMGUI}>:src/debug_ui.cc>)
+    $<$<BOOL:${ENABLE_IMGUI}>:src/debug_ui.cc>
+    libraries/lua-protobuf/pb.c)
 
 add_library(engine STATIC ${ENGINE_SRCS})
 
@@ -267,7 +276,8 @@ target_link_libraries(engine PUBLIC
     $<$<BOOL:${WIN32}>:opengl32>
     $<$<NOT:$<BOOL:${WIN32}>>:OpenGL::GL>
     $<$<BOOL:${LIBDW_FOUND}>:${LIBDW_LIBRARY}>
-    $<$<BOOL:${WIN32}>:dbghelp>)
+    $<$<BOOL:${WIN32}>:dbghelp>
+    $<$<BOOL:${WIN32}>:ws2_32;winmm>)
 
 # Game executable (just the entry point).
 add_executable(Game src/game.cc)

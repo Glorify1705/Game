@@ -15,6 +15,8 @@
 #include "lua_math.h"
 #include "lua_physics.h"
 #include "lua_random.h"
+#include "lua_data.h"
+#include "lua_network.h"
 #include "lua_sound.h"
 #include "lua_system.h"
 #include "lua_test.h"
@@ -46,6 +48,7 @@ Engine::Engine(Slice<const char*> args, sqlite3* db_, DbAssets* db_assets,
       lua(args, db, db_assets, &lua_allocator),
       physics(FVec(config.window_width, config.window_height),
               Physics::kPixelsPerMeter, allocator),
+      network(/*audio_channels=*/0, allocator),
       frame_allocator(allocator, Megabytes(128)),
       pool(allocator, ThreadPoolExecutor::NumDefaultThreads()),
       allocator_(allocator) {}
@@ -65,6 +68,7 @@ void Engine::Initialize() {
   lua.Register(&sound);
   lua.Register(&filesystem);
   lua.Register(&physics);
+  lua.Register(&network);
   lua.Register(&console);
   lua.Register(&camera);
   lua.Register(assets);
@@ -83,6 +87,8 @@ void Engine::Initialize() {
   AddSystemLibrary(&lua);
   AddAssetsLibrary(&lua);
   AddCollisionLibrary(&lua);
+  AddDataLibrary(&lua);
+  AddNetworkLibrary(&lua);
   AddJsonLibrary(&lua);
   AddTestLibrary(&lua);
   AddTimerLibrary(&lua);
