@@ -180,6 +180,117 @@ void DebugUI::DrawAssetDbTab(const char* label, const char* sql) {
   ImGui::EndTabItem();
 }
 
+// Shared helper for the script/shader editor tabs. Loads content from DB,
+// displays in a TextEditor, and optionally saves + triggers hot reload.
+namespace {
+
+void DrawCodeEditorTab(DebugUI* ui, Engine* engine, const char* table_name,
+                       const TextEditor::Language* lang, const char* filter) {
+  static TextEditor editor;
+  static std::string loaded_name;
+  static bool read_only = true;
+
+  sqlite3* db = engine->db;
+  if (db == nullptr) return;
+
+  // Left: script list.
+  float list_width = 180.0f;
+  if (ImGui::BeginChild("##list", ImVec2(list_width, 0), true)) {
+    SmallBuffer sql;
+    sql.AppendF("SELECT name FROM %s ORDER BY name", table_name);
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql.str(), -1, &stmt, nullptr) == SQLITE_OK) {
+      while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* name = reinterpret_cast<const char*>(
+            sqlite3_column_text(stmt, 0));
+        if (name == nullptr) continue;
+        if (!MatchesFilter(name, filter)) continue;
+        bool selected = (loaded_name == name);
+        if (ImGui::Selectable(name, selected)) {
+          if (!selected) {
+            // Load content.
+            SmallBuffer load_sql;
+            load_sql.AppendF("SELECT contents FROM %s WHERE name = ?",
+                             table_name);
+            sqlite3_stmt* load_stmt = nullptr;
+            if (sqlite3_prepare_v2(db, load_sql.str(), -1, &load_stmt,
+                                   nullptr) == SQLITE_OK) {
+              sqlite3_bind_text(load_stmt, 1, name, -1, SQLITE_STATIC);
+              if (sqlite3_step(load_stmt) == SQLITE_ROW) {
+                const char* contents = reinterpret_cast<const char*>(
+                    sqlite3_column_text(load_stmt, 0));
+                if (contents != nullptr) {
+                  editor.SetText(contents);
+                  editor.SetLanguage(lang);
+                  loaded_name = name;
+                  read_only = true;
+                  editor.SetReadOnlyEnabled(true);
+                }
+              }
+              sqlite3_finalize(load_stmt);
+            }
+          }
+        }
+      }
+      sqlite3_finalize(stmt);
+    }
+  }
+  ImGui::EndChild();
+
+  ImGui::SameLine();
+
+  // Right: editor.
+  if (ImGui::BeginChild("##editor", ImVec2(0, 0))) {
+    if (loaded_name.empty()) {
+      ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
+                         "Select a file from the list.");
+    } else {
+      ImGui::Text("%s", loaded_name.c_str());
+      ImGui::SameLine();
+      if (ImGui::SmallButton(read_only ? "Edit" : "Read-only")) {
+        read_only = !read_only;
+        editor.SetReadOnlyEnabled(read_only);
+      }
+      if (!read_only) {
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Save & Reload")) {
+          std::string text = editor.GetText();
+          SmallBuffer save_sql;
+          save_sql.AppendF("UPDATE %s SET contents = ? WHERE name = ?",
+                           table_name);
+          sqlite3_stmt* save_stmt = nullptr;
+          if (sqlite3_prepare_v2(db, save_sql.str(), -1, &save_stmt,
+                                 nullptr) == SQLITE_OK) {
+            sqlite3_bind_text(save_stmt, 1, text.c_str(),
+                              static_cast<int>(text.size()), SQLITE_STATIC);
+            sqlite3_bind_text(save_stmt, 2, loaded_name.c_str(),
+                              static_cast<int>(loaded_name.size()),
+                              SQLITE_STATIC);
+            sqlite3_step(save_stmt);
+            sqlite3_finalize(save_stmt);
+            engine->lua.RequestHotload();
+          }
+        }
+      }
+      editor.Render("##code_editor",
+                    ImVec2(0, ImGui::GetContentRegionAvail().y));
+    }
+  }
+  ImGui::EndChild();
+}
+
+}  // namespace
+
+void DebugUI::DrawAssetScriptsTab() {
+  DrawCodeEditorTab(this, engine_, "scripts", TextEditor::Language::Lua(),
+                    asset_filter_);
+}
+
+void DebugUI::DrawAssetShadersTab() {
+  DrawCodeEditorTab(this, engine_, "shaders", TextEditor::Language::Glsl(),
+                    asset_filter_);
+}
+
 void DebugUI::DrawAssetViewer() {
   ImGui::SetNextWindowPos(ImVec2(400, 300), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(550, 450), ImGuiCond_FirstUseEver);
@@ -207,10 +318,14 @@ void DebugUI::DrawAssetViewer() {
       DrawAssetAudioTab();
       ImGui::EndTabItem();
     }
-    DrawAssetDbTab("Scripts",
-                   "SELECT name, length(contents) FROM scripts ORDER BY name");
-    DrawAssetDbTab("Shaders",
-                   "SELECT name, length(contents) FROM shaders ORDER BY name");
+    if (ImGui::BeginTabItem("Scripts")) {
+      DrawAssetScriptsTab();
+      ImGui::EndTabItem();
+    }
+    if (ImGui::BeginTabItem("Shaders")) {
+      DrawAssetShadersTab();
+      ImGui::EndTabItem();
+    }
     DrawAssetDbTab("Fonts",
                    "SELECT name, length(contents) FROM fonts ORDER BY name");
     ImGui::EndTabBar();

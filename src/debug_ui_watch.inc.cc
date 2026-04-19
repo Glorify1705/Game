@@ -80,20 +80,89 @@ void DebugUI::DrawWatchPanel() {
 }
 
 void DebugUI::DrawRepl() {
+  static TextEditor repl_editor;
+  static bool repl_editor_init = false;
+  if (!repl_editor_init) {
+    repl_editor.SetLanguage(TextEditor::Language::Lua());
+    repl_editor.SetShowLineNumbersEnabled(false);
+    repl_editor.SetTabSize(2);
+    repl_editor.SetPalette(TextEditor::GetDarkPalette());
+    repl_editor_init = true;
+  }
+
+  // Update language when toggled.
+  static ReplLang last_lang = kLua;
+  if (repl_lang_ != last_lang) {
+    repl_editor.SetLanguage(TextEditor::Language::Lua());
+    last_lang = repl_lang_;
+  }
+
   ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "REPL");
   ImGui::SameLine();
   if (ImGui::SmallButton(repl_lang_ == kFennel ? "Fennel" : "Lua")) {
     repl_lang_ = (repl_lang_ == kLua) ? kFennel : kLua;
   }
   ImGui::SameLine();
+  if (ImGui::SmallButton("Run") ||
+      (ImGui::IsKeyDown(ImGuiMod_Ctrl) &&
+       ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+    std::string code = repl_editor.GetText();
+    // Trim trailing whitespace/newlines.
+    while (!code.empty() && (code.back() == '\n' || code.back() == '\r' ||
+                             code.back() == ' ')) {
+      code.pop_back();
+    }
+    if (!code.empty() && engine_ != nullptr) {
+      // Echo input.
+      ReplEntry input_entry;
+      input_entry.is_input = true;
+      input_entry.is_error = false;
+      FixedStringBuffer<kMaxLogLineLength> echo(kTruncating);
+      echo.Append("> ", code);
+      CopyToBuffer(input_entry.text, sizeof(input_entry.text), echo.view());
+      repl_entries_->Push(input_entry);
+
+      // Evaluate (compile Fennel to Lua first if in Fennel mode).
+      FixedStringBuffer<kMaxLogLineLength> result(kTruncating);
+      bool ok = false;
+      if (repl_lang_ == kFennel) {
+        FixedStringBuffer<kMaxLogLineLength> compiled(kTruncating);
+        if (CompileFennel(engine_->lua.state(), code, &compiled)) {
+          ok = engine_->lua.EvalString(compiled.view(), &result);
+        } else {
+          result.Append(compiled.view());
+        }
+      } else {
+        ok = engine_->lua.EvalString(code, &result);
+      }
+      if (!result.view().empty()) {
+        ReplEntry result_entry;
+        result_entry.is_input = false;
+        result_entry.is_error = !ok;
+        FixedStringBuffer<kMaxLogLineLength> formatted(kTruncating);
+        if (ok) formatted.Append("=> ");
+        formatted.Append(result.view());
+        CopyToBuffer(result_entry.text, sizeof(result_entry.text),
+                     formatted.view());
+        repl_entries_->Push(result_entry);
+      }
+      repl_editor.ClearText();
+      repl_scroll_to_bottom_ = true;
+    }
+  }
+  ImGui::SameLine();
   if (ImGui::SmallButton("Clear")) {
     while (!repl_entries_->empty()) repl_entries_->Pop();
   }
+  ImGui::SameLine();
+  ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Ctrl+Enter to run");
 
   // Scrollable output.
-  float footer =
-      ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
-  if (ImGui::BeginChild("##repl_output", ImVec2(0, -footer), false,
+  float editor_height = ImGui::GetTextLineHeight() * 7;
+  float output_height = ImGui::GetContentRegionAvail().y - editor_height -
+                        ImGui::GetStyle().ItemSpacing.y;
+  if (output_height < 60.0f) output_height = 60.0f;
+  if (ImGui::BeginChild("##repl_output", ImVec2(0, output_height), false,
                         ImGuiWindowFlags_HorizontalScrollbar)) {
     size_t count = repl_entries_->size();
     for (size_t i = 0; i < count; ++i) {
@@ -113,64 +182,7 @@ void DebugUI::DrawRepl() {
   }
   ImGui::EndChild();
 
-  // Input.
-  bool reclaim_focus = false;
-  ImGuiInputTextFlags input_flags =
-      ImGuiInputTextFlags_EnterReturnsTrue |
-      ImGuiInputTextFlags_EscapeClearsAll |
-      ImGuiInputTextFlags_CallbackHistory;
-  ImGui::SetNextItemWidth(-1);
-  if (ImGui::InputText("##repl_eval", repl_input_, kEvalInputSize,
-                       input_flags, ReplHistoryCallback, this)) {
-    if (repl_input_[0] != '\0' && engine_ != nullptr) {
-      // Echo input.
-      ReplEntry input_entry;
-      input_entry.is_input = true;
-      input_entry.is_error = false;
-      FixedStringBuffer<kMaxLogLineLength> echo(kTruncating);
-      echo.Append("> ", repl_input_);
-      CopyToBuffer(input_entry.text, sizeof(input_entry.text), echo.view());
-      repl_entries_->Push(input_entry);
-
-      // Add to shared eval history (skip consecutive duplicates).
-      if (eval_history_count_ == 0 ||
-          std::string_view(eval_history_entries_[(eval_history_count_ - 1) %
-                                                 kEvalHistoryMax]) !=
-              repl_input_) {
-        int idx = eval_history_count_ % kEvalHistoryMax;
-        CopyToBuffer(eval_history_entries_[idx], kEvalInputSize, repl_input_);
-        eval_history_count_++;
-      }
-      eval_history_pos_ = -1;
-
-      // Evaluate (compile Fennel to Lua first if in Fennel mode).
-      FixedStringBuffer<kMaxLogLineLength> result(kTruncating);
-      bool ok = false;
-      if (repl_lang_ == kFennel) {
-        FixedStringBuffer<kMaxLogLineLength> compiled(kTruncating);
-        if (CompileFennel(engine_->lua.state(), repl_input_, &compiled)) {
-          ok = engine_->lua.EvalString(compiled.view(), &result);
-        } else {
-          result.Append(compiled.view());
-        }
-      } else {
-        ok = engine_->lua.EvalString(repl_input_, &result);
-      }
-      if (!result.view().empty()) {
-        ReplEntry result_entry;
-        result_entry.is_input = false;
-        result_entry.is_error = !ok;
-        FixedStringBuffer<kMaxLogLineLength> formatted(kTruncating);
-        if (ok) formatted.Append("=> ");
-        formatted.Append(result.view());
-        CopyToBuffer(result_entry.text, sizeof(result_entry.text),
-                     formatted.view());
-        repl_entries_->Push(result_entry);
-      }
-      repl_input_[0] = '\0';
-      repl_scroll_to_bottom_ = true;
-    }
-    reclaim_focus = true;
-  }
-  if (reclaim_focus) ImGui::SetKeyboardFocusHere(-1);
+  // Editor input.
+  repl_editor.Render("##repl_editor",
+                     ImVec2(0, ImGui::GetContentRegionAvail().y));
 }

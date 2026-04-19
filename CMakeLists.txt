@@ -77,6 +77,7 @@ add_subdirectory(libraries/SDL3 EXCLUDE_FROM_ALL SYSTEM)
 
 if(ENABLE_IMGUI)
     add_subdirectory(libraries/imgui EXCLUDE_FROM_ALL SYSTEM)
+    add_subdirectory(libraries/text_editor EXCLUDE_FROM_ALL SYSTEM)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -247,7 +248,7 @@ endif()
 
 if(ENABLE_IMGUI)
     target_compile_definitions(engine PUBLIC GAME_WITH_IMGUI)
-    target_link_libraries(engine PUBLIC imgui)
+    target_link_libraries(engine PUBLIC imgui text_editor)
 endif()
 
 if(ENABLE_CLANG_TIDY)

@@ -150,6 +150,8 @@ class DebugUI {
   void DrawAssetSpritesTab();
   void DrawAssetAudioTab();
   void DrawAssetDbTab(const char* label, const char* sql);
+  void DrawAssetScriptsTab();
+  void DrawAssetShadersTab();
   // Draws the REPL input and output area (embedded in Watch panel).
   void DrawRepl();
   // Returns true if a log entry passes the current level and text filters.
@@ -250,7 +252,6 @@ class DebugUI {
   };
   static constexpr size_t kMaxReplEntries = 256;
   CircularBuffer<ReplEntry>* repl_entries_ = nullptr;
-  char repl_input_[kEvalInputSize] = {};
   bool repl_scroll_to_bottom_ = false;
   enum ReplLang { kLua, kFennel };
   ReplLang repl_lang_ = kLua;
