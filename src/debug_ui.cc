@@ -273,6 +273,16 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       if (ImGui::MenuItem("Screenshot (F12)")) screenshot_requested_ = true;
       if (ImGui::MenuItem("Hot Reload")) hot_reload_requested_ = true;
       if (ImGui::MenuItem("Run GC")) engine_->lua.RunGc();
+#ifdef GAME_WITH_PROFILING
+      {
+        Profiler* p = GetProfiler();
+        bool recording = p->recording();
+        if (ImGui::MenuItem(recording ? "Stop Profiling (F11)"
+                                      : "Start Profiling (F11)")) {
+          p->ToggleRecording();
+        }
+      }
+#endif
       ImGui::Separator();
       if (ImGui::MenuItem("Quit")) quit_requested_ = true;
       ImGui::EndMenu();
