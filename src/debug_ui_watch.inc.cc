@@ -90,10 +90,21 @@ void DebugUI::DrawRepl() {
 
   ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "REPL");
   ImGui::SameLine();
-  if (ImGui::SmallButton(repl_lang_ == kFennel ? "Fennel" : "Lua")) {
-    repl_lang_ = (repl_lang_ == kLua) ? kFennel : kLua;
-    repl_editor_.SetLanguage(repl_lang_ == kFennel ? FennelLanguage()
-                                                   : TextEditor::Language::Lua());
+  const char* lang_label = "Lua";
+  if (repl_lang_ == kFennel) lang_label = "Fennel";
+  if (repl_lang_ == kSql) lang_label = "SQL";
+  if (ImGui::SmallButton(lang_label)) {
+    if (repl_lang_ == kLua) {
+      repl_lang_ = kFennel;
+    } else if (repl_lang_ == kFennel) {
+      repl_lang_ = kSql;
+    } else {
+      repl_lang_ = kLua;
+    }
+    const TextEditor::Language* editor_lang = TextEditor::Language::Lua();
+    if (repl_lang_ == kFennel) editor_lang = FennelLanguage();
+    if (repl_lang_ == kSql) editor_lang = TextEditor::Language::Sql();
+    repl_editor_.SetLanguage(editor_lang);
   }
   ImGui::SameLine();
   if (ImGui::SmallButton("Run") ||
@@ -115,10 +126,41 @@ void DebugUI::DrawRepl() {
       CopyToBuffer(input_entry.text, sizeof(input_entry.text), echo.view());
       repl_entries_->Push(input_entry);
 
-      // Evaluate (compile Fennel to Lua first if in Fennel mode).
+      // Evaluate.
       FixedStringBuffer<kMaxLogLineLength> result(kTruncating);
       bool ok = false;
-      if (repl_lang_ == kFennel) {
+      if (repl_lang_ == kSql) {
+        sqlite3_stmt* stmt = nullptr;
+        int rc = sqlite3_prepare_v2(engine_->db, code.c_str(), -1, &stmt,
+                                    nullptr);
+        if (rc != SQLITE_OK) {
+          result.Append(sqlite3_errmsg(engine_->db));
+        } else {
+          ok = true;
+          int ncols = sqlite3_column_count(stmt);
+          int rows = 0;
+          while (sqlite3_step(stmt) == SQLITE_ROW) {
+            if (rows > 0) {
+              ReplEntry row_entry;
+              row_entry.is_input = false;
+              row_entry.is_error = false;
+              CopyToBuffer(row_entry.text, sizeof(row_entry.text),
+                           result.view());
+              repl_entries_->Push(row_entry);
+              result.Clear();
+            }
+            for (int c = 0; c < ncols; ++c) {
+              if (c > 0) result.Append(" | ");
+              const char* val = reinterpret_cast<const char*>(
+                  sqlite3_column_text(stmt, c));
+              result.Append(val ? val : "NULL");
+            }
+            ++rows;
+          }
+          if (rows == 0) result.Append("(no rows)");
+          sqlite3_finalize(stmt);
+        }
+      } else if (repl_lang_ == kFennel) {
         FixedStringBuffer<kMaxLogLineLength> compiled(kTruncating);
         if (CompileFennel(engine_->lua.state(), code, &compiled)) {
           ok = engine_->lua.EvalString(compiled.view(), &result);

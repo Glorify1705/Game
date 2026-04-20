@@ -288,7 +288,7 @@ class DebugUI {
   static constexpr size_t kMaxReplEntries = 256;
   CircularBuffer<ReplEntry>* repl_entries_ = nullptr;
   bool repl_scroll_to_bottom_ = false;
-  enum ReplLang { kLua, kFennel };
+  enum ReplLang { kLua, kFennel, kSql };
   ReplLang repl_lang_ = kLua;
   TextEditor repl_editor_;
   bool repl_editor_init_ = false;
