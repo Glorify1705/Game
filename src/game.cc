@@ -164,6 +164,13 @@ void Game::Run() {
       PROFILE_SCOPE_N("StartFrame");
       engine->StartFrame();
       SDL_StartTextInput(sdl->window);
+      // Update mouse coordinate mapping for window/viewport mismatch.
+      int win_w = 0, win_h = 0;
+      SDL_GetWindowSize(sdl->window, &win_w, &win_h);
+      IVec2 vp = engine->batch_renderer.GetViewport();
+      engine->mouse.SetWindowAndViewport(
+          FVec(static_cast<float>(win_w), static_cast<float>(win_h)),
+          FVec(static_cast<float>(vp.x), static_cast<float>(vp.y)));
     }
     PollEvents();
     if (opts->test_mode) {

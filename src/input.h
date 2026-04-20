@@ -104,7 +104,20 @@ class Mouse {
     if (test_mode_) return test_position_;
     float x, y;
     SDL_GetMouseState(&x, &y);
+    // Scale from window coordinates to viewport coordinates when they differ.
+    if (window_size_.x > 0 && viewport_size_.x > 0 &&
+        (window_size_.x != viewport_size_.x ||
+         window_size_.y != viewport_size_.y)) {
+      x = x * viewport_size_.x / window_size_.x;
+      y = y * viewport_size_.y / window_size_.y;
+    }
     return FVec(x, y);
+  }
+
+  // Updates the window and viewport sizes for mouse coordinate mapping.
+  void SetWindowAndViewport(FVec2 window, FVec2 viewport) {
+    window_size_ = window;
+    viewport_size_ = viewport;
   }
 
   void InitForFrame() {
@@ -150,6 +163,8 @@ class Mouse {
   FVec2 mouse_wheel_ = FVec2::Zero();
   std::array<bool, 3> previous_pressed_, pressed_;
   FVec2 test_position_ = FVec2::Zero();
+  FVec2 window_size_ = FVec2::Zero();
+  FVec2 viewport_size_ = FVec2::Zero();
   bool test_mode_ = false;
 };
 
