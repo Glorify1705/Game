@@ -160,16 +160,18 @@ void DebugUI::DrawAssetDbTab(const char* label, const char* sql) {
   sqlite3* db = engine_->db;
   if (db == nullptr || !ImGui::BeginTabItem(label)) return;
   SqlStmt stmt(db, sql);
-  if (stmt.ok()) {
-    while (MUST(stmt.Step())) {
-      auto name = stmt.ColumnText(0);
-      int size = stmt.ColumnInt(1);
-      if (name.empty()) continue;
-      if (!MatchesFilter(name, asset_filter_)) continue;
-      SmallBuffer sz;
-      FormatBytes(&sz, static_cast<size_t>(size));
-      ImGui::Text("%s  (%s)", name.data(), sz.str());
-    }
+  if (!stmt.ok()) {
+    ImGui::EndTabItem();
+    return;
+  }
+  while (MUST(stmt.Step())) {
+    auto name = stmt.ColumnText(0);
+    int size = stmt.ColumnInt(1);
+    if (name.empty()) continue;
+    if (!MatchesFilter(name, asset_filter_)) continue;
+    SmallBuffer sz;
+    FormatBytes(&sz, static_cast<size_t>(size));
+    ImGui::Text("%s  (%s)", name.data(), sz.str());
   }
   ImGui::EndTabItem();
 }

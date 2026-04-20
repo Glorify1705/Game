@@ -1,5 +1,75 @@
 // Watch panel with live Lua expression evaluation and REPL.
 // Included by debug_ui.cc (unity build). Not a standalone translation unit.
+
+void DebugUI::EvalReplCode(std::string_view code) {
+  if (code.empty() || engine_ == nullptr) return;
+
+  // Echo input.
+  ReplEntry input_entry;
+  input_entry.is_input = true;
+  input_entry.is_error = false;
+  FixedStringBuffer<kMaxLogLineLength> echo(kTruncating);
+  echo.Append("> ", code);
+  CopyToBuffer(input_entry.text, sizeof(input_entry.text), echo.view());
+  repl_entries_->Push(input_entry);
+
+  // Evaluate.
+  FixedStringBuffer<kMaxLogLineLength> result(kTruncating);
+  bool ok = false;
+  if (repl_lang_ == kSql) {
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(engine_->db, std::string(code).c_str(), -1,
+                                &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+      result.Append(sqlite3_errmsg(engine_->db));
+    } else {
+      ok = true;
+      int ncols = sqlite3_column_count(stmt);
+      int rows = 0;
+      while (sqlite3_step(stmt) == SQLITE_ROW) {
+        if (rows > 0) {
+          ReplEntry row_entry;
+          row_entry.is_input = false;
+          row_entry.is_error = false;
+          CopyToBuffer(row_entry.text, sizeof(row_entry.text), result.view());
+          repl_entries_->Push(row_entry);
+          result.Clear();
+        }
+        for (int c = 0; c < ncols; ++c) {
+          if (c > 0) result.Append(" | ");
+          const char* val = reinterpret_cast<const char*>(
+              sqlite3_column_text(stmt, c));
+          result.Append(val ? val : "NULL");
+        }
+        ++rows;
+      }
+      if (rows == 0) result.Append("(no rows)");
+      sqlite3_finalize(stmt);
+    }
+  } else if (repl_lang_ == kFennel) {
+    FixedStringBuffer<kMaxLogLineLength> compiled(kTruncating);
+    if (CompileFennel(engine_->lua.state(), code, &compiled)) {
+      ok = engine_->lua.EvalString(compiled.view(), &result);
+    } else {
+      result.Append(compiled.view());
+    }
+  } else {
+    ok = engine_->lua.EvalString(code, &result);
+  }
+  if (!result.view().empty()) {
+    ReplEntry result_entry;
+    result_entry.is_input = false;
+    result_entry.is_error = !ok;
+    FixedStringBuffer<kMaxLogLineLength> formatted(kTruncating);
+    if (ok) formatted.Append("=> ");
+    formatted.Append(result.view());
+    CopyToBuffer(result_entry.text, sizeof(result_entry.text),
+                 formatted.view());
+    repl_entries_->Push(result_entry);
+  }
+  repl_scroll_to_bottom_ = true;
+}
+
 void DebugUI::DrawWatchPanel() {
   ImGui::SetNextWindowPos(ImVec2(820, 30), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(380, 350), ImGuiCond_FirstUseEver);
@@ -111,78 +181,13 @@ void DebugUI::DrawRepl() {
       (ImGui::IsKeyDown(ImGuiMod_Ctrl) &&
        ImGui::IsKeyPressed(ImGuiKey_Enter))) {
     std::string code = repl_editor_.GetText();
-    // Trim trailing whitespace/newlines.
     while (!code.empty() && (code.back() == '\n' || code.back() == '\r' ||
                              code.back() == ' ')) {
       code.pop_back();
     }
-    if (!code.empty() && engine_ != nullptr) {
-      // Echo input.
-      ReplEntry input_entry;
-      input_entry.is_input = true;
-      input_entry.is_error = false;
-      FixedStringBuffer<kMaxLogLineLength> echo(kTruncating);
-      echo.Append("> ", code);
-      CopyToBuffer(input_entry.text, sizeof(input_entry.text), echo.view());
-      repl_entries_->Push(input_entry);
-
-      // Evaluate.
-      FixedStringBuffer<kMaxLogLineLength> result(kTruncating);
-      bool ok = false;
-      if (repl_lang_ == kSql) {
-        sqlite3_stmt* stmt = nullptr;
-        int rc = sqlite3_prepare_v2(engine_->db, code.c_str(), -1, &stmt,
-                                    nullptr);
-        if (rc != SQLITE_OK) {
-          result.Append(sqlite3_errmsg(engine_->db));
-        } else {
-          ok = true;
-          int ncols = sqlite3_column_count(stmt);
-          int rows = 0;
-          while (sqlite3_step(stmt) == SQLITE_ROW) {
-            if (rows > 0) {
-              ReplEntry row_entry;
-              row_entry.is_input = false;
-              row_entry.is_error = false;
-              CopyToBuffer(row_entry.text, sizeof(row_entry.text),
-                           result.view());
-              repl_entries_->Push(row_entry);
-              result.Clear();
-            }
-            for (int c = 0; c < ncols; ++c) {
-              if (c > 0) result.Append(" | ");
-              const char* val = reinterpret_cast<const char*>(
-                  sqlite3_column_text(stmt, c));
-              result.Append(val ? val : "NULL");
-            }
-            ++rows;
-          }
-          if (rows == 0) result.Append("(no rows)");
-          sqlite3_finalize(stmt);
-        }
-      } else if (repl_lang_ == kFennel) {
-        FixedStringBuffer<kMaxLogLineLength> compiled(kTruncating);
-        if (CompileFennel(engine_->lua.state(), code, &compiled)) {
-          ok = engine_->lua.EvalString(compiled.view(), &result);
-        } else {
-          result.Append(compiled.view());
-        }
-      } else {
-        ok = engine_->lua.EvalString(code, &result);
-      }
-      if (!result.view().empty()) {
-        ReplEntry result_entry;
-        result_entry.is_input = false;
-        result_entry.is_error = !ok;
-        FixedStringBuffer<kMaxLogLineLength> formatted(kTruncating);
-        if (ok) formatted.Append("=> ");
-        formatted.Append(result.view());
-        CopyToBuffer(result_entry.text, sizeof(result_entry.text),
-                     formatted.view());
-        repl_entries_->Push(result_entry);
-      }
+    if (!code.empty()) {
+      EvalReplCode(code);
       repl_editor_.ClearText();
-      repl_scroll_to_bottom_ = true;
     }
   }
   ImGui::SameLine();
