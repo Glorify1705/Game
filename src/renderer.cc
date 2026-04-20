@@ -904,8 +904,7 @@ void BatchRenderer::Render() {
   OPENGL_CALL(glBlitFramebuffer(0, 0, viewport_.x, viewport_.y, 0, 0,
                                 viewport_.x, viewport_.y, GL_COLOR_BUFFER_BIT,
                                 GL_NEAREST));
-  // Post pass: draw to screen. Use window_size_ so the game stretches to
-  // fill the window even when the viewport is smaller.
+  // Post pass: draw to screen with aspect-correct letterboxing.
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
   OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
@@ -914,7 +913,17 @@ void BatchRenderer::Render() {
   shaders_->SetUniformSilent("screen_texture", 1);
   OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
-  OPENGL_CALL(glViewport(0, 0, window_size_.x, window_size_.y));
+  {
+    // Fit viewport into window preserving aspect ratio.
+    float scale_x = static_cast<float>(window_size_.x) / viewport_.x;
+    float scale_y = static_cast<float>(window_size_.y) / viewport_.y;
+    float scale = scale_x < scale_y ? scale_x : scale_y;
+    int draw_w = static_cast<int>(viewport_.x * scale);
+    int draw_h = static_cast<int>(viewport_.y * scale);
+    int offset_x = (window_size_.x - draw_w) / 2;
+    int offset_y = (window_size_.y - draw_h) / 2;
+    OPENGL_CALL(glViewport(offset_x, offset_y, draw_w, draw_h));
+  }
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   frame_stats_.draw_calls++;
   PROFILE_COUNTER("Draw Calls", frame_stats_.draw_calls);

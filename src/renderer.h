@@ -212,8 +212,9 @@ class BatchRenderer {
   IVec2 GetViewport() const { return viewport_; }
 
   // Sets the actual window size for the post-pass. When different from the
-  // viewport, the game is stretched to fill the window.
+  // viewport, the game is letterboxed to preserve aspect ratio.
   void SetWindowSize(IVec2 size) { window_size_ = size; }
+  IVec2 GetWindowSize() const { return window_size_; }
 
   GLuint GetRenderTarget() const { return render_target_; }
 
