@@ -378,27 +378,41 @@ class DbPacker {
 
   // Compiles a .proto file to a binary FileDescriptorSet and stores it in the
   // proto_descriptors table. Uses a temporary Lua state with protoc.lua.
+  // Compiles a .proto file to a binary FileDescriptorSet using a temporary
+  // Lua state with the embedded protoc.lua, and stores it in the DB.
   AssetInfo InsertProto(std::string_view filename, const uint8_t* buf,
                         size_t size) {
 #include "protoc_lua.h"
     lua_State* L = luaL_newstate();
     luaL_openlibs(L);
-    luaopen_pb(L);
-    lua_setglobal(L, "pb");
+    // Register pb in package.preload so require("pb") works inside protoc.lua.
+    lua_getglobal(L, "package");
+    lua_getfield(L, -1, "preload");
+    lua_pushcfunction(L, luaopen_pb);
+    lua_setfield(L, -2, "pb");
+    lua_pop(L, 2);  // pop preload + package
 
-    // Load protoc.lua from the embedded string.
+    // Load protoc.lua from the embedded string. This returns the Parser
+    // module table and auto-calls Parser.reload() to bootstrap the
+    // descriptor proto types needed by compile().
     if (luaL_loadbuffer(L, kProtocLua, kProtocLuaLen, "@protoc.lua") != 0 ||
         lua_pcall(L, 0, 1, 0) != 0) {
       LOG("Failed to load embedded protoc.lua: ", lua_tostring(L, -1));
       lua_close(L);
       return AssetInfo{.size = 0};
     }
-    // Create a protoc instance and compile the .proto text.
-    lua_getfield(L, -1, "new");
-    lua_call(L, 0, 1);  // protoc_instance = protoc.new()
-
-    lua_getfield(L, -1, "load");
-    lua_pushvalue(L, -2);  // self
+    // Use Parser:load(s) which compiles + loads into pb in one step,
+    // then re-encode the loaded types as a binary descriptor using
+    // pb.encode('.google.protobuf.FileDescriptorSet', ...).
+    // Simpler: just call Parser:compile(s) directly on the module table.
+    // Parser:compile checks if self==Parser and auto-creates an instance.
+    lua_getfield(L, -1, "compile");
+    if (lua_isnil(L, -1)) {
+      LOG("protoc.compile is nil");
+      lua_close(L);
+      return AssetInfo{.size = 0};
+    }
+    lua_pushvalue(L, -2);  // self (Parser table)
     lua_pushlstring(L, reinterpret_cast<const char*>(buf), size);
     if (lua_pcall(L, 2, 1, 0) != 0) {
       LOG("Failed to compile proto ", filename, ": ", lua_tostring(L, -1));
@@ -406,37 +420,17 @@ class DbPacker {
       return AssetInfo{.size = 0};
     }
 
-    // Extract the binary descriptor. protoc:load() registers types in pb;
-    // use pb.encode to serialize the FileDescriptorSet.
-    // Actually, protoc:load compiles to binary and calls pb.load internally.
-    // We need to get the binary descriptor. Use pb.encode on the loaded
-    // FileDescriptorProto directly.
-    //
-    // Simpler approach: after protoc:load, use pb.encode to re-encode the
-    // file descriptor. But we need the descriptor name.
-    //
-    // Simplest approach: use protoc.compile() which returns the binary
-    // descriptor without loading it.
-    lua_pop(L, 2);  // pop result and protoc instance
-
-    // Re-create and use compilepb() which returns raw bytes.
-    lua_getfield(L, -1, "new");
-    lua_call(L, 0, 1);
-    lua_getfield(L, -1, "compilepb");
-    lua_pushvalue(L, -2);
-    lua_pushlstring(L, reinterpret_cast<const char*>(buf), size);
-    if (lua_pcall(L, 2, 1, 0) != 0) {
-      LOG("Failed to compile proto ", filename, " to binary: ",
-          lua_tostring(L, -1));
+    size_t desc_len;
+    const char* desc = lua_tolstring(L, -1, &desc_len);
+    if (desc == nullptr || desc_len == 0) {
+      LOG("Proto compilation returned empty result for ", filename);
       lua_close(L);
       return AssetInfo{.size = 0};
     }
-
-    size_t desc_len;
-    const char* desc = lua_tolstring(L, -1, &desc_len);
     AssetInfo info = InsertIntoTable(
         "proto_descriptors", filename,
         reinterpret_cast<const uint8_t*>(desc), desc_len);
+    LOG("Compiled proto ", filename, " to ", desc_len, " bytes");
 
     lua_close(L);
     return info;
