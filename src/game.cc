@@ -21,6 +21,7 @@
 #include "profiler.h"
 #include "sdl_init.h"
 #include "stats.h"
+#include "zone_stats.h"
 #include "stringlib.h"
 #include "thread.h"
 #include "units.h"
@@ -173,7 +174,7 @@ void Game::Run() {
           FVec(static_cast<float>(win_w), static_cast<float>(win_h)),
           FVec(static_cast<float>(vp.x), static_cast<float>(vp.y)));
     }
-    PollEvents();
+    { ZONE("PollEvents"); PollEvents(); }
     if (opts->test_mode) {
       engine->lua.ResumeTestCoroutine();
     }
@@ -188,7 +189,7 @@ void Game::Run() {
         (SDL_GetWindowFlags(sdl->window) & SDL_WINDOW_INPUT_FOCUS) == 0;
     if (paused) accum = 0;
     const Time update_start = Now();
-    RunUpdates();
+    { ZONE("RunUpdates"); RunUpdates(); }
     last_breakdown_.update_ms =
         ElapsedMs(update_start);
     first_update_done = true;
@@ -309,15 +310,18 @@ void Game::UpdateTick(double scaled_dt) {
   constexpr double kStep = TimeStepInSeconds();
   engine->lua.SetRealTime(real_t, kStep);
   {
+    ZONE("Timers");
     PROFILE_SCOPE_N("Timers::Update");
     engine->timers.Update(static_cast<float>(scaled_dt),
                           static_cast<float>(kStep));
   }
   {
+    ZONE("Physics");
     PROFILE_SCOPE_N("Physics::Update");
     engine->physics.Update(scaled_dt);
   }
   {
+    ZONE("Lua::Update");
     PROFILE_SCOPE_N("Lua::Update");
     engine->lua.Update(t, scaled_dt);
   }
@@ -365,6 +369,7 @@ void Game::Render() {
     if (engine->lua.Error(&buf)) {
       RenderCrashScreen(buf.str());
     } else {
+      ZONE("Lua::Draw");
       PROFILE_SCOPE_N("Lua::Draw");
       engine->lua.Draw();
     }
@@ -380,6 +385,7 @@ void Game::Render() {
     const Time render_start = Now();
     engine->renderer.FlushFrame();
     {
+      ZONE("Render");
       PROFILE_SCOPE_N("BatchRenderer::Render");
       engine->batch_renderer.Render();
     }

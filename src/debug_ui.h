@@ -189,6 +189,8 @@ class DebugUI {
   void DrawWatchPanel();
   // Draws the mini stats HUD (FPS, frame time, draw calls, Lua memory).
   void DrawMiniHud(const FrameContext& ctx);
+  // Draws the hot zones profiler panel.
+  void DrawZonesPanel();
   // Draws the drop-down REPL overlay.
   void DrawDropDownRepl();
   // Returns true if any overlay needs an ImGui frame.
@@ -224,9 +226,11 @@ class DebugUI {
     kPanelSelector = 1 << 9,
     kPanelDocs = 1 << 10,
     kPanelWatch = 1 << 11,
+    kPanelZones = 1 << 12,
     kPanelAll = kPanelPerformance | kPanelLogConsole | kPanelEntityInspector |
                 kPanelAudio | kPanelMemory | kPanelRenderer | kPanelCamera |
-                kPanelPhysics | kPanelAssets | kPanelDocs | kPanelWatch,
+                kPanelPhysics | kPanelAssets | kPanelDocs | kPanelWatch |
+                kPanelZones,
   };
   // Default panels (also preset index 2).
   static constexpr uint64_t kPanelDefault =

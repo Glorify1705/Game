@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 
 #include "thread.h"
+#include "zone_stats.h"
 
 namespace G {
 namespace {
@@ -160,6 +161,23 @@ const struct LuaApiFunction kClockLib[] = {
        auto* lua = Registry<Lua>::Retrieve(state);
        lua_pushnumber(state, lua->dt());
        return 1;
+     }},
+    {"zone",
+     "Calls a function and records its execution time under a named zone",
+     {{"name", "zone name for profiling", "string"},
+      {"fn", "function to execute", "function"}},
+     {},
+     [](lua_State* state) {
+       const char* name = luaL_checkstring(state, 1);
+       luaL_checktype(state, 2, LUA_TFUNCTION);
+       Time start = Now();
+       lua_pushvalue(state, 2);
+       if (lua_pcall(state, 0, 0, 0) != 0) {
+         lua_error(state);
+         return 0;
+       }
+       GetZoneStats()->Record(name, ElapsedMs(start));
+       return 0;
      }}};
 
 }  // namespace

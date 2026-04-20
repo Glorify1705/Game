@@ -14,6 +14,7 @@
 #include "engine.h"
 #include "libraries/sqlite3.h"
 #include "sqlite_helpers.h"
+#include "zone_stats.h"
 #include "lua.h"
 #include "platform.h"
 #include "string_table.h"
@@ -201,6 +202,7 @@ void DebugUI::LogMessage(LogLevel level, const char* message) {
 #include "debug_ui_panels.inc.cc"
 #include "debug_ui_docs.inc.cc"
 #include "debug_ui_watch.inc.cc"
+#include "debug_ui_zones.inc.cc"
 #include "debug_ui_assets.inc.cc"
 
 // Window resize presets shared by menu and F7 shortcut.
@@ -255,6 +257,7 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       PanelMenuItem("Assets", kPanelAssets);
       PanelMenuItem("API Docs", kPanelDocs);
       PanelMenuItem("Watch", kPanelWatch);
+      PanelMenuItem("Hot Zones", kPanelZones);
       ImGui::Separator();
       if (ImGui::MenuItem("Cycle Presets", "F5")) {
         static constexpr uint64_t kPresets[] = {0, kPanelAll, kPanelDefault};
@@ -562,6 +565,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   if (PanelOpen(kPanelAssets)) DrawAssetViewer();
   if (PanelOpen(kPanelDocs)) DrawDocsPanel();
   if (PanelOpen(kPanelWatch)) DrawWatchPanel();
+  if (PanelOpen(kPanelZones)) DrawZonesPanel();
   if (PanelOpen(kPanelSelector)) DrawPanelSelector();
   if (zoom_texture_ != 0) DrawTextureZoom();
 }
@@ -582,6 +586,7 @@ void DebugUI::DrawPanelSelector() {
     PanelMenuItem("Assets", kPanelAssets);
     PanelMenuItem("API Docs", kPanelDocs);
     PanelMenuItem("Watch", kPanelWatch);
+    PanelMenuItem("Hot Zones", kPanelZones);
   }
   ImGui::End();
   if (!open) TogglePanel(kPanelSelector);
