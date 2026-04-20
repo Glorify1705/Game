@@ -226,12 +226,18 @@ void Game::PollEvents() {
     }
     // Forward every event to ImGui before the engine processes it.
     debug_ui->ProcessEvent(&event);
-    // Toggle the debug UI with Tab (processed before capture check so
-    // Tab always works regardless of ImGui focus state).
+    // Toggle the debug UI with Tab, mini HUD with F3 (processed before
+    // capture check so they always work regardless of ImGui focus state).
     if (event.type == SDL_EVENT_KEY_DOWN &&
         event.key.scancode == SDL_SCANCODE_TAB) {
       if (config->enable_debug_rendering) {
         debug_ui->Toggle();
+      }
+    }
+    if (event.type == SDL_EVENT_KEY_DOWN &&
+        event.key.scancode == SDL_SCANCODE_F3) {
+      if (config->enable_debug_rendering) {
+        debug_ui->ToggleMiniHud();
       }
     }
     // Debug UI shortcuts (F5/F6/F7).

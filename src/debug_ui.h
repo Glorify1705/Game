@@ -58,6 +58,9 @@ class DebugUI {
   // Toggles the debug overlay visibility.
   void Toggle();
 
+  // Toggles the mini stats HUD (independent of the full overlay).
+  void ToggleMiniHud();
+
   // Returns true when the overlay is visible.
   bool visible() const { return visible_; }
 
@@ -175,10 +178,15 @@ class DebugUI {
   void DrawDocsPanel();
   // Draws the variable watch panel with live Lua path resolution.
   void DrawWatchPanel();
+  // Draws the mini stats HUD (FPS, frame time, draw calls, Lua memory).
+  void DrawMiniHud(const FrameContext& ctx);
+  // Returns true if any overlay needs an ImGui frame (visible_ or mini HUD).
+  bool NeedsImGuiFrame() const;
 
   bool visible_ = false;
   bool initialized_ = false;
   bool window_centered_ = false;
+  bool mini_hud_visible_ = false;
   bool window_menu_requested_ = false;
   Allocator* allocator_ = nullptr;
   Engine* engine_ = nullptr;
@@ -319,6 +327,7 @@ class DebugUI {
   void BeginFrame() {}
   void EndFrame() {}
   void Toggle() {}
+  void ToggleMiniHud() {}
   bool visible() const { return false; }
   bool WantCaptureMouse() const { return false; }
   bool WantCaptureKeyboard() const { return false; }

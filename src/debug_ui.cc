@@ -136,28 +136,33 @@ void DebugUI::ProcessEvent(const SDL_Event* event) {
   ImGui_ImplSDL3_ProcessEvent(event);
 }
 
+bool DebugUI::NeedsImGuiFrame() const {
+  return visible_ || mini_hud_visible_;
+}
+
 void DebugUI::BeginFrame() {
-  if (!initialized_ || !visible_) return;
+  if (!initialized_ || !NeedsImGuiFrame()) return;
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplSDL3_NewFrame();
   ImGui::NewFrame();
 }
 
 void DebugUI::EndFrame() {
-  if (!initialized_ || !visible_) return;
+  if (!initialized_ || !NeedsImGuiFrame()) return;
   ImGui::Render();
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 void DebugUI::Toggle() { visible_ = !visible_; }
+void DebugUI::ToggleMiniHud() { mini_hud_visible_ = !mini_hud_visible_; }
 
 bool DebugUI::WantCaptureMouse() const {
-  if (!initialized_ || !visible_) return false;
+  if (!initialized_ || !NeedsImGuiFrame()) return false;
   return ImGui::GetIO().WantCaptureMouse;
 }
 
 bool DebugUI::WantCaptureKeyboard() const {
-  if (!initialized_ || !visible_) return false;
+  if (!initialized_ || !NeedsImGuiFrame()) return false;
   return ImGui::GetIO().WantCaptureKeyboard;
 }
 
@@ -327,8 +332,39 @@ void DebugUI::PanelMenuItem(const char* label, Panel p) {
   if (ImGui::MenuItem(label, nullptr, &open)) TogglePanel(p);
 }
 
+void DebugUI::DrawMiniHud(const FrameContext& ctx) {
+  int win_w = 0;
+  SDL_GetWindowSize(window_, &win_w, nullptr);
+  float hud_x = static_cast<float>(win_w) - 155.0f;
+  ImGui::SetNextWindowPos(ImVec2(hud_x, 5.0f));
+  ImGui::SetNextWindowBgAlpha(0.5f);
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
+                           ImGuiWindowFlags_NoInputs |
+                           ImGuiWindowFlags_AlwaysAutoResize |
+                           ImGuiWindowFlags_NoFocusOnAppearing |
+                           ImGuiWindowFlags_NoNav;
+  if (ImGui::Begin("##MiniHud", nullptr, flags)) {
+    float last_ms = 0.0f;
+    if (frame_times_ != nullptr && frame_times_->size() > 0) {
+      last_ms = (*frame_times_)[frame_times_->size() - 1];
+    }
+    float fps = 0.0f;
+    if (last_ms > 0.0f) {
+      fps = 1000.0f / last_ms;
+    }
+    ImGui::Text("%.0f FPS", static_cast<double>(fps));
+    ImGui::Text("%.1f ms", static_cast<double>(last_ms));
+    ImGui::Text("%d draws", ctx.frame_stats.draw_calls);
+    ImGui::Text("%.0f KB Lua", static_cast<double>(ctx.lua_memory_kb));
+  }
+  ImGui::End();
+}
+
 void DebugUI::DrawAll(const FrameContext& ctx) {
-  if (!initialized_ || !visible_ || engine_ == nullptr) return;
+  if (!initialized_ || engine_ == nullptr) return;
+  // Mini HUD renders independently of the full overlay.
+  if (mini_hud_visible_) DrawMiniHud(ctx);
+  if (!visible_) return;
   DrawMenuBar(ctx);
   if (PanelOpen(kPanelPerformance)) DrawPerformancePanel(ctx);
   if (PanelOpen(kPanelLogConsole)) DrawLogConsole();
