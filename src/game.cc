@@ -373,9 +373,16 @@ void Game::Render() {
         ElapsedMs(draw_start);
   }
   // Physics debug drawing (after game draw, before flush).
+  // Push camera transform so debug shapes align with game objects.
   if (engine->physics.debug_draw_enabled()) {
     ZONE("PhysicsDebugDraw");
+    IVec2 vp = engine->batch_renderer.GetViewport();
+    FMat4x4 view = engine->camera.GetViewMatrix(
+        FVec2(vp.x, vp.y), /*parallax=*/FVec2(1.0f, 1.0f));
+    engine->renderer.Push();
+    engine->renderer.ApplyTransform(view);
     engine->physics.DrawDebug();
+    engine->renderer.Pop();
   }
   if (screenshot_requested) {
     screenshot_requested = false;
