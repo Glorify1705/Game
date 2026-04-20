@@ -13,6 +13,9 @@
 
 namespace G {
 
+class PhysicsDebugDraw;
+class Renderer;
+
 // Body type for physics bodies.
 enum class PhysicsBodyType : uint8_t {
   // Fully simulated. Responds to forces, impulses, gravity, collisions.
@@ -189,6 +192,18 @@ class Physics final : public b2ContactListener {
   // Returns the position solver iteration count.
   int GetPositionIterations() const { return position_iterations_; }
 
+  // Enables or disables physics debug drawing with the given flags.
+  void EnableDebugDraw(Renderer* renderer, uint32 flags);
+
+  // Disables physics debug drawing.
+  void DisableDebugDraw();
+
+  // Draws physics debug visualization if enabled.
+  void DrawDebug();
+
+  // Returns true if debug drawing is enabled.
+  bool debug_draw_enabled() const { return debug_draw_ != nullptr; }
+
  private:
   static void DefaultDestroy(uintptr_t, void *) {}
 
@@ -204,6 +219,7 @@ class Physics final : public b2ContactListener {
   b2World world_;
   b2Body *ground_ = nullptr;
   bool walls_ = false;
+  PhysicsDebugDraw* debug_draw_ = nullptr;
 
   ContactCallback begin_contact_callback_ = DefaultContact;
   void *begin_contact_userdata_ = this;

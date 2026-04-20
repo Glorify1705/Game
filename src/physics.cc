@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "physics_debug_draw.h"
+
 namespace G {
 namespace {
 
@@ -437,6 +439,25 @@ int Physics::RaycastAll(FVec2 from, FVec2 to, uint16_t mask, RaycastHit* out,
 
 void Physics::Update(float dt) {
   world_.Step(dt, velocity_iterations_, position_iterations_);
+}
+
+void Physics::EnableDebugDraw(Renderer* renderer, uint32 flags) {
+  if (debug_draw_ == nullptr) {
+    debug_draw_ = new PhysicsDebugDraw(renderer, pixels_per_meter_);
+  }
+  debug_draw_->SetFlags(flags);
+  world_.SetDebugDraw(debug_draw_);
+}
+
+void Physics::DisableDebugDraw() {
+  world_.SetDebugDraw(nullptr);
+  delete debug_draw_;
+  debug_draw_ = nullptr;
+}
+
+void Physics::DrawDebug() {
+  if (debug_draw_ == nullptr) return;
+  world_.DebugDraw();
 }
 
 }  // namespace G

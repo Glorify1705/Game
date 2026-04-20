@@ -402,6 +402,43 @@ void DebugUI::DrawPhysicsPanel() {
   }
   ImGui::Separator();
 
+  if (ImGui::CollapsingHeader("Debug Draw",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::Checkbox("Enable", &physics_debug_draw_)) {
+      if (physics_debug_draw_) {
+        physics->EnableDebugDraw(&engine_->renderer, physics_debug_flags_);
+      } else {
+        physics->DisableDebugDraw();
+      }
+    }
+    if (physics_debug_draw_) {
+      bool shapes = (physics_debug_flags_ & b2Draw::e_shapeBit) != 0;
+      bool joints = (physics_debug_flags_ & b2Draw::e_jointBit) != 0;
+      bool aabbs = (physics_debug_flags_ & b2Draw::e_aabbBit) != 0;
+      bool pairs = (physics_debug_flags_ & b2Draw::e_pairBit) != 0;
+      bool com = (physics_debug_flags_ & b2Draw::e_centerOfMassBit) != 0;
+      bool flags_changed = false;
+      if (ImGui::Checkbox("Shapes", &shapes)) flags_changed = true;
+      ImGui::SameLine();
+      if (ImGui::Checkbox("Joints", &joints)) flags_changed = true;
+      ImGui::SameLine();
+      if (ImGui::Checkbox("AABBs", &aabbs)) flags_changed = true;
+      if (ImGui::Checkbox("Pairs", &pairs)) flags_changed = true;
+      ImGui::SameLine();
+      if (ImGui::Checkbox("Center of Mass", &com)) flags_changed = true;
+      if (flags_changed) {
+        physics_debug_flags_ = 0;
+        if (shapes) physics_debug_flags_ |= b2Draw::e_shapeBit;
+        if (joints) physics_debug_flags_ |= b2Draw::e_jointBit;
+        if (aabbs) physics_debug_flags_ |= b2Draw::e_aabbBit;
+        if (pairs) physics_debug_flags_ |= b2Draw::e_pairBit;
+        if (com) physics_debug_flags_ |= b2Draw::e_centerOfMassBit;
+        physics->EnableDebugDraw(&engine_->renderer, physics_debug_flags_);
+      }
+    }
+  }
+  ImGui::Separator();
+
   if (ImGui::CollapsingHeader("Bodies")) {
     if (ImGui::BeginTable("BodyTable", 5,
                           ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |

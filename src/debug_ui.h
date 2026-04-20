@@ -206,6 +206,8 @@ class DebugUI {
   bool resize_viewport_ = false;
   bool suppress_viewport_resize_ = false;
   bool window_menu_requested_ = false;
+  bool physics_debug_draw_ = false;
+  uint32_t physics_debug_flags_ = 0x001F;
   Allocator* allocator_ = nullptr;
   Engine* engine_ = nullptr;
   ArenaAllocator* engine_arena_ = nullptr;

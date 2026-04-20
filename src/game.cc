@@ -372,6 +372,11 @@ void Game::Render() {
     last_breakdown_.draw_ms =
         ElapsedMs(draw_start);
   }
+  // Physics debug drawing (after game draw, before flush).
+  if (engine->physics.debug_draw_enabled()) {
+    ZONE("PhysicsDebugDraw");
+    engine->physics.DrawDebug();
+  }
   if (screenshot_requested) {
     screenshot_requested = false;
     TakeScreenshotToClipboard(&engine->batch_renderer, allocator);
