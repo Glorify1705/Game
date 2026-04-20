@@ -255,6 +255,7 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       PanelMenuItem("Renderer", kPanelRenderer);
       PanelMenuItem("Camera", kPanelCamera);
       PanelMenuItem("Physics", kPanelPhysics);
+      PanelMenuItem("Network", kPanelNetwork);
       PanelMenuItem("Assets", kPanelAssets);
       PanelMenuItem("API Docs", kPanelDocs);
       PanelMenuItem("Watch", kPanelWatch);
@@ -592,6 +593,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   if (PanelOpen(kPanelRenderer)) DrawRendererPanel(ctx);
   if (PanelOpen(kPanelCamera)) DrawCameraPanel();
   if (PanelOpen(kPanelPhysics)) DrawPhysicsPanel();
+  if (PanelOpen(kPanelNetwork)) DrawNetworkPanel();
   if (PanelOpen(kPanelAssets)) DrawAssetViewer();
   if (PanelOpen(kPanelDocs)) DrawDocsPanel();
   if (PanelOpen(kPanelWatch)) DrawWatchPanel();

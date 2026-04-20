@@ -164,6 +164,7 @@ class DebugUI {
   void DrawRendererPanel(const FrameContext& ctx);
   void DrawCameraPanel();
   void DrawPhysicsPanel();
+  void DrawNetworkPanel();
   // Draws the asset viewer with tabbed image, sprite, audio, script views.
   void DrawAssetViewer();
   void DrawAssetImagesTab();
@@ -236,10 +237,11 @@ class DebugUI {
     kPanelDocs = 1 << 10,
     kPanelWatch = 1 << 11,
     kPanelZones = 1 << 12,
+    kPanelNetwork = 1 << 13,
     kPanelAll = kPanelPerformance | kPanelLogConsole | kPanelEntityInspector |
                 kPanelAudio | kPanelMemory | kPanelRenderer | kPanelCamera |
                 kPanelPhysics | kPanelAssets | kPanelDocs | kPanelWatch |
-                kPanelZones,
+                kPanelZones | kPanelNetwork,
   };
   // Default panels (also preset index 2).
   static constexpr uint64_t kPanelDefault =

@@ -531,3 +531,86 @@ void DebugUI::DrawPhysicsPanel() {
   }
   ImGui::End();
 }
+
+void DebugUI::DrawNetworkPanel() {
+  Network* net = &engine_->network;
+  ImGui::SetNextWindowPos(ImVec2(620, 400), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(420, 300), ImGuiCond_FirstUseEver);
+  if (!ImGui::Begin("Network", nullptr,
+                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+    ImGui::End();
+    return;
+  }
+
+  if (!net->IsActive()) {
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1), "No network host active");
+    ImGui::End();
+    return;
+  }
+
+  ENetHost* host = net->host();
+  if (host == nullptr) {
+    ImGui::End();
+    return;
+  }
+
+  // Connection summary.
+  size_t connected = net->PeerCount();
+  ImGui::Text("Connected Peers: %zu / %zu", connected, host->peerCount);
+  ImGui::Text("Channels: %zu", host->channelLimit);
+  ImGui::Separator();
+
+  // Bandwidth stats.
+  ImGui::Text("Total Sent: %.1f KB",
+              host->totalSentData / 1024.0);
+  ImGui::Text("Total Received: %.1f KB",
+              host->totalReceivedData / 1024.0);
+  ImGui::Text("Packets Sent: %u", host->totalSentPackets);
+  ImGui::Text("Packets Received: %u", host->totalReceivedPackets);
+  ImGui::Separator();
+
+  // Per-peer table.
+  if (connected > 0 &&
+      ImGui::BeginTable("Peers", 6,
+                        ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                            ImGuiTableFlags_Resizable |
+                            ImGuiTableFlags_SizingStretchProp)) {
+    ImGui::TableSetupColumn("ID");
+    ImGui::TableSetupColumn("State");
+    ImGui::TableSetupColumn("RTT (ms)");
+    ImGui::TableSetupColumn("Loss %");
+    ImGui::TableSetupColumn("Sent KB");
+    ImGui::TableSetupColumn("Recv KB");
+    ImGui::TableHeadersRow();
+
+    for (size_t i = 0; i < host->peerCount; ++i) {
+      ENetPeer* peer = &host->peers[i];
+      if (peer->state != ENET_PEER_STATE_CONNECTED) continue;
+      ImGui::TableNextRow();
+      ImGui::TableNextColumn();
+      ImGui::Text("%zu", i);
+      ImGui::TableNextColumn();
+      ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1), "Connected");
+      ImGui::TableNextColumn();
+      ImGui::Text("%u", peer->roundTripTime);
+      ImGui::TableNextColumn();
+      ImGui::Text("%.1f", peer->packetLoss / 65536.0 * 100.0);
+      ImGui::TableNextColumn();
+      ImGui::Text("%.1f",
+                  static_cast<double>(peer->outgoingDataTotal) / 1024.0);
+      ImGui::TableNextColumn();
+      ImGui::Text("%.1f",
+                  static_cast<double>(peer->incomingDataTotal) / 1024.0);
+    }
+    ImGui::EndTable();
+  }
+
+  // Events this frame.
+  size_t events = net->event_count();
+  if (events > 0) {
+    ImGui::Separator();
+    ImGui::Text("Events this frame: %zu", events);
+  }
+
+  ImGui::End();
+}

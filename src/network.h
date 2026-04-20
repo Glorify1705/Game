@@ -66,6 +66,9 @@ class Network {
   // Frees ENet packets from the last Poll(). Call after dispatching events.
   void FreeReceivedPackets();
 
+  // Access the underlying ENet host for debug UI stats. May be null.
+  ENetHost* host() const { return host_; }
+
  private:
   ENetHost* host_ = nullptr;
   Allocator* allocator_;
