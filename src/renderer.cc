@@ -914,15 +914,18 @@ void BatchRenderer::Render() {
   OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
   {
-    // Fit viewport into window preserving aspect ratio.
-    float scale_x = static_cast<float>(window_size_.x) / viewport_.x;
-    float scale_y = static_cast<float>(window_size_.y) / viewport_.y;
+    // Fit viewport into window preserving aspect ratio (letterbox).
+    FVec2 vp(viewport_.x, viewport_.y);
+    FVec2 win(window_size_.x, window_size_.y);
+    float scale_x = win.x / vp.x;
+    float scale_y = win.y / vp.y;
     float scale = scale_x < scale_y ? scale_x : scale_y;
-    int draw_w = static_cast<int>(viewport_.x * scale);
-    int draw_h = static_cast<int>(viewport_.y * scale);
-    int offset_x = (window_size_.x - draw_w) / 2;
-    int offset_y = (window_size_.y - draw_h) / 2;
-    OPENGL_CALL(glViewport(offset_x, offset_y, draw_w, draw_h));
+    FVec2 draw_size = vp * scale;
+    FVec2 offset = (win - draw_size) * 0.5f;
+    OPENGL_CALL(glViewport(static_cast<int>(offset.x),
+                           static_cast<int>(offset.y),
+                           static_cast<int>(draw_size.x),
+                           static_cast<int>(draw_size.y)));
   }
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   frame_stats_.draw_calls++;

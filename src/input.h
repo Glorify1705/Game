@@ -104,22 +104,19 @@ class Mouse {
     if (test_mode_) return test_position_;
     float x, y;
     SDL_GetMouseState(&x, &y);
+    FVec2 pos(x, y);
     // Map from window coordinates to viewport coordinates, accounting for
     // aspect-correct letterboxing (black bars on sides or top/bottom).
     if (window_size_.x > 0 && viewport_size_.x > 0 &&
-        (window_size_.x != viewport_size_.x ||
-         window_size_.y != viewport_size_.y)) {
+        window_size_ != viewport_size_) {
       float scale_x = window_size_.x / viewport_size_.x;
       float scale_y = window_size_.y / viewport_size_.y;
       float scale = scale_x < scale_y ? scale_x : scale_y;
-      float draw_w = viewport_size_.x * scale;
-      float draw_h = viewport_size_.y * scale;
-      float offset_x = (window_size_.x - draw_w) * 0.5f;
-      float offset_y = (window_size_.y - draw_h) * 0.5f;
-      x = (x - offset_x) / scale;
-      y = (y - offset_y) / scale;
+      FVec2 draw_size = viewport_size_ * scale;
+      FVec2 offset = (window_size_ - draw_size) * 0.5f;
+      pos = (pos - offset) / scale;
     }
-    return FVec(x, y);
+    return pos;
   }
 
   // Updates the window and viewport sizes for mouse coordinate mapping.
