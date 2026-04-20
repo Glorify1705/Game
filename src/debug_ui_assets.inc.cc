@@ -92,14 +92,11 @@ void DebugUI::DrawAssetSpritesTab() {
 void DebugUI::DrawAssetAudioTab() {
   Sound* sound = &engine_->sound;
   sqlite3* db = engine_->db;
-  sqlite3_stmt* stmt = nullptr;
-  const char* sql =
-      "SELECT name, channels, samplerate, samples, length(contents) "
-      "FROM audios ORDER BY name";
-  if (db == nullptr ||
-      sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-    return;
-  }
+  if (db == nullptr) return;
+  SqlStmt stmt(db,
+               "SELECT name, channels, samplerate, samples, length(contents) "
+               "FROM audios ORDER BY name");
+  if (!stmt.ok()) return;
   if (ImGui::BeginTable("AudioTable", 5,
                         ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                             ImGuiTableFlags_ScrollY,
@@ -110,17 +107,16 @@ void DebugUI::DrawAssetAudioTab() {
     ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 65);
     ImGui::TableSetupColumn("##play", ImGuiTableColumnFlags_WidthFixed, 40);
     ImGui::TableHeadersRow();
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-      const char* name = reinterpret_cast<const char*>(
-          sqlite3_column_text(stmt, 0));
-      if (name == nullptr) continue;
+    while (MUST(stmt.Step())) {
+      auto name = stmt.ColumnText(0);
+      if (name.empty()) continue;
       if (!MatchesFilter(name, asset_filter_)) continue;
-      int channels = sqlite3_column_int(stmt, 1);
-      int samplerate = sqlite3_column_int(stmt, 2);
-      int size_bytes = sqlite3_column_int(stmt, 4);
+      int channels = stmt.ColumnInt(1);
+      int samplerate = stmt.ColumnInt(2);
+      int size_bytes = stmt.ColumnInt(4);
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
-      ImGui::TextUnformatted(name);
+      ImGui::TextUnformatted(name.data());
       ImGui::TableNextColumn();
       ImGui::Text("%d", channels);
       ImGui::TableNextColumn();
@@ -130,7 +126,7 @@ void DebugUI::DrawAssetAudioTab() {
       FormatBytes(&sz, static_cast<size_t>(size_bytes));
       ImGui::TextUnformatted(sz.str());
       ImGui::TableNextColumn();
-      ImGui::PushID(name);
+      ImGui::PushID(name.data());
       bool is_playing = has_preview_ && preview_name_.view() == name;
       if (ImGui::SmallButton(is_playing ? "Stop" : "Play")) {
         if (is_playing) {
@@ -143,7 +139,7 @@ void DebugUI::DrawAssetAudioTab() {
             if (!stop.is_error()) has_preview_ = false;
           }
           auto result =
-              sound->AddEffect(name, Sound::Ownership::kAutoFree);
+              sound->AddEffect(name.data(), Sound::Ownership::kAutoFree);
           if (!result.is_error()) {
             preview_source_ = result.value();
             preview_name_.Clear();
@@ -158,25 +154,24 @@ void DebugUI::DrawAssetAudioTab() {
     }
     ImGui::EndTable();
   }
-  sqlite3_finalize(stmt);
 }
 
 void DebugUI::DrawAssetDbTab(const char* label, const char* sql) {
   sqlite3* db = engine_->db;
   if (db == nullptr || !ImGui::BeginTabItem(label)) return;
-  sqlite3_stmt* stmt = nullptr;
-  if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-      const char* name = reinterpret_cast<const char*>(
-          sqlite3_column_text(stmt, 0));
-      int size = sqlite3_column_int(stmt, 1);
-      if (name == nullptr) continue;
-      if (!MatchesFilter(name, asset_filter_)) continue;
-      SmallBuffer sz;
-      FormatBytes(&sz, static_cast<size_t>(size));
-      ImGui::Text("%s  (%s)", name, sz.str());
-    }
-    sqlite3_finalize(stmt);
+  SqlStmt stmt(db, sql);
+  if (!stmt.ok()) {
+    ImGui::EndTabItem();
+    return;
+  }
+  while (MUST(stmt.Step())) {
+    auto name = stmt.ColumnText(0);
+    int size = stmt.ColumnInt(1);
+    if (name.empty()) continue;
+    if (!MatchesFilter(name, asset_filter_)) continue;
+    SmallBuffer sz;
+    FormatBytes(&sz, static_cast<size_t>(size));
+    ImGui::Text("%s  (%s)", name.data(), sz.str());
   }
   ImGui::EndTabItem();
 }
@@ -199,34 +194,30 @@ void DrawCodeEditorTab(Engine* engine, const char* table_name,
   if (ImGui::BeginChild("##list", ImVec2(list_width, 0), true)) {
     SmallBuffer sql;
     sql.AppendF("SELECT name FROM %s ORDER BY name", table_name);
-    sqlite3_stmt* stmt = nullptr;
-    if (sqlite3_prepare_v2(db, sql.str(), -1, &stmt, nullptr) == SQLITE_OK) {
-      while (sqlite3_step(stmt) == SQLITE_ROW) {
-        const char* name = reinterpret_cast<const char*>(
-            sqlite3_column_text(stmt, 0));
-        if (name == nullptr) continue;
+    SqlStmt stmt(db, sql.str());
+    if (stmt.ok()) {
+      while (MUST(stmt.Step())) {
+        auto name = stmt.ColumnText(0);
+        if (name.empty()) continue;
         if (!MatchesFilter(name, filter)) continue;
         bool selected = (loaded_name->view() == name);
-        if (ImGui::Selectable(name, selected)) {
+        if (ImGui::Selectable(name.data(), selected)) {
           if (!selected) {
             SmallBuffer load_sql;
             load_sql.AppendF("SELECT contents FROM %s WHERE name = ?",
                              table_name);
-            sqlite3_stmt* load_stmt = nullptr;
-            if (sqlite3_prepare_v2(db, load_sql.str(), -1, &load_stmt,
-                                   nullptr) == SQLITE_OK) {
-              sqlite3_bind_text(load_stmt, 1, name, -1, SQLITE_STATIC);
-              if (sqlite3_step(load_stmt) == SQLITE_ROW) {
-                const char* contents = reinterpret_cast<const char*>(
-                    sqlite3_column_text(load_stmt, 0));
-                if (contents != nullptr) {
-                  editor->SetText(contents);
-                  // Auto-detect language from extension if not specified.
+            SqlStmt load_stmt(db, load_sql.str());
+            if (load_stmt.ok()) {
+              load_stmt.BindText(1, name);
+              if (MUST(load_stmt.Step())) {
+                auto contents = load_stmt.ColumnText(0);
+                if (!contents.empty()) {
+                  editor->SetText(std::string(contents));
                   if (lang != nullptr) {
                     editor->SetLanguage(lang);
                   } else {
-                    std::string_view sv(name);
-                    if (sv.size() > 4 && sv.substr(sv.size() - 4) == ".fnl") {
+                    if (name.size() > 4 &&
+                        name.substr(name.size() - 4) == ".fnl") {
                       editor->SetLanguage(FennelLanguage());
                     } else {
                       editor->SetLanguage(TextEditor::Language::Lua());
@@ -238,12 +229,10 @@ void DrawCodeEditorTab(Engine* engine, const char* table_name,
                   editor->SetReadOnlyEnabled(true);
                 }
               }
-              sqlite3_finalize(load_stmt);
             }
           }
         }
       }
-      sqlite3_finalize(stmt);
     }
   }
   ImGui::EndChild();
@@ -269,17 +258,14 @@ void DrawCodeEditorTab(Engine* engine, const char* table_name,
           SmallBuffer save_sql;
           save_sql.AppendF("UPDATE %s SET contents = ? WHERE name = ?",
                            table_name);
-          sqlite3_stmt* save_stmt = nullptr;
-          if (sqlite3_prepare_v2(db, save_sql.str(), -1, &save_stmt,
-                                 nullptr) == SQLITE_OK) {
-            sqlite3_bind_text(save_stmt, 1, text.c_str(),
-                              static_cast<int>(text.size()), SQLITE_STATIC);
-            sqlite3_bind_text(save_stmt, 2, loaded_name->str(),
-                              static_cast<int>(loaded_name->size()),
-                              SQLITE_STATIC);
-            sqlite3_step(save_stmt);
-            sqlite3_finalize(save_stmt);
-            engine->lua.RequestHotload();
+          SqlStmt save_stmt(db, save_sql.str());
+          if (save_stmt.ok()) {
+            save_stmt.BindText(1, text);
+            save_stmt.BindText(2, loaded_name->view());
+            auto step = save_stmt.Step();
+            if (!step.is_error()) {
+              engine->lua.RequestHotload();
+            }
           }
         }
       }
@@ -300,6 +286,87 @@ void DebugUI::DrawAssetScriptsTab() {
 void DebugUI::DrawAssetShadersTab() {
   DrawCodeEditorTab(engine_, "shaders", TextEditor::Language::Glsl(),
                     asset_filter_, &shader_editor_);
+}
+
+void DebugUI::DrawAssetSqlTab() {
+  sqlite3* db = engine_->db;
+  if (db == nullptr) return;
+
+  ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue |
+                              ImGuiInputTextFlags_CtrlEnterForNewLine;
+  bool run = false;
+  ImGui::SetNextItemWidth(-60);
+  if (ImGui::InputTextMultiline("##sql_input", sql_input_, kSqlInputSize,
+                                ImVec2(-60, ImGui::GetTextLineHeight() * 3),
+                                flags)) {
+    run = true;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Run") || run) {
+    sql_results_.has_error = false;
+    sql_results_.col_count = 0;
+    sql_results_.row_count = 0;
+    sql_results_.error[0] = '\0';
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql_input_, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+      sql_results_.has_error = true;
+      CopyToBuffer(sql_results_.error, sizeof(sql_results_.error),
+                   sqlite3_errmsg(db));
+    } else {
+      sql_results_.col_count = sqlite3_column_count(stmt);
+      if (sql_results_.col_count > SqlResults::kMaxCols) {
+        sql_results_.col_count = SqlResults::kMaxCols;
+      }
+      for (int c = 0; c < sql_results_.col_count; ++c) {
+        const char* name = sqlite3_column_name(stmt, c);
+        CopyToBuffer(sql_results_.col_names[c],
+                     SqlResults::kCellSize,
+                     name ? name : "?");
+      }
+      int row = 0;
+      while (sqlite3_step(stmt) == SQLITE_ROW &&
+             row < SqlResults::kMaxRows) {
+        for (int c = 0; c < sql_results_.col_count; ++c) {
+          const char* val = reinterpret_cast<const char*>(
+              sqlite3_column_text(stmt, c));
+          CopyToBuffer(sql_results_.cells[row][c],
+                       SqlResults::kCellSize,
+                       val ? val : "NULL");
+        }
+        ++row;
+      }
+      sql_results_.row_count = row;
+      sqlite3_finalize(stmt);
+    }
+  }
+
+  // Display results.
+  if (sql_results_.has_error) {
+    ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s",
+                       sql_results_.error);
+  } else if (sql_results_.col_count > 0) {
+    ImGui::Text("%d rows", sql_results_.row_count);
+    if (ImGui::BeginTable("##sql_results", sql_results_.col_count,
+                          ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                              ImGuiTableFlags_ScrollY |
+                              ImGuiTableFlags_Resizable,
+                          ImVec2(0, 0))) {
+      for (int c = 0; c < sql_results_.col_count; ++c) {
+        ImGui::TableSetupColumn(sql_results_.col_names[c]);
+      }
+      ImGui::TableHeadersRow();
+      for (int r = 0; r < sql_results_.row_count; ++r) {
+        ImGui::TableNextRow();
+        for (int c = 0; c < sql_results_.col_count; ++c) {
+          ImGui::TableNextColumn();
+          ImGui::TextUnformatted(sql_results_.cells[r][c]);
+        }
+      }
+      ImGui::EndTable();
+    }
+  }
 }
 
 void DebugUI::DrawAssetViewer() {
@@ -339,6 +406,10 @@ void DebugUI::DrawAssetViewer() {
     }
     DrawAssetDbTab("Fonts",
                    "SELECT name, length(contents) FROM fonts ORDER BY name");
+    if (ImGui::BeginTabItem("SQL")) {
+      DrawAssetSqlTab();
+      ImGui::EndTabItem();
+    }
     ImGui::EndTabBar();
   }
   ImGui::End();

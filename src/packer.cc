@@ -18,6 +18,7 @@
 #include "physfs.h"
 #include "qoa.h"
 #include "schema.sql.h"
+#include "sqlite_helpers.h"
 #include "src/allocators.h"
 #include "src/executor.h"
 #include "src/stringlib.h"
@@ -190,18 +191,13 @@ class DbPacker {
 
   AssetInfo InsertIntoTable(std::string_view table, std::string_view filename,
                             const uint8_t* buf, size_t size) {
-    sqlite3_stmt* stmt;
     FixedStringBuffer<256> sql("INSERT OR REPLACE INTO ", table,
                                " (name, contents) VALUES (?, ?);");
-    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
-          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-    DEFER([&] { sqlite3_finalize(stmt); });
-    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    sqlite3_bind_blob(stmt, 2, buf, size, SQLITE_STATIC);
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-      DIE("Could not insert data ", sqlite3_errmsg(db_));
-    }
-
+    SqlStmt stmt(db_, sql.view());
+    CHECK(stmt.ok(), "Failed to prepare statement ", sql.view());
+    stmt.BindText(1, filename);
+    stmt.BindBlob(2, buf, size);
+    MUST(stmt.Step());
     return AssetInfo{.size = size};
   }
 
@@ -219,21 +215,17 @@ class DbPacker {
                       size_t size) {
     QoiDesc desc;
     QoiDecode(buf, size, &desc, /*channels=*/4, allocator_);
-    sqlite3_stmt* stmt;
-    FixedStringBuffer<256> sql(R"(
+    SqlStmt stmt(db_, R"(
           INSERT OR REPLACE INTO images (name, width, height, components, contents)
           VALUES (?, ?, ?, ?, ?);
       )");
-    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
-          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-    DEFER([&] { sqlite3_finalize(stmt); });
-    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 2, desc.width);
-    sqlite3_bind_int(stmt, 3, desc.height);
-    sqlite3_bind_int(stmt, 4, desc.channels);
-    sqlite3_bind_blob(stmt, 5, buf, size, SQLITE_STATIC);
-    CHECK(sqlite3_step(stmt) == SQLITE_DONE, "Could not insert data ",
-          sqlite3_errmsg(db_));
+    CHECK(stmt.ok(), "Failed to prepare image insert statement");
+    stmt.BindText(1, filename);
+    stmt.BindInt(2, desc.width);
+    stmt.BindInt(3, desc.height);
+    stmt.BindInt(4, desc.channels);
+    stmt.BindBlob(5, buf, size);
+    MUST(stmt.Step());
     return AssetInfo{.size = size};
   }
 
@@ -254,42 +246,33 @@ class DbPacker {
     auto* qoi_encoded = QoiEncode(contents, &desc, &out_len, allocator_);
     DCHECK(qoi_encoded != nullptr);
     DEFER([&] { allocator_->Dealloc(qoi_encoded, out_len); });
-    sqlite3_stmt* stmt;
-    FixedStringBuffer<256> sql(R"(
+    SqlStmt stmt(db_, R"(
           INSERT OR REPLACE INTO images (name, width, height, components, contents)
           VALUES (?, ?, ?, ?, ?);
       )");
-    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
-          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-    DEFER([&] { sqlite3_finalize(stmt); });
-    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 2, x);
-    sqlite3_bind_int(stmt, 3, y);
-    sqlite3_bind_int(stmt, 4, channels);
-    sqlite3_bind_blob(stmt, 5, qoi_encoded, out_len, SQLITE_STATIC);
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-      DIE("Could not insert data ", sqlite3_errmsg(db_));
-    }
+    CHECK(stmt.ok(), "Failed to prepare image insert statement");
+    stmt.BindText(1, filename);
+    stmt.BindInt(2, x);
+    stmt.BindInt(3, y);
+    stmt.BindInt(4, channels);
+    stmt.BindBlob(5, qoi_encoded, out_len);
+    MUST(stmt.Step());
     return AssetInfo{.size = static_cast<size_t>(out_len)};
   }
 
   AssetInfo InsertImageBlob(std::string_view filename, const uint8_t* buf,
                             size_t size, int width, int height, int channels) {
-    sqlite3_stmt* stmt;
-    FixedStringBuffer<256> sql(R"(
+    SqlStmt stmt(db_, R"(
       INSERT OR REPLACE INTO images (name, width, height, components, contents)
       VALUES (?, ?, ?, ?, ?);
     )");
-    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
-          "Failed to prepare statement: ", sqlite3_errmsg(db_));
-    DEFER([&] { sqlite3_finalize(stmt); });
-    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 2, width);
-    sqlite3_bind_int(stmt, 3, height);
-    sqlite3_bind_int(stmt, 4, channels);
-    sqlite3_bind_blob(stmt, 5, buf, size, SQLITE_STATIC);
-    CHECK(sqlite3_step(stmt) == SQLITE_DONE,
-          "Insert failed: ", sqlite3_errmsg(db_));
+    CHECK(stmt.ok(), "Failed to prepare image insert statement");
+    stmt.BindText(1, filename);
+    stmt.BindInt(2, width);
+    stmt.BindInt(3, height);
+    stmt.BindInt(4, channels);
+    stmt.BindBlob(5, buf, size);
+    MUST(stmt.Step());
     return AssetInfo{.size = size};
   }
 
@@ -367,21 +350,17 @@ class DbPacker {
 
   AssetInfo InsertAudioBlob(std::string_view filename, const uint8_t* buf,
                             size_t size, const QoaDesc& desc) {
-    sqlite3_stmt* stmt;
-    FixedStringBuffer<256> sql(R"(
+    SqlStmt stmt(db_, R"(
           INSERT OR REPLACE INTO audios (name, channels, samplerate, samples, contents)
           VALUES (?, ?, ?, ?, ?);
       )");
-    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
-          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-    DEFER([&] { sqlite3_finalize(stmt); });
-    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 2, desc.channels);
-    sqlite3_bind_int(stmt, 3, desc.samplerate);
-    sqlite3_bind_int(stmt, 4, desc.samples);
-    sqlite3_bind_blob(stmt, 5, buf, size, SQLITE_STATIC);
-    CHECK(sqlite3_step(stmt) == SQLITE_DONE, "Could not insert data ",
-          sqlite3_errmsg(db_));
+    CHECK(stmt.ok(), "Failed to prepare audio insert statement");
+    stmt.BindText(1, filename);
+    stmt.BindInt(2, desc.channels);
+    stmt.BindInt(3, desc.samplerate);
+    stmt.BindInt(4, desc.samples);
+    stmt.BindBlob(5, buf, size);
+    MUST(stmt.Step());
     return AssetInfo{.size = size};
   }
 
@@ -409,27 +388,19 @@ class DbPacker {
                               int height, size_t sprite_count,
                               size_t sprite_name_length,
                               std::string_view image) {
-    sqlite3_stmt* stmt;
-    FixedStringBuffer<256> sql(R"(
-          INSERT OR REPLACE 
+    SqlStmt stmt(db_, R"(
+          INSERT OR REPLACE
           INTO spritesheets (name, image, width, height, sprites, sprite_name_length)
           VALUES (?, ?, ?, ?, ?, ?);
       )");
-    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
-      DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-      return;
-    }
-    DEFER([&] { sqlite3_finalize(stmt); });
-    sqlite3_bind_text(stmt, 1, spritesheet.data(), spritesheet.size(),
-                      SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, image.data(), image.size(), SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 3, width);
-    sqlite3_bind_int(stmt, 4, height);
-    sqlite3_bind_int(stmt, 5, sprite_count);
-    sqlite3_bind_int(stmt, 6, sprite_name_length);
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-      DIE("Could not insert data ", sqlite3_errmsg(db_));
-    }
+    CHECK(stmt.ok(), "Failed to prepare spritesheet insert statement");
+    stmt.BindText(1, spritesheet);
+    stmt.BindText(2, image);
+    stmt.BindInt(3, width);
+    stmt.BindInt(4, height);
+    stmt.BindInt(5, sprite_count);
+    stmt.BindInt(6, sprite_name_length);
+    MUST(stmt.Step());
   }
 
   AssetInfo InsertSpritesheetXml(std::string_view filename, const uint8_t* buf,
@@ -441,14 +412,11 @@ class DbPacker {
           atlas->tag, "> in ", filename);
 
     // Insert sprites.
-    sqlite3_stmt* stmt;
-    FixedStringBuffer<256> sql(R"(
+    SqlStmt stmt(db_, R"(
           INSERT OR REPLACE INTO sprites (name, spritesheet, x, y, width, height)
           VALUES (?, ?, ?, ?, ?, ?);
       )");
-    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
-          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-    DEFER([&] { sqlite3_finalize(stmt); });
+    CHECK(stmt.ok(), "Failed to prepare sprite insert statement");
 
     size_t sprite_count = 0, sprite_name_length = 0;
     atlas->ForEachChild("SubTexture", [&](const XmlElement& sprite) {
@@ -461,19 +429,14 @@ class DbPacker {
       const int w = sprite.AttrInt("width");
       const int h = sprite.AttrInt("height");
 
-      sqlite3_bind_text(stmt, 1, name.data(), name.size(), SQLITE_TRANSIENT);
-      sqlite3_bind_text(stmt, 2, filename.data(), filename.size(),
-                        SQLITE_STATIC);
-      sqlite3_bind_int(stmt, 3, x);
-      sqlite3_bind_int(stmt, 4, y);
-      sqlite3_bind_int(stmt, 5, w);
-      sqlite3_bind_int(stmt, 6, h);
-      if (sqlite3_step(stmt) != SQLITE_DONE) {
-        DIE("Could not insert data for ", name, " in ", filename, ": ",
-            sqlite3_errmsg(db_));
-      }
-      sqlite3_reset(stmt);
-      sqlite3_clear_bindings(stmt);
+      stmt.BindTextTransient(1, name);
+      stmt.BindText(2, filename);
+      stmt.BindInt(3, x);
+      stmt.BindInt(4, y);
+      stmt.BindInt(5, w);
+      stmt.BindInt(6, h);
+      MUST(stmt.Step());
+      stmt.Reset();
     });
     // Width and height are not included in texture atlas, you need to get them
     // from the image.
@@ -499,14 +462,11 @@ class DbPacker {
           "invalid spritesheet format, must be a json object");
 
     // Insert sprites.
-    sqlite3_stmt* stmt;
-    FixedStringBuffer<256> sql(R"(
+    SqlStmt stmt(db_, R"(
           INSERT OR REPLACE INTO sprites (name, spritesheet, x, y, width, height)
           VALUES (?, ?, ?, ?, ?, ?);
       )");
-    CHECK(sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) == SQLITE_OK,
-          "Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-    DEFER([&] { sqlite3_finalize(stmt); });
+    CHECK(stmt.ok(), "Failed to prepare sprite insert statement");
 
     size_t sprite_count = 0, sprite_name_length = 0;
     yyjson_val* sprites = yyjson_obj_get(root, "sprites");
@@ -524,45 +484,33 @@ class DbPacker {
       const uint32_t w = yyjson_get_int(yyjson_obj_get(sprite, "width"));
       const uint32_t h = yyjson_get_int(yyjson_obj_get(sprite, "height"));
 
-      sqlite3_bind_text(stmt, 1, name.data(), name.size(), SQLITE_TRANSIENT);
-      sqlite3_bind_text(stmt, 2, filename.data(), filename.size(),
-                        SQLITE_STATIC);
-      sqlite3_bind_int(stmt, 3, x);
-      sqlite3_bind_int(stmt, 4, y);
-      sqlite3_bind_int(stmt, 5, w);
-      sqlite3_bind_int(stmt, 6, h);
-      if (sqlite3_step(stmt) != SQLITE_DONE) {
-        DIE("Could not insert data for ", name, " in ", filename, ": ",
-            sqlite3_errmsg(db_));
-      }
-      sqlite3_reset(stmt);
-      sqlite3_clear_bindings(stmt);
+      stmt.BindTextTransient(1, name);
+      stmt.BindText(2, filename);
+      stmt.BindInt(3, x);
+      stmt.BindInt(4, y);
+      stmt.BindInt(5, w);
+      stmt.BindInt(6, h);
+      MUST(stmt.Step());
+      stmt.Reset();
     }
-    std::string_view atlas = YyjsonStrView(yyjson_obj_get(root, "atlas"));
+    std::string_view atlas_name = YyjsonStrView(yyjson_obj_get(root, "atlas"));
     const int64_t width = yyjson_get_int(yyjson_obj_get(root, "width"));
     const int64_t height = yyjson_get_int(yyjson_obj_get(root, "height"));
     InsertSpritesheetEntry(filename, width, height, sprite_count,
-                           sprite_name_length, atlas);
+                           sprite_name_length, atlas_name);
     return {};
   }
 
   AssetInfo InsertShader(std::string_view filename, const uint8_t* buffer,
                          size_t size) {
-    sqlite3_stmt* stmt;
-    FixedStringBuffer<256> sql(
-        "INSERT OR REPLACE INTO shaders"
-        " (name, contents, shader_type) VALUES (?, ?, ?);");
-    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
-      DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-    }
-    DEFER([&] { sqlite3_finalize(stmt); });
-    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    sqlite3_bind_blob(stmt, 2, buffer, size, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 3,
-                      HasSuffix(filename, "vert") ? "vertex" : "fragment", -1,
-                      SQLITE_STATIC);
-    CHECK(sqlite3_step(stmt) == SQLITE_DONE, "Could not insert data for ",
-          filename, ": ", sqlite3_errmsg(db_));
+    SqlStmt stmt(db_,
+                 "INSERT OR REPLACE INTO shaders"
+                 " (name, contents, shader_type) VALUES (?, ?, ?);");
+    CHECK(stmt.ok(), "Failed to prepare shader insert statement");
+    stmt.BindText(1, filename);
+    stmt.BindBlob(2, buffer, size);
+    stmt.BindText(3, HasSuffix(filename, "vert") ? "vertex" : "fragment");
+    MUST(stmt.Step());
     return AssetInfo{.size = size};
   }
 
@@ -581,24 +529,16 @@ class DbPacker {
 
   void InsertIntoAssetMeta(std::string_view filename, size_t size,
                            std::string_view type, DbAssets::ChecksumType hash) {
-    sqlite3_stmt* stmt;
-    FixedStringBuffer<256> sql(
-        "INSERT OR REPLACE INTO asset_metadata (name, size, type, hash, "
-        "processing_order) "
-        "VALUES (?, ?, ?, ?, ?);");
-    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
-      DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-      return;
-    }
-    DEFER([&] { sqlite3_finalize(stmt); });
-    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 2, size);
-    sqlite3_bind_text(stmt, 3, type.data(), type.size(), SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 4, hash);
-    sqlite3_bind_int64(stmt, 5, GetOrderForType(type));
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-      DIE("Could not insert data ", sqlite3_errmsg(db_));
-    }
+    SqlStmt stmt(db_,
+                 "INSERT OR REPLACE INTO asset_metadata (name, size, type, "
+                 "hash, processing_order) VALUES (?, ?, ?, ?, ?);");
+    CHECK(stmt.ok(), "Failed to prepare asset_metadata insert statement");
+    stmt.BindText(1, filename);
+    stmt.BindInt(2, size);
+    stmt.BindText(3, type);
+    stmt.BindInt64(4, hash);
+    stmt.BindInt64(5, GetOrderForType(type));
+    MUST(stmt.Step());
   }
 
   bool TryDeferFile(const char* directory, const char* filename) {
@@ -735,15 +675,13 @@ class DbPacker {
 
   void LoadChecksums() {
     // Load all checksums to avoid reprocessing files that have not changed.
-    FixedStringBuffer<256> sql("SELECT name, hash FROM asset_metadata");
-    sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
-      DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-    }
-    DEFER([&] { sqlite3_finalize(stmt); });
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-      auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-      const auto hash = sqlite3_column_int64(stmt, 1);
+    SqlStmt stmt(db_, "SELECT name, hash FROM asset_metadata");
+    CHECK(stmt.ok(), "Failed to prepare checksum query");
+    while (true) {
+      auto row = MUST(stmt.Step());
+      if (!row) break;
+      auto name = stmt.ColumnText(0);
+      const auto hash = stmt.ColumnInt64(1);
       checksums_.Insert(name, hash);
     }
   }
@@ -851,7 +789,7 @@ class DbPacker {
       sqlite3_exec(db_, R"(
         UPDATE spritesheets
         SET width = i.w, height = i.h
-        FROM (SELECT s.id, i.width as w, i.height as h 
+        FROM (SELECT s.id, i.width as w, i.height as h
           FROM spritesheets s INNER JOIN images i ON s.image = i.name) AS i
         WHERE spritesheets.id = i.id AND (spritesheets.width = 0 OR spritesheets.height = 0);
       )",
@@ -887,11 +825,10 @@ ErrorOr<AssetWriteResult> WriteAssetsToDb(const char* source_directory,
         PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
     return Error::Message("failed to mount asset directory");
   }
-  sqlite3_exec(db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
+  SqlTransaction txn(db);
   DbPacker packer(db, allocator, executor);
   packer.LoadChecksums();
   auto result = packer.HandleFiles();
-  sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
   return result;
 }
 

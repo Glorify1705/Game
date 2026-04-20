@@ -13,6 +13,8 @@
 
 #include "engine.h"
 #include "libraries/sqlite3.h"
+#include "sqlite_helpers.h"
+#include "zone_stats.h"
 #include "lua.h"
 #include "platform.h"
 #include "string_table.h"
@@ -136,28 +138,36 @@ void DebugUI::ProcessEvent(const SDL_Event* event) {
   ImGui_ImplSDL3_ProcessEvent(event);
 }
 
+bool DebugUI::NeedsImGuiFrame() const {
+  return visible_ || mini_hud_visible_ || dropdown_repl_visible_;
+}
+
 void DebugUI::BeginFrame() {
-  if (!initialized_ || !visible_) return;
+  if (!initialized_ || !NeedsImGuiFrame()) return;
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplSDL3_NewFrame();
   ImGui::NewFrame();
 }
 
 void DebugUI::EndFrame() {
-  if (!initialized_ || !visible_) return;
+  if (!initialized_ || !NeedsImGuiFrame()) return;
   ImGui::Render();
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 void DebugUI::Toggle() { visible_ = !visible_; }
+void DebugUI::ToggleMiniHud() { mini_hud_visible_ = !mini_hud_visible_; }
+void DebugUI::ToggleDropDownRepl() {
+  dropdown_repl_visible_ = !dropdown_repl_visible_;
+}
 
 bool DebugUI::WantCaptureMouse() const {
-  if (!initialized_ || !visible_) return false;
+  if (!initialized_ || !NeedsImGuiFrame()) return false;
   return ImGui::GetIO().WantCaptureMouse;
 }
 
 bool DebugUI::WantCaptureKeyboard() const {
-  if (!initialized_ || !visible_) return false;
+  if (!initialized_ || !NeedsImGuiFrame()) return false;
   return ImGui::GetIO().WantCaptureKeyboard;
 }
 
@@ -192,6 +202,7 @@ void DebugUI::LogMessage(LogLevel level, const char* message) {
 #include "debug_ui_panels.inc.cc"
 #include "debug_ui_docs.inc.cc"
 #include "debug_ui_watch.inc.cc"
+#include "debug_ui_zones.inc.cc"
 #include "debug_ui_assets.inc.cc"
 
 // Window resize presets shared by menu and F7 shortcut.
@@ -211,14 +222,23 @@ constexpr int kWindowPresetCount =
 
 void DebugUI::ResizeWindow(int w, int h) {
   if (window_ == nullptr) return;
+  if (!resize_viewport_) {
+    suppress_viewport_resize_ = true;
+  }
   SDL_SetWindowSize(window_, w, h);
-  if (engine_ != nullptr) {
+  if (resize_viewport_ && engine_ != nullptr) {
     engine_->batch_renderer.SetViewport(IVec2(w, h));
   }
   if (window_centered_) {
     SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED,
                           SDL_WINDOWPOS_CENTERED);
   }
+}
+
+bool DebugUI::ConsumeSuppressViewportResize() {
+  bool r = suppress_viewport_resize_;
+  suppress_viewport_resize_ = false;
+  return r;
 }
 
 // Menu bar and dispatch.
@@ -237,6 +257,7 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       PanelMenuItem("Assets", kPanelAssets);
       PanelMenuItem("API Docs", kPanelDocs);
       PanelMenuItem("Watch", kPanelWatch);
+      PanelMenuItem("Hot Zones", kPanelZones);
       ImGui::Separator();
       if (ImGui::MenuItem("Cycle Presets", "F5")) {
         static constexpr uint64_t kPresets[] = {0, kPanelAll, kPanelDefault};
@@ -252,6 +273,16 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       if (ImGui::MenuItem("Screenshot (F12)")) screenshot_requested_ = true;
       if (ImGui::MenuItem("Hot Reload")) hot_reload_requested_ = true;
       if (ImGui::MenuItem("Run GC")) engine_->lua.RunGc();
+#ifdef GAME_WITH_PROFILING
+      {
+        Profiler* p = GetProfiler();
+        bool recording = p->recording();
+        if (ImGui::MenuItem(recording ? "Stop Profiling (F11)"
+                                      : "Start Profiling (F11)")) {
+          p->ToggleRecording();
+        }
+      }
+#endif
       ImGui::Separator();
       if (ImGui::MenuItem("Quit")) quit_requested_ = true;
       ImGui::EndMenu();
@@ -272,6 +303,8 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
           ResizeWindow(kWindowPresets[i].w, kWindowPresets[i].h);
         }
       }
+      ImGui::Separator();
+      ImGui::MenuItem("Resize viewport", nullptr, &resize_viewport_);
       ImGui::EndMenu();
     }
     // Inline controls: Quit, Pause/Play, Step, timescale, Center, Drag.
@@ -327,8 +360,145 @@ void DebugUI::PanelMenuItem(const char* label, Panel p) {
   if (ImGui::MenuItem(label, nullptr, &open)) TogglePanel(p);
 }
 
+void DebugUI::DrawMiniHud(const FrameContext& ctx) {
+  int win_w = 0;
+  SDL_GetWindowSize(window_, &win_w, nullptr);
+  float hud_x = static_cast<float>(win_w) - 155.0f;
+  ImGui::SetNextWindowPos(ImVec2(hud_x, 5.0f));
+  ImGui::SetNextWindowBgAlpha(0.5f);
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
+                           ImGuiWindowFlags_NoInputs |
+                           ImGuiWindowFlags_AlwaysAutoResize |
+                           ImGuiWindowFlags_NoFocusOnAppearing |
+                           ImGuiWindowFlags_NoNav;
+  if (ImGui::Begin("##MiniHud", nullptr, flags)) {
+    float last_ms = 0.0f;
+    if (frame_times_ != nullptr && frame_times_->size() > 0) {
+      last_ms = (*frame_times_)[frame_times_->size() - 1];
+    }
+    float fps = 0.0f;
+    if (last_ms > 0.0f) {
+      fps = 1000.0f / last_ms;
+    }
+    ImGui::Text("%.0f FPS", static_cast<double>(fps));
+    ImGui::Text("%.1f ms", static_cast<double>(last_ms));
+    ImGui::Text("%d draws", ctx.frame_stats.draw_calls);
+    ImGui::Text("%.0f KB Lua", static_cast<double>(ctx.lua_memory_kb));
+  }
+  ImGui::End();
+}
+
+void DebugUI::DrawDropDownRepl() {
+  if (!dropdown_editor_init_) {
+    dropdown_editor_.SetLanguage(TextEditor::Language::Lua());
+    dropdown_editor_.SetShowLineNumbersEnabled(false);
+    dropdown_editor_.SetTabSize(2);
+    dropdown_editor_.SetPalette(TextEditor::GetDarkPalette());
+    dropdown_editor_init_ = true;
+  }
+
+  int win_w = 0, win_h = 0;
+  SDL_GetWindowSize(window_, &win_w, &win_h);
+  float repl_height = static_cast<float>(win_h) * 0.4f;
+
+  ImGui::SetNextWindowPos(ImVec2(0, 0));
+  ImGui::SetNextWindowSize(ImVec2(static_cast<float>(win_w), repl_height));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.05f, 0.05f, 0.1f, 0.92f));
+
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
+                           ImGuiWindowFlags_NoResize |
+                           ImGuiWindowFlags_NoMove |
+                           ImGuiWindowFlags_NoCollapse;
+  if (ImGui::Begin("##DropDownRepl", nullptr, flags)) {
+    // Header.
+    ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "REPL");
+    ImGui::SameLine();
+    const char* lang_label = "Lua";
+    if (repl_lang_ == kFennel) lang_label = "Fennel";
+    if (repl_lang_ == kSql) lang_label = "SQL";
+    if (ImGui::SmallButton(lang_label)) {
+      if (repl_lang_ == kLua) {
+        repl_lang_ = kFennel;
+      } else if (repl_lang_ == kFennel) {
+        repl_lang_ = kSql;
+      } else {
+        repl_lang_ = kLua;
+      }
+      const TextEditor::Language* editor_lang = TextEditor::Language::Lua();
+      if (repl_lang_ == kFennel) editor_lang = FennelLanguage();
+      if (repl_lang_ == kSql) editor_lang = TextEditor::Language::Sql();
+      dropdown_editor_.SetLanguage(editor_lang);
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Run") ||
+        (ImGui::IsKeyDown(ImGuiMod_Ctrl) &&
+         ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+      std::string code = dropdown_editor_.GetText();
+      while (!code.empty() && (code.back() == '\n' || code.back() == '\r' ||
+                               code.back() == ' ')) {
+        code.pop_back();
+      }
+      if (!code.empty()) {
+        EvalReplCode(code);
+        dropdown_editor_.ClearText();
+      }
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Clear")) {
+      while (!repl_entries_->empty()) repl_entries_->Pop();
+    }
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
+                       "Ctrl+Enter to run | ` to close");
+
+    ImGui::Separator();
+
+    // Output area.
+    float editor_height = ImGui::GetTextLineHeight() * 7;
+    float output_height = ImGui::GetContentRegionAvail().y - editor_height -
+                          ImGui::GetStyle().ItemSpacing.y;
+    if (output_height < 40.0f) output_height = 40.0f;
+    if (ImGui::BeginChild("##dd_output", ImVec2(0, output_height), false,
+                          ImGuiWindowFlags_HorizontalScrollbar)) {
+      size_t count = repl_entries_->size();
+      for (size_t i = 0; i < count; ++i) {
+        const auto& entry = (*repl_entries_)[i];
+        if (entry.is_input) {
+          ImGui::PushStyleColor(ImGuiCol_Text,
+                                ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+        } else if (entry.is_error) {
+          ImGui::PushStyleColor(ImGuiCol_Text,
+                                ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+        }
+        ImGui::TextUnformatted(entry.text);
+        if (entry.is_input || entry.is_error) ImGui::PopStyleColor();
+      }
+      if (repl_scroll_to_bottom_) {
+        ImGui::SetScrollHereY(1.0f);
+        repl_scroll_to_bottom_ = false;
+      }
+    }
+    ImGui::EndChild();
+
+    // Editor.
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+    dropdown_editor_.Render("##dd_editor",
+                            ImVec2(0, ImGui::GetContentRegionAvail().y));
+  }
+  ImGui::End();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleVar();
+}
+
 void DebugUI::DrawAll(const FrameContext& ctx) {
-  if (!initialized_ || !visible_ || engine_ == nullptr) return;
+  if (!initialized_ || engine_ == nullptr) return;
+  // Independent overlays render without the full debug UI.
+  if (mini_hud_visible_) DrawMiniHud(ctx);
+  if (dropdown_repl_visible_) DrawDropDownRepl();
+  if (!visible_) return;
   DrawMenuBar(ctx);
   if (PanelOpen(kPanelPerformance)) DrawPerformancePanel(ctx);
   if (PanelOpen(kPanelLogConsole)) DrawLogConsole();
@@ -341,6 +511,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   if (PanelOpen(kPanelAssets)) DrawAssetViewer();
   if (PanelOpen(kPanelDocs)) DrawDocsPanel();
   if (PanelOpen(kPanelWatch)) DrawWatchPanel();
+  if (PanelOpen(kPanelZones)) DrawZonesPanel();
   if (PanelOpen(kPanelSelector)) DrawPanelSelector();
   if (zoom_texture_ != 0) DrawTextureZoom();
 }
@@ -361,6 +532,7 @@ void DebugUI::DrawPanelSelector() {
     PanelMenuItem("Assets", kPanelAssets);
     PanelMenuItem("API Docs", kPanelDocs);
     PanelMenuItem("Watch", kPanelWatch);
+    PanelMenuItem("Hot Zones", kPanelZones);
   }
   ImGui::End();
   if (!open) TogglePanel(kPanelSelector);

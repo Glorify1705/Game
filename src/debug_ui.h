@@ -58,8 +58,19 @@ class DebugUI {
   // Toggles the debug overlay visibility.
   void Toggle();
 
+  // Toggles the mini stats HUD (independent of the full overlay).
+  void ToggleMiniHud();
+
+  // Toggles the drop-down REPL (independent of the full overlay).
+  void ToggleDropDownRepl();
+
   // Returns true when the overlay is visible.
   bool visible() const { return visible_; }
+
+  // Returns true (once) if the debug UI resized the window without wanting
+  // a viewport resize. The engine should skip its SDL_EVENT_WINDOW_RESIZED
+  // handler in that case.
+  bool ConsumeSuppressViewportResize();
 
   // Returns true when ImGui wants to consume mouse events.
   bool WantCaptureMouse() const;
@@ -161,6 +172,7 @@ class DebugUI {
   void DrawAssetDbTab(const char* label, const char* sql);
   void DrawAssetScriptsTab();
   void DrawAssetShadersTab();
+  void DrawAssetSqlTab();
   // Draws the floating panel picker window (F6).
   void DrawPanelSelector();
   // Draws the texture zoom popup opened from the asset viewer.
@@ -175,10 +187,24 @@ class DebugUI {
   void DrawDocsPanel();
   // Draws the variable watch panel with live Lua path resolution.
   void DrawWatchPanel();
+  // Draws the mini stats HUD (FPS, frame time, draw calls, Lua memory).
+  void DrawMiniHud(const FrameContext& ctx);
+  // Draws the hot zones profiler panel.
+  void DrawZonesPanel();
+  // Evaluates code in the REPL (Lua/Fennel/SQL) and pushes results.
+  void EvalReplCode(std::string_view code);
+  // Draws the drop-down REPL overlay.
+  void DrawDropDownRepl();
+  // Returns true if any overlay needs an ImGui frame.
+  bool NeedsImGuiFrame() const;
 
   bool visible_ = false;
   bool initialized_ = false;
   bool window_centered_ = false;
+  bool mini_hud_visible_ = true;
+  bool dropdown_repl_visible_ = false;
+  bool resize_viewport_ = false;
+  bool suppress_viewport_resize_ = false;
   bool window_menu_requested_ = false;
   Allocator* allocator_ = nullptr;
   Engine* engine_ = nullptr;
@@ -202,9 +228,11 @@ class DebugUI {
     kPanelSelector = 1 << 9,
     kPanelDocs = 1 << 10,
     kPanelWatch = 1 << 11,
+    kPanelZones = 1 << 12,
     kPanelAll = kPanelPerformance | kPanelLogConsole | kPanelEntityInspector |
                 kPanelAudio | kPanelMemory | kPanelRenderer | kPanelCamera |
-                kPanelPhysics | kPanelAssets | kPanelDocs | kPanelWatch,
+                kPanelPhysics | kPanelAssets | kPanelDocs | kPanelWatch |
+                kPanelZones,
   };
   // Default panels (also preset index 2).
   static constexpr uint64_t kPanelDefault =
@@ -266,10 +294,14 @@ class DebugUI {
   static constexpr size_t kMaxReplEntries = 256;
   CircularBuffer<ReplEntry>* repl_entries_ = nullptr;
   bool repl_scroll_to_bottom_ = false;
-  enum ReplLang { kLua, kFennel };
+  enum ReplLang { kLua, kFennel, kSql };
   ReplLang repl_lang_ = kLua;
   TextEditor repl_editor_;
   bool repl_editor_init_ = false;
+
+  // Drop-down REPL editor (separate from the Watch panel's editor).
+  TextEditor dropdown_editor_;
+  bool dropdown_editor_init_ = false;
 
   // Script/shader editor state.
   CodeEditorState script_editor_;
@@ -277,6 +309,23 @@ class DebugUI {
 
   // ImGui callback for REPL history Up/Down navigation.
   static int ReplHistoryCallback(ImGuiInputTextCallbackData* data);
+
+  // SQL query tab state.
+  static constexpr size_t kSqlInputSize = 1024;
+  char sql_input_[kSqlInputSize] = {};
+  // Results stored as rows of columns (flat array, row-major).
+  struct SqlResults {
+    static constexpr int kMaxCols = 16;
+    static constexpr int kMaxRows = 256;
+    static constexpr int kCellSize = 128;
+    int col_count = 0;
+    int row_count = 0;
+    char col_names[kMaxCols][kCellSize] = {};
+    char cells[kMaxRows][kMaxCols][kCellSize] = {};
+    char error[kMaxLogLineLength + 1] = {};
+    bool has_error = false;
+  };
+  SqlResults sql_results_;
 
   // Asset viewer state.
   char asset_filter_[128] = {};
@@ -319,7 +368,10 @@ class DebugUI {
   void BeginFrame() {}
   void EndFrame() {}
   void Toggle() {}
+  void ToggleMiniHud() {}
+  void ToggleDropDownRepl() {}
   bool visible() const { return false; }
+  bool ConsumeSuppressViewportResize() { return false; }
   bool WantCaptureMouse() const { return false; }
   bool WantCaptureKeyboard() const { return false; }
   void AddFrameTimeSample(float) {}

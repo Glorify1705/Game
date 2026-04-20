@@ -190,6 +190,7 @@ set(ENGINE_SRCS
     src/stringlib.cc
     src/timer.cc
     src/executor.cc
+    src/zone_stats.cc
     src/transformations.cc
     src/xml.cc
     src/packer.cc

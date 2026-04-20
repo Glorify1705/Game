@@ -21,6 +21,7 @@
 #include "profiler.h"
 #include "sdl_init.h"
 #include "stats.h"
+#include "zone_stats.h"
 #include "stringlib.h"
 #include "thread.h"
 #include "units.h"
@@ -161,11 +162,19 @@ void Game::Run() {
     PROFILE_FRAME;
     const Time frame_start = Now();
     {
-      PROFILE_SCOPE_N("StartFrame");
+      ZONE("StartFrame");
       engine->StartFrame();
       SDL_StartTextInput(sdl->window);
+      // Update window size for rendering and mouse coordinate mapping.
+      int win_w = 0, win_h = 0;
+      SDL_GetWindowSize(sdl->window, &win_w, &win_h);
+      engine->batch_renderer.SetWindowSize(IVec2(win_w, win_h));
+      IVec2 vp = engine->batch_renderer.GetViewport();
+      engine->mouse.SetWindowAndViewport(
+          FVec(static_cast<float>(win_w), static_cast<float>(win_h)),
+          FVec(static_cast<float>(vp.x), static_cast<float>(vp.y)));
     }
-    PollEvents();
+    { ZONE("PollEvents"); PollEvents(); }
     if (opts->test_mode) {
       engine->lua.ResumeTestCoroutine();
     }
@@ -180,13 +189,12 @@ void Game::Run() {
         (SDL_GetWindowFlags(sdl->window) & SDL_WINDOW_INPUT_FOCUS) == 0;
     if (paused) accum = 0;
     const Time update_start = Now();
-    RunUpdates();
+    { ZONE("RunUpdates"); RunUpdates(); }
     last_breakdown_.update_ms =
         ElapsedMs(update_start);
     first_update_done = true;
     engine->batch_renderer.SetFrameTime(static_cast<float>(t));
     {
-      PROFILE_SCOPE_N("Render");
       Render();
     }
     double frame_ms = ToSeconds(Now() - frame_start) * 1000.0;
@@ -202,7 +210,7 @@ void Game::Run() {
 
 void Game::HandleHotReload() {
   if (!hot_reload->PendingChanges()) return;
-  PROFILE_SCOPE_N("HotReload");
+  ZONE("HotReload");
   TIMER("Hotload requested");
   auto changes = hot_reload->ConsumePendingChanges();
   engine->lua.ClearError();
@@ -217,21 +225,39 @@ void Game::HandleHotReload() {
 }
 
 void Game::PollEvents() {
-  PROFILE_SCOPE_N("PollEvents");
   for (SDL_Event event; SDL_PollEvent(&event);) {
     if (event.type == SDL_EVENT_QUIT) {
       engine->lua.HandleQuit();
       running = false;
       return;
     }
+    // Toggle drop-down REPL with backtick BEFORE forwarding to ImGui
+    // so the ` character never appears in any input field.
+    if (event.type == SDL_EVENT_KEY_DOWN &&
+        event.key.scancode == SDL_SCANCODE_GRAVE) {
+      if (config->enable_debug_rendering) {
+        debug_ui->ToggleDropDownRepl();
+      }
+      continue;
+    }
+    if (event.type == SDL_EVENT_TEXT_INPUT &&
+        event.text.text[0] == '`' && event.text.text[1] == '\0') {
+      continue;
+    }
     // Forward every event to ImGui before the engine processes it.
     debug_ui->ProcessEvent(&event);
-    // Toggle the debug UI with Tab (processed before capture check so
-    // Tab always works regardless of ImGui focus state).
+    // Toggle the debug UI with Tab, mini HUD with F3 (processed before
+    // capture check so they always work regardless of ImGui focus state).
     if (event.type == SDL_EVENT_KEY_DOWN &&
         event.key.scancode == SDL_SCANCODE_TAB) {
       if (config->enable_debug_rendering) {
         debug_ui->Toggle();
+      }
+    }
+    if (event.type == SDL_EVENT_KEY_DOWN &&
+        event.key.scancode == SDL_SCANCODE_F3) {
+      if (config->enable_debug_rendering) {
+        debug_ui->ToggleMiniHud();
       }
     }
     // Debug UI shortcuts (F5/F6/F7).
@@ -250,6 +276,12 @@ void Game::PollEvents() {
          event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
          event.type == SDL_EVENT_MOUSE_BUTTON_UP ||
          event.type == SDL_EVENT_MOUSE_WHEEL)) {
+      continue;
+    }
+    // Skip viewport resize when the debug UI resized the window without
+    // wanting to change the game viewport.
+    if (event.type == SDL_EVENT_WINDOW_RESIZED &&
+        debug_ui->ConsumeSuppressViewportResize()) {
       continue;
     }
     engine->HandleEvent(event);
@@ -276,24 +308,26 @@ void Game::UpdateTick(double scaled_dt) {
   constexpr double kStep = TimeStepInSeconds();
   engine->lua.SetRealTime(real_t, kStep);
   {
-    PROFILE_SCOPE_N("Timers::Update");
+    ZONE("Timers");
     engine->timers.Update(static_cast<float>(scaled_dt),
                           static_cast<float>(kStep));
   }
   {
-    PROFILE_SCOPE_N("Physics::Update");
+    ZONE("Physics");
     engine->physics.Update(scaled_dt);
   }
   {
-    PROFILE_SCOPE_N("Lua::Update");
+    ZONE("Lua::Update");
     engine->lua.Update(t, scaled_dt);
   }
-  IVec2 vp = engine->batch_renderer.GetViewport();
-  engine->camera.Update(scaled_dt, FVec2(vp.x, vp.y));
+  {
+    ZONE("Camera");
+    IVec2 vp = engine->batch_renderer.GetViewport();
+    engine->camera.Update(scaled_dt, FVec2(vp.x, vp.y));
+  }
 }
 
 void Game::RunUpdates() {
-  PROFILE_SCOPE_N("Update");
   constexpr double kStep = TimeStepInSeconds();
   if (opts->test_mode) {
     // In test mode, run exactly one update per frame for determinism.
@@ -332,7 +366,7 @@ void Game::Render() {
     if (engine->lua.Error(&buf)) {
       RenderCrashScreen(buf.str());
     } else {
-      PROFILE_SCOPE_N("Lua::Draw");
+      ZONE("Lua::Draw");
       engine->lua.Draw();
     }
     last_breakdown_.draw_ms =
@@ -345,9 +379,9 @@ void Game::Render() {
   // Render phase: flush commands and submit to GPU.
   {
     const Time render_start = Now();
-    engine->renderer.FlushFrame();
+    { ZONE("FlushFrame"); engine->renderer.FlushFrame(); }
     {
-      PROFILE_SCOPE_N("BatchRenderer::Render");
+      ZONE("Render");
       engine->batch_renderer.Render();
     }
     last_breakdown_.render_ms =
@@ -355,14 +389,14 @@ void Game::Render() {
   }
   RenderDebugUI();
   {
-    PROFILE_SCOPE_N("SwapWindow");
+    ZONE("SwapWindow");
     SDL_GL_SwapWindow(sdl->window);
   }
 }
 
 void Game::RenderDebugUI() {
   const Time dbgui_start = Now();
-  PROFILE_SCOPE_N("DebugUI");
+  ZONE("DebugUI");
   debug_ui->BeginFrame();
   DebugUI::FrameContext ctx;
   ctx.frame_stats = engine->batch_renderer.GetFrameStats();

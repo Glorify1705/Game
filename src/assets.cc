@@ -4,25 +4,19 @@
 #include <string_view>
 
 #include "clock.h"
-#include "defer.h"
+#include "sqlite_helpers.h"
 #include "units.h"
 
 namespace G {
 
 void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
                           size_t size, ChecksumType checksum) {
-  constexpr std::string_view sql =
-      "SELECT contents FROM scripts WHERE name = ?";
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
-                         nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
-  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No script ", filename);
-  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-  std::memcpy(buffer, contents, size);
+  SqlStmt stmt(db_, "SELECT contents FROM scripts WHERE name = ?");
+  CHECK(stmt.ok(), "Failed to prepare LoadScript query");
+  stmt.BindText(1, filename);
+  CHECK(MUST(stmt.Step()), "No script ", filename);
+  auto contents = stmt.ColumnText(0);
+  std::memcpy(buffer, contents.data(), size);
   buffer[size] = '\0';
   Script script;
   script.name = filename;
@@ -34,17 +28,12 @@ void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
 
 void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer, size_t size,
                         ChecksumType checksum) {
-  constexpr std::string_view sql = "SELECT contents FROM fonts WHERE name = ?";
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
-                         nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
-  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No font ", filename);
-  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-  std::memcpy(buffer, contents, size);
+  SqlStmt stmt(db_, "SELECT contents FROM fonts WHERE name = ?");
+  CHECK(stmt.ok(), "Failed to prepare LoadFont query");
+  stmt.BindText(1, filename);
+  CHECK(MUST(stmt.Step()), "No font ", filename);
+  auto contents = stmt.ColumnText(0);
+  std::memcpy(buffer, contents.data(), size);
   buffer[size] = '\0';
   Font font;
   font.name = filename;
@@ -56,48 +45,37 @@ void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer, size_t size,
 
 void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
                          size_t size, ChecksumType checksum) {
-  constexpr std::string_view sql =
-      "SELECT contents, channels, samplerate, samples FROM audios WHERE name "
-      "= ?";
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
-                         nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
-  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No audio ", filename);
+  SqlStmt stmt(db_,
+               "SELECT contents, channels, samplerate, samples "
+               "FROM audios WHERE name = ?");
+  CHECK(stmt.ok(), "Failed to prepare LoadAudio query");
+  stmt.BindText(1, filename);
+  CHECK(MUST(stmt.Step()), "No audio ", filename);
   // Copy blob data into buffer immediately; the sqlite3 pointer is only valid
   // until the statement is finalized.
-  auto contents = reinterpret_cast<const char*>(sqlite3_column_blob(stmt, 0));
+  auto* contents = stmt.ColumnBlob(0);
   std::memmove(buffer, contents, size);
   Sound sound;
   sound.name = filename;
   sound.contents = buffer;
   sound.size = size;
-  sound.channels = sqlite3_column_int(stmt, 1);
-  sound.samplerate = sqlite3_column_int(stmt, 2);
-  sound.samples = sqlite3_column_int(stmt, 3);
+  sound.channels = stmt.ColumnInt(1);
+  sound.samplerate = stmt.ColumnInt(2);
+  sound.samples = stmt.ColumnInt(3);
   sound.checksum = checksum;
   sound_loader_.Load(&sound);
 }
 
 void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
                           size_t size, ChecksumType checksum) {
-  constexpr std::string_view sql =
-      "SELECT contents, shader_type FROM shaders WHERE name = ?";
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
-                         nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
-  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No shader ", filename);
-  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-  auto type_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-  std::string_view type(type_str);
-  std::memcpy(buffer, contents, size);
+  SqlStmt stmt(db_,
+               "SELECT contents, shader_type FROM shaders WHERE name = ?");
+  CHECK(stmt.ok(), "Failed to prepare LoadShader query");
+  stmt.BindText(1, filename);
+  CHECK(MUST(stmt.Step()), "No shader ", filename);
+  auto contents = stmt.ColumnText(0);
+  auto type = stmt.ColumnText(1);
+  std::memcpy(buffer, contents.data(), size);
   buffer[size] = '\0';
   Shader shader;
   shader.name = filename;
@@ -110,18 +88,12 @@ void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
 
 void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
                         ChecksumType checksum) {
-  constexpr std::string_view sql =
-      "SELECT contents FROM text_files WHERE name = ?";
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
-                         nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
-  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No text file ", filename);
-  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-  std::memcpy(buffer, contents, size);
+  SqlStmt stmt(db_, "SELECT contents FROM text_files WHERE name = ?");
+  CHECK(stmt.ok(), "Failed to prepare LoadText query");
+  stmt.BindText(1, filename);
+  CHECK(MUST(stmt.Step()), "No text file ", filename);
+  auto contents = stmt.ColumnText(0);
+  std::memcpy(buffer, contents.data(), size);
   buffer[size] = '\0';
   TextFile file;
   file.name = filename;
@@ -135,50 +107,35 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
 void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
                                size_t size, ChecksumType checksum) {
   {
-    constexpr std::string_view sql =
-        "SELECT image, width, height FROM spritesheets WHERE name = ?";
-    sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
-                           nullptr) != SQLITE_OK) {
-      DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-    }
-    DEFER([&] { sqlite3_finalize(stmt); });
-    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No spritesheet ", filename);
-    auto image = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-    size_t width = sqlite3_column_int(stmt, 1);
-    size_t height = sqlite3_column_int(stmt, 2);
+    SqlStmt stmt(db_,
+                 "SELECT image, width, height FROM spritesheets "
+                 "WHERE name = ?");
+    CHECK(stmt.ok(), "Failed to prepare LoadSpritesheet query");
+    stmt.BindText(1, filename);
+    CHECK(MUST(stmt.Step()), "No spritesheet ", filename);
     Spritesheet sheet;
     sheet.name = filename;
-    sheet.width = width;
-    sheet.height = height;
-    sheet.image = InternedString(image);
+    sheet.width = stmt.ColumnInt(1);
+    sheet.height = stmt.ColumnInt(2);
+    sheet.image = InternedString(stmt.ColumnText(0));
     sheet.checksum = checksum;
     spritesheet_loader_.Load(&sheet);
   }
   {
-    constexpr std::string_view sql =
-        "SELECT name, x, y, width, height FROM sprites WHERE spritesheet = ?";
-    sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
-                           nullptr) != SQLITE_OK) {
-      DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-    }
-    DEFER([&] { sqlite3_finalize(stmt); });
-    sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    SqlStmt stmt(db_,
+                 "SELECT name, x, y, width, height FROM sprites "
+                 "WHERE spritesheet = ?");
+    CHECK(stmt.ok(), "Failed to prepare sprites query");
+    stmt.BindText(1, filename);
+    while (MUST(stmt.Step())) {
       Sprite sprite;
-      size_t sprite_name_size = sqlite3_column_bytes(stmt, 0);
-      auto db_name =
-          reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-      std::string_view name =
-          InternedString(std::string_view(db_name, sprite_name_size));
-      sprite.name = name;
-      sprite.x = sqlite3_column_int(stmt, 1);
-      sprite.y = sqlite3_column_int(stmt, 2);
+      auto name = stmt.ColumnText(0);
+      sprite.name = InternedString(name);
+      sprite.x = stmt.ColumnInt(1);
+      sprite.y = stmt.ColumnInt(2);
       sprite.spritesheet = filename;
-      sprite.width = sqlite3_column_int(stmt, 3);
-      sprite.height = sqlite3_column_int(stmt, 4);
+      sprite.width = stmt.ColumnInt(3);
+      sprite.height = stmt.ColumnInt(4);
       sprite_loader_.Load(&sprite);
     }
   }
@@ -186,27 +143,20 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
 
 void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
                          size_t size, ChecksumType checksum) {
-  constexpr std::string_view sql =
-      "SELECT contents, width, height FROM images WHERE name = ?";
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
-                         nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
-  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No image ", filename);
+  SqlStmt stmt(db_,
+               "SELECT contents, width, height FROM images WHERE name = ?");
+  CHECK(stmt.ok(), "Failed to prepare LoadImage query");
+  stmt.BindText(1, filename);
+  CHECK(MUST(stmt.Step()), "No image ", filename);
   // Copy blob data into buffer immediately; the sqlite3 pointer is only valid
   // until the statement is finalized.
-  auto contents = reinterpret_cast<const char*>(sqlite3_column_blob(stmt, 0));
+  auto* contents = stmt.ColumnBlob(0);
   std::memmove(buffer, contents, size);
   buffer[size] = '\0';
-  const size_t width = sqlite3_column_int(stmt, 1);
-  const size_t height = sqlite3_column_int(stmt, 2);
   Image image;
   image.name = filename;
-  image.width = width;
-  image.height = height;
+  image.width = stmt.ColumnInt(1);
+  image.height = stmt.ColumnInt(2);
   image.contents = buffer;
   image.size = size;
   image.checksum = checksum;
@@ -241,18 +191,13 @@ void DbAssets::Load() {
       {.name = "text", .load = &DbAssets::LoadText},
       {.name = std::string_view(), .load = nullptr},
   };
-  constexpr std::string_view sql =
-      "SELECT name, type, size, hash FROM "
-      "asset_metadata ORDER BY processing_order, type";
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
-                         nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
-  while (sqlite3_step(stmt) == SQLITE_ROW) {
-    auto name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-    const ChecksumType db_checksum = sqlite3_column_int64(stmt, 3);
+  SqlStmt stmt(db_,
+               "SELECT name, type, size, hash FROM "
+               "asset_metadata ORDER BY processing_order, type");
+  CHECK(stmt.ok(), "Failed to prepare asset_metadata query");
+  while (MUST(stmt.Step())) {
+    auto name = stmt.ColumnText(0);
+    const ChecksumType db_checksum = stmt.ColumnInt64(3);
     Checksum* saved_checksum;
     if (checksums_map_.Lookup(name, &saved_checksum) &&
         !std::memcmp(&saved_checksum->checksum, &db_checksum,
@@ -260,26 +205,23 @@ void DbAssets::Load() {
       continue;
     }
     TIMER("Loading asset ", name);
-    auto type_ptr = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-    std::string_view type(type_ptr);
-    const size_t size = sqlite3_column_int64(stmt, 2);
+    auto type = stmt.ColumnText(1);
+    const size_t size = stmt.ColumnInt64(2);
     std::string_view saved_name = InternedString(name);
-    auto* buffer =
+    auto* buf =
         reinterpret_cast<uint8_t*>(allocator_->Alloc(size + 1, /*align=*/16));
     for (const Loader& loader : kLoaders) {
       if (loader.name.empty()) {
         LOG("No loader for asset ", name, " with type ", type);
         break;
       }
-      if (type != loader.name) {
-        continue;
-      }
+      if (type != loader.name) continue;
       auto method = loader.load;
       if (method == nullptr) {
         LOG("While loading ", name, ": unimplemented asset type ", type);
         break;
       }
-      (this->*method)(saved_name, buffer, size, db_checksum);
+      (this->*method)(saved_name, buf, size, db_checksum);
       Checksum c;
       c.asset = saved_name;
       std::memcpy(&c.checksum, &db_checksum, sizeof(db_checksum));
