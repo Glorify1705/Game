@@ -67,6 +67,11 @@ class DebugUI {
   // Returns true when the overlay is visible.
   bool visible() const { return visible_; }
 
+  // Returns true (once) if the debug UI resized the window without wanting
+  // a viewport resize. The engine should skip its SDL_EVENT_WINDOW_RESIZED
+  // handler in that case.
+  bool ConsumeSuppressViewportResize();
+
   // Returns true when ImGui wants to consume mouse events.
   bool WantCaptureMouse() const;
 
@@ -194,6 +199,7 @@ class DebugUI {
   bool mini_hud_visible_ = false;
   bool dropdown_repl_visible_ = false;
   bool resize_viewport_ = false;
+  bool suppress_viewport_resize_ = false;
   bool window_menu_requested_ = false;
   Allocator* allocator_ = nullptr;
   Engine* engine_ = nullptr;
@@ -341,6 +347,7 @@ class DebugUI {
   void ToggleMiniHud() {}
   void ToggleDropDownRepl() {}
   bool visible() const { return false; }
+  bool ConsumeSuppressViewportResize() { return false; }
   bool WantCaptureMouse() const { return false; }
   bool WantCaptureKeyboard() const { return false; }
   void AddFrameTimeSample(float) {}

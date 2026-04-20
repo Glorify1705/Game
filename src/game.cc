@@ -271,6 +271,12 @@ void Game::PollEvents() {
          event.type == SDL_EVENT_MOUSE_WHEEL)) {
       continue;
     }
+    // Skip viewport resize when the debug UI resized the window without
+    // wanting to change the game viewport.
+    if (event.type == SDL_EVENT_WINDOW_RESIZED &&
+        debug_ui->ConsumeSuppressViewportResize()) {
+      continue;
+    }
     engine->HandleEvent(event);
     if (event.type == SDL_EVENT_KEY_DOWN &&
         engine->keyboard.IsDown(SDL_SCANCODE_F12)) {

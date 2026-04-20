@@ -219,6 +219,9 @@ constexpr int kWindowPresetCount =
 
 void DebugUI::ResizeWindow(int w, int h) {
   if (window_ == nullptr) return;
+  if (!resize_viewport_) {
+    suppress_viewport_resize_ = true;
+  }
   SDL_SetWindowSize(window_, w, h);
   if (resize_viewport_ && engine_ != nullptr) {
     engine_->batch_renderer.SetViewport(IVec2(w, h));
@@ -227,6 +230,12 @@ void DebugUI::ResizeWindow(int w, int h) {
     SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED,
                           SDL_WINDOWPOS_CENTERED);
   }
+}
+
+bool DebugUI::ConsumeSuppressViewportResize() {
+  bool r = suppress_viewport_resize_;
+  suppress_viewport_resize_ = false;
+  return r;
 }
 
 // Menu bar and dispatch.
