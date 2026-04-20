@@ -102,7 +102,9 @@
   (tset g :t t)
   (let [(sx sy) (G.window.dimensions)]
     (tset g :dimensions [sx sy]))
-  (when (< g.timer 0) (G.sound.stop_source g.music))
+  (when (and (< g.timer 0) g.music)
+    (G.sound.stop_source g.music)
+    (tset g :music nil))
   (when (> g.timer 0)
     (tset g :timer (- g.timer dt))
     (let [(mx my) (G.input.mouse_position)]
