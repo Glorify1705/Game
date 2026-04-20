@@ -193,6 +193,7 @@ class DebugUI {
   bool window_centered_ = false;
   bool mini_hud_visible_ = false;
   bool dropdown_repl_visible_ = false;
+  bool resize_viewport_ = false;
   bool window_menu_requested_ = false;
   Allocator* allocator_ = nullptr;
   Engine* engine_ = nullptr;

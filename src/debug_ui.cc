@@ -220,7 +220,7 @@ constexpr int kWindowPresetCount =
 void DebugUI::ResizeWindow(int w, int h) {
   if (window_ == nullptr) return;
   SDL_SetWindowSize(window_, w, h);
-  if (engine_ != nullptr) {
+  if (resize_viewport_ && engine_ != nullptr) {
     engine_->batch_renderer.SetViewport(IVec2(w, h));
   }
   if (window_centered_) {
@@ -280,6 +280,8 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
           ResizeWindow(kWindowPresets[i].w, kWindowPresets[i].h);
         }
       }
+      ImGui::Separator();
+      ImGui::MenuItem("Resize viewport", nullptr, &resize_viewport_);
       ImGui::EndMenu();
     }
     // Inline controls: Quit, Pause/Play, Step, timescale, Center, Drag.
