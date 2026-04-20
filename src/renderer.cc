@@ -6,6 +6,7 @@
 #include "bits.h"
 #include "clock.h"
 #include "defer.h"
+#include "sqlite_helpers.h"
 #include "image.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
@@ -1382,29 +1383,22 @@ uint8_t* Renderer::BlitGlyphsIntoAtlas(FontInfo& font,
 
 ErrorOr<Renderer::FontInfo> Renderer::LoadSDFFromCache(
     sqlite3* db, std::string_view font_name, uint64_t font_hash) {
-  constexpr std::string_view sql = R"(
-    SELECT atlas_width, atlas_height, glyph_metrics, atlas_bitmap
-    FROM sdf_cache WHERE font_name = ? AND font_hash = ?)";
-  sqlite3_stmt* stmt = nullptr;
-  if (sqlite3_prepare_v2(db, sql.data(), sql.size(), &stmt, nullptr) !=
-      SQLITE_OK) {
-    LOG("SDF cache query failed: ", sqlite3_errmsg(db));
-    return Error::Message("SDF cache query failed");
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
-  sqlite3_bind_text(stmt, 1, font_name.data(), font_name.size(), SQLITE_STATIC);
-  sqlite3_bind_int64(stmt, 2, static_cast<int64_t>(font_hash));
-  if (sqlite3_step(stmt) != SQLITE_ROW) {
-    return Error::Message("SDF cache miss");
-  }
+  SqlStmt stmt(db,
+               "SELECT atlas_width, atlas_height, glyph_metrics, atlas_bitmap "
+               "FROM sdf_cache WHERE font_name = ? AND font_hash = ?");
+  if (!stmt.ok()) return Error::Message("SDF cache query failed");
+  stmt.BindText(1, font_name);
+  stmt.BindInt64(2, static_cast<int64_t>(font_hash));
+  auto row = TRY(stmt.Step());
+  if (!row) return Error::Message("SDF cache miss");
 
   FontInfo font;
-  font.atlas_width = sqlite3_column_int(stmt, 0);
-  font.atlas_height = sqlite3_column_int(stmt, 1);
+  font.atlas_width = stmt.ColumnInt(0);
+  font.atlas_height = stmt.ColumnInt(1);
 
   const auto* metrics =
-      static_cast<const uint8_t*>(sqlite3_column_blob(stmt, 2));
-  const int metrics_size = sqlite3_column_bytes(stmt, 2);
+      static_cast<const uint8_t*>(stmt.ColumnBlob(2));
+  const int metrics_size = stmt.ColumnBytes(2);
   constexpr int kGlyphFields = 9;
   const size_t expected_size =
       static_cast<size_t>(kNumChars) * kGlyphFields * sizeof(float);
@@ -1430,8 +1424,8 @@ ErrorOr<Renderer::FontInfo> Renderer::LoadSDFFromCache(
     std::memcpy(&g.advance, src + 32, 4);
   }
 
-  const void* atlas_blob = sqlite3_column_blob(stmt, 3);
-  const int atlas_size = sqlite3_column_bytes(stmt, 3);
+  const void* atlas_blob = stmt.ColumnBlob(3);
+  const int atlas_size = stmt.ColumnBytes(3);
   const int expected_atlas = font.atlas_width * font.atlas_height;
   if (atlas_size != expected_atlas) {
     LOG("SDF cache atlas size mismatch for ", font_name);
@@ -1445,21 +1439,15 @@ ErrorOr<Renderer::FontInfo> Renderer::LoadSDFFromCache(
 void Renderer::SaveSDFToCache(sqlite3* db, std::string_view font_name,
                               uint64_t font_hash, const FontInfo& font,
                               const uint8_t* atlas_bitmap) {
-  constexpr std::string_view sql = R"(
-    INSERT OR REPLACE INTO sdf_cache
-      (font_name, font_hash, atlas_width, atlas_height, glyph_metrics, atlas_bitmap)
-    VALUES (?, ?, ?, ?, ?, ?))";
-  sqlite3_stmt* stmt = nullptr;
-  if (sqlite3_prepare_v2(db, sql.data(), sql.size(), &stmt, nullptr) !=
-      SQLITE_OK) {
-    LOG("SDF cache insert failed: ", sqlite3_errmsg(db));
-    return;
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
-  sqlite3_bind_text(stmt, 1, font_name.data(), font_name.size(), SQLITE_STATIC);
-  sqlite3_bind_int64(stmt, 2, static_cast<int64_t>(font_hash));
-  sqlite3_bind_int(stmt, 3, font.atlas_width);
-  sqlite3_bind_int(stmt, 4, font.atlas_height);
+  SqlStmt stmt(db,
+               "INSERT OR REPLACE INTO sdf_cache "
+               "(font_name, font_hash, atlas_width, atlas_height, "
+               "glyph_metrics, atlas_bitmap) VALUES (?, ?, ?, ?, ?, ?)");
+  if (!stmt.ok()) return;
+  stmt.BindText(1, font_name);
+  stmt.BindInt64(2, static_cast<int64_t>(font_hash));
+  stmt.BindInt(3, font.atlas_width);
+  stmt.BindInt(4, font.atlas_height);
 
   constexpr int kGlyphFields = 9;
   float metrics[kNumChars * kGlyphFields];
@@ -1476,11 +1464,11 @@ void Renderer::SaveSDFToCache(sqlite3* db, std::string_view font_name,
     f[7] = g.height;
     f[8] = g.advance;
   }
-  sqlite3_bind_blob(stmt, 5, metrics, sizeof(metrics), SQLITE_TRANSIENT);
-  sqlite3_bind_blob(stmt, 6, atlas_bitmap, font.atlas_width * font.atlas_height,
-                    SQLITE_STATIC);
-  if (sqlite3_step(stmt) != SQLITE_DONE) {
-    LOG("SDF cache write failed for ", font_name, ": ", sqlite3_errmsg(db));
+  stmt.BindBlobTransient(5, metrics, sizeof(metrics));
+  stmt.BindBlob(6, atlas_bitmap, font.atlas_width * font.atlas_height);
+  auto step = stmt.Step();
+  if (step.is_error()) {
+    LOG("SDF cache write failed for ", font_name);
   }
 }
 

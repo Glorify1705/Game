@@ -6,6 +6,7 @@
 
 #include "clock.h"
 #include "defer.h"
+#include "sqlite_helpers.h"
 
 namespace G {
 namespace {
@@ -865,20 +866,11 @@ void Lua::FlushCompilationCache() {
     LOG("Nothing to flush in the compilation cache");
     return;
   }
-  sqlite3_exec(db_, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
-  DEFER(
-      [&] { sqlite3_exec(db_, "END TRANSACTION", nullptr, nullptr, nullptr); });
-  FixedStringBuffer<256> sql(R"(
-    INSERT OR REPLACE 
-    INTO compilation_cache (source_name, source_hash, compiled) 
-    VALUES (?, ?, ?);"
-  )");
-  sqlite3_stmt* stmt = nullptr;
-  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql.str(), ": ", sqlite3_errmsg(db_));
-    return;
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
+  SqlTransaction txn(db_);
+  SqlStmt stmt(db_,
+               "INSERT OR REPLACE INTO compilation_cache "
+               "(source_name, source_hash, compiled) VALUES (?, ?, ?)");
+  CHECK(stmt.ok(), "Failed to prepare compilation cache insert");
   for (const auto& script : scripts_) {
     CachedScript cached_script;
     if (script.language == Script::kLuaScript) continue;
@@ -903,16 +895,11 @@ void Lua::FlushCompilationCache() {
             "Did not find ", script.name,
             " in compilation cache. File is corrupted?");
     }
-    sqlite3_bind_text(stmt, 1, script.name.data(), script.name.size(),
-                      SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 2, checksum);
-    sqlite3_bind_text(stmt, 3, cached_script.contents.data(),
-                      cached_script.contents.size(), SQLITE_STATIC);
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-      DIE("Failed to flush compilation cache when processing  ", script.name,
-          ": ", sqlite3_errmsg(db_));
-    }
-    sqlite3_reset(stmt);
+    stmt.BindText(1, script.name);
+    stmt.BindInt64(2, checksum);
+    stmt.BindText(3, cached_script.contents);
+    MUST(stmt.Step());
+    stmt.Reset();
   }
   sqlite3_exec(db_, "END TRANSACTION", nullptr, nullptr, nullptr);
 }
@@ -1065,27 +1052,21 @@ void Lua::SetError(std::string_view file, int line, std::string_view error) {
 }
 
 void Lua::BuildCompilationCache() {
-  SqlBuffer sql(R"(
-      SELECT c.source_name, c.compiled, c.source_hash
-      FROM asset_metadata a 
-      INNER JOIN compilation_cache c 
-      WHERE a.name = c.source_name AND c.source_hash = a.hash
-    )");
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.str(), -1, &stmt, nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
-  while (sqlite3_step(stmt) == SQLITE_ROW) {
-    auto* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-    auto* contents =
-        reinterpret_cast<const char*>(sqlite3_column_blob(stmt, 1));
-    size_t content_size = sqlite3_column_bytes(stmt, 1);
+  SqlStmt stmt(db_,
+               "SELECT c.source_name, c.compiled, c.source_hash "
+               "FROM asset_metadata a "
+               "INNER JOIN compilation_cache c "
+               "WHERE a.name = c.source_name AND c.source_hash = a.hash");
+  CHECK(stmt.ok(), "Failed to prepare compilation cache query");
+  while (MUST(stmt.Step())) {
+    auto name = stmt.ColumnText(0);
+    auto* contents = stmt.ColumnBlob(1);
+    size_t content_size = stmt.ColumnBytes(1);
     auto* buffer = static_cast<char*>(allocator_->Alloc(content_size, 1));
     std::memcpy(buffer, contents, content_size);
     CachedScript script;
     script.contents = std::string_view(buffer, content_size);
-    script.checksum = sqlite3_column_int64(stmt, 2);
+    script.checksum = stmt.ColumnInt64(2);
     LOG("Loading ", name, " into compilation cache");
     compilation_cache_.Insert(name, script);
   }

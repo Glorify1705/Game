@@ -3,8 +3,8 @@
 #include <cerrno>
 
 #include "clock.h"
-#include "defer.h"
 #include "json_alc.h"
+#include "sqlite_helpers.h"
 #include "libraries/yyjson.h"
 #include "logging.h"
 
@@ -77,20 +77,16 @@ void LoadConfig(std::string_view json_configuration, GameConfig* config,
 void LoadConfigFromDatabase(sqlite3* db, GameConfig* config,
                             Allocator* allocator) {
   LOG("Reading configuration from database");
-  constexpr std::string_view query =
-      "SELECT contents FROM text_files WHERE name = 'conf.json'";
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db, query.data(), query.size(), &stmt, nullptr) !=
-      SQLITE_OK) {
-    DIE("Failed to prepare statement ", query, ": ", sqlite3_errmsg(db));
-  }
-  DEFER([stmt] { sqlite3_finalize(stmt); });
-  if (sqlite3_step(stmt) != SQLITE_ROW) {
+  SqlStmt stmt(db,
+               "SELECT contents FROM text_files WHERE name = 'conf.json'");
+  CHECK(stmt.ok(), "Failed to prepare config query");
+  auto row = MUST(stmt.Step());
+  if (!row) {
     LOG("No conf.json file for configuration in database, skipping");
     return;
   }
-  auto contents = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-  LoadConfig(contents, config, allocator);
+  auto contents = stmt.ColumnText(0);
+  LoadConfig(contents.data(), config, allocator);
 }
 
 ErrorOr<void> LoadConfigFromFile(const char* path, GameConfig* config,

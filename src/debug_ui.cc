@@ -13,6 +13,7 @@
 
 #include "engine.h"
 #include "libraries/sqlite3.h"
+#include "sqlite_helpers.h"
 #include "lua.h"
 #include "platform.h"
 #include "string_table.h"
