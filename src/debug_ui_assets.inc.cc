@@ -302,6 +302,87 @@ void DebugUI::DrawAssetShadersTab() {
                     asset_filter_, &shader_editor_);
 }
 
+void DebugUI::DrawAssetSqlTab() {
+  sqlite3* db = engine_->db;
+  if (db == nullptr) return;
+
+  ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue |
+                              ImGuiInputTextFlags_CtrlEnterForNewLine;
+  bool run = false;
+  ImGui::SetNextItemWidth(-60);
+  if (ImGui::InputTextMultiline("##sql_input", sql_input_, kSqlInputSize,
+                                ImVec2(-60, ImGui::GetTextLineHeight() * 3),
+                                flags)) {
+    run = true;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Run") || run) {
+    sql_results_.has_error = false;
+    sql_results_.col_count = 0;
+    sql_results_.row_count = 0;
+    sql_results_.error[0] = '\0';
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql_input_, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+      sql_results_.has_error = true;
+      CopyToBuffer(sql_results_.error, sizeof(sql_results_.error),
+                   sqlite3_errmsg(db));
+    } else {
+      sql_results_.col_count = sqlite3_column_count(stmt);
+      if (sql_results_.col_count > SqlResults::kMaxCols) {
+        sql_results_.col_count = SqlResults::kMaxCols;
+      }
+      for (int c = 0; c < sql_results_.col_count; ++c) {
+        const char* name = sqlite3_column_name(stmt, c);
+        CopyToBuffer(sql_results_.col_names[c],
+                     SqlResults::kCellSize,
+                     name ? name : "?");
+      }
+      int row = 0;
+      while (sqlite3_step(stmt) == SQLITE_ROW &&
+             row < SqlResults::kMaxRows) {
+        for (int c = 0; c < sql_results_.col_count; ++c) {
+          const char* val = reinterpret_cast<const char*>(
+              sqlite3_column_text(stmt, c));
+          CopyToBuffer(sql_results_.cells[row][c],
+                       SqlResults::kCellSize,
+                       val ? val : "NULL");
+        }
+        ++row;
+      }
+      sql_results_.row_count = row;
+      sqlite3_finalize(stmt);
+    }
+  }
+
+  // Display results.
+  if (sql_results_.has_error) {
+    ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s",
+                       sql_results_.error);
+  } else if (sql_results_.col_count > 0) {
+    ImGui::Text("%d rows", sql_results_.row_count);
+    if (ImGui::BeginTable("##sql_results", sql_results_.col_count,
+                          ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                              ImGuiTableFlags_ScrollY |
+                              ImGuiTableFlags_Resizable,
+                          ImVec2(0, 0))) {
+      for (int c = 0; c < sql_results_.col_count; ++c) {
+        ImGui::TableSetupColumn(sql_results_.col_names[c]);
+      }
+      ImGui::TableHeadersRow();
+      for (int r = 0; r < sql_results_.row_count; ++r) {
+        ImGui::TableNextRow();
+        for (int c = 0; c < sql_results_.col_count; ++c) {
+          ImGui::TableNextColumn();
+          ImGui::TextUnformatted(sql_results_.cells[r][c]);
+        }
+      }
+      ImGui::EndTable();
+    }
+  }
+}
+
 void DebugUI::DrawAssetViewer() {
   ImGui::SetNextWindowPos(ImVec2(400, 300), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(550, 450), ImGuiCond_FirstUseEver);
@@ -339,6 +420,10 @@ void DebugUI::DrawAssetViewer() {
     }
     DrawAssetDbTab("Fonts",
                    "SELECT name, length(contents) FROM fonts ORDER BY name");
+    if (ImGui::BeginTabItem("SQL")) {
+      DrawAssetSqlTab();
+      ImGui::EndTabItem();
+    }
     ImGui::EndTabBar();
   }
   ImGui::End();

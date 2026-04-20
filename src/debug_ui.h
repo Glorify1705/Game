@@ -172,6 +172,7 @@ class DebugUI {
   void DrawAssetDbTab(const char* label, const char* sql);
   void DrawAssetScriptsTab();
   void DrawAssetShadersTab();
+  void DrawAssetSqlTab();
   // Draws the floating panel picker window (F6).
   void DrawPanelSelector();
   // Draws the texture zoom popup opened from the asset viewer.
@@ -302,6 +303,23 @@ class DebugUI {
 
   // ImGui callback for REPL history Up/Down navigation.
   static int ReplHistoryCallback(ImGuiInputTextCallbackData* data);
+
+  // SQL query tab state.
+  static constexpr size_t kSqlInputSize = 1024;
+  char sql_input_[kSqlInputSize] = {};
+  // Results stored as rows of columns (flat array, row-major).
+  struct SqlResults {
+    static constexpr int kMaxCols = 16;
+    static constexpr int kMaxRows = 256;
+    static constexpr int kCellSize = 128;
+    int col_count = 0;
+    int row_count = 0;
+    char col_names[kMaxCols][kCellSize] = {};
+    char cells[kMaxRows][kMaxCols][kCellSize] = {};
+    char error[kMaxLogLineLength + 1] = {};
+    bool has_error = false;
+  };
+  SqlResults sql_results_;
 
   // Asset viewer state.
   char asset_filter_[128] = {};
