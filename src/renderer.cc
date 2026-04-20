@@ -206,6 +206,7 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
       tex_(256, allocator),
       shaders_(shaders),
       viewport_(viewport),
+      window_size_(viewport),
       render_scratch_(allocator, Megabytes(64)) {
   TIMER();
   glGetIntegerv(GL_MAX_SAMPLES, &antialiasing_samples_);
@@ -903,7 +904,8 @@ void BatchRenderer::Render() {
   OPENGL_CALL(glBlitFramebuffer(0, 0, viewport_.x, viewport_.y, 0, 0,
                                 viewport_.x, viewport_.y, GL_COLOR_BUFFER_BIT,
                                 GL_NEAREST));
-  // Post pass: draw to screen.
+  // Post pass: draw to screen. Use window_size_ so the game stretches to
+  // fill the window even when the viewport is smaller.
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
   OPENGL_CALL(glClear(GL_COLOR_BUFFER_BIT));
@@ -912,7 +914,7 @@ void BatchRenderer::Render() {
   shaders_->SetUniformSilent("screen_texture", 1);
   OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
-  OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
+  OPENGL_CALL(glViewport(0, 0, window_size_.x, window_size_.y));
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   frame_stats_.draw_calls++;
   PROFILE_COUNTER("Draw Calls", frame_stats_.draw_calls);

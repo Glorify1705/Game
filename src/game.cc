@@ -164,9 +164,10 @@ void Game::Run() {
       PROFILE_SCOPE_N("StartFrame");
       engine->StartFrame();
       SDL_StartTextInput(sdl->window);
-      // Update mouse coordinate mapping for window/viewport mismatch.
+      // Update window size for rendering and mouse coordinate mapping.
       int win_w = 0, win_h = 0;
       SDL_GetWindowSize(sdl->window, &win_w, &win_h);
+      engine->batch_renderer.SetWindowSize(IVec2(win_w, win_h));
       IVec2 vp = engine->batch_renderer.GetViewport();
       engine->mouse.SetWindowAndViewport(
           FVec(static_cast<float>(win_w), static_cast<float>(win_h)),

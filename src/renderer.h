@@ -211,6 +211,10 @@ class BatchRenderer {
 
   IVec2 GetViewport() const { return viewport_; }
 
+  // Sets the actual window size for the post-pass. When different from the
+  // viewport, the game is stretched to fill the window.
+  void SetWindowSize(IVec2 size) { window_size_ = size; }
+
   GLuint GetRenderTarget() const { return render_target_; }
 
   void Render();
@@ -445,6 +449,7 @@ class BatchRenderer {
       downsampled_texture_, depth_buffer_;
   GLint antialiasing_samples_;
   IVec2 viewport_;
+  IVec2 window_size_;
 
   // Scratch arena for vertex/index arrays during RenderBatch. Allocated once,
   // reset before each batch submission.
