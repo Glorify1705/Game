@@ -139,7 +139,8 @@ void DebugUI::ProcessEvent(const SDL_Event* event) {
 }
 
 bool DebugUI::NeedsImGuiFrame() const {
-  return visible_ || mini_hud_visible_ || dropdown_repl_visible_;
+  return visible_ || mini_hud_visible_ || dropdown_repl_visible_ ||
+         physics_debug_draw_;
 }
 
 void DebugUI::BeginFrame() {
@@ -498,6 +499,13 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   // Independent overlays render without the full debug UI.
   if (mini_hud_visible_) DrawMiniHud(ctx);
   if (dropdown_repl_visible_) DrawDropDownRepl();
+  // Physics debug draw uses ImGui background draw list to render on top
+  // of canvases and post-processing.
+  if (physics_debug_draw_ && engine_->physics.debug_draw_enabled()) {
+    IVec2 vp = engine_->batch_renderer.GetViewport();
+    engine_->physics.DrawDebug(&engine_->camera,
+                               FVec2(vp.x, vp.y));
+  }
   if (!visible_) return;
   DrawMenuBar(ctx);
   if (PanelOpen(kPanelPerformance)) DrawPerformancePanel(ctx);

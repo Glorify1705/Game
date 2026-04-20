@@ -406,7 +406,7 @@ void DebugUI::DrawPhysicsPanel() {
                               ImGuiTreeNodeFlags_DefaultOpen)) {
     if (ImGui::Checkbox("Enable", &physics_debug_draw_)) {
       if (physics_debug_draw_) {
-        physics->EnableDebugDraw(&engine_->renderer, physics_debug_flags_);
+        physics->EnableDebugDraw(physics_debug_flags_);
       } else {
         physics->DisableDebugDraw();
       }
@@ -433,7 +433,7 @@ void DebugUI::DrawPhysicsPanel() {
         if (aabbs) physics_debug_flags_ |= b2Draw::e_aabbBit;
         if (pairs) physics_debug_flags_ |= b2Draw::e_pairBit;
         if (com) physics_debug_flags_ |= b2Draw::e_centerOfMassBit;
-        physics->EnableDebugDraw(&engine_->renderer, physics_debug_flags_);
+        physics->EnableDebugDraw(physics_debug_flags_);
       }
     }
   }

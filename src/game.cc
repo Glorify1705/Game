@@ -372,20 +372,8 @@ void Game::Render() {
     last_breakdown_.draw_ms =
         ElapsedMs(draw_start);
   }
-  // Physics debug drawing (after game draw, before flush).
-  // Push camera transform so debug shapes align with game objects.
-  if (engine->physics.debug_draw_enabled()) {
-    ZONE("PhysicsDebugDraw");
-    IVec2 vp = engine->batch_renderer.GetViewport();
-    FMat4x4 view = engine->camera.GetViewMatrix(
-        FVec2(vp.x, vp.y), /*parallax=*/FVec2(1.0f, 1.0f));
-    engine->batch_renderer.ResetCanvas();
-    engine->renderer.Push();
-    engine->renderer.ApplyTransform(view);
-    engine->renderer.SetLineWidth(3.0f);
-    engine->physics.DrawDebug();
-    engine->renderer.Pop();
-  }
+  // Physics debug drawing is handled in RenderDebugUI via ImGui draw list
+  // so it renders on top of canvases and post-processing.
   if (screenshot_requested) {
     screenshot_requested = false;
     TakeScreenshotToClipboard(&engine->batch_renderer, allocator);

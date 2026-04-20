@@ -13,6 +13,7 @@
 
 namespace G {
 
+class Camera;
 class PhysicsDebugDraw;
 class Renderer;
 
@@ -193,13 +194,14 @@ class Physics final : public b2ContactListener {
   int GetPositionIterations() const { return position_iterations_; }
 
   // Enables or disables physics debug drawing with the given flags.
-  void EnableDebugDraw(Renderer* renderer, uint32 flags);
+  void EnableDebugDraw(uint32 flags);
 
   // Disables physics debug drawing.
   void DisableDebugDraw();
 
-  // Draws physics debug visualization if enabled.
-  void DrawDebug();
+  // Draws physics debug visualization if enabled. Call during the ImGui pass
+  // so shapes render on top of canvases and post-processing.
+  void DrawDebug(const Camera* camera, FVec2 viewport);
 
   // Returns true if debug drawing is enabled.
   bool debug_draw_enabled() const { return debug_draw_ != nullptr; }

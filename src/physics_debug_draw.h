@@ -2,19 +2,26 @@
 #ifndef _GAME_PHYSICS_DEBUG_DRAW_H
 #define _GAME_PHYSICS_DEBUG_DRAW_H
 
+#include <imgui.h>
+
 #include "box2d/box2d.h"
-#include "color.h"
-#include "renderer.h"
+#include "camera.h"
+#include "vec.h"
 
 namespace G {
 
-// Implements Box2D's b2Draw interface using the engine's Renderer.
-// All Box2D coordinates (meters) are scaled by pixels_per_meter to
-// convert to pixel space for rendering.
+// Implements Box2D's b2Draw interface using ImGui's overlay draw list.
+// Renders on top of everything (including canvases and post-processing)
+// because it draws during the ImGui pass, not the game renderer pass.
 class PhysicsDebugDraw final : public b2Draw {
  public:
-  PhysicsDebugDraw(Renderer* renderer, float pixels_per_meter)
-      : renderer_(renderer), ppm_(pixels_per_meter) {}
+  PhysicsDebugDraw(float pixels_per_meter) : ppm_(pixels_per_meter) {}
+
+  // Sets the camera and viewport for the current frame.
+  void SetCamera(const Camera* camera, FVec2 viewport) {
+    camera_ = camera;
+    viewport_ = viewport;
+  }
 
   void DrawPolygon(const b2Vec2* vertices, int32 vertexCount,
                    const b2Color& color) override;
@@ -30,21 +37,15 @@ class PhysicsDebugDraw final : public b2Draw {
   void DrawPoint(const b2Vec2& p, float size, const b2Color& color) override;
 
  private:
-  // Converts a Box2D position (meters) to pixel coordinates.
-  FVec2 ToPixels(const b2Vec2& v) const {
-    return FVec(v.x * ppm_, v.y * ppm_);
-  }
+  // Converts a Box2D position (meters) to screen pixels via camera.
+  ImVec2 ToScreen(const b2Vec2& v) const;
 
-  // Converts a b2Color (0-1 floats) to engine Color (0-255 uint8).
-  Color ToColor(const b2Color& c) const {
-    return Color{static_cast<uint8_t>(c.r * 255),
-                 static_cast<uint8_t>(c.g * 255),
-                 static_cast<uint8_t>(c.b * 255),
-                 static_cast<uint8_t>(c.a * 255)};
-  }
+  // Converts a b2Color to ImGui packed color.
+  ImU32 ToImCol(const b2Color& c) const;
 
-  Renderer* renderer_;
   float ppm_;
+  const Camera* camera_ = nullptr;
+  FVec2 viewport_;
 };
 
 }  // namespace G
