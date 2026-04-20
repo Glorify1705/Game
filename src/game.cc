@@ -211,6 +211,7 @@ void Game::Run() {
 
 void Game::HandleHotReload() {
   if (!hot_reload->PendingChanges()) return;
+  ZONE("HotReload");
   PROFILE_SCOPE_N("HotReload");
   TIMER("Hotload requested");
   auto changes = hot_reload->ConsumePendingChanges();
@@ -325,8 +326,11 @@ void Game::UpdateTick(double scaled_dt) {
     PROFILE_SCOPE_N("Lua::Update");
     engine->lua.Update(t, scaled_dt);
   }
-  IVec2 vp = engine->batch_renderer.GetViewport();
-  engine->camera.Update(scaled_dt, FVec2(vp.x, vp.y));
+  {
+    ZONE("Camera");
+    IVec2 vp = engine->batch_renderer.GetViewport();
+    engine->camera.Update(scaled_dt, FVec2(vp.x, vp.y));
+  }
 }
 
 void Game::RunUpdates() {
@@ -383,7 +387,7 @@ void Game::Render() {
   // Render phase: flush commands and submit to GPU.
   {
     const Time render_start = Now();
-    engine->renderer.FlushFrame();
+    { ZONE("FlushFrame"); engine->renderer.FlushFrame(); }
     {
       ZONE("Render");
       PROFILE_SCOPE_N("BatchRenderer::Render");
@@ -394,6 +398,7 @@ void Game::Render() {
   }
   RenderDebugUI();
   {
+    ZONE("SwapWindow");
     PROFILE_SCOPE_N("SwapWindow");
     SDL_GL_SwapWindow(sdl->window);
   }
@@ -401,6 +406,7 @@ void Game::Render() {
 
 void Game::RenderDebugUI() {
   const Time dbgui_start = Now();
+  ZONE("DebugUI");
   PROFILE_SCOPE_N("DebugUI");
   debug_ui->BeginFrame();
   DebugUI::FrameContext ctx;
