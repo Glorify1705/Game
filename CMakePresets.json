@@ -15,7 +15,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "ENABLE_SANITIZERS": "OFF",
-        "ENABLE_PROFILING": "OFF",
+        "ENABLE_PROFILING": "ON",
         "ENABLE_CLANG_TIDY": "OFF"
       }
     },
@@ -38,7 +38,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "ENABLE_SANITIZERS": "ON",
-        "ENABLE_PROFILING": "OFF",
+        "ENABLE_PROFILING": "ON",
         "ENABLE_CLANG_TIDY": "OFF"
       }
     },
