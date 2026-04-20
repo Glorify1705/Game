@@ -162,7 +162,7 @@ void Game::Run() {
     PROFILE_FRAME;
     const Time frame_start = Now();
     {
-      PROFILE_SCOPE_N("StartFrame");
+      ZONE("StartFrame");
       engine->StartFrame();
       SDL_StartTextInput(sdl->window);
       // Update window size for rendering and mouse coordinate mapping.
@@ -195,7 +195,6 @@ void Game::Run() {
     first_update_done = true;
     engine->batch_renderer.SetFrameTime(static_cast<float>(t));
     {
-      PROFILE_SCOPE_N("Render");
       Render();
     }
     double frame_ms = ToSeconds(Now() - frame_start) * 1000.0;
@@ -212,7 +211,6 @@ void Game::Run() {
 void Game::HandleHotReload() {
   if (!hot_reload->PendingChanges()) return;
   ZONE("HotReload");
-  PROFILE_SCOPE_N("HotReload");
   TIMER("Hotload requested");
   auto changes = hot_reload->ConsumePendingChanges();
   engine->lua.ClearError();
@@ -227,7 +225,6 @@ void Game::HandleHotReload() {
 }
 
 void Game::PollEvents() {
-  PROFILE_SCOPE_N("PollEvents");
   for (SDL_Event event; SDL_PollEvent(&event);) {
     if (event.type == SDL_EVENT_QUIT) {
       engine->lua.HandleQuit();
@@ -312,18 +309,15 @@ void Game::UpdateTick(double scaled_dt) {
   engine->lua.SetRealTime(real_t, kStep);
   {
     ZONE("Timers");
-    PROFILE_SCOPE_N("Timers::Update");
     engine->timers.Update(static_cast<float>(scaled_dt),
                           static_cast<float>(kStep));
   }
   {
     ZONE("Physics");
-    PROFILE_SCOPE_N("Physics::Update");
     engine->physics.Update(scaled_dt);
   }
   {
     ZONE("Lua::Update");
-    PROFILE_SCOPE_N("Lua::Update");
     engine->lua.Update(t, scaled_dt);
   }
   {
@@ -334,7 +328,6 @@ void Game::UpdateTick(double scaled_dt) {
 }
 
 void Game::RunUpdates() {
-  PROFILE_SCOPE_N("Update");
   constexpr double kStep = TimeStepInSeconds();
   if (opts->test_mode) {
     // In test mode, run exactly one update per frame for determinism.
@@ -374,7 +367,6 @@ void Game::Render() {
       RenderCrashScreen(buf.str());
     } else {
       ZONE("Lua::Draw");
-      PROFILE_SCOPE_N("Lua::Draw");
       engine->lua.Draw();
     }
     last_breakdown_.draw_ms =
@@ -390,7 +382,6 @@ void Game::Render() {
     { ZONE("FlushFrame"); engine->renderer.FlushFrame(); }
     {
       ZONE("Render");
-      PROFILE_SCOPE_N("BatchRenderer::Render");
       engine->batch_renderer.Render();
     }
     last_breakdown_.render_ms =
@@ -399,7 +390,6 @@ void Game::Render() {
   RenderDebugUI();
   {
     ZONE("SwapWindow");
-    PROFILE_SCOPE_N("SwapWindow");
     SDL_GL_SwapWindow(sdl->window);
   }
 }
@@ -407,7 +397,6 @@ void Game::Render() {
 void Game::RenderDebugUI() {
   const Time dbgui_start = Now();
   ZONE("DebugUI");
-  PROFILE_SCOPE_N("DebugUI");
   debug_ui->BeginFrame();
   DebugUI::FrameContext ctx;
   ctx.frame_stats = engine->batch_renderer.GetFrameStats();

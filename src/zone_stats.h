@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "clock.h"
+#include "profiler.h"
 #include "stats.h"
 
 namespace G {
@@ -41,11 +42,23 @@ class ZoneStats {
 ZoneStats* GetZoneStats();
 
 // RAII guard that records elapsed time for a named zone on scope exit.
+// Always feeds ZoneStats for the live debug UI. When GAME_WITH_PROFILING
+// is enabled and recording is active, also feeds the Chrome Tracing profiler.
 struct ZoneGuard {
   std::string_view name;
   Time start;
   ZoneGuard(std::string_view n) : name(n), start(Now()) {}
-  ~ZoneGuard() { GetZoneStats()->Record(name, ElapsedMs(start)); }
+  ~ZoneGuard() {
+    float ms = ElapsedMs(start);
+    GetZoneStats()->Record(name, ms);
+#ifdef GAME_WITH_PROFILING
+    Profiler* p = GetProfiler();
+    if (p->recording()) {
+      p->AddEvent(name, "engine", NowInSeconds(),
+                  static_cast<double>(ms) / 1000.0, /*tid=*/0);
+    }
+#endif
+  }
 };
 
 #define ZONE(name) ::G::ZoneGuard INTERNAL_ID(zone_)(name)
