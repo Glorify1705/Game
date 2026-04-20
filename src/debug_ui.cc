@@ -137,7 +137,7 @@ void DebugUI::ProcessEvent(const SDL_Event* event) {
 }
 
 bool DebugUI::NeedsImGuiFrame() const {
-  return visible_ || mini_hud_visible_;
+  return visible_ || mini_hud_visible_ || dropdown_repl_visible_;
 }
 
 void DebugUI::BeginFrame() {
@@ -155,6 +155,9 @@ void DebugUI::EndFrame() {
 
 void DebugUI::Toggle() { visible_ = !visible_; }
 void DebugUI::ToggleMiniHud() { mini_hud_visible_ = !mini_hud_visible_; }
+void DebugUI::ToggleDropDownRepl() {
+  dropdown_repl_visible_ = !dropdown_repl_visible_;
+}
 
 bool DebugUI::WantCaptureMouse() const {
   if (!initialized_ || !NeedsImGuiFrame()) return false;
@@ -360,10 +363,137 @@ void DebugUI::DrawMiniHud(const FrameContext& ctx) {
   ImGui::End();
 }
 
+void DebugUI::DrawDropDownRepl() {
+  if (!dropdown_editor_init_) {
+    dropdown_editor_.SetLanguage(TextEditor::Language::Lua());
+    dropdown_editor_.SetShowLineNumbersEnabled(false);
+    dropdown_editor_.SetTabSize(2);
+    dropdown_editor_.SetPalette(TextEditor::GetDarkPalette());
+    dropdown_editor_init_ = true;
+  }
+
+  int win_w = 0, win_h = 0;
+  SDL_GetWindowSize(window_, &win_w, &win_h);
+  float repl_height = static_cast<float>(win_h) * 0.4f;
+
+  ImGui::SetNextWindowPos(ImVec2(0, 0));
+  ImGui::SetNextWindowSize(ImVec2(static_cast<float>(win_w), repl_height));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.05f, 0.05f, 0.1f, 0.92f));
+
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
+                           ImGuiWindowFlags_NoResize |
+                           ImGuiWindowFlags_NoMove |
+                           ImGuiWindowFlags_NoCollapse;
+  if (ImGui::Begin("##DropDownRepl", nullptr, flags)) {
+    // Header.
+    ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "REPL");
+    ImGui::SameLine();
+    if (ImGui::SmallButton(repl_lang_ == kFennel ? "Fennel" : "Lua")) {
+      repl_lang_ = (repl_lang_ == kLua) ? kFennel : kLua;
+      dropdown_editor_.SetLanguage(
+          repl_lang_ == kFennel ? FennelLanguage()
+                                : TextEditor::Language::Lua());
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Run") ||
+        (ImGui::IsKeyDown(ImGuiMod_Ctrl) &&
+         ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+      std::string code = dropdown_editor_.GetText();
+      while (!code.empty() && (code.back() == '\n' || code.back() == '\r' ||
+                               code.back() == ' ')) {
+        code.pop_back();
+      }
+      if (!code.empty() && engine_ != nullptr) {
+        ReplEntry input_entry;
+        input_entry.is_input = true;
+        input_entry.is_error = false;
+        FixedStringBuffer<kMaxLogLineLength> echo(kTruncating);
+        echo.Append("> ", code);
+        CopyToBuffer(input_entry.text, sizeof(input_entry.text), echo.view());
+        repl_entries_->Push(input_entry);
+
+        FixedStringBuffer<kMaxLogLineLength> result(kTruncating);
+        bool ok = false;
+        if (repl_lang_ == kFennel) {
+          FixedStringBuffer<kMaxLogLineLength> compiled(kTruncating);
+          if (CompileFennel(engine_->lua.state(), code, &compiled)) {
+            ok = engine_->lua.EvalString(compiled.view(), &result);
+          } else {
+            result.Append(compiled.view());
+          }
+        } else {
+          ok = engine_->lua.EvalString(code, &result);
+        }
+        if (!result.view().empty()) {
+          ReplEntry result_entry;
+          result_entry.is_input = false;
+          result_entry.is_error = !ok;
+          FixedStringBuffer<kMaxLogLineLength> formatted(kTruncating);
+          if (ok) formatted.Append("=> ");
+          formatted.Append(result.view());
+          CopyToBuffer(result_entry.text, sizeof(result_entry.text),
+                       formatted.view());
+          repl_entries_->Push(result_entry);
+        }
+        dropdown_editor_.ClearText();
+        repl_scroll_to_bottom_ = true;
+      }
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Clear")) {
+      while (!repl_entries_->empty()) repl_entries_->Pop();
+    }
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
+                       "Ctrl+Enter to run | ` to close");
+
+    ImGui::Separator();
+
+    // Output area.
+    float editor_height = ImGui::GetTextLineHeight() * 7;
+    float output_height = ImGui::GetContentRegionAvail().y - editor_height -
+                          ImGui::GetStyle().ItemSpacing.y;
+    if (output_height < 40.0f) output_height = 40.0f;
+    if (ImGui::BeginChild("##dd_output", ImVec2(0, output_height), false,
+                          ImGuiWindowFlags_HorizontalScrollbar)) {
+      size_t count = repl_entries_->size();
+      for (size_t i = 0; i < count; ++i) {
+        const auto& entry = (*repl_entries_)[i];
+        if (entry.is_input) {
+          ImGui::PushStyleColor(ImGuiCol_Text,
+                                ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+        } else if (entry.is_error) {
+          ImGui::PushStyleColor(ImGuiCol_Text,
+                                ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+        }
+        ImGui::TextUnformatted(entry.text);
+        if (entry.is_input || entry.is_error) ImGui::PopStyleColor();
+      }
+      if (repl_scroll_to_bottom_) {
+        ImGui::SetScrollHereY(1.0f);
+        repl_scroll_to_bottom_ = false;
+      }
+    }
+    ImGui::EndChild();
+
+    // Editor.
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+    dropdown_editor_.Render("##dd_editor",
+                            ImVec2(0, ImGui::GetContentRegionAvail().y));
+  }
+  ImGui::End();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleVar();
+}
+
 void DebugUI::DrawAll(const FrameContext& ctx) {
   if (!initialized_ || engine_ == nullptr) return;
-  // Mini HUD renders independently of the full overlay.
+  // Independent overlays render without the full debug UI.
   if (mini_hud_visible_) DrawMiniHud(ctx);
+  if (dropdown_repl_visible_) DrawDropDownRepl();
   if (!visible_) return;
   DrawMenuBar(ctx);
   if (PanelOpen(kPanelPerformance)) DrawPerformancePanel(ctx);

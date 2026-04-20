@@ -61,6 +61,9 @@ class DebugUI {
   // Toggles the mini stats HUD (independent of the full overlay).
   void ToggleMiniHud();
 
+  // Toggles the drop-down REPL (independent of the full overlay).
+  void ToggleDropDownRepl();
+
   // Returns true when the overlay is visible.
   bool visible() const { return visible_; }
 
@@ -180,13 +183,16 @@ class DebugUI {
   void DrawWatchPanel();
   // Draws the mini stats HUD (FPS, frame time, draw calls, Lua memory).
   void DrawMiniHud(const FrameContext& ctx);
-  // Returns true if any overlay needs an ImGui frame (visible_ or mini HUD).
+  // Draws the drop-down REPL overlay.
+  void DrawDropDownRepl();
+  // Returns true if any overlay needs an ImGui frame.
   bool NeedsImGuiFrame() const;
 
   bool visible_ = false;
   bool initialized_ = false;
   bool window_centered_ = false;
   bool mini_hud_visible_ = false;
+  bool dropdown_repl_visible_ = false;
   bool window_menu_requested_ = false;
   Allocator* allocator_ = nullptr;
   Engine* engine_ = nullptr;
@@ -279,6 +285,10 @@ class DebugUI {
   TextEditor repl_editor_;
   bool repl_editor_init_ = false;
 
+  // Drop-down REPL editor (separate from the Watch panel's editor).
+  TextEditor dropdown_editor_;
+  bool dropdown_editor_init_ = false;
+
   // Script/shader editor state.
   CodeEditorState script_editor_;
   CodeEditorState shader_editor_;
@@ -328,6 +338,7 @@ class DebugUI {
   void EndFrame() {}
   void Toggle() {}
   void ToggleMiniHud() {}
+  void ToggleDropDownRepl() {}
   bool visible() const { return false; }
   bool WantCaptureMouse() const { return false; }
   bool WantCaptureKeyboard() const { return false; }

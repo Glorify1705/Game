@@ -224,6 +224,19 @@ void Game::PollEvents() {
       running = false;
       return;
     }
+    // Toggle drop-down REPL with backtick BEFORE forwarding to ImGui
+    // so the ` character never appears in any input field.
+    if (event.type == SDL_EVENT_KEY_DOWN &&
+        event.key.scancode == SDL_SCANCODE_GRAVE) {
+      if (config->enable_debug_rendering) {
+        debug_ui->ToggleDropDownRepl();
+      }
+      continue;
+    }
+    if (event.type == SDL_EVENT_TEXT_INPUT &&
+        event.text.text[0] == '`' && event.text.text[1] == '\0') {
+      continue;
+    }
     // Forward every event to ImGui before the engine processes it.
     debug_ui->ProcessEvent(&event);
     // Toggle the debug UI with Tab, mini HUD with F3 (processed before
