@@ -206,6 +206,18 @@ class Physics final : public b2ContactListener {
   // Returns true if debug drawing is enabled.
   bool debug_draw_enabled() const { return debug_draw_ != nullptr; }
 
+  // Finds the body at a world pixel position. Returns nullptr if none found.
+  b2Body* QueryPoint(FVec2 world_pixels);
+
+  // Creates a mouse joint for dragging a body. Returns the joint handle.
+  b2Joint* CreateMouseJoint(b2Body* body, FVec2 world_pixels);
+
+  // Updates the mouse joint target to follow the cursor.
+  void UpdateMouseJoint(b2Joint* joint, FVec2 world_pixels);
+
+  // Destroys a mouse joint.
+  void DestroyMouseJoint(b2Joint* joint);
+
  private:
   static void DefaultDestroy(uintptr_t, void *) {}
 

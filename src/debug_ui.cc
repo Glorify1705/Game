@@ -503,8 +503,74 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   // of canvases and post-processing.
   if (physics_debug_draw_ && engine_->physics.debug_draw_enabled()) {
     IVec2 vp = engine_->batch_renderer.GetViewport();
-    engine_->physics.DrawDebug(&engine_->camera,
-                               FVec2(vp.x, vp.y));
+    FVec2 viewport(vp.x, vp.y);
+    engine_->physics.DrawDebug(&engine_->camera, viewport);
+
+    // Draw velocity arrows if enabled.
+    if (show_velocities_) {
+      ImDrawList* dl = ImGui::GetBackgroundDrawList();
+      float ppm = engine_->physics.GetPixelsPerMeter();
+      for (const b2Body* body = engine_->physics.GetBodyList();
+           body != nullptr; body = body->GetNext()) {
+        if (body->GetType() != b2_dynamicBody || !body->IsAwake()) continue;
+        b2Vec2 pos = body->GetPosition();
+        b2Vec2 vel = body->GetLinearVelocity();
+        float speed = vel.Length();
+        if (speed < 0.1f) continue;
+        // Cap arrow length.
+        float arrow_len = speed * ppm * 0.3f;
+        if (arrow_len > 100.0f) arrow_len = 100.0f;
+        b2Vec2 dir(vel.x / speed, vel.y / speed);
+        b2Vec2 tip = pos + (arrow_len / ppm) * dir;
+        FVec2 screen_pos = engine_->camera.ToScreen(
+            FVec(pos.x * ppm, pos.y * ppm), viewport);
+        FVec2 screen_tip = engine_->camera.ToScreen(
+            FVec(tip.x * ppm, tip.y * ppm), viewport);
+        dl->AddLine(ImVec2(screen_pos.x, screen_pos.y),
+                    ImVec2(screen_tip.x, screen_tip.y),
+                    IM_COL32(0, 255, 255, 200), 2.0f);
+      }
+    }
+
+    // Draw selected body highlight.
+    if (selected_body_ != nullptr) {
+      ImDrawList* dl = ImGui::GetBackgroundDrawList();
+      float ppm = engine_->physics.GetPixelsPerMeter();
+      b2Vec2 pos = selected_body_->GetPosition();
+      FVec2 screen_pos = engine_->camera.ToScreen(
+          FVec(pos.x * ppm, pos.y * ppm), viewport);
+      dl->AddCircle(ImVec2(screen_pos.x, screen_pos.y), 20.0f,
+                    IM_COL32(255, 255, 0, 255), 0, 3.0f);
+    }
+
+    // Click-to-select and drag handling.
+    if (!ImGui::GetIO().WantCaptureMouse) {
+      ImVec2 mouse = ImGui::GetMousePos();
+      FVec2 world_pos = engine_->camera.ToWorld(
+          FVec(mouse.x, mouse.y), viewport);
+
+      if (ImGui::IsMouseClicked(0)) {
+        b2Body* body = engine_->physics.QueryPoint(world_pos);
+        selected_body_ = body;
+        if (body != nullptr && body->GetType() == b2_dynamicBody) {
+          mouse_joint_ = engine_->physics.CreateMouseJoint(body, world_pos);
+        }
+      }
+      if (mouse_joint_ != nullptr && ImGui::IsMouseDown(0)) {
+        engine_->physics.UpdateMouseJoint(mouse_joint_, world_pos);
+      }
+      if (mouse_joint_ != nullptr && ImGui::IsMouseReleased(0)) {
+        engine_->physics.DestroyMouseJoint(mouse_joint_);
+        mouse_joint_ = nullptr;
+      }
+    }
+  } else {
+    // Clean up if debug draw was disabled while dragging.
+    if (mouse_joint_ != nullptr) {
+      engine_->physics.DestroyMouseJoint(mouse_joint_);
+      mouse_joint_ = nullptr;
+    }
+    selected_body_ = nullptr;
   }
   if (!visible_) return;
   DrawMenuBar(ctx);

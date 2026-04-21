@@ -208,6 +208,9 @@ class DebugUI {
   bool window_menu_requested_ = false;
   bool physics_debug_draw_ = false;
   uint32_t physics_debug_flags_ = 0x001F;
+  bool show_velocities_ = false;
+  b2Body* selected_body_ = nullptr;
+  b2Joint* mouse_joint_ = nullptr;
   Allocator* allocator_ = nullptr;
   Engine* engine_ = nullptr;
   ArenaAllocator* engine_arena_ = nullptr;
