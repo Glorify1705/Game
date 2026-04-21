@@ -372,6 +372,8 @@ void Game::Render() {
     last_breakdown_.draw_ms =
         ElapsedMs(draw_start);
   }
+  // Physics debug drawing is handled in RenderDebugUI via ImGui draw list
+  // so it renders on top of canvases and post-processing.
   if (screenshot_requested) {
     screenshot_requested = false;
     TakeScreenshotToClipboard(&engine->batch_renderer, allocator);

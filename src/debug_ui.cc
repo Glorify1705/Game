@@ -139,7 +139,8 @@ void DebugUI::ProcessEvent(const SDL_Event* event) {
 }
 
 bool DebugUI::NeedsImGuiFrame() const {
-  return visible_ || mini_hud_visible_ || dropdown_repl_visible_;
+  return visible_ || mini_hud_visible_ || dropdown_repl_visible_ ||
+         physics_debug_draw_;
 }
 
 void DebugUI::BeginFrame() {
@@ -493,11 +494,94 @@ void DebugUI::DrawDropDownRepl() {
   ImGui::PopStyleVar();
 }
 
+void DebugUI::DrawPhysicsDebug() {
+  if (!physics_debug_draw_ || !engine_->physics.debug_draw_enabled()) {
+    // Clean up if debug draw was disabled while dragging.
+    if (mouse_joint_ != nullptr) {
+      engine_->physics.DestroyMouseJoint(mouse_joint_);
+      mouse_joint_ = nullptr;
+    }
+    selected_body_ = nullptr;
+    return;
+  }
+
+  IVec2 vp = engine_->batch_renderer.GetViewport();
+  FVec2 viewport(vp.x, vp.y);
+  engine_->physics.DrawDebug(&engine_->camera, viewport);
+
+  // Convert Box2D position to screen pixels, accounting for whether the
+  // game uses the camera system.
+  float ppm = engine_->physics.GetPixelsPerMeter();
+  bool use_camera = engine_->camera.IsFollowing() ||
+                    engine_->camera.GetPosition() != FVec2::Zero();
+  auto to_screen = [&](b2Vec2 p) -> ImVec2 {
+    FVec2 world_px(p.x * ppm, p.y * ppm);
+    if (use_camera) {
+      FVec2 s = engine_->camera.ToScreen(world_px, viewport);
+      return ImVec2(s.x, s.y);
+    }
+    return ImVec2(world_px.x, world_px.y);
+  };
+  auto to_world = [&](ImVec2 s) -> FVec2 {
+    if (use_camera) {
+      return engine_->camera.ToWorld(FVec(s.x, s.y), viewport);
+    }
+    return FVec(s.x, s.y);
+  };
+
+  // Velocity arrows.
+  if (show_velocities_) {
+    ImDrawList* dl = ImGui::GetBackgroundDrawList();
+    for (const b2Body* body = engine_->physics.GetBodyList();
+         body != nullptr; body = body->GetNext()) {
+      if (body->GetType() != b2_dynamicBody || !body->IsAwake()) continue;
+      b2Vec2 pos = body->GetPosition();
+      b2Vec2 vel = body->GetLinearVelocity();
+      float speed = vel.Length();
+      if (speed < 0.1f) continue;
+      float arrow_len = speed * ppm * 0.3f;
+      if (arrow_len > 100.0f) arrow_len = 100.0f;
+      b2Vec2 dir(vel.x / speed, vel.y / speed);
+      b2Vec2 tip = pos + (arrow_len / ppm) * dir;
+      dl->AddLine(to_screen(pos), to_screen(tip),
+                  IM_COL32(0, 255, 255, 200), 2.0f);
+    }
+  }
+
+  // Selected body highlight.
+  if (selected_body_ != nullptr) {
+    ImDrawList* dl = ImGui::GetBackgroundDrawList();
+    dl->AddCircle(to_screen(selected_body_->GetPosition()), 20.0f,
+                  IM_COL32(255, 255, 0, 255), 0, 3.0f);
+  }
+
+  // Click-to-select and drag.
+  if (!ImGui::GetIO().WantCaptureMouse) {
+    ImVec2 mouse = ImGui::GetMousePos();
+    FVec2 world_pos = to_world(mouse);
+    if (ImGui::IsMouseClicked(0)) {
+      b2Body* body = engine_->physics.QueryPoint(world_pos);
+      selected_body_ = body;
+      if (body != nullptr && body->GetType() == b2_dynamicBody) {
+        mouse_joint_ = engine_->physics.CreateMouseJoint(body, world_pos);
+      }
+    }
+    if (mouse_joint_ != nullptr && ImGui::IsMouseDown(0)) {
+      engine_->physics.UpdateMouseJoint(mouse_joint_, world_pos);
+    }
+    if (mouse_joint_ != nullptr && ImGui::IsMouseReleased(0)) {
+      engine_->physics.DestroyMouseJoint(mouse_joint_);
+      mouse_joint_ = nullptr;
+    }
+  }
+}
+
 void DebugUI::DrawAll(const FrameContext& ctx) {
   if (!initialized_ || engine_ == nullptr) return;
   // Independent overlays render without the full debug UI.
   if (mini_hud_visible_) DrawMiniHud(ctx);
   if (dropdown_repl_visible_) DrawDropDownRepl();
+  DrawPhysicsDebug();
   if (!visible_) return;
   DrawMenuBar(ctx);
   if (PanelOpen(kPanelPerformance)) DrawPerformancePanel(ctx);

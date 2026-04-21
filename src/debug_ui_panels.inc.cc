@@ -402,6 +402,80 @@ void DebugUI::DrawPhysicsPanel() {
   }
   ImGui::Separator();
 
+  if (ImGui::CollapsingHeader("Debug Draw",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::Checkbox("Enable", &physics_debug_draw_)) {
+      if (physics_debug_draw_) {
+        physics->EnableDebugDraw(physics_debug_flags_);
+      } else {
+        physics->DisableDebugDraw();
+      }
+    }
+    if (physics_debug_draw_) {
+      bool shapes = (physics_debug_flags_ & b2Draw::e_shapeBit) != 0;
+      bool joints = (physics_debug_flags_ & b2Draw::e_jointBit) != 0;
+      bool aabbs = (physics_debug_flags_ & b2Draw::e_aabbBit) != 0;
+      bool pairs = (physics_debug_flags_ & b2Draw::e_pairBit) != 0;
+      bool com = (physics_debug_flags_ & b2Draw::e_centerOfMassBit) != 0;
+      bool flags_changed = false;
+      if (ImGui::Checkbox("Shapes", &shapes)) flags_changed = true;
+      ImGui::SameLine();
+      if (ImGui::Checkbox("Joints", &joints)) flags_changed = true;
+      ImGui::SameLine();
+      if (ImGui::Checkbox("AABBs", &aabbs)) flags_changed = true;
+      if (ImGui::Checkbox("Pairs", &pairs)) flags_changed = true;
+      ImGui::SameLine();
+      if (ImGui::Checkbox("Center of Mass", &com)) flags_changed = true;
+      if (flags_changed) {
+        physics_debug_flags_ = 0;
+        if (shapes) physics_debug_flags_ |= b2Draw::e_shapeBit;
+        if (joints) physics_debug_flags_ |= b2Draw::e_jointBit;
+        if (aabbs) physics_debug_flags_ |= b2Draw::e_aabbBit;
+        if (pairs) physics_debug_flags_ |= b2Draw::e_pairBit;
+        if (com) physics_debug_flags_ |= b2Draw::e_centerOfMassBit;
+        physics->EnableDebugDraw(physics_debug_flags_);
+      }
+      ImGui::Checkbox("Velocities", &show_velocities_);
+    }
+  }
+  ImGui::Separator();
+
+  // Selected body details.
+  if (selected_body_ != nullptr) {
+    if (ImGui::CollapsingHeader("Selected Body",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+      float ppm = physics->GetPixelsPerMeter();
+      b2Vec2 pos = selected_body_->GetPosition();
+      b2Vec2 vel = selected_body_->GetLinearVelocity();
+      const char* type_str = "?";
+      if (selected_body_->GetType() == b2_dynamicBody) type_str = "Dynamic";
+      if (selected_body_->GetType() == b2_staticBody) type_str = "Static";
+      if (selected_body_->GetType() == b2_kinematicBody) type_str = "Kinematic";
+      ImGui::Text("Type: %s", type_str);
+      ImGui::Text("Position: (%.1f, %.1f)",
+                  static_cast<double>(pos.x * ppm),
+                  static_cast<double>(pos.y * ppm));
+      ImGui::Text("Velocity: (%.1f, %.1f)  Speed: %.1f",
+                  static_cast<double>(vel.x * ppm),
+                  static_cast<double>(vel.y * ppm),
+                  static_cast<double>(vel.Length() * ppm));
+      ImGui::Text("Angle: %.2f rad  Mass: %.2f",
+                  static_cast<double>(selected_body_->GetAngle()),
+                  static_cast<double>(selected_body_->GetMass()));
+      ImGui::Text("Awake: %s  Fixed Rotation: %s",
+                  selected_body_->IsAwake() ? "Yes" : "No",
+                  selected_body_->IsFixedRotation() ? "Yes" : "No");
+      int fixture_count = 0;
+      for (const b2Fixture* f = selected_body_->GetFixtureList();
+           f != nullptr; f = f->GetNext()) {
+        ++fixture_count;
+      }
+      ImGui::Text("Fixtures: %d", fixture_count);
+      if (ImGui::SmallButton("Deselect")) selected_body_ = nullptr;
+    }
+    ImGui::Separator();
+  }
+
   if (ImGui::CollapsingHeader("Bodies")) {
     if (ImGui::BeginTable("BodyTable", 5,
                           ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
@@ -417,6 +491,7 @@ void DebugUI::DrawPhysicsPanel() {
       float ppm = physics->GetPixelsPerMeter();
       for (const b2Body* body = physics->GetBodyList(); body != nullptr;
            body = body->GetNext()) {
+        bool is_selected = (body == selected_body_);
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
         const char* type_str = "?";
@@ -431,7 +506,13 @@ void DebugUI::DrawPhysicsPanel() {
             type_str = "Kinematic";
             break;
         }
-        ImGui::Text("%s", type_str);
+        ImGui::PushID(body);
+        if (ImGui::Selectable(type_str, is_selected,
+                              ImGuiSelectableFlags_SpanAllColumns)) {
+          selected_body_ = is_selected ? nullptr
+                                       : const_cast<b2Body*>(body);
+        }
+        ImGui::PopID();
         ImGui::TableNextColumn();
         b2Vec2 pos = body->GetPosition();
         ImGui::Text("%.0f, %.0f", static_cast<double>(pos.x * ppm),

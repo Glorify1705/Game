@@ -191,6 +191,7 @@ set(ENGINE_SRCS
     src/timer.cc
     src/executor.cc
     src/zone_stats.cc
+    src/physics_debug_draw.cc
     src/transformations.cc
     src/xml.cc
     src/packer.cc

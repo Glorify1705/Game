@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "physics_debug_draw.h"
+
 namespace G {
 namespace {
 
@@ -437,6 +439,82 @@ int Physics::RaycastAll(FVec2 from, FVec2 to, uint16_t mask, RaycastHit* out,
 
 void Physics::Update(float dt) {
   world_.Step(dt, velocity_iterations_, position_iterations_);
+}
+
+namespace {
+
+// Callback for QueryAABB that finds the first fixture containing a point.
+class PointQueryCallback : public b2QueryCallback {
+ public:
+  b2Vec2 point;
+  b2Fixture* found = nullptr;
+
+  bool ReportFixture(b2Fixture* fixture) override {
+    if (fixture->TestPoint(point)) {
+      found = fixture;
+      return false;
+    }
+    return true;
+  }
+};
+
+}  // namespace
+
+b2Body* Physics::QueryPoint(FVec2 world_pixels) {
+  b2Vec2 point = To(world_pixels);
+  constexpr float kQueryRadius = 0.1f;
+  b2AABB aabb;
+  aabb.lowerBound = point - b2Vec2(kQueryRadius, kQueryRadius);
+  aabb.upperBound = point + b2Vec2(kQueryRadius, kQueryRadius);
+  PointQueryCallback callback;
+  callback.point = point;
+  world_.QueryAABB(&callback, aabb);
+  if (callback.found != nullptr) {
+    return callback.found->GetBody();
+  }
+  return nullptr;
+}
+
+b2Joint* Physics::CreateMouseJoint(b2Body* body, FVec2 world_pixels) {
+  b2Vec2 target = To(world_pixels);
+  b2MouseJointDef def;
+  def.bodyA = ground_;
+  def.bodyB = body;
+  def.target = target;
+  def.maxForce = 1000.0f * body->GetMass();
+  b2LinearStiffness(def.stiffness, def.damping, /*frequencyHz=*/5.0f,
+                    /*dampingRatio=*/0.7f, def.bodyA, def.bodyB);
+  body->SetAwake(true);
+  return world_.CreateJoint(&def);
+}
+
+void Physics::UpdateMouseJoint(b2Joint* joint, FVec2 world_pixels) {
+  auto* mouse_joint = static_cast<b2MouseJoint*>(joint);
+  mouse_joint->SetTarget(To(world_pixels));
+}
+
+void Physics::DestroyMouseJoint(b2Joint* joint) {
+  world_.DestroyJoint(joint);
+}
+
+void Physics::EnableDebugDraw(uint32 flags) {
+  if (debug_draw_ == nullptr) {
+    debug_draw_ = new PhysicsDebugDraw(pixels_per_meter_);
+  }
+  debug_draw_->SetFlags(flags);
+  world_.SetDebugDraw(debug_draw_);
+}
+
+void Physics::DisableDebugDraw() {
+  world_.SetDebugDraw(nullptr);
+  delete debug_draw_;
+  debug_draw_ = nullptr;
+}
+
+void Physics::DrawDebug(const Camera* camera, FVec2 viewport) {
+  if (debug_draw_ == nullptr) return;
+  debug_draw_->SetCamera(camera, viewport);
+  world_.DebugDraw();
 }
 
 }  // namespace G

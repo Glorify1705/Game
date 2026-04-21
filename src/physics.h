@@ -7,11 +7,17 @@
 
 #include "array.h"
 #include "box2d/box2d.h"
+#include "camera.h"
 #include "math.h"
+#include "renderer.h"
 #include "string_table.h"
 #include "vec.h"
 
 namespace G {
+
+// Forward-declared because physics_debug_draw.h includes imgui.h which
+// would pull 35K lines into every file that includes engine.h.
+class PhysicsDebugDraw;
 
 // Body type for physics bodies.
 enum class PhysicsBodyType : uint8_t {
@@ -189,6 +195,31 @@ class Physics final : public b2ContactListener {
   // Returns the position solver iteration count.
   int GetPositionIterations() const { return position_iterations_; }
 
+  // Enables or disables physics debug drawing with the given flags.
+  void EnableDebugDraw(uint32 flags);
+
+  // Disables physics debug drawing.
+  void DisableDebugDraw();
+
+  // Draws physics debug visualization if enabled. Call during the ImGui pass
+  // so shapes render on top of canvases and post-processing.
+  void DrawDebug(const Camera* camera, FVec2 viewport);
+
+  // Returns true if debug drawing is enabled.
+  bool debug_draw_enabled() const { return debug_draw_ != nullptr; }
+
+  // Finds the body at a world pixel position. Returns nullptr if none found.
+  b2Body* QueryPoint(FVec2 world_pixels);
+
+  // Creates a mouse joint for dragging a body. Returns the joint handle.
+  b2Joint* CreateMouseJoint(b2Body* body, FVec2 world_pixels);
+
+  // Updates the mouse joint target to follow the cursor.
+  void UpdateMouseJoint(b2Joint* joint, FVec2 world_pixels);
+
+  // Destroys a mouse joint.
+  void DestroyMouseJoint(b2Joint* joint);
+
  private:
   static void DefaultDestroy(uintptr_t, void *) {}
 
@@ -204,6 +235,7 @@ class Physics final : public b2ContactListener {
   b2World world_;
   b2Body *ground_ = nullptr;
   bool walls_ = false;
+  PhysicsDebugDraw* debug_draw_ = nullptr;
 
   ContactCallback begin_contact_callback_ = DefaultContact;
   void *begin_contact_userdata_ = this;
