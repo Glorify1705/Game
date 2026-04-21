@@ -7,12 +7,13 @@ namespace G {
 ImVec2 PhysicsDebugDraw::ToScreen(const b2Vec2& v) const {
   // Convert Box2D meters to world pixels.
   FVec2 world_px(v.x * ppm_, v.y * ppm_);
-  // Apply camera transform to get screen pixels.
-  if (camera_ != nullptr) {
-    FMat4x4 view =
-        camera_->GetViewMatrix(viewport_, /*parallax=*/FVec2(1.0f, 1.0f));
-    FVec4 transformed = view * FVec4(world_px.x, world_px.y, 0.0f, 1.0f);
-    return ImVec2(transformed.x, transformed.y);
+  // Apply camera transform if the camera is actively used (has non-default
+  // position or is following a target). Games that don't use camera.attach()
+  // draw in raw screen coordinates and don't need the transform.
+  if (camera_ != nullptr && (camera_->IsFollowing() ||
+                              camera_->GetPosition() != FVec2::Zero())) {
+    FVec2 screen = camera_->ToScreen(world_px, viewport_);
+    return ImVec2(screen.x, screen.y);
   }
   return ImVec2(world_px.x, world_px.y);
 }

@@ -506,10 +506,29 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
     FVec2 viewport(vp.x, vp.y);
     engine_->physics.DrawDebug(&engine_->camera, viewport);
 
+    // Helper: convert Box2D position to screen pixels, accounting for
+    // whether the game uses the camera system.
+    float ppm = engine_->physics.GetPixelsPerMeter();
+    bool use_camera = engine_->camera.IsFollowing() ||
+                      engine_->camera.GetPosition() != FVec2::Zero();
+    auto b2ToScreen = [&](b2Vec2 p) -> ImVec2 {
+      FVec2 world_px(p.x * ppm, p.y * ppm);
+      if (use_camera) {
+        FVec2 s = engine_->camera.ToScreen(world_px, viewport);
+        return ImVec2(s.x, s.y);
+      }
+      return ImVec2(world_px.x, world_px.y);
+    };
+    auto screenToWorld = [&](ImVec2 s) -> FVec2 {
+      if (use_camera) {
+        return engine_->camera.ToWorld(FVec(s.x, s.y), viewport);
+      }
+      return FVec(s.x, s.y);
+    };
+
     // Draw velocity arrows if enabled.
     if (show_velocities_) {
       ImDrawList* dl = ImGui::GetBackgroundDrawList();
-      float ppm = engine_->physics.GetPixelsPerMeter();
       for (const b2Body* body = engine_->physics.GetBodyList();
            body != nullptr; body = body->GetNext()) {
         if (body->GetType() != b2_dynamicBody || !body->IsAwake()) continue;
@@ -517,17 +536,11 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
         b2Vec2 vel = body->GetLinearVelocity();
         float speed = vel.Length();
         if (speed < 0.1f) continue;
-        // Cap arrow length.
         float arrow_len = speed * ppm * 0.3f;
         if (arrow_len > 100.0f) arrow_len = 100.0f;
         b2Vec2 dir(vel.x / speed, vel.y / speed);
         b2Vec2 tip = pos + (arrow_len / ppm) * dir;
-        FVec2 screen_pos = engine_->camera.ToScreen(
-            FVec(pos.x * ppm, pos.y * ppm), viewport);
-        FVec2 screen_tip = engine_->camera.ToScreen(
-            FVec(tip.x * ppm, tip.y * ppm), viewport);
-        dl->AddLine(ImVec2(screen_pos.x, screen_pos.y),
-                    ImVec2(screen_tip.x, screen_tip.y),
+        dl->AddLine(b2ToScreen(pos), b2ToScreen(tip),
                     IM_COL32(0, 255, 255, 200), 2.0f);
       }
     }
@@ -535,19 +548,14 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
     // Draw selected body highlight.
     if (selected_body_ != nullptr) {
       ImDrawList* dl = ImGui::GetBackgroundDrawList();
-      float ppm = engine_->physics.GetPixelsPerMeter();
-      b2Vec2 pos = selected_body_->GetPosition();
-      FVec2 screen_pos = engine_->camera.ToScreen(
-          FVec(pos.x * ppm, pos.y * ppm), viewport);
-      dl->AddCircle(ImVec2(screen_pos.x, screen_pos.y), 20.0f,
+      dl->AddCircle(b2ToScreen(selected_body_->GetPosition()), 20.0f,
                     IM_COL32(255, 255, 0, 255), 0, 3.0f);
     }
 
     // Click-to-select and drag handling.
     if (!ImGui::GetIO().WantCaptureMouse) {
       ImVec2 mouse = ImGui::GetMousePos();
-      FVec2 world_pos = engine_->camera.ToWorld(
-          FVec(mouse.x, mouse.y), viewport);
+      FVec2 world_pos = screenToWorld(mouse);
 
       if (ImGui::IsMouseClicked(0)) {
         b2Body* body = engine_->physics.QueryPoint(world_pos);
