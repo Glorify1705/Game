@@ -23,23 +23,23 @@ ImU32 PhysicsDebugDraw::ToImCol(const b2Color& c) const {
                   static_cast<int>(c.b * 255), static_cast<int>(c.a * 255));
 }
 
-void PhysicsDebugDraw::DrawPolygon(const b2Vec2* vertices, int32 vertexCount,
+void PhysicsDebugDraw::DrawPolygon(const b2Vec2* vertices, int32 vertex_count,
                                    const b2Color& color) {
   ImDrawList* dl = ImGui::GetBackgroundDrawList();
   ImU32 col = ToImCol(color);
-  for (int32 i = 0; i < vertexCount; ++i) {
-    int32 next = (i + 1) % vertexCount;
+  for (int32 i = 0; i < vertex_count; ++i) {
+    int32 next = (i + 1) % vertex_count;
     dl->AddLine(ToScreen(vertices[i]), ToScreen(vertices[next]), col, 1.0f);
   }
 }
 
 void PhysicsDebugDraw::DrawSolidPolygon(const b2Vec2* vertices,
-                                        int32 vertexCount,
+                                        int32 vertex_count,
                                         const b2Color& color) {
   ImDrawList* dl = ImGui::GetBackgroundDrawList();
   ImU32 col = ToImCol(color);
-  for (int32 i = 0; i < vertexCount; ++i) {
-    int32 next = (i + 1) % vertexCount;
+  for (int32 i = 0; i < vertex_count; ++i) {
+    int32 next = (i + 1) % vertex_count;
     dl->AddLine(ToScreen(vertices[i]), ToScreen(vertices[next]), col, 2.0f);
   }
 }

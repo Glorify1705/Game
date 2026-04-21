@@ -23,9 +23,9 @@ class PhysicsDebugDraw final : public b2Draw {
     viewport_ = viewport;
   }
 
-  void DrawPolygon(const b2Vec2* vertices, int32 vertexCount,
+  void DrawPolygon(const b2Vec2* vertices, int32 vertex_count,
                    const b2Color& color) override;
-  void DrawSolidPolygon(const b2Vec2* vertices, int32 vertexCount,
+  void DrawSolidPolygon(const b2Vec2* vertices, int32 vertex_count,
                         const b2Color& color) override;
   void DrawCircle(const b2Vec2& center, float radius,
                   const b2Color& color) override;
