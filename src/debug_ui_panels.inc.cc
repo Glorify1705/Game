@@ -491,6 +491,7 @@ void DebugUI::DrawPhysicsPanel() {
       float ppm = physics->GetPixelsPerMeter();
       for (const b2Body* body = physics->GetBodyList(); body != nullptr;
            body = body->GetNext()) {
+        bool is_selected = (body == selected_body_);
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
         const char* type_str = "?";
@@ -505,7 +506,13 @@ void DebugUI::DrawPhysicsPanel() {
             type_str = "Kinematic";
             break;
         }
-        ImGui::Text("%s", type_str);
+        ImGui::PushID(body);
+        if (ImGui::Selectable(type_str, is_selected,
+                              ImGuiSelectableFlags_SpanAllColumns)) {
+          selected_body_ = is_selected ? nullptr
+                                       : const_cast<b2Body*>(body);
+        }
+        ImGui::PopID();
         ImGui::TableNextColumn();
         b2Vec2 pos = body->GetPosition();
         ImGui::Text("%.0f, %.0f", static_cast<double>(pos.x * ppm),
