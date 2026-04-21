@@ -511,7 +511,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
     float ppm = engine_->physics.GetPixelsPerMeter();
     bool use_camera = engine_->camera.IsFollowing() ||
                       engine_->camera.GetPosition() != FVec2::Zero();
-    auto b2ToScreen = [&](b2Vec2 p) -> ImVec2 {
+    auto to_screen = [&](b2Vec2 p) -> ImVec2 {
       FVec2 world_px(p.x * ppm, p.y * ppm);
       if (use_camera) {
         FVec2 s = engine_->camera.ToScreen(world_px, viewport);
@@ -519,7 +519,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
       }
       return ImVec2(world_px.x, world_px.y);
     };
-    auto screenToWorld = [&](ImVec2 s) -> FVec2 {
+    auto to_world = [&](ImVec2 s) -> FVec2 {
       if (use_camera) {
         return engine_->camera.ToWorld(FVec(s.x, s.y), viewport);
       }
@@ -540,7 +540,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
         if (arrow_len > 100.0f) arrow_len = 100.0f;
         b2Vec2 dir(vel.x / speed, vel.y / speed);
         b2Vec2 tip = pos + (arrow_len / ppm) * dir;
-        dl->AddLine(b2ToScreen(pos), b2ToScreen(tip),
+        dl->AddLine(to_screen(pos), to_screen(tip),
                     IM_COL32(0, 255, 255, 200), 2.0f);
       }
     }
@@ -548,14 +548,14 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
     // Draw selected body highlight.
     if (selected_body_ != nullptr) {
       ImDrawList* dl = ImGui::GetBackgroundDrawList();
-      dl->AddCircle(b2ToScreen(selected_body_->GetPosition()), 20.0f,
+      dl->AddCircle(to_screen(selected_body_->GetPosition()), 20.0f,
                     IM_COL32(255, 255, 0, 255), 0, 3.0f);
     }
 
     // Click-to-select and drag handling.
     if (!ImGui::GetIO().WantCaptureMouse) {
       ImVec2 mouse = ImGui::GetMousePos();
-      FVec2 world_pos = screenToWorld(mouse);
+      FVec2 world_pos = to_world(mouse);
 
       if (ImGui::IsMouseClicked(0)) {
         b2Body* body = engine_->physics.QueryPoint(world_pos);
