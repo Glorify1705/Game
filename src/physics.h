@@ -7,15 +7,17 @@
 
 #include "array.h"
 #include "box2d/box2d.h"
+#include "camera.h"
 #include "math.h"
+#include "renderer.h"
 #include "string_table.h"
 #include "vec.h"
 
 namespace G {
 
-class Camera;
+// Forward-declared because physics_debug_draw.h includes imgui.h which
+// would pull 35K lines into every file that includes engine.h.
 class PhysicsDebugDraw;
-class Renderer;
 
 // Body type for physics bodies.
 enum class PhysicsBodyType : uint8_t {
