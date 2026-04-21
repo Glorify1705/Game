@@ -35,6 +35,97 @@ void SignalHandler(int) { g_running = 0; }
 // Simple logging to stderr.
 void Log(const char* msg) { fprintf(stderr, "[server] %s\n", msg); }
 
+// Global ENet host pointer, accessed by Lua C functions.
+ENetHost* g_host = nullptr;
+
+// G.network.send(peer_id, data, opts)
+int LuaNetSend(lua_State* L) {
+  int peer_id = luaL_checkinteger(L, 1);
+  size_t len;
+  const char* data = luaL_checklstring(L, 2, &len);
+  uint8_t channel = 0;
+  bool reliable = true;
+  if (lua_istable(L, 3)) {
+    lua_getfield(L, 3, "channel");
+    if (!lua_isnil(L, -1)) channel = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+    lua_getfield(L, 3, "reliable");
+    if (!lua_isnil(L, -1)) reliable = lua_toboolean(L, -1);
+    lua_pop(L, 1);
+  }
+  if (g_host == nullptr || peer_id < 0 ||
+      static_cast<size_t>(peer_id) >= g_host->peerCount) {
+    return 0;
+  }
+  ENetPacket* packet = enet_packet_create(
+      data, len, reliable ? ENET_PACKET_FLAG_RELIABLE : 0);
+  enet_peer_send(&g_host->peers[peer_id], channel, packet);
+  return 0;
+}
+
+// G.network.broadcast(data, opts)
+int LuaNetBroadcast(lua_State* L) {
+  size_t len;
+  const char* data = luaL_checklstring(L, 1, &len);
+  uint8_t channel = 0;
+  bool reliable = true;
+  if (lua_istable(L, 2)) {
+    lua_getfield(L, 2, "channel");
+    if (!lua_isnil(L, -1)) channel = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+    lua_getfield(L, 2, "reliable");
+    if (!lua_isnil(L, -1)) reliable = lua_toboolean(L, -1);
+    lua_pop(L, 1);
+  }
+  if (g_host == nullptr) return 0;
+  ENetPacket* packet = enet_packet_create(
+      data, len, reliable ? ENET_PACKET_FLAG_RELIABLE : 0);
+  enet_host_broadcast(g_host, channel, packet);
+  return 0;
+}
+
+// G.network.peer_count()
+int LuaNetPeerCount(lua_State* L) {
+  int count = 0;
+  if (g_host != nullptr) {
+    for (size_t i = 0; i < g_host->peerCount; ++i) {
+      if (g_host->peers[i].state == ENET_PEER_STATE_CONNECTED) ++count;
+    }
+  }
+  lua_pushinteger(L, count);
+  return 1;
+}
+
+// G.data.encode(typename, table) — delegates to pb.encode
+int LuaDataEncode(lua_State* L) {
+  lua_getglobal(L, "pb");
+  lua_getfield(L, -1, "encode");
+  lua_remove(L, -2);
+  lua_pushvalue(L, 1);
+  lua_pushvalue(L, 2);
+  lua_call(L, 2, 2);
+  if (lua_isnil(L, -2)) {
+    return luaL_error(L, "encode failed: %s", lua_tostring(L, -1));
+  }
+  lua_pop(L, 1);
+  return 1;
+}
+
+// G.data.decode(typename, bytes) — delegates to pb.decode
+int LuaDataDecode(lua_State* L) {
+  lua_getglobal(L, "pb");
+  lua_getfield(L, -1, "decode");
+  lua_remove(L, -2);
+  lua_pushvalue(L, 1);
+  lua_pushvalue(L, 2);
+  lua_call(L, 2, 2);
+  if (lua_isnil(L, -2)) {
+    return luaL_error(L, "decode failed: %s", lua_tostring(L, -1));
+  }
+  lua_pop(L, 1);
+  return 1;
+}
+
 // Error function for lua_pcall: appends a traceback.
 int LuaTraceback(lua_State* L) {
   const char* msg = lua_tostring(L, 1);
@@ -128,7 +219,14 @@ int main(int argc, const char* argv[]) {
   lua_State* L = luaL_newstate();
   luaL_openlibs(L);
 
-  // Open pb module.
+  // Register pb in package.preload so require("pb") works in protoc.lua.
+  lua_getglobal(L, "package");
+  lua_getfield(L, -1, "preload");
+  lua_pushcfunction(L, luaopen_pb);
+  lua_setfield(L, -2, "pb");
+  lua_pop(L, 2);
+
+  // Load pb as a global too for direct use.
   luaopen_pb(L);
   lua_setglobal(L, "pb");
 
@@ -136,15 +234,66 @@ int main(int argc, const char* argv[]) {
   lua_pushcfunction(L, LuaTraceback);
   int traceback_idx = lua_gettop(L);
 
-  // Register a minimal G.network table for server scripts.
+  // Register G.network with send, broadcast, peer_count.
+  g_host = host;
   lua_newtable(L);  // G
-  lua_newtable(L);  // G.network
-  // G.network will be populated by Lua helper functions, or we expose
-  // the ENet host directly. For now, server scripts use _Server callbacks.
-  lua_setfield(L, -2, "network");
-  lua_newtable(L);  // G.clock
-  lua_setfield(L, -2, "clock");
+  {
+    lua_newtable(L);  // G.network
+    lua_pushcfunction(L, LuaNetSend);
+    lua_setfield(L, -2, "send");
+    lua_pushcfunction(L, LuaNetBroadcast);
+    lua_setfield(L, -2, "broadcast");
+    lua_pushcfunction(L, LuaNetPeerCount);
+    lua_setfield(L, -2, "peer_count");
+    lua_setfield(L, -2, "network");
+  }
+  // Register G.data with encode, decode.
+  {
+    lua_newtable(L);  // G.data
+    lua_pushcfunction(L, LuaDataEncode);
+    lua_setfield(L, -2, "encode");
+    lua_pushcfunction(L, LuaDataDecode);
+    lua_setfield(L, -2, "decode");
+    lua_setfield(L, -2, "data");
+  }
   lua_setglobal(L, "G");
+
+  // Load and compile .proto files from the assets directory.
+  // The server uses protoc.lua at startup (same as the packer does at
+  // pack time). This avoids needing the asset DB for the server binary.
+  {
+#include "protoc_lua.h"
+    if (luaL_loadbuffer(L, kProtocLua, kProtocLuaLen, "@protoc.lua") == 0 &&
+        lua_pcall(L, 0, 1, 0) == 0) {
+      // protoc module on stack. Load messages.proto if it exists.
+      PHYSFS_File* pf = PHYSFS_openRead("messages.proto");
+      if (pf != nullptr) {
+        PHYSFS_sint64 plen = PHYSFS_fileLength(pf);
+        char* proto = static_cast<char*>(malloc(plen + 1));
+        PHYSFS_readBytes(pf, proto, plen);
+        proto[plen] = '\0';
+        PHYSFS_close(pf);
+        // Parser:load(s) compiles and loads into pb in one call.
+        lua_getfield(L, -1, "load");
+        lua_pushvalue(L, -2);  // self
+        lua_pushstring(L, proto);
+        if (lua_pcall(L, 2, 1, 0) != 0) {
+          fprintf(stderr, "[server] Failed to compile messages.proto: %s\n",
+                  lua_tostring(L, -1));
+          lua_pop(L, 1);
+        } else {
+          lua_pop(L, 1);  // pop result
+          Log("Loaded proto schema messages.proto");
+        }
+        free(proto);
+      }
+      lua_pop(L, 1);  // pop protoc module
+    } else {
+      fprintf(stderr, "[server] Failed to load protoc.lua: %s\n",
+              lua_tostring(L, -1));
+      lua_pop(L, 1);
+    }
+  }
 
   // Load server.lua from assets.
   PHYSFS_File* f = PHYSFS_openRead("server.lua");

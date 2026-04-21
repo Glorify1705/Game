@@ -1,12 +1,9 @@
 -- Dedicated server for the multiplayer arena test game.
 -- Run with: server assets/
-
-local pb = require "pb"
-local protoc = require "protoc"
-
--- Load proto schema.
-local p = protoc.new()
-assert(p:load(io.open("assets/messages.proto"):read("*a")))
+--
+-- Proto schemas are compiled by the server binary at startup from
+-- messages.proto. G.data.encode/decode and G.network.send/broadcast
+-- are provided by the server runtime.
 
 local config = {
     speed = 200,
@@ -28,37 +25,33 @@ function _Server:on_connect(peer_id)
 end
 
 function _Server:on_receive(peer_id, data, channel)
-    local input = pb.decode("PlayerInput", data)
-    local p = self.players[peer_id]
-    if not p then return end
-    -- TODO: use actual dt from tick
+    local input = G.data.decode("PlayerInput", data)
+    local player = self.players[peer_id]
+    if not player then return end
     local dt = 1.0 / 20
-    if input.left then p.x = p.x - config.speed * dt end
-    if input.right then p.x = p.x + config.speed * dt end
-    if input.up then p.y = p.y - config.speed * dt end
-    if input.down then p.y = p.y + config.speed * dt end
-    if input.color and input.color > 0 then p.color = input.color end
+    if input.left then player.x = player.x - config.speed * dt end
+    if input.right then player.x = player.x + config.speed * dt end
+    if input.up then player.y = player.y - config.speed * dt end
+    if input.down then player.y = player.y + config.speed * dt end
+    if input.color and input.color > 0 then player.color = input.color end
 end
 
 function _Server:tick(dt)
-    -- Build snapshot.
     local players = {}
-    for id, p in pairs(self.players) do
+    for id, player in pairs(self.players) do
         table.insert(players, {
             peer_id = id,
-            x = p.x,
-            y = p.y,
-            color = p.color,
+            x = player.x,
+            y = player.y,
+            color = player.color,
         })
     end
     if #players > 0 then
-        local snapshot = pb.encode("GameSnapshot", {
+        local bytes = G.data.encode("GameSnapshot", {
             players = players,
             server_time = 0,
         })
-        -- Broadcast to all peers via ENet (exposed as a global by the server binary).
-        -- For now, the server binary handles this via the tick callback return.
-        -- TODO: expose G.network.broadcast to server Lua.
+        G.network.broadcast(bytes, {channel = 1, reliable = false})
     end
 end
 

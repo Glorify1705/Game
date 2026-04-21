@@ -317,10 +317,12 @@ if(WIN32)
 endif()
 
 # Dedicated headless server — Lua + ENet + protobuf, no SDL/GL.
-add_executable(Server src/server.cc libraries/enet.cc libraries/lua-protobuf/pb.c)
+add_executable(Server src/server.cc libraries/enet.cc libraries/lua-protobuf/pb.c
+    "${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h")
 set_target_properties(Server PROPERTIES OUTPUT_NAME "server")
 target_compile_features(Server PRIVATE cxx_std_17)
 target_include_directories(Server PRIVATE
+    "${CMAKE_CURRENT_BINARY_DIR}"
     "${PROJECT_SOURCE_DIR}"
     "${PROJECT_SOURCE_DIR}/libraries/lua/src")
 target_compile_definitions(Server PRIVATE PB_STATIC_API)
