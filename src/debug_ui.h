@@ -191,6 +191,8 @@ class DebugUI {
   void DrawMiniHud(const FrameContext& ctx);
   // Draws the hot zones profiler panel.
   void DrawZonesPanel();
+  // Draws physics debug overlay and handles click/drag interaction.
+  void DrawPhysicsDebug();
   // Evaluates code in the REPL (Lua/Fennel/SQL) and pushes results.
   void EvalReplCode(std::string_view code);
   // Draws the drop-down REPL overlay.
