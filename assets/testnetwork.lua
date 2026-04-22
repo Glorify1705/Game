@@ -92,12 +92,11 @@ function Game:draw()
     if self.connected then
         local count = 0
         for _ in pairs(self.players) do count = count + 1 end
-        G.graphics.print("debug_font.ttf", 16,
+        G.graphics.print(
             "Connected - " .. count .. " player(s). Press 1-6 to change color.",
             10, 10)
     else
-        G.graphics.print("debug_font.ttf", 24,
-            "Connecting to 127.0.0.1:7777...", 10, 10)
+        G.graphics.print("Connecting to 127.0.0.1:7777...", 10, 10)
     end
 end
 
