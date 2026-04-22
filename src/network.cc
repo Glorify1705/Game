@@ -6,20 +6,14 @@ namespace G {
 
 namespace {
 
-// Global ENet allocator pointer. ENet's callback API does not support passing
-// a context, so this must be a global. Named with g_ prefix per style guide.
-Allocator* g_enet_allocator = nullptr;
-
-// ENet allocator callback: allocates via the engine allocator.
-void* ENET_CALLBACK EnetMalloc(size_t size) {
-  return g_enet_allocator->Alloc(size, alignof(max_align_t));
+// ENet allocator callback: allocates via the engine allocator passed as ctx.
+void* ENET_CALLBACK EnetMalloc(size_t size, void* ctx) {
+  return static_cast<Allocator*>(ctx)->Alloc(size, alignof(max_align_t));
 }
 
-// ENet allocator callback: frees via the engine allocator.
-void ENET_CALLBACK EnetFree(void* memory) {
-  // ENet's free callback does not pass size. MimallocAllocator tracks sizes
-  // internally, so passing 0 is safe.
-  g_enet_allocator->Dealloc(memory, 0);
+// ENet allocator callback: frees via the engine allocator passed as ctx.
+void ENET_CALLBACK EnetFree(void* memory, size_t size, void* ctx) {
+  static_cast<Allocator*>(ctx)->Dealloc(memory, size);
 }
 
 // ENet callback when allocation fails. Crashes — cannot recover.
@@ -35,8 +29,7 @@ Network::~Network() { Shutdown(); }
 
 ErrorOr<void> Network::Init() {
   if (initialized_) return {};
-  g_enet_allocator = allocator_;
-  ENetCallbacks callbacks = {EnetMalloc, EnetFree, EnetNoMemory,
+  ENetCallbacks callbacks = {EnetMalloc, EnetFree, EnetNoMemory, allocator_,
                              nullptr, nullptr};
   if (enet_initialize_with_callbacks(ENET_VERSION, &callbacks) != 0) {
     return Error::Message("Failed to initialize ENet");

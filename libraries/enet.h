@@ -245,16 +245,17 @@ extern "C" {
     typedef struct _ENetPacket ENetPacket;
 
     typedef struct _ENetCallbacks {
-        void *(ENET_CALLBACK *malloc) (size_t size);
-        void (ENET_CALLBACK *free) (void *memory);
+        void *(ENET_CALLBACK *malloc) (size_t size, void *ctx);
+        void (ENET_CALLBACK *free) (void *memory, size_t size, void *ctx);
         void (ENET_CALLBACK *no_memory) (void);
+        void *ctx;
 
         ENetPacket *(ENET_CALLBACK *packet_create)        (const void *data, size_t dataLength, enet_uint32 flags);
         void        (ENET_CALLBACK *packet_destroy)       (ENetPacket *packet);
     } ENetCallbacks;
 
     extern void *enet_malloc(size_t);
-    extern void enet_free(void *);
+    extern void enet_free(void *, size_t);
     extern ENetPacket* enet_packet_create(const void*,size_t,enet_uint32);
     extern ENetPacket* enet_packet_resize(ENetPacket*, size_t);
     extern ENetPacket* enet_packet_copy(ENetPacket*);
@@ -1270,7 +1271,18 @@ extern "C" {
 // !
 // =======================================================================//
 
-    ENetCallbacks callbacks = { malloc, free, abort, enet_packet_create, enet_packet_destroy };
+    static void * ENET_CALLBACK enet_default_malloc(size_t size, void *ctx) {
+        (void)ctx;
+        return malloc(size);
+    }
+
+    static void ENET_CALLBACK enet_default_free(void *memory, size_t size, void *ctx) {
+        (void)size;
+        (void)ctx;
+        free(memory);
+    }
+
+    ENetCallbacks callbacks = { enet_default_malloc, enet_default_free, abort, NULL, enet_packet_create, enet_packet_destroy };
 
     int enet_initialize_with_callbacks(ENetVersion version, const ENetCallbacks *inits) {
         if (version < ENET_VERSION_CREATE(1, 3, 0)) {
@@ -1284,6 +1296,7 @@ extern "C" {
 
             callbacks.malloc = inits->malloc;
             callbacks.free   = inits->free;
+            callbacks.ctx    = inits->ctx;
         }
 
         if (inits->no_memory != NULL) {
@@ -1307,7 +1320,7 @@ extern "C" {
     }
 
     void * enet_malloc(size_t size) {
-        void *memory = callbacks.malloc(size);
+        void *memory = callbacks.malloc(size, callbacks.ctx);
 
         if (memory == NULL) {
             callbacks.no_memory();
@@ -1316,8 +1329,8 @@ extern "C" {
         return memory;
     }
 
-    void enet_free(void *memory) {
-        callbacks.free(memory);
+    void enet_free(void *memory, size_t size) {
+        callbacks.free(memory, size, callbacks.ctx);
     }
 
 // =======================================================================//
@@ -1446,7 +1459,7 @@ extern "C" {
         memcpy(newPacket, packet, sizeof(ENetPacket) + packet->dataLength);
         newPacket->data = (enet_uint8 *)newPacket + sizeof(ENetPacket);
         newPacket->dataLength = dataLength;
-        enet_free(packet);
+        enet_free(packet, sizeof(ENetPacket) + packet->dataLength);
 
         return newPacket;
     }
@@ -1500,7 +1513,7 @@ extern "C" {
             (*packet->freeCallback)((void *)packet);
         }
 
-        enet_free(packet);
+        enet_free(packet, sizeof(ENetPacket) + ((packet->flags & ENET_PACKET_FLAG_NO_ALLOCATE) ? 0 : packet->dataLength));
     }
 
     static int initializedCRC32 = 0;
@@ -1737,7 +1750,7 @@ extern "C" {
                 }
             }
 
-            enet_free(outgoingCommand);
+            enet_free(outgoingCommand, sizeof(ENetOutgoingCommand));
         } while (!enet_list_empty(sentUnreliableCommands));
 
         if (peer->state == ENET_PEER_STATE_DISCONNECT_LATER && !enet_peer_has_outgoing_commands(peer)) {
@@ -1825,7 +1838,7 @@ extern "C" {
             }
         }
 
-        enet_free(outgoingCommand);
+        enet_free(outgoingCommand, sizeof(ENetOutgoingCommand));
 
         if (enet_list_empty(&peer->sentReliableCommands)) {
             return commandNumber;
@@ -2898,7 +2911,7 @@ extern "C" {
             }
 
             enet_list_remove(&acknowledgement->acknowledgementList);
-            enet_free(acknowledgement);
+            enet_free(acknowledgement, sizeof(ENetAcknowledgement));
 
             ++command;
             ++buffer;
@@ -3074,7 +3087,7 @@ extern "C" {
                             }
 
                             enet_list_remove(& outgoingCommand->outgoingCommandList);
-                            enet_free(outgoingCommand);
+                            enet_free(outgoingCommand, sizeof(ENetOutgoingCommand));
 
                             if (currentCommand == enet_list_end (& peer->outgoingCommands)) {
                                 break;
@@ -3114,7 +3127,7 @@ extern "C" {
                 buffer->dataLength = outgoingCommand->fragmentLength;
                 host->packetSize += outgoingCommand->fragmentLength;
             } else if(! (outgoingCommand->command.header.command & ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE)) {
-                enet_free(outgoingCommand);
+                enet_free(outgoingCommand, sizeof(ENetOutgoingCommand));
             }
 
             ++peer->packetsSent;
@@ -3704,7 +3717,7 @@ extern "C" {
                     while (!enet_list_empty(&fragments)) {
                         fragment = (ENetOutgoingCommand *) enet_list_remove(enet_list_begin(&fragments));
 
-                        enet_free(fragment);
+                        enet_free(fragment, sizeof(ENetOutgoingCommand));
                     }
 
                     return -1;
@@ -3782,10 +3795,10 @@ extern "C" {
         --packet->referenceCount;
 
         if (incomingCommand->fragments != NULL) {
-            enet_free(incomingCommand->fragments);
+            enet_free(incomingCommand->fragments, (incomingCommand->fragmentCount + 31) / 32 * sizeof(enet_uint32));
         }
 
-        enet_free(incomingCommand);
+        enet_free(incomingCommand, sizeof(ENetIncomingCommand));
         peer->totalWaitingData -= ENET_MIN(peer->totalWaitingData, packet->dataLength);
 
         return packet;
@@ -3805,7 +3818,7 @@ extern "C" {
                 }
             }
 
-            enet_free(outgoingCommand);
+            enet_free(outgoingCommand, sizeof(ENetOutgoingCommand));
         }
     }
 
@@ -3835,10 +3848,10 @@ extern "C" {
             }
 
             if (incomingCommand->fragments != NULL) {
-                enet_free(incomingCommand->fragments);
+                enet_free(incomingCommand->fragments, (incomingCommand->fragmentCount + 31) / 32 * sizeof(enet_uint32));
             }
 
-            enet_free(incomingCommand);
+            enet_free(incomingCommand, sizeof(ENetIncomingCommand));
         }
     }
 
@@ -3855,7 +3868,7 @@ extern "C" {
         }
 
         while (!enet_list_empty(&peer->acknowledgements)) {
-            enet_free(enet_list_remove(enet_list_begin(&peer->acknowledgements)));
+            enet_free(enet_list_remove(enet_list_begin(&peer->acknowledgements)), sizeof(ENetAcknowledgement));
         }
 
         enet_peer_reset_outgoing_commands(peer, &peer->sentReliableCommands);
@@ -3869,7 +3882,7 @@ extern "C" {
                 enet_peer_reset_incoming_commands(peer, &channel->incomingUnreliableCommands);
             }
 
-            enet_free(peer->channels);
+            enet_free(peer->channels, peer->channelCount * sizeof(ENetChannel));
         }
 
         peer->channels     = NULL;
@@ -4472,7 +4485,7 @@ extern "C" {
             }
 
             if (incomingCommand->fragments == NULL) {
-                enet_free(incomingCommand);
+                enet_free(incomingCommand, sizeof(ENetIncomingCommand));
 
                 goto notifyError;
             }
@@ -4553,7 +4566,7 @@ extern "C" {
 
         host->peers = (ENetPeer *) enet_malloc(peerCount * sizeof(ENetPeer));
         if (host->peers == NULL) {
-            enet_free(host);
+            enet_free(host, sizeof(ENetHost));
             return NULL;
         }
 
@@ -4569,8 +4582,8 @@ extern "C" {
                 enet_socket_destroy(host->socket);
             }
 
-            enet_free(host->peers);
-            enet_free(host);
+            enet_free(host->peers, peerCount * sizeof(ENetPeer));
+            enet_free(host, sizeof(ENetHost));
 
             return NULL;
         }
@@ -4662,8 +4675,8 @@ extern "C" {
             (*host->compressor.destroy)(host->compressor.context);
         }
 
-        enet_free(host->peers);
-        enet_free(host);
+        enet_free(host->peers, host->peerCount * sizeof(ENetPeer));
+        enet_free(host, sizeof(ENetHost));
     }
 
     enet_uint32 enet_host_random(ENetHost * host) {
