@@ -223,7 +223,7 @@ endif()
 target_compile_options(engine PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter;-fno-exceptions;-fno-rtti;-Wshadow;-Wformat=2;-Wimplicit-fallthrough>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX;/EHs-;/GR->
 )
 
 if(ENABLE_SANITIZERS)
