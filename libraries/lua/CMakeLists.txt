@@ -15,7 +15,6 @@ set(SUPPORTS_GCC_FLAGS
 set(GCC_AND_CLANG_FLAGS
     -Wall
     -Wextra
-    -Werror
     -Wno-unused-parameter
     -Wno-deprecated-declarations
     -g
