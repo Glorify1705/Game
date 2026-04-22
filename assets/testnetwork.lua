@@ -78,7 +78,7 @@ function Game:update(t, dt)
 end
 
 function Game:draw()
-    G.graphics.clear(0.1, 0.1, 0.14, 1.0)
+    G.graphics.clear(25, 25, 35, 255)
 
     -- Draw all players.
     for id, p in pairs(self.players) do

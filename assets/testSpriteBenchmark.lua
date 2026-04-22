@@ -105,7 +105,7 @@ function Game:update(t, dt)
 end
 
 function Game:draw()
-	G.graphics.clear(0.05, 0.05, 0.1, 1)
+	G.graphics.clear(13, 13, 25, 255)
 
 	if tints_on then
 		for i = 1, #self.sprites do

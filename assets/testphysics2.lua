@@ -149,7 +149,7 @@ function Game:update(t, dt)
 end
 
 function Game:draw()
-	G.graphics.clear(0.1, 0.1, 0.15, 1)
+	G.graphics.clear(25, 25, 38, 255)
 
 	-- Draw floor.
 	G.graphics.set_color(100, 100, 100, 255)

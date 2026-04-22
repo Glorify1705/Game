@@ -21,7 +21,7 @@
 (fn draw-pixel-art [canvas t]
   ;; Draw some pixel art into a tiny 64x64 canvas.
   (G.graphics.set_canvas canvas)
-  (G.graphics.clear 0.1 0.1 0.2 1)
+  (G.graphics.clear 25 25 51 255)
   ;; Checkerboard.
   (for [y 0 7]
     (for [x 0 7]
@@ -63,7 +63,7 @@
 (fn draw-blend-demo [canvas t]
   ;; Show additive blending (glow effect).
   (G.graphics.set_canvas canvas)
-  (G.graphics.clear 0.05 0.05 0.05 1)
+  (G.graphics.clear 13 13 13 255)
   (G.graphics.set_blend_mode :add)
   ;; Overlapping circles that add together.
   (G.graphics.set_color 150 25 25 255)
@@ -84,7 +84,7 @@
     (draw-scene g.scene-canvas t)
     (draw-blend-demo g.blend-canvas t)
     ;; Now draw everything to the screen.
-    (G.graphics.clear 0.15 0.15 0.15 1)
+    (G.graphics.clear 38 38 38 255)
     ;; Labels.
     (G.graphics.draw_text :terminus.ttf 16
                           "Pixel canvas (64x64 -> 256x256, nearest)" 10 20)

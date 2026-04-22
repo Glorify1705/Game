@@ -190,7 +190,7 @@ function Game:update(t, dt)
 end
 
 function Game:draw()
-	G.graphics.clear(0.08, 0.09, 0.13, 1)
+	G.graphics.clear(20, 23, 33, 255)
 
 	-- Sensor zones
 	for _, s in ipairs(sensors) do

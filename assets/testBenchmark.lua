@@ -201,7 +201,7 @@ function Game:reset()
 end
 
 function Game:draw()
-	G.graphics.clear(0.05, 0.05, 0.08, 1)
+	G.graphics.clear(13, 13, 20, 255)
 
 	-- Draw walls.
 	G.graphics.set_color(40, 40, 50, 255)

@@ -15,7 +15,7 @@ function Game:update(t, dt)
 end
 
 function Game:draw()
-	G.graphics.clear(0.1, 0.1, 0.15, 1)
+	G.graphics.clear(25, 25, 38, 255)
 
 	local w, h = G.window.dimensions()
 	local col_w = w / 4

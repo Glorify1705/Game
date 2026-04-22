@@ -173,7 +173,7 @@
 
 (fn draw-scene [self]
   (G.graphics.set_canvas self.scene)
-  (G.graphics.clear 0.02 0.02 0.08 1)
+  (G.graphics.clear 5 5 20 255)
   (draw-stars self.stars)
   (draw-particles self.particles)
   (draw-ship self.ship)
@@ -244,7 +244,7 @@
   ;; Render the game scene into the canvas.
   (draw-scene self)
   ;; Draw to screen, optionally through a post-process shader.
-  (G.graphics.clear 0 0 0 1)
+  (G.graphics.clear 0 0 0 255)
   (draw-with-effect self)
   ;; HUD (drawn directly to screen, not affected by post-processing).
   (G.graphics.set_color :white)
