@@ -303,3 +303,173 @@ zero-setup on the target machine.
 3. **Phase 3** for convenience (ties it all together into one command).
 4. **Phase 4** CI release builds, enabling zero-toolchain cross-platform
    packaging via downloaded binaries.
+
+---
+
+## macOS support
+
+### Current readiness
+
+The codebase is architecturally well-positioned for macOS. Most
+platform-specific code already exists:
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `platform.cc` | ✅ Done | `GetExePath` uses `_NSGetExecutablePath`, `GetUserCacheDir` uses `~/Library/Caches` |
+| `thread.h` | ✅ Done | macOS `pthread_setname_np(name)` (single-arg variant) |
+| `file_watcher.cc` | ⚠️ Stubbed | FSEvents design documented, polling fallback works |
+| SDL3 | ✅ Vendored | Full macOS support (Cocoa, CoreAudio, IOKit) |
+| backward.h | ✅ Done | Detects `BACKWARD_SYSTEM_DARWIN` |
+| All vendored libs | ✅ Portable | Box2D, Lua, SQLite, mimalloc, etc. |
+
+### Blocking issue: OpenGL version
+
+The engine requests an **OpenGL 4.6** context and uses `#version 460 core`
+shaders. **macOS supports OpenGL 4.1 maximum** (deprecated since 10.14 but
+still functional on both Intel and Apple Silicon via a Metal translation
+layer).
+
+However, the engine's actual GL usage fits within **OpenGL 3.3**:
+
+- No DSA calls (GL 4.5)
+- No compute shaders (GL 4.3)
+- No buffer storage (GL 4.4)
+- `glDebugMessageCallback` (GL 4.3) is already guarded behind
+  `GLAD_GL_VERSION_4_3 && GLAD_GL_KHR_debug`
+- All shader features (`layout(location)`, `dFdx`/`dFdy`, `smoothstep`)
+  are GLSL 3.30
+
+**Fix:** Change `SDL_GL_CONTEXT_MAJOR_VERSION` from 4 to 3 (or 4/1),
+change all `#version 460 core` to `#version 330 core` (or `#version 410
+core`), and regenerate GLAD for the lower version. This is a small,
+mechanical change (~10 lines).
+
+**Alternatives:**
+- [MGL](https://github.com/openglonmetal/MGL) — OpenGL 4.6 on Metal
+  (incomplete, macOS-only)
+- [ANGLE](https://chromium.googlesource.com/angle/angle) — OpenGL ES on
+  Metal (production-grade, but requires ES porting)
+- SDL3 GPU API — cross-platform Metal/Vulkan/D3D12 abstraction (requires
+  renderer rewrite)
+
+### Cross-compilation: osxcross
+
+[osxcross](https://github.com/tpoechtrager/osxcross) wraps Clang with
+Apple's cctools and macOS SDK headers/libraries. Produces binaries like
+`arm64-apple-darwin22-clang++`.
+
+**Setup:**
+1. Obtain a macOS SDK (extract from Xcode.xip or from a Mac)
+2. Build osxcross: `./build.sh`
+3. Add `<osxcross>/bin` to PATH
+
+**CMake toolchain file** (same pattern as `cmake/mingw-w64-x86_64.cmake`):
+```cmake
+set(CMAKE_SYSTEM_NAME Darwin)
+set(CMAKE_SYSTEM_PROCESSOR arm64)
+
+get_filename_component(_PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+set(_OSXCROSS_ROOT "${_PROJECT_ROOT}/toolchains/osxcross")
+
+set(CMAKE_C_COMPILER "${_OSXCROSS_ROOT}/bin/arm64-apple-darwin22-clang")
+set(CMAKE_CXX_COMPILER "${_OSXCROSS_ROOT}/bin/arm64-apple-darwin22-clang++")
+
+set(CMAKE_FIND_ROOT_PATH "${_OSXCROSS_ROOT}/SDK/MacOSX14.0.sdk")
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+
+set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
+```
+
+**Limitations:**
+- Cannot code-sign or notarize (requires macOS-only `codesign` tool)
+- Apple SDK license is a legal gray area for Linux usage
+- Cannot run tests (no macOS runtime on Linux)
+
+**Zig as cross-compiler:** Not viable for this project. `zig cc` can
+target macOS but doesn't ship framework headers (Cocoa, CoreAudio, IOKit)
+that SDL3 requires. You'd still need the macOS SDK, at which point
+osxcross is more complete.
+
+### Recommended approach: GitHub Actions
+
+**Native macOS CI runners are the recommended path** for release builds.
+This is what most game engines (Godot, Love2D) do.
+
+```yaml
+jobs:
+  build-macos:
+    runs-on: macos-14  # Apple Silicon M1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Build
+        run: |
+          cmake -G Ninja -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          cmake --build build
+```
+
+**Advantages over cross-compilation:**
+- Native compilation — no toolchain setup or SDK extraction
+- Code signing and notarization work natively
+- Can run tests on actual macOS
+- Universal binaries via `CMAKE_OSX_ARCHITECTURES` just work
+- Free for public repositories (including M1 runners)
+
+### App bundle structure
+
+macOS apps are `.app` directories:
+
+```
+MyGame.app/
+  Contents/
+    Info.plist           # Required metadata
+    MacOS/
+      game               # Executable
+    Resources/
+      game.icns          # App icon
+      assets.db          # Game assets
+```
+
+CMake can generate app bundles with:
+```cmake
+set_target_properties(Game PROPERTIES
+    MACOSX_BUNDLE TRUE
+    MACOSX_BUNDLE_BUNDLE_NAME "Game"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.example.game"
+)
+```
+
+### Code signing and distribution
+
+- **Unsigned apps work** but users must right-click → Open to bypass
+  Gatekeeper, or run `xattr -d com.apple.quarantine MyGame.app`
+- **Signed + notarized** is the friction-free path, requires an Apple
+  Developer account ($99/year) and the `codesign`/`notarytool` tools
+  (macOS only)
+- Hardened Runtime (`codesign -o runtime`) is required for notarization
+
+### Architecture
+
+- **arm64 (Apple Silicon)** is the primary target — all Macs since late
+  2020
+- **x86_64 (Intel)** Macs are EOL but still in use
+- **Universal binaries** contain both architectures:
+  `cmake -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"`
+- SDL3's CMakeLists.txt already handles `CMAKE_OSX_ARCHITECTURES`
+
+### Implementation plan
+
+1. **GL version downgrade** — change context request and shader versions
+   from 4.6 to 4.1 (or 3.3). Regenerate GLAD. ~10 lines.
+2. **CMakePresets.json** — add a `macos` preset.
+3. **GitHub Actions CI** — add `macos-14` runner job for automated builds.
+4. **App bundling** — `game package` support for `.app` creation.
+5. **FSEvents file watcher** — implement the macOS backend for hot reload
+   (optional, polling fallback works).
+6. **Code signing** — CI pipeline for signed+notarized distribution
+   (optional, unsigned apps work with manual bypass).
