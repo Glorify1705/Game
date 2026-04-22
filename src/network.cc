@@ -26,8 +26,7 @@ void ENET_CALLBACK EnetNoMemory() {
 
 }  // namespace
 
-Network::Network(size_t /*audio_channels*/, Allocator* allocator)
-    : allocator_(allocator) {}
+Network::Network(Allocator* allocator) : allocator_(allocator) {}
 
 Network::~Network() { Shutdown(); }
 

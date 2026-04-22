@@ -48,7 +48,7 @@ Engine::Engine(Slice<const char*> args, sqlite3* db_, DbAssets* db_assets,
       lua(args, db, db_assets, &lua_allocator),
       physics(FVec(config.window_width, config.window_height),
               Physics::kPixelsPerMeter, allocator),
-      network(/*audio_channels=*/0, allocator),
+      network(allocator),
       frame_allocator(allocator, Megabytes(128)),
       pool(allocator, ThreadPoolExecutor::NumDefaultThreads()),
       allocator_(allocator) {}

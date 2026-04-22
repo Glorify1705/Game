@@ -10,7 +10,7 @@ namespace G {
 // Wraps ENet for game networking. Owns the ENet host and manages peers.
 class Network {
  public:
-  explicit Network(size_t audio_channels, Allocator* allocator);
+  explicit Network(Allocator* allocator);
   ~Network();
 
   // Initialize ENet. Must be called before any other method.

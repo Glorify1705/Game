@@ -7,8 +7,8 @@
 
 #include <csignal>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
+#include <string_view>
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -32,8 +32,22 @@ volatile sig_atomic_t g_running = 1;
 
 void SignalHandler(int) { g_running = 0; }
 
-// Simple logging to stderr.
+// Logs a message to stderr with [server] prefix.
 void Log(const char* msg) { fprintf(stderr, "[server] %s\n", msg); }
+
+// Reads a PhysFS file and pushes it as a Lua string. Returns true on success.
+bool PushFileAsLuaString(lua_State* L, const char* path) {
+  PHYSFS_File* f = PHYSFS_openRead(path);
+  if (f == nullptr) return false;
+  PHYSFS_sint64 len = PHYSFS_fileLength(f);
+  // Use Lua's allocator for the temporary buffer via lua_newuserdata.
+  char* buf = static_cast<char*>(lua_newuserdata(L, len));
+  PHYSFS_readBytes(f, buf, len);
+  PHYSFS_close(f);
+  lua_pushlstring(L, buf, len);
+  lua_remove(L, -2);  // remove the userdata, keep the string
+  return true;
+}
 
 // Global ENet host pointer, accessed by Lua C functions.
 ENetHost* g_host = nullptr;
@@ -171,9 +185,10 @@ bool ParseArgs(int argc, const char* argv[], ServerConfig* config) {
   }
   config->assets_dir = argv[1];
   for (int i = 2; i < argc; ++i) {
-    if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
+    std::string_view arg = argv[i];
+    if (arg == "--port" && i + 1 < argc) {
       config->port = static_cast<uint16_t>(atoi(argv[++i]));
-    } else if (strcmp(argv[i], "--tick-rate") == 0 && i + 1 < argc) {
+    } else if (arg == "--tick-rate" && i + 1 < argc) {
       config->tick_rate = atoi(argv[++i]);
     }
   }
@@ -266,17 +281,12 @@ int main(int argc, const char* argv[]) {
     if (luaL_loadbuffer(L, kProtocLua, kProtocLuaLen, "@protoc.lua") == 0 &&
         lua_pcall(L, 0, 1, 0) == 0) {
       // protoc module on stack. Load messages.proto if it exists.
-      PHYSFS_File* pf = PHYSFS_openRead("messages.proto");
-      if (pf != nullptr) {
-        PHYSFS_sint64 plen = PHYSFS_fileLength(pf);
-        char* proto = static_cast<char*>(malloc(plen + 1));
-        PHYSFS_readBytes(pf, proto, plen);
-        proto[plen] = '\0';
-        PHYSFS_close(pf);
+      if (PushFileAsLuaString(L, "messages.proto")) {
         // Parser:load(s) compiles and loads into pb in one call.
-        lua_getfield(L, -1, "load");
-        lua_pushvalue(L, -2);  // self
-        lua_pushstring(L, proto);
+        lua_getfield(L, -2, "load");
+        lua_pushvalue(L, -3);  // self (protoc module)
+        lua_pushvalue(L, -3);  // proto text string
+        lua_remove(L, -4);     // remove the proto string from below
         if (lua_pcall(L, 2, 1, 0) != 0) {
           fprintf(stderr, "[server] Failed to compile messages.proto: %s\n",
                   lua_tostring(L, -1));
@@ -285,7 +295,6 @@ int main(int argc, const char* argv[]) {
           lua_pop(L, 1);  // pop result
           Log("Loaded proto schema messages.proto");
         }
-        free(proto);
       }
       lua_pop(L, 1);  // pop protoc module
     } else {
@@ -296,25 +305,25 @@ int main(int argc, const char* argv[]) {
   }
 
   // Load server.lua from assets.
-  PHYSFS_File* f = PHYSFS_openRead("server.lua");
-  if (f == nullptr) {
+  if (!PushFileAsLuaString(L, "server.lua")) {
     fprintf(stderr, "Failed to open server.lua from %s\n", config.assets_dir);
     return 1;
   }
-  PHYSFS_sint64 len = PHYSFS_fileLength(f);
-  char* script = static_cast<char*>(malloc(len + 1));
-  PHYSFS_readBytes(f, script, len);
-  script[len] = '\0';
-  PHYSFS_close(f);
-
-  if (luaL_loadbuffer(L, script, len, "@server.lua") != 0 ||
-      lua_pcall(L, 0, 0, traceback_idx) != 0) {
-    fprintf(stderr, "[server] Failed to load server.lua: %s\n",
+  {
+    size_t script_len;
+    const char* script = lua_tolstring(L, -1, &script_len);
+    if (luaL_loadbuffer(L, script, script_len, "@server.lua") != 0) {
+      fprintf(stderr, "[server] Failed to load server.lua: %s\n",
+              lua_tostring(L, -1));
+      return 1;
+    }
+    lua_remove(L, -2);  // remove the source string, keep the chunk
+  }
+  if (lua_pcall(L, 0, 0, traceback_idx) != 0) {
+    fprintf(stderr, "[server] Failed to run server.lua: %s\n",
             lua_tostring(L, -1));
-    free(script);
     return 1;
   }
-  free(script);
 
   // Call _Server:init()
   CallServerMethod(L, "init", traceback_idx, 0);
