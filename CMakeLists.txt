@@ -33,15 +33,20 @@ if(APPLE)
   enable_language(OBJC)
 endif()
 
-# Compilers with a GNU-like command-line interface (excludes clang-cl which
-# has compiler ID "Clang" but uses MSVC-style flags).
+# Detect MSVC-style frontend (matches both cl.exe and clang-cl).
+if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"
+   OR CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  set(_MSVC_FRONTEND TRUE)
+else()
+  set(_MSVC_FRONTEND FALSE)
+endif()
+
+# Compilers with a GNU-like command-line interface (excludes clang-cl).
 set(IS_GCC_LIKE
-    $<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>,$<NOT:$<CXX_SIMULATE_ID:MSVC>>>
+    $<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>,$<NOT:$<BOOL:${_MSVC_FRONTEND}>>>
 )
 # MSVC or clang-cl (MSVC-style command-line interface).
-set(IS_MSVC_LIKE
-    $<OR:$<CXX_COMPILER_ID:MSVC>,$<AND:$<CXX_COMPILER_ID:Clang>,$<CXX_SIMULATE_ID:MSVC>>>
-)
+set(IS_MSVC_LIKE $<BOOL:${_MSVC_FRONTEND}>)
 
 if(ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXE NAMES clang-tidy REQUIRED)
