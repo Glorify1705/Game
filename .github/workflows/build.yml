@@ -64,7 +64,7 @@ jobs:
         run: ctest --test-dir build --output-on-failure -j$(sysctl -n hw.ncpu)
 
   windows:
-    name: Windows (MSVC)
+    name: Windows (clang-cl)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,8 +77,8 @@ jobs:
         run: >
           cmake -G Ninja -S . -B build
           -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_C_COMPILER=cl
-          -DCMAKE_CXX_COMPILER=cl
+          -DCMAKE_C_COMPILER=clang-cl
+          -DCMAKE_CXX_COMPILER=clang-cl
           -DENABLE_PROFILING=ON
 
       - name: Build

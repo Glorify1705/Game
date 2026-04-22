@@ -69,7 +69,7 @@ set(PHYSFS_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
 set(PHYSFS_BUILD_TEST OFF CACHE BOOL "" FORCE)
 set(PHYSFS_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 
-if(NOT WIN32 AND NOT APPLE)
+if(NOT WIN32)
   find_package(OpenGL REQUIRED)
 endif()
 
@@ -272,8 +272,7 @@ target_link_libraries(engine PUBLIC
     lua
     mimalloc-static
     $<$<BOOL:${WIN32}>:opengl32>
-    $<$<BOOL:${APPLE}>:"-framework OpenGL">
-    $<$<AND:$<NOT:$<BOOL:${WIN32}>>,$<NOT:$<BOOL:${APPLE}>>>:OpenGL::GL>
+    $<$<NOT:$<BOOL:${WIN32}>>:OpenGL::GL>
     $<$<BOOL:${LIBDW_FOUND}>:${LIBDW_LIBRARY}>
     $<$<BOOL:${WIN32}>:dbghelp>)
 
