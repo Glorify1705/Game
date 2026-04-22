@@ -106,19 +106,14 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
 
 void DbAssets::LoadProtoDescriptor(std::string_view filename, uint8_t* buffer,
                                    size_t size, ChecksumType checksum) {
-  constexpr std::string_view sql =
-      "SELECT contents FROM proto_descriptors WHERE name = ?";
-  sqlite3_stmt* stmt;
-  if (sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt,
-                         nullptr) != SQLITE_OK) {
-    DIE("Failed to prepare statement ", sql, ": ", sqlite3_errmsg(db_));
-  }
-  DEFER([&] { sqlite3_finalize(stmt); });
-  sqlite3_bind_text(stmt, 1, filename.data(), filename.size(), SQLITE_STATIC);
-  CHECK(sqlite3_step(stmt) == SQLITE_ROW, "No proto descriptor ", filename);
-  auto contents =
-      reinterpret_cast<const uint8_t*>(sqlite3_column_blob(stmt, 0));
-  size_t blob_size = sqlite3_column_bytes(stmt, 0);
+  SqlStmt stmt(db_,
+               "SELECT contents FROM proto_descriptors WHERE name = ?");
+  CHECK(stmt.ok(), "Failed to prepare LoadProtoDescriptor query");
+  stmt.BindText(1, filename);
+  CHECK(MUST(stmt.Step()), "No proto descriptor ", filename);
+  auto* contents =
+      reinterpret_cast<const uint8_t*>(stmt.ColumnBlob(0));
+  size_t blob_size = stmt.ColumnBytes(0);
   std::memcpy(buffer, contents, blob_size);
   ProtoDescriptor desc;
   desc.name = filename;
