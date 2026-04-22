@@ -291,6 +291,11 @@ constexpr ByteSlice MakeByteSlice(const char (&arr)[N]) {
   return ByteSlice(reinterpret_cast<const uint8_t*>(arr), N);
 }
 
+// Creates a ByteSlice from any pointer + size. Handles the reinterpret_cast.
+inline ByteSlice MakeByteSlice(const void* data, size_t size) {
+  return ByteSlice(reinterpret_cast<const uint8_t*>(data), size);
+}
+
 }  // namespace G
 
 #endif  // _FIXED_ARRAY_H

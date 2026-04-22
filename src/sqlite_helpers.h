@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string_view>
 
+#include "array.h"
 #include "error.h"
 #include "libraries/sqlite3.h"
 #include "logging.h"
@@ -54,13 +55,13 @@ class SqlStmt {
 
   void BindInt64(int idx, int64_t v) { sqlite3_bind_int64(stmt_, idx, v); }
 
-  void BindBlob(int idx, const void* data, size_t size) {
-    sqlite3_bind_blob(stmt_, idx, data, static_cast<int>(size),
+  void BindBlob(int idx, ByteSlice data) {
+    sqlite3_bind_blob(stmt_, idx, data.data(), static_cast<int>(data.size()),
                       SQLITE_STATIC);
   }
 
-  void BindBlobTransient(int idx, const void* data, size_t size) {
-    sqlite3_bind_blob(stmt_, idx, data, static_cast<int>(size),
+  void BindBlobTransient(int idx, ByteSlice data) {
+    sqlite3_bind_blob(stmt_, idx, data.data(), static_cast<int>(data.size()),
                       SQLITE_TRANSIENT);
   }
 
@@ -97,11 +98,12 @@ class SqlStmt {
 
   int64_t ColumnInt64(int col) { return sqlite3_column_int64(stmt_, col); }
 
-  const void* ColumnBlob(int col) {
-    return sqlite3_column_blob(stmt_, col);
+  // Returns the blob column as a ByteSlice (pointer + size in one value).
+  ByteSlice ColumnBlob(int col) {
+    const void* data = sqlite3_column_blob(stmt_, col);
+    int size = sqlite3_column_bytes(stmt_, col);
+    return MakeByteSlice(data, size);
   }
-
-  int ColumnBytes(int col) { return sqlite3_column_bytes(stmt_, col); }
 
  private:
   sqlite3_stmt* stmt_ = nullptr;

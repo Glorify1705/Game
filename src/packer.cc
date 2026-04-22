@@ -198,31 +198,28 @@ class DbPacker {
         deferred_(allocator) {}
 
   AssetInfo InsertIntoTable(std::string_view table, std::string_view filename,
-                            const uint8_t* buf, size_t size) {
+                            ByteSlice data) {
     FixedStringBuffer<256> sql("INSERT OR REPLACE INTO ", table,
                                " (name, contents) VALUES (?, ?);");
     SqlStmt stmt(db_, sql.view());
     CHECK(stmt.ok(), "Failed to prepare statement ", sql.view());
     stmt.BindText(1, filename);
-    stmt.BindBlob(2, buf, size);
+    stmt.BindBlob(2, data);
     MUST(stmt.Step());
-    return AssetInfo{.size = size};
+    return AssetInfo{.size = data.size()};
   }
 
-  AssetInfo InsertScript(std::string_view filename, const uint8_t* buf,
-                         size_t size) {
-    return InsertIntoTable("scripts", filename, buf, size);
+  AssetInfo InsertScript(std::string_view filename, ByteSlice data) {
+    return InsertIntoTable("scripts", filename, data);
   }
 
-  AssetInfo InsertFont(std::string_view filename, const uint8_t* buf,
-                       size_t size) {
-    return InsertIntoTable("fonts", filename, buf, size);
+  AssetInfo InsertFont(std::string_view filename, ByteSlice data) {
+    return InsertIntoTable("fonts", filename, data);
   }
 
-  AssetInfo InsertQoi(std::string_view filename, const uint8_t* buf,
-                      size_t size) {
+  AssetInfo InsertQoi(std::string_view filename, ByteSlice data) {
     QoiDesc desc;
-    QoiDecode(buf, size, &desc, /*channels=*/4, allocator_);
+    QoiDecode(data.data(), data.size(), &desc, /*channels=*/4, allocator_);
     SqlStmt stmt(db_, R"(
           INSERT OR REPLACE INTO images (name, width, height, components, contents)
           VALUES (?, ?, ?, ?, ?);
@@ -232,15 +229,15 @@ class DbPacker {
     stmt.BindInt(2, desc.width);
     stmt.BindInt(3, desc.height);
     stmt.BindInt(4, desc.channels);
-    stmt.BindBlob(5, buf, size);
+    stmt.BindBlob(5, data);
     MUST(stmt.Step());
-    return AssetInfo{.size = size};
+    return AssetInfo{.size = data.size()};
   }
 
-  AssetInfo InsertPng(std::string_view filename, const uint8_t* buf,
-                      size_t size) {
+  AssetInfo InsertPng(std::string_view filename, ByteSlice data) {
     int x, y, channels;
-    auto* contents = stbi_load_from_memory(buf, size, &x, &y, &channels,
+    auto* contents = stbi_load_from_memory(data.data(), data.size(), &x, &y,
+                                           &channels,
                                            /*desired_channels=*/0);
     DCHECK(contents != nullptr, "Could not load ", filename, ": ",
            stbi_failure_reason());
@@ -263,13 +260,14 @@ class DbPacker {
     stmt.BindInt(2, x);
     stmt.BindInt(3, y);
     stmt.BindInt(4, channels);
-    stmt.BindBlob(5, qoi_encoded, out_len);
+    stmt.BindBlob(5, ByteSlice(static_cast<const uint8_t*>(qoi_encoded),
+                               out_len));
     MUST(stmt.Step());
     return AssetInfo{.size = static_cast<size_t>(out_len)};
   }
 
-  AssetInfo InsertImageBlob(std::string_view filename, const uint8_t* buf,
-                            size_t size, int width, int height, int channels) {
+  AssetInfo InsertImageBlob(std::string_view filename, ByteSlice data,
+                            int width, int height, int channels) {
     SqlStmt stmt(db_, R"(
       INSERT OR REPLACE INTO images (name, width, height, components, contents)
       VALUES (?, ?, ?, ?, ?);
@@ -279,27 +277,24 @@ class DbPacker {
     stmt.BindInt(2, width);
     stmt.BindInt(3, height);
     stmt.BindInt(4, channels);
-    stmt.BindBlob(5, buf, size);
+    stmt.BindBlob(5, data);
     MUST(stmt.Step());
-    return AssetInfo{.size = size};
+    return AssetInfo{.size = data.size()};
   }
 
-  AssetInfo InsertQoa(std::string_view filename, const uint8_t* buf,
-                      size_t size) {
+  AssetInfo InsertQoa(std::string_view filename, ByteSlice data) {
     QoaDesc desc;
-    ByteSlice data(buf, size);
     FixedArray<int16_t> decoded = QoaDecode(data, &desc, allocator_);
     if (decoded.empty()) {
       DIE("Failed to decode QOA file ", filename);
     }
-    return InsertAudioBlob(filename, buf, size, desc);
+    return InsertAudioBlob(filename, data, desc);
   }
 
-  // TODO: Use Slice instead of buf + size in the packer.
-  AssetInfo InsertWav(std::string_view filename, const uint8_t* buf,
-                      size_t size) {
+  AssetInfo InsertWav(std::string_view filename, ByteSlice data) {
     drwav wav;
-    if (!drwav_init_memory(&wav, buf, size, /*pAllocationCallbacks=*/nullptr)) {
+    if (!drwav_init_memory(&wav, data.data(), data.size(),
+                           /*pAllocationCallbacks=*/nullptr)) {
       DIE("Failed to decode WAV file ", filename);
     }
     DEFER([&] { drwav_uninit(&wav); });
@@ -321,13 +316,14 @@ class DbPacker {
     FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator_);
     DCHECK(!encoded.empty(), "Failed to encode ", filename, " to QOA");
 
-    return InsertAudioBlob(filename, encoded.cdata(), encoded.size(), desc);
+    return InsertAudioBlob(filename, ByteSlice(encoded.cdata(), encoded.size()),
+                           desc);
   }
 
-  AssetInfo InsertOgg(std::string_view filename, const uint8_t* buf,
-                      size_t size) {
+  AssetInfo InsertOgg(std::string_view filename, ByteSlice data) {
     int error;
-    stb_vorbis* v = stb_vorbis_open_memory(buf, size, &error, nullptr);
+    stb_vorbis* v = stb_vorbis_open_memory(data.data(), data.size(), &error,
+                                            nullptr);
     if (v == nullptr) {
       DIE("Failed to open OGG file ", filename, " (error ", error, ")");
     }
@@ -353,11 +349,12 @@ class DbPacker {
     FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator_);
     DCHECK(!encoded.empty(), "Failed to encode ", filename, " to QOA");
 
-    return InsertAudioBlob(filename, encoded.cdata(), encoded.size(), desc);
+    return InsertAudioBlob(filename, ByteSlice(encoded.cdata(), encoded.size()),
+                           desc);
   }
 
-  AssetInfo InsertAudioBlob(std::string_view filename, const uint8_t* buf,
-                            size_t size, const QoaDesc& desc) {
+  AssetInfo InsertAudioBlob(std::string_view filename, ByteSlice data,
+                            const QoaDesc& desc) {
     SqlStmt stmt(db_, R"(
           INSERT OR REPLACE INTO audios (name, channels, samplerate, samples, contents)
           VALUES (?, ?, ?, ?, ?);
@@ -367,22 +364,20 @@ class DbPacker {
     stmt.BindInt(2, desc.channels);
     stmt.BindInt(3, desc.samplerate);
     stmt.BindInt(4, desc.samples);
-    stmt.BindBlob(5, buf, size);
+    stmt.BindBlob(5, data);
     MUST(stmt.Step());
-    return AssetInfo{.size = size};
+    return AssetInfo{.size = data.size()};
   }
 
-  AssetInfo InsertTextFile(std::string_view filename, const uint8_t* buf,
-                           size_t size) {
-    return InsertIntoTable("text_files", filename, buf, size);
+  AssetInfo InsertTextFile(std::string_view filename, ByteSlice data) {
+    return InsertIntoTable("text_files", filename, data);
   }
 
   // Compiles a .proto file to a binary FileDescriptorSet and stores it in the
   // proto_descriptors table. Uses a temporary Lua state with protoc.lua.
   // Compiles a .proto file to a binary FileDescriptorSet and stores it.
   // The Lua state with protoc.lua is created once and reused across files.
-  AssetInfo InsertProto(std::string_view filename, const uint8_t* buf,
-                        size_t size) {
+  AssetInfo InsertProto(std::string_view filename, ByteSlice data) {
     lua_State* L = GetProtoCompiler();
     if (L == nullptr) return AssetInfo{.size = 0};
 
@@ -391,7 +386,7 @@ class DbPacker {
     // Parser:compile(s) → binary FileDescriptorSet.
     lua_getfield(L, -1, "compile");
     lua_pushvalue(L, -2);  // self
-    lua_pushlstring(L, reinterpret_cast<const char*>(buf), size);
+    lua_pushlstring(L, reinterpret_cast<const char*>(data.data()), data.size());
     if (lua_pcall(L, 2, 1, 0) != 0) {
       LOG("Failed to compile proto ", filename, ": ", lua_tostring(L, -1));
       lua_pop(L, 2);  // pop error + protoc module
@@ -407,7 +402,7 @@ class DbPacker {
     }
     AssetInfo info = InsertIntoTable(
         "proto_descriptors", filename,
-        reinterpret_cast<const uint8_t*>(desc), desc_len);
+        MakeByteSlice(desc, desc_len));
     LOG("Compiled proto ", filename, " to ", desc_len, " bytes");
     lua_pop(L, 2);  // pop result + protoc module
     return info;
@@ -447,9 +442,9 @@ class DbPacker {
     MUST(stmt.Step());
   }
 
-  AssetInfo InsertSpritesheetXml(std::string_view filename, const uint8_t* buf,
-                                 size_t size) {
-    std::string_view xml(reinterpret_cast<const char*>(buf), size);
+  AssetInfo InsertSpritesheetXml(std::string_view filename, ByteSlice data) {
+    std::string_view xml(reinterpret_cast<const char*>(data.data()),
+                         data.size());
     ArenaAllocator scratch(allocator_, Kilobytes(64));
     XmlElement* atlas = MUST(ParseXml(xml, &scratch));
     CHECK(atlas->tag == "TextureAtlas", "Expected <TextureAtlas>, got <",
@@ -491,13 +486,13 @@ class DbPacker {
     return {};
   }
 
-  AssetInfo InsertSpritesheetJson(std::string_view filename, const uint8_t* buf,
-                                  size_t size) {
+  AssetInfo InsertSpritesheetJson(std::string_view filename, ByteSlice data) {
     ArenaAllocator scratch(allocator_, Megabytes(1));
     yyjson_read_err err{};
     yyjson_doc* doc =
         ReadJson(&scratch,
-                 std::string_view(reinterpret_cast<const char*>(buf), size),
+                 std::string_view(reinterpret_cast<const char*>(data.data()),
+                                  data.size()),
                  &err);
     CHECK(doc != nullptr, "Failed to parse spritesheet ", filename, ": ",
           err.msg);
@@ -545,17 +540,16 @@ class DbPacker {
     return {};
   }
 
-  AssetInfo InsertShader(std::string_view filename, const uint8_t* buffer,
-                         size_t size) {
+  AssetInfo InsertShader(std::string_view filename, ByteSlice data) {
     SqlStmt stmt(db_,
                  "INSERT OR REPLACE INTO shaders"
                  " (name, contents, shader_type) VALUES (?, ?, ?);");
     CHECK(stmt.ok(), "Failed to prepare shader insert statement");
     stmt.BindText(1, filename);
-    stmt.BindBlob(2, buffer, size);
+    stmt.BindBlob(2, data);
     stmt.BindText(3, HasSuffix(filename, "vert") ? "vertex" : "fragment");
     MUST(stmt.Step());
-    return AssetInfo{.size = size};
+    return AssetInfo{.size = data.size()};
   }
 
   int GetOrderForType(std::string_view type) {
@@ -645,8 +639,7 @@ class DbPacker {
 
     struct DbHandler {
       std::string_view extension;
-      AssetInfo (DbPacker::*handler)(std::string_view filename,
-                                     const uint8_t* buf, size_t size);
+      AssetInfo (DbPacker::*handler)(std::string_view filename, ByteSlice data);
       std::string_view type;
     };
 
@@ -698,7 +691,7 @@ class DbPacker {
       }
       const AssetInfo info = [&] {
         TIMER("Processing file ", fname);
-        return (this->*method)(fname, buffer, bytes);
+        return (this->*method)(fname, ByteSlice(buffer, bytes));
       }();
       InsertIntoAssetMeta(fname, info.size, handler.type, hash);
       result_.written_files++;
@@ -738,15 +731,18 @@ class DbPacker {
       AssetInfo info;
       switch (item.type) {
         case WorkItem::kPng:
-          info = InsertPng(item.name(), item.input, item.input_size);
+          info = InsertPng(item.name(),
+                           ByteSlice(item.input, item.input_size));
           InsertIntoAssetMeta(item.name(), info.size, "image", item.hash);
           break;
         case WorkItem::kOgg:
-          info = InsertOgg(item.name(), item.input, item.input_size);
+          info = InsertOgg(item.name(),
+                           ByteSlice(item.input, item.input_size));
           InsertIntoAssetMeta(item.name(), info.size, "audio", item.hash);
           break;
         case WorkItem::kWav:
-          info = InsertWav(item.name(), item.input, item.input_size);
+          info = InsertWav(item.name(),
+                           ByteSlice(item.input, item.input_size));
           InsertIntoAssetMeta(item.name(), info.size, "audio", item.hash);
           break;
       }
@@ -806,10 +802,12 @@ class DbPacker {
     for (size_t i = 0; i < deferred_.size(); i++) {
       WorkItem& item = deferred_[i];
       if (item.type == WorkItem::kPng) {
-        InsertImageBlob(item.name(), item.output, item.output_size, item.width,
+        InsertImageBlob(item.name(),
+                        ByteSlice(item.output, item.output_size), item.width,
                         item.height, item.channels);
       } else {
-        InsertAudioBlob(item.name(), item.output, item.output_size,
+        InsertAudioBlob(item.name(),
+                        ByteSlice(item.output, item.output_size),
                         item.qoa_desc);
       }
       InsertIntoAssetMeta(item.name(), item.output_size,
@@ -824,7 +822,8 @@ class DbPacker {
     ProcessDeferredItems();
     // Ensure we always have the debug font available.
     if (!checksums_.Contains("debug_font.ttf")) {
-      InsertFont("debug_font.ttf", kProggyCleanFont, kProggyCleanFontLength);
+      InsertFont("debug_font.ttf",
+                 ByteSlice(kProggyCleanFont, kProggyCleanFontLength));
       const auto hash = rapidhash(kProggyCleanFont, kProggyCleanFontLength);
       InsertIntoAssetMeta("debug_font.ttf", kProggyCleanFontLength, "font",
                           hash);

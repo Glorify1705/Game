@@ -83,7 +83,7 @@ const struct LuaApiFunction kNetworkLib[] = {
          if (!lua_isnil(state, -1)) reliable = lua_toboolean(state, -1);
          lua_pop(state, 1);
        }
-       ByteSlice slice(reinterpret_cast<const uint8_t*>(data), len);
+       ByteSlice slice = MakeByteSlice(data, len);
        Reliability r = reliable ? Reliability::kReliable
                                 : Reliability::kUnreliable;
        net->Send(peer_id, slice, channel, r);
@@ -110,7 +110,7 @@ const struct LuaApiFunction kNetworkLib[] = {
          if (!lua_isnil(state, -1)) reliable = lua_toboolean(state, -1);
          lua_pop(state, 1);
        }
-       ByteSlice slice(reinterpret_cast<const uint8_t*>(data), len);
+       ByteSlice slice = MakeByteSlice(data, len);
        Reliability r = reliable ? Reliability::kReliable
                                 : Reliability::kUnreliable;
        net->Broadcast(slice, channel, r);

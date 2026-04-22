@@ -1060,12 +1060,11 @@ void Lua::BuildCompilationCache() {
   CHECK(stmt.ok(), "Failed to prepare compilation cache query");
   while (MUST(stmt.Step())) {
     auto name = stmt.ColumnText(0);
-    auto* contents = stmt.ColumnBlob(1);
-    size_t content_size = stmt.ColumnBytes(1);
-    auto* buffer = static_cast<char*>(allocator_->Alloc(content_size, 1));
-    std::memcpy(buffer, contents, content_size);
+    ByteSlice blob = stmt.ColumnBlob(1);
+    auto* buffer = static_cast<char*>(allocator_->Alloc(blob.size(), 1));
+    std::memcpy(buffer, blob.data(), blob.size());
     CachedScript script;
-    script.contents = std::string_view(buffer, content_size);
+    script.contents = std::string_view(buffer, blob.size());
     script.checksum = stmt.ColumnInt64(2);
     LOG("Loading ", name, " into compilation cache");
     compilation_cache_.Insert(name, script);
@@ -1423,11 +1422,12 @@ void Lua::HandleQuit() {
   }
 }
 
-bool Lua::LoadProtoDescriptor(const void* data, size_t length) {
+bool Lua::LoadProtoDescriptor(ByteSlice data) {
   LUA_CHECK_STACK(state_);
   lua_getglobal(state_, "pb");
   lua_getfield(state_, -1, "load");
-  lua_pushlstring(state_, static_cast<const char*>(data), length);
+  lua_pushlstring(state_, reinterpret_cast<const char*>(data.data()),
+                  data.size());
   if (lua_pcall(state_, 1, 1, 0) != 0) {
     LOG("Failed to load proto descriptor: ", lua_tostring(state_, -1));
     lua_pop(state_, 2);  // error + pb
@@ -1473,8 +1473,8 @@ void Lua::HandleNetworkDisconnect(uint32_t peer_id) {
   }
 }
 
-void Lua::HandleNetworkReceive(uint32_t peer_id, const void* data,
-                               size_t length, uint8_t channel) {
+void Lua::HandleNetworkReceive(uint32_t peer_id, ByteSlice data,
+                               uint8_t channel) {
   LUA_CHECK_STACK(state_);
   if (!error_.empty()) return;
   READY();
@@ -1486,7 +1486,8 @@ void Lua::HandleNetworkReceive(uint32_t peer_id, const void* data,
   }
   lua_insert(state_, -2);
   lua_pushinteger(state_, peer_id);
-  lua_pushlstring(state_, static_cast<const char*>(data), length);
+  lua_pushlstring(state_, reinterpret_cast<const char*>(data.data()),
+                  data.size());
   lua_pushinteger(state_, channel);
   if (lua_pcall(state_, 4, 0, traceback_handler_)) {
     lua_error(state_);
