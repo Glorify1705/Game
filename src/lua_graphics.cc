@@ -32,6 +32,13 @@ static const LuaApiFunction kGraphicsLib[] = {
          float g = luaL_checknumber(state, 2);
          float b = luaL_checknumber(state, 3);
          float a = luaL_checknumber(state, 4);
+         if (r > 1.0f || g > 1.0f || b > 1.0f || a > 1.0f) {
+           return luaL_error(state,
+               "clear() takes 0-1 floats, not 0-255 integers "
+               "(got r=%.1f g=%.1f b=%.1f a=%.1f). "
+               "Use set_color() for 0-255 range.",
+               r, g, b, a);
+         }
          batch->ClearWithColor(r, g, b, a);
        } else {
          batch->ClearWithColor(0, 0, 0, 0);
