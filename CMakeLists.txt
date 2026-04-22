@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.28...4.1)
 
+# Enable Objective-C for macOS (SDL3's Cocoa backend requires it).
+if(APPLE)
+  enable_language(OBJC)
+endif()
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
 endif()
