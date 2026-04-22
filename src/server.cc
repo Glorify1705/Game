@@ -195,62 +195,19 @@ bool ParseArgs(int argc, const char* argv[], ServerConfig* config) {
   return true;
 }
 
-}  // namespace
-
-int main(int argc, const char* argv[]) {
-  signal(SIGINT, SignalHandler);
-  signal(SIGTERM, SignalHandler);
-
-  ServerConfig config;
-  if (!ParseArgs(argc, argv, &config)) return 1;
-
-  // Initialize PhysFS for asset loading.
-  if (!PHYSFS_init(argv[0])) {
-    fprintf(stderr, "Failed to init PhysFS\n");
-    return 1;
-  }
-  PHYSFS_mount(config.assets_dir, nullptr, 1);
-
-  // Initialize ENet.
-  if (enet_initialize() != 0) {
-    fprintf(stderr, "Failed to init ENet\n");
-    return 1;
-  }
-
-  // Create ENet server host.
-  ENetAddress address;
-  address.host = ENET_HOST_ANY;
-  address.port = config.port;
-  ENetHost* host = enet_host_create(&address, /*peerCount=*/32,
-                                    /*channelLimit=*/3, 0, 0);
-  if (host == nullptr) {
-    fprintf(stderr, "Failed to create ENet server on port %d\n", config.port);
-    return 1;
-  }
-  fprintf(stderr, "[server] Listening on port %d (tick rate: %d)\n",
-          config.port, config.tick_rate);
-
-  // Create Lua VM.
-  lua_State* L = luaL_newstate();
-  luaL_openlibs(L);
-
-  // Register pb in package.preload so require("pb") works in protoc.lua.
+// Registers the protobuf module in the Lua state (both as global and preload).
+void RegisterPbModule(lua_State* L) {
   lua_getglobal(L, "package");
   lua_getfield(L, -1, "preload");
   lua_pushcfunction(L, luaopen_pb);
   lua_setfield(L, -2, "pb");
   lua_pop(L, 2);
-
-  // Load pb as a global too for direct use.
   luaopen_pb(L);
   lua_setglobal(L, "pb");
+}
 
-  // Set up traceback handler.
-  lua_pushcfunction(L, LuaTraceback);
-  int traceback_idx = lua_gettop(L);
-
-  // Register G.network with send, broadcast, peer_count.
-  g_host = host;
+// Registers G.network (send, broadcast, peer_count) and G.data (encode, decode).
+void RegisterServerLibraries(lua_State* L) {
   lua_newtable(L);  // G
   {
     lua_newtable(L);  // G.network
@@ -262,7 +219,6 @@ int main(int argc, const char* argv[]) {
     lua_setfield(L, -2, "peer_count");
     lua_setfield(L, -2, "network");
   }
-  // Register G.data with encode, decode.
   {
     lua_newtable(L);  // G.data
     lua_pushcfunction(L, LuaDataEncode);
@@ -272,37 +228,83 @@ int main(int argc, const char* argv[]) {
     lua_setfield(L, -2, "data");
   }
   lua_setglobal(L, "G");
+}
 
-  // Load and compile .proto files from the assets directory.
-  // The server uses protoc.lua at startup (same as the packer does at
-  // pack time). This avoids needing the asset DB for the server binary.
-  {
+// Loads and compiles .proto files from the assets directory using protoc.lua.
+void LoadProtoSchemas(lua_State* L) {
 #include "protoc_lua.h"
-    if (luaL_loadbuffer(L, kProtocLua, kProtocLuaLen, "@protoc.lua") == 0 &&
-        lua_pcall(L, 0, 1, 0) == 0) {
-      // protoc module on stack. Load messages.proto if it exists.
-      if (PushFileAsLuaString(L, "messages.proto")) {
-        // Parser:load(s) compiles and loads into pb in one call.
-        lua_getfield(L, -2, "load");
-        lua_pushvalue(L, -3);  // self (protoc module)
-        lua_pushvalue(L, -3);  // proto text string
-        lua_remove(L, -4);     // remove the proto string from below
-        if (lua_pcall(L, 2, 1, 0) != 0) {
-          fprintf(stderr, "[server] Failed to compile messages.proto: %s\n",
-                  lua_tostring(L, -1));
-          lua_pop(L, 1);
-        } else {
-          lua_pop(L, 1);  // pop result
-          Log("Loaded proto schema messages.proto");
-        }
-      }
-      lua_pop(L, 1);  // pop protoc module
-    } else {
-      fprintf(stderr, "[server] Failed to load protoc.lua: %s\n",
+  if (luaL_loadbuffer(L, kProtocLua, kProtocLuaLen, "@protoc.lua") != 0 ||
+      lua_pcall(L, 0, 1, 0) != 0) {
+    fprintf(stderr, "[server] Failed to load protoc.lua: %s\n",
+            lua_tostring(L, -1));
+    lua_pop(L, 1);
+    return;
+  }
+  if (PushFileAsLuaString(L, "messages.proto")) {
+    lua_getfield(L, -2, "load");
+    lua_pushvalue(L, -3);  // self (protoc module)
+    lua_pushvalue(L, -3);  // proto text string
+    lua_remove(L, -4);     // remove the proto string from below
+    if (lua_pcall(L, 2, 1, 0) != 0) {
+      fprintf(stderr, "[server] Failed to compile messages.proto: %s\n",
               lua_tostring(L, -1));
       lua_pop(L, 1);
+    } else {
+      lua_pop(L, 1);
+      Log("Loaded proto schema messages.proto");
     }
   }
+  lua_pop(L, 1);  // pop protoc module
+}
+
+// Creates and configures the ENet server host.
+ENetHost* CreateServerHost(const ServerConfig& config) {
+  ENetAddress address;
+  address.host = ENET_HOST_ANY;
+  address.port = config.port;
+  ENetHost* host = enet_host_create(&address, /*peerCount=*/32,
+                                    /*channelLimit=*/3, 0, 0);
+  if (host != nullptr) {
+    fprintf(stderr, "[server] Listening on port %d (tick rate: %d)\n",
+            config.port, config.tick_rate);
+  }
+  return host;
+}
+
+}  // namespace
+
+int main(int argc, const char* argv[]) {
+  signal(SIGINT, SignalHandler);
+  signal(SIGTERM, SignalHandler);
+
+  ServerConfig config;
+  if (!ParseArgs(argc, argv, &config)) return 1;
+
+  if (!PHYSFS_init(argv[0])) {
+    fprintf(stderr, "Failed to init PhysFS\n");
+    return 1;
+  }
+  PHYSFS_mount(config.assets_dir, nullptr, 1);
+
+  if (enet_initialize() != 0) {
+    fprintf(stderr, "Failed to init ENet\n");
+    return 1;
+  }
+
+  ENetHost* host = CreateServerHost(config);
+  if (host == nullptr) {
+    fprintf(stderr, "Failed to create ENet server on port %d\n", config.port);
+    return 1;
+  }
+  g_host = host;
+
+  lua_State* L = luaL_newstate();
+  luaL_openlibs(L);
+  RegisterPbModule(L);
+  lua_pushcfunction(L, LuaTraceback);
+  int traceback_idx = lua_gettop(L);
+  RegisterServerLibraries(L);
+  LoadProtoSchemas(L);
 
   // Load server.lua from assets.
   if (!PushFileAsLuaString(L, "server.lua")) {

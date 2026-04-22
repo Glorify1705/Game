@@ -17,30 +17,39 @@ const struct LuaApiFunction kNetworkLib[] = {
        int port = luaL_checkinteger(state, 1);
        int max_clients = luaL_checkinteger(state, 2);
        int channels = luaL_optinteger(state, 3, 3);
-       lua_pushboolean(state, net->CreateServer(port, max_clients, channels));
-       return 1;
+       auto result = net->CreateServer(port, max_clients, channels);
+       if (result.is_error()) {
+         return luaL_error(state, "%s", result.error().message());
+       }
+       return 0;
      }},
     {"create_client",
      "Creates a client host for connecting to a server",
      {{"channels", "number of channels (default 3)", "integer?"}},
-     {{"ok", "true if the client was created", "boolean"}},
+     {},
      [](lua_State* state) {
        auto* net = Registry<Network>::Retrieve(state);
        int channels = luaL_optinteger(state, 1, 3);
-       lua_pushboolean(state, net->CreateClient(channels));
-       return 1;
+       auto result = net->CreateClient(channels);
+       if (result.is_error()) {
+         return luaL_error(state, "%s", result.error().message());
+       }
+       return 0;
      }},
     {"connect",
      "Connects to a remote server",
      {{"host", "hostname or IP address", "string"},
       {"port", "port number", "integer"}},
-     {{"ok", "true if connection was initiated", "boolean"}},
+     {},
      [](lua_State* state) {
        auto* net = Registry<Network>::Retrieve(state);
        const char* host = luaL_checkstring(state, 1);
        int port = luaL_checkinteger(state, 2);
-       lua_pushboolean(state, net->Connect(host, port));
-       return 1;
+       auto result = net->Connect(host, port);
+       if (result.is_error()) {
+         return luaL_error(state, "%s", result.error().message());
+       }
+       return 0;
      }},
     {"disconnect",
      "Disconnects from the server or disconnects all peers",
@@ -74,7 +83,10 @@ const struct LuaApiFunction kNetworkLib[] = {
          if (!lua_isnil(state, -1)) reliable = lua_toboolean(state, -1);
          lua_pop(state, 1);
        }
-       net->Send(peer_id, data, len, channel, reliable);
+       ByteSlice slice(reinterpret_cast<const uint8_t*>(data), len);
+       Reliability r = reliable ? Reliability::kReliable
+                                : Reliability::kUnreliable;
+       net->Send(peer_id, slice, channel, r);
        return 0;
      }},
     {"broadcast",
@@ -98,7 +110,10 @@ const struct LuaApiFunction kNetworkLib[] = {
          if (!lua_isnil(state, -1)) reliable = lua_toboolean(state, -1);
          lua_pop(state, 1);
        }
-       net->Broadcast(data, len, channel, reliable);
+       ByteSlice slice(reinterpret_cast<const uint8_t*>(data), len);
+       Reliability r = reliable ? Reliability::kReliable
+                                : Reliability::kUnreliable;
+       net->Broadcast(slice, channel, r);
        return 0;
      }},
     {"is_active",

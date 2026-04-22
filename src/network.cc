@@ -1,27 +1,30 @@
 #include "network.h"
 
 #include "logging.h"
-#include "units.h"
 
 namespace G {
 
 namespace {
 
-// Custom ENet allocator callbacks routing through the engine's allocator.
-Allocator* s_enet_allocator = nullptr;
+// Global ENet allocator pointer. ENet's callback API does not support passing
+// a context, so this must be a global. Named with g_ prefix per style guide.
+Allocator* g_enet_allocator = nullptr;
 
+// ENet allocator callback: allocates via the engine allocator.
 void* ENET_CALLBACK EnetMalloc(size_t size) {
-  return s_enet_allocator->Alloc(size, alignof(std::max_align_t));
+  return g_enet_allocator->Alloc(size, alignof(max_align_t));
 }
 
+// ENet allocator callback: frees via the engine allocator.
 void ENET_CALLBACK EnetFree(void* memory) {
-  // ENet's default free callback does not pass size. Since we use a
-  // MimallocAllocator (which tracks sizes internally), passing 0 is safe.
-  s_enet_allocator->Dealloc(memory, 0);
+  // ENet's free callback does not pass size. MimallocAllocator tracks sizes
+  // internally, so passing 0 is safe.
+  g_enet_allocator->Dealloc(memory, 0);
 }
 
+// ENet callback when allocation fails. Crashes — cannot recover.
 void ENET_CALLBACK EnetNoMemory() {
-  LOG("ENet: out of memory");
+  CHECK(false, "ENet: out of memory");
 }
 
 }  // namespace
@@ -30,18 +33,17 @@ Network::Network(Allocator* allocator) : allocator_(allocator) {}
 
 Network::~Network() { Shutdown(); }
 
-bool Network::Init() {
-  if (initialized_) return true;
-  s_enet_allocator = allocator_;
+ErrorOr<void> Network::Init() {
+  if (initialized_) return {};
+  g_enet_allocator = allocator_;
   ENetCallbacks callbacks = {EnetMalloc, EnetFree, EnetNoMemory,
                              nullptr, nullptr};
   if (enet_initialize_with_callbacks(ENET_VERSION, &callbacks) != 0) {
-    LOG("Failed to initialize ENet");
-    return false;
+    return Error::Message("Failed to initialize ENet");
   }
   initialized_ = true;
   LOG("ENet initialized");
-  return true;
+  return {};
 }
 
 void Network::Shutdown() {
@@ -56,55 +58,52 @@ void Network::Shutdown() {
   }
 }
 
-bool Network::CreateServer(uint16_t port, size_t max_clients, size_t channels) {
-  if (!initialized_) Init();
+ErrorOr<void> Network::CreateServer(uint16_t port, size_t max_clients,
+                                    size_t channels) {
+  TRY(Init());
   if (host_ != nullptr) {
     LOG("Network host already exists, skipping creation");
-    return true;
+    return {};
   }
   ENetAddress address;
   address.host = ENET_HOST_ANY;
   address.port = port;
   host_ = enet_host_create(&address, max_clients, channels, 0, 0);
   if (host_ == nullptr) {
-    LOG("Failed to create ENet server on port ", port);
-    return false;
+    return Error::Message("Failed to create ENet server");
   }
   LOG("Network server created on port ", port, " (max ", max_clients,
       " clients)");
-  return true;
+  return {};
 }
 
-bool Network::CreateClient(size_t channels) {
-  if (!initialized_) Init();
+ErrorOr<void> Network::CreateClient(size_t channels) {
+  TRY(Init());
   if (host_ != nullptr) {
     LOG("Network host already exists, skipping creation");
-    return true;
+    return {};
   }
   host_ = enet_host_create(nullptr, /*peerCount=*/1, channels, 0, 0);
   if (host_ == nullptr) {
-    LOG("Failed to create ENet client");
-    return false;
+    return Error::Message("Failed to create ENet client");
   }
   LOG("Network client created");
-  return true;
+  return {};
 }
 
-bool Network::Connect(const char* hostname, uint16_t port) {
+ErrorOr<void> Network::Connect(const char* hostname, uint16_t port) {
   if (host_ == nullptr) {
-    LOG("No network host — call create_client first");
-    return false;
+    return Error::Message("No network host — call create_client first");
   }
   ENetAddress address;
   enet_address_set_host(&address, hostname);
   address.port = port;
   ENetPeer* peer = enet_host_connect(host_, &address, host_->channelLimit, 0);
   if (peer == nullptr) {
-    LOG("Failed to initiate connection to ", hostname, ":", port);
-    return false;
+    return Error::Message("Failed to initiate connection");
   }
   LOG("Connecting to ", hostname, ":", port);
-  return true;
+  return {};
 }
 
 void Network::Disconnect() {
@@ -115,7 +114,6 @@ void Network::Disconnect() {
       enet_peer_disconnect(peer, 0);
     }
   }
-  // Flush disconnect packets.
   enet_host_flush(host_);
 }
 
@@ -140,8 +138,7 @@ void Network::Poll(int timeout_ms) {
         e.type = Event::kConnect;
         e.peer_id = static_cast<uint32_t>(event.peer - host_->peers);
         e.channel = 0;
-        e.data = nullptr;
-        e.data_length = 0;
+        e.data = ByteSlice();
         ++event_count_;
         LOG("Peer ", e.peer_id, " connected");
         break;
@@ -149,8 +146,7 @@ void Network::Poll(int timeout_ms) {
         e.type = Event::kDisconnect;
         e.peer_id = static_cast<uint32_t>(event.peer - host_->peers);
         e.channel = 0;
-        e.data = nullptr;
-        e.data_length = 0;
+        e.data = ByteSlice();
         ++event_count_;
         LOG("Peer ", e.peer_id, " disconnected");
         break;
@@ -158,8 +154,7 @@ void Network::Poll(int timeout_ms) {
         e.type = Event::kReceive;
         e.peer_id = static_cast<uint32_t>(event.peer - host_->peers);
         e.channel = event.channelID;
-        e.data = event.packet->data;
-        e.data_length = event.packet->dataLength;
+        e.data = ByteSlice(event.packet->data, event.packet->dataLength);
         received_packets_[received_packet_count_++] = event.packet;
         ++event_count_;
         break;
@@ -169,19 +164,21 @@ void Network::Poll(int timeout_ms) {
   }
 }
 
-void Network::Send(uint32_t peer_id, const void* data, size_t length,
-                   uint8_t channel, bool reliable) {
+void Network::Send(uint32_t peer_id, ByteSlice data, uint8_t channel,
+                   Reliability reliability) {
   if (host_ == nullptr || peer_id >= host_->peerCount) return;
-  ENetPacket* packet = enet_packet_create(
-      data, length, reliable ? ENET_PACKET_FLAG_RELIABLE : 0);
+  enet_uint32 flags =
+      reliability == Reliability::kReliable ? ENET_PACKET_FLAG_RELIABLE : 0;
+  ENetPacket* packet = enet_packet_create(data.data(), data.size(), flags);
   enet_peer_send(&host_->peers[peer_id], channel, packet);
 }
 
-void Network::Broadcast(const void* data, size_t length, uint8_t channel,
-                        bool reliable) {
+void Network::Broadcast(ByteSlice data, uint8_t channel,
+                        Reliability reliability) {
   if (host_ == nullptr) return;
-  ENetPacket* packet = enet_packet_create(
-      data, length, reliable ? ENET_PACKET_FLAG_RELIABLE : 0);
+  enet_uint32 flags =
+      reliability == Reliability::kReliable ? ENET_PACKET_FLAG_RELIABLE : 0;
+  ENetPacket* packet = enet_packet_create(data.data(), data.size(), flags);
   enet_host_broadcast(host_, channel, packet);
 }
 

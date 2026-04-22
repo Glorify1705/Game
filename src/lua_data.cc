@@ -3,10 +3,7 @@
 #include <lua.h>
 #include <lauxlib.h>
 
-// lua-protobuf public API.
-extern "C" {
-int luaopen_pb(lua_State* L);
-}
+#include "libraries/lua-protobuf/lua_pb.h"
 
 namespace G {
 namespace {

@@ -366,8 +366,10 @@ void Game::RenderCrashScreen(std::string_view error) {
 }
 
 void Game::DispatchNetworkEvents() {
-  for (size_t i = 0; i < engine->network.event_count(); ++i) {
-    const auto& e = engine->network.events()[i];
+  const Network::Event* events = engine->network.events();
+  const size_t count = engine->network.event_count();
+  for (size_t i = 0; i < count; ++i) {
+    const Network::Event& e = events[i];
     switch (e.type) {
       case Network::Event::kConnect:
         engine->lua.HandleNetworkConnect(e.peer_id);
@@ -376,8 +378,8 @@ void Game::DispatchNetworkEvents() {
         engine->lua.HandleNetworkDisconnect(e.peer_id);
         break;
       case Network::Event::kReceive:
-        engine->lua.HandleNetworkReceive(e.peer_id, e.data, e.data_length,
-                                         e.channel);
+        engine->lua.HandleNetworkReceive(e.peer_id, e.data.data(),
+                                         e.data.size(), e.channel);
         break;
     }
   }
