@@ -263,7 +263,8 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   if (strip) {
     LOG("Stripping binary: ", binary_path.str());
     CmdBuffer strip_cmd("strip ", binary_path.str());
-    (void)system(strip_cmd.str());
+    int result = system(strip_cmd.str());
+    if (result != 0) WLOG("strip returned ", result);
   }
 
   PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
