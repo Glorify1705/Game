@@ -1,5 +1,6 @@
 #include "stb_truetype.h"
 
+#include <cstddef>
 #include <stdlib.h>
 
 void* StbttAlloc(void* /*ctx*/, int size, int /*align*/) {
@@ -8,10 +9,7 @@ void* StbttAlloc(void* /*ctx*/, int size, int /*align*/) {
 
 void StbttFree(void* /*ctx*/, void* ptr, int /*size*/) { free(ptr); }
 
-StbttAllocator kDefaultAllocator = {
-    .Alloc = StbttAlloc,
-    .Free = StbttFree,
-};
+StbttAllocator kDefaultAllocator = {StbttAlloc, StbttFree};
 
 StbttAllocator* kGlobalAllocator = &kDefaultAllocator;
 

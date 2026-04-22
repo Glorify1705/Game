@@ -1,10 +1,5 @@
 cmake_minimum_required(VERSION 3.28...4.1)
 
-# Enable Objective-C for macOS (SDL3's Cocoa backend requires it).
-if(APPLE)
-  enable_language(OBJC)
-endif()
-
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
 endif()
@@ -32,6 +27,11 @@ project(
   VERSION 0.1
   DESCRIPTION "The game"
   LANGUAGES C CXX)
+
+# Enable Objective-C for macOS (SDL3's Cocoa backend requires it).
+if(APPLE)
+  enable_language(OBJC)
+endif()
 
 set(IS_GCC_LIKE
     $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>
@@ -137,8 +137,10 @@ target_compile_options(vendored PRIVATE
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
     $<$<CXX_COMPILER_ID:MSVC>:/W4>
 )
-set_source_files_properties(libraries/stb_image_write.cc PROPERTIES
-    COMPILE_OPTIONS "-Wno-missing-field-initializers")
+if(NOT MSVC)
+  set_source_files_properties(libraries/stb_image_write.cc PROPERTIES
+      COMPILE_OPTIONS "-Wno-missing-field-initializers")
+endif()
 set_source_files_properties(libraries/sqlite3.c PROPERTIES
     COMPILE_DEFINITIONS SQLITE_ENABLE_MEMSYS5)
 
