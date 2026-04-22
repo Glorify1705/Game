@@ -252,7 +252,7 @@ endif()
 
 target_compile_definitions(engine PUBLIC
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
-    $<$<BOOL:${WIN32}>:NOMINMAX;WIN32_LEAN_AND_MEAN>
+    $<$<BOOL:${WIN32}>:NOMINMAX;WIN32_LEAN_AND_MEAN;_USE_MATH_DEFINES>
 )
 
 if(LIBDW_FOUND)
