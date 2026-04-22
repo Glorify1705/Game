@@ -121,7 +121,8 @@ add_library(vendored STATIC
     libraries/stb_image_all.cc
     libraries/stb_vorbis.cc
     libraries/yyjson.c
-    libraries/backward.cc)
+    libraries/backward.cc
+    libraries/enet.cc)
 
 target_include_directories(vendored PUBLIC "${PROJECT_SOURCE_DIR}")
 target_compile_features(vendored PRIVATE cxx_std_17)
@@ -136,6 +137,9 @@ set_source_files_properties(libraries/stb_image_write.cc PROPERTIES
     COMPILE_OPTIONS "-Wno-missing-field-initializers")
 set_source_files_properties(libraries/sqlite3.c PROPERTIES
     COMPILE_DEFINITIONS SQLITE_ENABLE_MEMSYS5)
+set_source_files_properties(libraries/lua-protobuf/pb.c PROPERTIES
+    COMPILE_DEFINITIONS "PB_STATIC_API"
+    COMPILE_OPTIONS "-Wno-error")
 
 if(ENABLE_SANITIZERS)
   target_compile_options(vendored PRIVATE
@@ -143,6 +147,16 @@ if(ENABLE_SANITIZERS)
   target_link_options(vendored PRIVATE
       $<${IS_GCC_LIKE}:-fsanitize=address,undefined>)
 endif()
+
+# Embed protoc.lua as a C string constant for compile-time proto compilation.
+add_custom_command(
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h"
+    COMMAND "${CMAKE_COMMAND}"
+        -DINPUT="${PROJECT_SOURCE_DIR}/libraries/lua-protobuf/protoc.lua"
+        -DOUTPUT="${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h"
+        -P "${PROJECT_SOURCE_DIR}/cmake/EmbedProtoc.cmake"
+    DEPENDS "${PROJECT_SOURCE_DIR}/libraries/lua-protobuf/protoc.lua"
+    COMMENT "Embedding protoc.lua")
 
 # Engine static library. All engine code except main().
 set(ENGINE_SRCS
@@ -204,10 +218,14 @@ set(ENGINE_SRCS
     src/cmd_run.cc
     src/cmd_stubs.cc
     src/cmd_version.cc
+    src/network.cc
+    src/lua_data.cc
+    src/lua_network.cc
     src/platform.cc
-    $<$<BOOL:${ENABLE_IMGUI}>:src/debug_ui.cc>)
+    $<$<BOOL:${ENABLE_IMGUI}>:src/debug_ui.cc>
+    libraries/lua-protobuf/pb.c)
 
-add_library(engine STATIC ${ENGINE_SRCS})
+add_library(engine STATIC ${ENGINE_SRCS} "${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h")
 
 target_compile_features(engine PUBLIC cxx_std_17)
 
@@ -267,7 +285,8 @@ target_link_libraries(engine PUBLIC
     $<$<BOOL:${WIN32}>:opengl32>
     $<$<NOT:$<BOOL:${WIN32}>>:OpenGL::GL>
     $<$<BOOL:${LIBDW_FOUND}>:${LIBDW_LIBRARY}>
-    $<$<BOOL:${WIN32}>:dbghelp>)
+    $<$<BOOL:${WIN32}>:dbghelp>
+    $<$<BOOL:${WIN32}>:ws2_32;winmm>)
 
 # Game executable (just the entry point).
 add_executable(Game src/game.cc)
@@ -296,6 +315,26 @@ if(WIN32)
       "$<TARGET_FILE:SDL3::SDL3>" "$<TARGET_FILE_DIR:Game>"
     VERBATIM)
 endif()
+
+# Dedicated headless server — Lua + ENet + protobuf, no SDL/GL.
+add_executable(Server src/server.cc libraries/enet.cc libraries/lua-protobuf/pb.c
+    "${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h")
+set_target_properties(Server PROPERTIES OUTPUT_NAME "server")
+target_compile_features(Server PRIVATE cxx_std_17)
+target_include_directories(Server PRIVATE
+    "${CMAKE_CURRENT_BINARY_DIR}"
+    "${PROJECT_SOURCE_DIR}"
+    "${PROJECT_SOURCE_DIR}/libraries/lua/src")
+target_compile_definitions(Server PRIVATE PB_STATIC_API)
+target_compile_options(Server PRIVATE
+    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Wno-unused-parameter;-fno-exceptions;-fno-rtti>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4>)
+set_source_files_properties(libraries/lua-protobuf/pb.c PROPERTIES
+    COMPILE_OPTIONS "-Wno-error")
+target_link_libraries(Server PRIVATE
+    lua
+    physfs-static
+    $<$<BOOL:${WIN32}>:ws2_32;winmm>)
 
 # Tests link the engine library directly instead of recompiling sources.
 if(NOT CMAKE_CROSSCOMPILING)

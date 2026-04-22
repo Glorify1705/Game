@@ -198,7 +198,7 @@ function Game:draw_square(cx, cy)
 end
 
 function Game:draw()
-	G.graphics.clear(0.05, 0.05, 0.09, 1)
+	G.graphics.clear(13, 13, 23, 255)
 	local ww, wh = G.window.dimensions()
 
 	-- Title with easing name.

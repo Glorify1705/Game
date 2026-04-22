@@ -18,20 +18,20 @@ namespace {
 static const LuaApiFunction kGraphicsLib[] = {
     {"clear",
      "Clear the current render target. With no arguments clears to transparent "
-     "black. With arguments clears to the given RGBA color.",
-     {{"r?", "red component (0-1)", "number"},
-      {"g?", "green component (0-1)", "number"},
-      {"b?", "blue component (0-1)", "number"},
-      {"a?", "alpha component (0-1)", "number"}},
+     "black. With arguments clears to the given RGBA color (0-255).",
+     {{"r?", "red component (0-255)", "number"},
+      {"g?", "green component (0-255)", "number"},
+      {"b?", "blue component (0-255)", "number"},
+      {"a?", "alpha component (0-255)", "number"}},
      {},
      [](lua_State* state) {
        auto* batch = Registry<BatchRenderer>::Retrieve(state);
        const int params = lua_gettop(state);
        if (params >= 4) {
-         float r = luaL_checknumber(state, 1);
-         float g = luaL_checknumber(state, 2);
-         float b = luaL_checknumber(state, 3);
-         float a = luaL_checknumber(state, 4);
+         float r = luaL_checknumber(state, 1) / 255.0f;
+         float g = luaL_checknumber(state, 2) / 255.0f;
+         float b = luaL_checknumber(state, 3) / 255.0f;
+         float a = luaL_checknumber(state, 4) / 255.0f;
          batch->ClearWithColor(r, g, b, a);
        } else {
          batch->ClearWithColor(0, 0, 0, 0);

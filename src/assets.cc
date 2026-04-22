@@ -104,6 +104,25 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
   text_files_table_.Insert(file.name, &text_files_.back());
 }
 
+void DbAssets::LoadProtoDescriptor(std::string_view filename, uint8_t* buffer,
+                                   size_t size, ChecksumType checksum) {
+  SqlStmt stmt(db_,
+               "SELECT contents FROM proto_descriptors WHERE name = ?");
+  CHECK(stmt.ok(), "Failed to prepare LoadProtoDescriptor query");
+  stmt.BindText(1, filename);
+  CHECK(MUST(stmt.Step()), "No proto descriptor ", filename);
+  auto* contents =
+      reinterpret_cast<const uint8_t*>(stmt.ColumnBlob(0));
+  size_t blob_size = stmt.ColumnBytes(0);
+  std::memcpy(buffer, contents, blob_size);
+  ProtoDescriptor desc;
+  desc.name = filename;
+  desc.contents = buffer;
+  desc.size = blob_size;
+  desc.checksum = checksum;
+  proto_loader_.Load(&desc);
+}
+
 void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
                                size_t size, ChecksumType checksum) {
   {
@@ -189,6 +208,7 @@ void DbAssets::Load() {
       {.name = "font", .load = &DbAssets::LoadFont},
       {.name = "shader", .load = &DbAssets::LoadShader},
       {.name = "text", .load = &DbAssets::LoadText},
+      {.name = "proto", .load = &DbAssets::LoadProtoDescriptor},
       {.name = std::string_view(), .load = nullptr},
   };
   SqlStmt stmt(db_,

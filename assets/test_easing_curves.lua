@@ -77,7 +77,7 @@ function Game:update(t, dt)
 end
 
 function Game:draw()
-	G.graphics.clear(0.08, 0.08, 0.12, 1)
+	G.graphics.clear(20, 20, 31, 255)
 	local ww, wh = G.window.dimensions()
 
 	local pad_x, pad_y = 24, 24

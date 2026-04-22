@@ -1,0 +1,30 @@
+syntax = "proto2";
+
+message PlayerInput {
+    optional bool left = 1;
+    optional bool right = 2;
+    optional bool up = 3;
+    optional bool down = 4;
+    optional int32 color = 5;
+}
+
+message PlayerJoined {
+    optional int32 peer_id = 1;
+    optional int32 color = 2;
+}
+
+message PlayerLeft {
+    optional int32 peer_id = 1;
+}
+
+message PlayerState {
+    optional int32 peer_id = 1;
+    optional float x = 2;
+    optional float y = 3;
+    optional int32 color = 4;
+}
+
+message GameSnapshot {
+    repeated PlayerState players = 1;
+    optional float server_time = 2;
+}

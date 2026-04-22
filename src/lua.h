@@ -303,6 +303,15 @@ class Lua {
   // thread between update and draw (e.g. debug UI rendering).
   lua_State* state() const { return state_; }
 
+  // Network event callbacks dispatched to _Game:on_connect/on_receive/on_disconnect.
+  // Loads a binary protobuf FileDescriptorSet into the pb type registry.
+  bool LoadProtoDescriptor(const void* data, size_t length);
+
+  void HandleNetworkConnect(uint32_t peer_id);
+  void HandleNetworkDisconnect(uint32_t peer_id);
+  void HandleNetworkReceive(uint32_t peer_id, const void* data, size_t length,
+                            uint8_t channel);
+
   void Stop() { stopped_ = true; }
   bool Stopped() const { return stopped_; }
 
@@ -396,6 +405,8 @@ class Lua {
   friend void AddCameraLibrary(Lua* lua);
   friend void AddTimerLibrary(Lua* lua);
   friend void AddTestLibrary(Lua* lua);
+  friend void AddDataLibrary(Lua* lua, DbAssets* db_assets);
+  friend void AddNetworkLibrary(Lua* lua);
 
  private:
   int LoadLuaAsset(std::string_view filename, std::string_view script_contents,

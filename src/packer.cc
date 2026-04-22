@@ -4,6 +4,14 @@
 
 #include <atomic>
 
+extern "C" {
+#include <lauxlib.h>
+#include <lua.h>
+#include <lualib.h>
+}
+
+#include "libraries/lua-protobuf/lua_pb.h"
+
 #include "clock.h"
 #include "debug_font.h"
 #include "defer.h"
@@ -369,6 +377,42 @@ class DbPacker {
     return InsertIntoTable("text_files", filename, buf, size);
   }
 
+  // Compiles a .proto file to a binary FileDescriptorSet and stores it in the
+  // proto_descriptors table. Uses a temporary Lua state with protoc.lua.
+  // Compiles a .proto file to a binary FileDescriptorSet and stores it.
+  // The Lua state with protoc.lua is created once and reused across files.
+  AssetInfo InsertProto(std::string_view filename, const uint8_t* buf,
+                        size_t size) {
+    lua_State* L = GetProtoCompiler();
+    if (L == nullptr) return AssetInfo{.size = 0};
+
+    // Push the protoc module from the registry.
+    lua_rawgeti(L, LUA_REGISTRYINDEX, proto_ref_);
+    // Parser:compile(s) → binary FileDescriptorSet.
+    lua_getfield(L, -1, "compile");
+    lua_pushvalue(L, -2);  // self
+    lua_pushlstring(L, reinterpret_cast<const char*>(buf), size);
+    if (lua_pcall(L, 2, 1, 0) != 0) {
+      LOG("Failed to compile proto ", filename, ": ", lua_tostring(L, -1));
+      lua_pop(L, 2);  // pop error + protoc module
+      return AssetInfo{.size = 0};
+    }
+
+    size_t desc_len;
+    const char* desc = lua_tolstring(L, -1, &desc_len);
+    if (desc == nullptr || desc_len == 0) {
+      LOG("Proto compilation returned empty result for ", filename);
+      lua_pop(L, 2);  // pop result + protoc module
+      return AssetInfo{.size = 0};
+    }
+    AssetInfo info = InsertIntoTable(
+        "proto_descriptors", filename,
+        reinterpret_cast<const uint8_t*>(desc), desc_len);
+    LOG("Compiled proto ", filename, " to ", desc_len, " bytes");
+    lua_pop(L, 2);  // pop result + protoc module
+    return info;
+  }
+
   void* Alloc(void* ptr, size_t osize, size_t nsize) {
     if (nsize == 0) {
       if (ptr != nullptr) allocator_->Dealloc(ptr, osize);
@@ -620,7 +664,8 @@ class DbPacker {
         {".vert", &DbPacker::InsertShader, "shader"},
         {".frag", &DbPacker::InsertShader, "shader"},
         {".json", &DbPacker::InsertTextFile, "text"},
-        {".txt", &DbPacker::InsertTextFile, "text"}};
+        {".txt", &DbPacker::InsertTextFile, "text"},
+        {".proto", &DbPacker::InsertProto, "proto"}};
 
     FixedStringBuffer<kMaxPathLength> path(directory, "/", filename);
 
@@ -802,10 +847,37 @@ class DbPacker {
   sqlite3* db_ = nullptr;
   Allocator* allocator_ = nullptr;
   Executor* executor_ = nullptr;
+  // Returns the Lua state used for proto compilation, creating it on first use.
+  lua_State* GetProtoCompiler() {
+    if (proto_lua_ != nullptr) return proto_lua_;
+#include "protoc_lua.h"
+    proto_lua_ = luaL_newstate();
+    luaL_openlibs(proto_lua_);
+    lua_getglobal(proto_lua_, "package");
+    lua_getfield(proto_lua_, -1, "preload");
+    lua_pushcfunction(proto_lua_, luaopen_pb);
+    lua_setfield(proto_lua_, -2, "pb");
+    lua_pop(proto_lua_, 2);
+    if (luaL_loadbuffer(proto_lua_, kProtocLua, kProtocLuaLen,
+                        "@protoc.lua") != 0 ||
+        lua_pcall(proto_lua_, 0, 1, 0) != 0) {
+      LOG("Failed to load embedded protoc.lua: ",
+          lua_tostring(proto_lua_, -1));
+      lua_close(proto_lua_);
+      proto_lua_ = nullptr;
+      return nullptr;
+    }
+    // Store the protoc module at a fixed registry index for later use.
+    proto_ref_ = luaL_ref(proto_lua_, LUA_REGISTRYINDEX);
+    return proto_lua_;
+  }
+
   ArenaAllocator scratch_;
   Dictionary<DbAssets::ChecksumType> checksums_;
   DynArray<WorkItem> deferred_;
   AssetWriteResult result_;
+  lua_State* proto_lua_ = nullptr;
+  int proto_ref_ = LUA_NOREF;
 };
 
 }  // namespace

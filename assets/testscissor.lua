@@ -20,7 +20,7 @@ function Game:draw()
 	local w, h = G.window.dimensions()
 	local t = self.time
 
-	G.graphics.clear(0.12, 0.12, 0.15, 1)
+	G.graphics.clear(31, 31, 38, 255)
 
 	-- Draw a background grid (visible everywhere).
 	G.graphics.set_color(40, 40, 50, 255)

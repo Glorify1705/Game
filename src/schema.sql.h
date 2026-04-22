@@ -54,6 +54,10 @@ CREATE TABLE IF NOT EXISTS text_files(id INTEGER PRIMARY KEY AUTOINCREMENT,
                                       name VARCHAR(255) UNIQUE NOT NULL,
                                       contents BLOB NOT NULL);
 
+CREATE TABLE IF NOT EXISTS proto_descriptors(id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                             name VARCHAR(255) UNIQUE NOT NULL,
+                                             contents BLOB NOT NULL);
+
 CREATE TABLE IF NOT EXISTS asset_metadata(id INTEGER PRIMARY KEY AUTOINCREMENT,
                                           name VARCHAR(255) UNIQUE NOT NULL,
                                           type VARCHAR(255) NOT NULL,

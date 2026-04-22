@@ -27,7 +27,7 @@
   (let [t g.time]
     ;; Pass 1: draw animated shapes into pass1 canvas.
     (G.graphics.set_canvas g.pass1)
-    (G.graphics.clear 0 0 0 1)
+    (G.graphics.clear 0 0 0 255)
     (G.graphics.set_color :red)
     (G.graphics.push)
     (G.graphics.translate 150 150)
@@ -60,7 +60,7 @@
     (G.graphics.set_color :white)
     (G.graphics.set_canvas)
     ;; Draw to screen.
-    (G.graphics.clear 0.2 0.2 0.25 1)
+    (G.graphics.clear 51 51 64 255)
     ;; Pass 1 result.
     (G.graphics.draw_text :terminus.ttf 16 "Pass 1 (shapes)" 10 20)
     (G.graphics.draw_canvas g.pass1 10 40)

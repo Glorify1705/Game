@@ -55,7 +55,7 @@ function Game:draw()
 	local w, h = G.window.dimensions()
 	local t = self.time
 
-	G.graphics.clear(0.08, 0.08, 0.1, 1)
+	G.graphics.clear(20, 20, 25, 255)
 
 	-- Demo 1: Circular reveal (fog of war style).
 	-- Write a circle into the stencil, then only draw the scene inside it.

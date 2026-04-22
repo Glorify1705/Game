@@ -67,10 +67,10 @@ function G.filesystem.exists(name) end
 G.graphics = {}
 
 ---Clear the current render target. With no arguments clears to transparent black. With arguments clears to the given RGBA color.
----@param r? number red component (0-1)
----@param g? number green component (0-1)
----@param b? number blue component (0-1)
----@param a? number alpha component (0-1)
+---@param r? number red component (0-255)
+---@param g? number green component (0-255)
+---@param b? number blue component (0-255)
+---@param a? number alpha component (0-255)
 function G.graphics.clear(r?, g?, b?, a?) end
 
 ---Saves a screenshot from the contents of the current framebuffer

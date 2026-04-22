@@ -15,6 +15,7 @@
 #include "input.h"
 #include "lua.h"
 #include "mimalloc_allocator.h"
+#include "network.h"
 #include "physics.h"
 #include "renderer.h"
 #include "shaders.h"
@@ -68,6 +69,7 @@ struct Engine {
   Lua lua;
   TimerSystem timers;
   Physics physics;
+  Network network;
   ArenaAllocator frame_allocator;
   ThreadPoolExecutor pool;
   Allocator* allocator_;
