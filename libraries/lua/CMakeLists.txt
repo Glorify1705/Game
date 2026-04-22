@@ -18,7 +18,7 @@ set(GCC_AND_CLANG_FLAGS
     -Werror
     -Wno-unused-parameter
     -Wno-deprecated-declarations
-    -ggdb
+    -g
     -DNDEBUG
     -DGAME_WITH_ASSERTS)
 set(MSVC_FLAGS /W4 /DGAME_WITH_ASSERTS)
