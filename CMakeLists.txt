@@ -33,8 +33,14 @@ if(APPLE)
   enable_language(OBJC)
 endif()
 
+# Compilers with a GNU-like command-line interface (excludes clang-cl which
+# has compiler ID "Clang" but uses MSVC-style flags).
 set(IS_GCC_LIKE
-    $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>
+    $<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>,$<NOT:$<CXX_SIMULATE_ID:MSVC>>>
+)
+# MSVC or clang-cl (MSVC-style command-line interface).
+set(IS_MSVC_LIKE
+    $<OR:$<CXX_COMPILER_ID:MSVC>,$<AND:$<CXX_COMPILER_ID:Clang>,$<CXX_SIMULATE_ID:MSVC>>>
 )
 
 if(ENABLE_CLANG_TIDY)
@@ -135,7 +141,7 @@ set_target_properties(vendored PROPERTIES SKIP_LINTING ON)
 target_compile_options(vendored PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Wno-error;-Wno-unused-parameter>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4>
+    $<${IS_MSVC_LIKE}:/W4>
 )
 if(NOT MSVC)
   set_source_files_properties(libraries/stb_image_write.cc PROPERTIES
@@ -230,7 +236,7 @@ endif()
 target_compile_options(engine PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter;-fno-exceptions;-fno-rtti;-Wshadow;-Wformat=2;-Wimplicit-fallthrough>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX;/EHs-;/GR->
+    $<${IS_MSVC_LIKE}:/W4;/WX;/EHs-c-;/GR->
 )
 
 if(ENABLE_SANITIZERS)
@@ -284,7 +290,7 @@ target_link_libraries(Game PRIVATE engine)
 target_compile_options(Game PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter;-fno-exceptions;-fno-rtti>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
+    $<${IS_MSVC_LIKE}:/W4;/WX;/EHs-c-;/GR->
 )
 
 if(ENABLE_SANITIZERS)
@@ -323,7 +329,7 @@ if(NOT CMAKE_CROSSCOMPILING)
 
   target_compile_options(Tests PRIVATE
       $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
-      $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
+      $<${IS_MSVC_LIKE}:/W4;/WX>
       $<${IS_GCC_LIKE}:-fsanitize=address,undefined;-fno-sanitize=vptr>
   )
 
