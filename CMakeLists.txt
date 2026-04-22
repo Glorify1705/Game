@@ -33,20 +33,20 @@ if(APPLE)
   enable_language(OBJC)
 endif()
 
-# Detect MSVC-style frontend (matches both cl.exe and clang-cl).
+# Compilers that accept GCC/Clang-style warning flags (-Wall, -Wextra, etc.).
+# Matches GCC, Clang, AppleClang, and clang-cl (which also accepts -W flags).
+set(IS_GCC_LIKE
+    $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>
+)
+
+# Detect MSVC-style codegen frontend (cl.exe or clang-cl).
+# Used to select /EHs-c- /GR- instead of -fno-exceptions -fno-rtti.
 if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"
    OR CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   set(_MSVC_FRONTEND TRUE)
 else()
   set(_MSVC_FRONTEND FALSE)
 endif()
-
-# Compilers with a GNU-like command-line interface (excludes clang-cl).
-set(IS_GCC_LIKE
-    $<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>,$<NOT:$<BOOL:${_MSVC_FRONTEND}>>>
-)
-# MSVC or clang-cl (MSVC-style command-line interface).
-set(IS_MSVC_LIKE $<BOOL:${_MSVC_FRONTEND}>)
 
 if(ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXE NAMES clang-tidy REQUIRED)
@@ -145,8 +145,8 @@ set_target_properties(vendored PROPERTIES SKIP_LINTING ON)
 
 target_compile_options(vendored PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Wno-error;-Wno-unused-parameter>
-    $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
-    $<${IS_MSVC_LIKE}:/W4>
+    $<$<AND:${IS_GCC_LIKE},$<NOT:$<BOOL:${_MSVC_FRONTEND}>>,$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4>
 )
 if(NOT MSVC)
   set_source_files_properties(libraries/stb_image_write.cc PROPERTIES
@@ -239,9 +239,11 @@ if(VALGRIND_INCLUDE_DIR)
 endif()
 
 target_compile_options(engine PRIVATE
-    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter;-fno-exceptions;-fno-rtti;-Wshadow;-Wformat=2;-Wimplicit-fallthrough>
-    $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
-    $<${IS_MSVC_LIKE}:/W4;/WX;/EHs-c-;/GR->
+    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter;-Wshadow;-Wformat=2;-Wimplicit-fallthrough>
+    $<$<AND:${IS_GCC_LIKE},$<NOT:$<BOOL:${_MSVC_FRONTEND}>>>:-fno-exceptions;-fno-rtti>
+    $<$<AND:${IS_GCC_LIKE},$<NOT:$<BOOL:${_MSVC_FRONTEND}>>,$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
+    $<$<BOOL:${_MSVC_FRONTEND}>:/EHs-c-;/GR->
+    $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
 )
 
 if(ENABLE_SANITIZERS)
@@ -293,9 +295,11 @@ set_target_properties(Game PROPERTIES OUTPUT_NAME "game")
 target_link_libraries(Game PRIVATE engine)
 
 target_compile_options(Game PRIVATE
-    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter;-fno-exceptions;-fno-rtti>
-    $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
-    $<${IS_MSVC_LIKE}:/W4;/WX;/EHs-c-;/GR->
+    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
+    $<$<AND:${IS_GCC_LIKE},$<NOT:$<BOOL:${_MSVC_FRONTEND}>>>:-fno-exceptions;-fno-rtti>
+    $<$<AND:${IS_GCC_LIKE},$<NOT:$<BOOL:${_MSVC_FRONTEND}>>,$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
+    $<$<BOOL:${_MSVC_FRONTEND}>:/EHs-c-;/GR->
+    $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
 )
 
 if(ENABLE_SANITIZERS)
@@ -334,8 +338,8 @@ if(NOT CMAKE_CROSSCOMPILING)
 
   target_compile_options(Tests PRIVATE
       $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
-      $<${IS_MSVC_LIKE}:/W4;/WX>
-      $<${IS_GCC_LIKE}:-fsanitize=address,undefined;-fno-sanitize=vptr>
+      $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
+      $<$<AND:${IS_GCC_LIKE},$<NOT:$<BOOL:${_MSVC_FRONTEND}>>>:-fsanitize=address,undefined;-fno-sanitize=vptr>
   )
 
   target_include_directories(Tests PRIVATE
@@ -344,7 +348,7 @@ if(NOT CMAKE_CROSSCOMPILING)
   )
 
   target_link_libraries(Tests PRIVATE engine GTest::gtest_main GTest::gmock)
-  target_link_options(Tests PRIVATE $<${IS_GCC_LIKE}:-fsanitize=address,undefined>)
+  target_link_options(Tests PRIVATE $<$<AND:${IS_GCC_LIKE},$<NOT:$<BOOL:${_MSVC_FRONTEND}>>>:-fsanitize=address,undefined>)
 
   include(GoogleTest)
   gtest_discover_tests(Tests
