@@ -571,6 +571,9 @@ struct printable_typename {};
 
 template <typename T>
 std::ostream& operator<<(std::ostream& out, printable_typename<T>) {
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
 #if __has_feature(cxx_rtti) || defined(__GXX_RTTI) || defined(_CPPRTTI)
   const char* implementation_typename = typeid(T).name();
 #ifdef __GNUC__

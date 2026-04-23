@@ -96,6 +96,9 @@ void InstallSignalHandlers() {
       error_addr = reinterpret_cast<void*>(uctx->uc_mcontext.gregs[REG_RIP]);
 #elif defined(REG_EIP)
       error_addr = reinterpret_cast<void*>(uctx->uc_mcontext.gregs[REG_EIP]);
+#elif defined(__APPLE__) && defined(__aarch64__)
+      error_addr = reinterpret_cast<void*>(
+          uctx->uc_mcontext->__ss.__pc);
 #elif defined(__aarch64__)
       error_addr = reinterpret_cast<void*>(uctx->uc_mcontext.pc);
 #endif

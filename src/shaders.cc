@@ -6,7 +6,7 @@ namespace G {
 namespace {
 
 constexpr std::string_view kPrePassVertexShader = R"(
-    #version 460 core
+    #version 410 core
 
     layout (location = 0) in vec3 input_position;
     layout (location = 1) in vec2 input_tex_coord;
@@ -48,7 +48,7 @@ constexpr std::string_view kPrePassVertexShader = R"(
   )";
 
 constexpr std::string_view kPrePassFragmentShader = R"(
-    #version 460 core
+    #version 410 core
     out vec4 frag_color;
 
     in vec2 tex_coord;
@@ -64,7 +64,7 @@ constexpr std::string_view kPrePassFragmentShader = R"(
   )";
 
 constexpr std::string_view kPostPassVertexShader = R"(
-  #version 460 core
+  #version 410 core
   layout (location = 0) in vec2 input_position;
   layout (location = 1) in vec2 input_tex_coord;
 
@@ -78,7 +78,7 @@ constexpr std::string_view kPostPassVertexShader = R"(
   )";
 
 constexpr std::string_view kPostPassFragmentShader = R"(
-  #version 460 core
+  #version 410 core
   out vec4 frag_color;
 
   in vec2 tex_coord;
@@ -110,7 +110,7 @@ constexpr std::string_view kPostPassFragmentShader = R"(
 //                don't vanish — compensates for the gradient averaging away
 //                narrow features
 constexpr std::string_view kSDFFragmentShader = R"(
-    #version 460 core
+    #version 410 core
     out vec4 frag_color;
 
     in vec2 tex_coord;
@@ -152,7 +152,7 @@ constexpr std::string_view kSDFFragmentShader = R"(
   )";
 
 constexpr std::string_view kFragmentShaderPreamble = R"(
-  #version 460 core
+  #version 410 core
 
   out vec4 frag_color;
 

@@ -28,8 +28,23 @@ project(
   DESCRIPTION "The game"
   LANGUAGES C CXX)
 
+# Enable Objective-C for macOS (SDL3's Cocoa backend requires it).
+if(APPLE)
+  enable_language(OBJC)
+endif()
+
+# Detect MSVC-frontend compilers (cl.exe and clang-cl). clang-cl's -Wall
+# maps to -Weverything, so it needs MSVC-style flags exclusively.
+if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"
+   OR CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  set(_MSVC_FRONTEND TRUE)
+else()
+  set(_MSVC_FRONTEND FALSE)
+endif()
+
+# GNU-frontend compilers: GCC, Clang, AppleClang (excludes clang-cl).
 set(IS_GCC_LIKE
-    $<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>
+    $<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>,$<NOT:$<BOOL:${_MSVC_FRONTEND}>>>
 )
 
 if(ENABLE_CLANG_TIDY)
@@ -131,10 +146,12 @@ set_target_properties(vendored PROPERTIES SKIP_LINTING ON)
 target_compile_options(vendored PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Wno-error;-Wno-unused-parameter>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4>
+    $<$<BOOL:${_MSVC_FRONTEND}>:/W3>
 )
-set_source_files_properties(libraries/stb_image_write.cc PROPERTIES
-    COMPILE_OPTIONS "-Wno-missing-field-initializers")
+if(NOT MSVC)
+  set_source_files_properties(libraries/stb_image_write.cc PROPERTIES
+      COMPILE_OPTIONS "-Wno-missing-field-initializers")
+endif()
 set_source_files_properties(libraries/sqlite3.c PROPERTIES
     COMPILE_DEFINITIONS SQLITE_ENABLE_MEMSYS5)
 set_source_files_properties(libraries/lua-protobuf/pb.c PROPERTIES
@@ -241,7 +258,7 @@ endif()
 target_compile_options(engine PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter;-fno-exceptions;-fno-rtti;-Wshadow;-Wformat=2;-Wimplicit-fallthrough>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
+    $<$<BOOL:${_MSVC_FRONTEND}>:/W3;/EHs-c-;/GR->
 )
 
 if(ENABLE_SANITIZERS)
@@ -253,6 +270,7 @@ endif()
 
 target_compile_definitions(engine PUBLIC
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
+    $<$<BOOL:${WIN32}>:NOMINMAX;WIN32_LEAN_AND_MEAN;_USE_MATH_DEFINES>
 )
 
 if(LIBDW_FOUND)
@@ -296,7 +314,7 @@ target_link_libraries(Game PRIVATE engine)
 target_compile_options(Game PRIVATE
     $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter;-fno-exceptions;-fno-rtti>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
+    $<$<BOOL:${_MSVC_FRONTEND}>:/W3;/EHs-c-;/GR->
 )
 
 if(ENABLE_SANITIZERS)
@@ -343,19 +361,22 @@ if(NOT CMAKE_CROSSCOMPILING)
   add_subdirectory(libraries/googletest SYSTEM)
 
   add_executable(Tests
+      tests/test_allocators.cc
       tests/test_containers.cc
       tests/test_strings.cc
       tests/test_math.cc
       tests/test_error.cc
       tests/test_collision.cc
       tests/test_executor.cc
+      tests/test_platform.cc
+      tests/test_transformations.cc
   )
 
   target_compile_features(Tests PRIVATE cxx_std_17)
 
   target_compile_options(Tests PRIVATE
       $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
-      $<$<CXX_COMPILER_ID:MSVC>:/W4;/WX>
+      $<$<BOOL:${_MSVC_FRONTEND}>:/W3>
       $<${IS_GCC_LIKE}:-fsanitize=address,undefined;-fno-sanitize=vptr>
   )
 

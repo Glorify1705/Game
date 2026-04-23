@@ -35,7 +35,11 @@ void __asan_unpoison_memory_region(void const volatile* addr, size_t size);
 #define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
 #define ALLOCATOR_NO_ALIAS __attribute__((malloc))
+#else
+#define ALLOCATOR_NO_ALIAS
+#endif
 
 namespace G {
 

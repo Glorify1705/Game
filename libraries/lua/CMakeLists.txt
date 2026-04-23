@@ -15,12 +15,12 @@ set(SUPPORTS_GCC_FLAGS
 set(GCC_AND_CLANG_FLAGS
     -Wall
     -Wextra
-    -Werror
     -Wno-unused-parameter
-    -ggdb
+    -Wno-deprecated-declarations
+    -g
     -DNDEBUG
     -DGAME_WITH_ASSERTS)
-set(MSVC_FLAGS /W4 /WX /DGAME_WITH_ASSERTS /O2 /DEBUG /NDEBUG)
+set(MSVC_FLAGS /W4 /DGAME_WITH_ASSERTS)
 
 set(COMPILER_FLAGS $<${SUPPORTS_GCC_FLAGS}:${GCC_AND_CLANG_FLAGS}>
                    $<$<CXX_COMPILER_ID:MSVC>:${MSVC_FLAGS}>)

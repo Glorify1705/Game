@@ -77,7 +77,7 @@ SDL_Window* CreateWindow(const GameConfig& config) {
   TIMER("Initializing basic attributes");
   CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4),
         "Could not set major version", SDL_GetError());
-  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6),
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1),
         "Could not set minor version", SDL_GetError());
   CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
                             SDL_GL_CONTEXT_PROFILE_CORE),
@@ -148,7 +148,7 @@ SDL_GLContext CreateOpenglContext(const GameConfig& config,
           "Could not set up VSync to mode ", config.vsync_mode, ": ",
           SDL_GetError());
   }
-  const bool supports_opengl_debug = GLAD_GL_VERSION_4_3 && GLAD_GL_KHR_debug;
+  const bool supports_opengl_debug = GLAD_GL_KHR_debug;
   if (supports_opengl_debug && config.enable_opengl_debug) {
     LOG("OpenGL Debug Callback Support is enabled!");
     glEnable(GL_DEBUG_OUTPUT);

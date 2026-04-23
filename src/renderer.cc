@@ -953,8 +953,8 @@ BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
   auto* buffer = allocator->Alloc(bytes, /*align=*/4);
   // Read from the resolved (non-MSAA) framebuffer.
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, downsampled_target_));
-  glReadnPixels(0, 0, viewport.x, viewport.y, GL_RGBA, GL_UNSIGNED_BYTE, bytes,
-                buffer);
+  glReadPixels(0, 0, viewport.x, viewport.y, GL_RGBA, GL_UNSIGNED_BYTE,
+               buffer);
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   // Flip the rows.
   ArenaAllocator scratch(allocator, Megabytes(1));

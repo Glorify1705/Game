@@ -12,6 +12,12 @@
 
 #include "constants.h"
 
+#if defined(__GNUC__) || defined(__clang__)
+#define PRINTF_FORMAT(fmt, args) __attribute__((format(printf, fmt, args)))
+#else
+#define PRINTF_FORMAT(fmt, args)
+#endif
+
 namespace G {
 
 class Allocator;
@@ -155,7 +161,7 @@ class StringBuffer {
   }
 
   // Appends a printf-style formatted string.
-  __attribute__((format(printf, 2, 3))) StringBuffer& AppendF(const char* fmt,
+  PRINTF_FORMAT(2, 3) StringBuffer& AppendF(const char* fmt,
                                                               ...) {
     va_list l;
     va_start(l, fmt);
@@ -172,7 +178,7 @@ class StringBuffer {
   }
 
   // Clears the buffer and appends a printf-style formatted string.
-  __attribute__((format(printf, 2, 3))) StringBuffer& SetF(const char* fmt,
+  PRINTF_FORMAT(2, 3) StringBuffer& SetF(const char* fmt,
                                                            ...) {
     pos_ = 0;
     va_list l;

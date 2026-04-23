@@ -1,0 +1,88 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  linux:
+    name: Linux (GCC)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build \
+            libgl-dev \
+            libasound2-dev libpulse-dev \
+            libx11-dev libxcursor-dev libxext-dev libxfixes-dev \
+            libxi-dev libxrandr-dev libxss-dev libxtst-dev libxxf86vm-dev \
+            libwayland-dev libxkbcommon-dev \
+            libdbus-1-dev libudev-dev libdecor-0-dev
+
+      - name: Configure
+        run: >
+          cmake -G Ninja -S . -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DENABLE_PROFILING=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -j$(nproc)
+
+  macos:
+    name: macOS (Apple Silicon)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: brew install cmake ninja
+
+      - name: Configure
+        run: >
+          cmake -G Ninja -S . -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_OSX_ARCHITECTURES=arm64
+          -DENABLE_PROFILING=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -j$(sysctl -n hw.ncpu)
+
+  windows:
+    name: Windows (clang-cl)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure
+        run: >
+          cmake -G Ninja -S . -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_COMPILER=clang-cl
+          -DCMAKE_CXX_COMPILER=clang-cl
+          -DENABLE_PROFILING=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -j $env:NUMBER_OF_PROCESSORS
