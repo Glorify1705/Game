@@ -322,12 +322,15 @@ if(NOT CMAKE_CROSSCOMPILING)
   add_subdirectory(libraries/googletest SYSTEM)
 
   add_executable(Tests
+      tests/test_allocators.cc
       tests/test_containers.cc
       tests/test_strings.cc
       tests/test_math.cc
       tests/test_error.cc
       tests/test_collision.cc
       tests/test_executor.cc
+      tests/test_platform.cc
+      tests/test_transformations.cc
   )
 
   target_compile_features(Tests PRIVATE cxx_std_17)
