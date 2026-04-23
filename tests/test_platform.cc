@@ -1,20 +1,48 @@
-#include "platform.h"
-
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 #include "gtest/gtest.h"
+#include "platform.h"
 #include "test_fixture.h"
 
 namespace G {
+namespace {
+
+// Returns a platform-appropriate temporary directory path (no trailing slash).
+const char* TempDir() {
+#ifdef _WIN32
+  static char buf[MAX_PATH];
+  DWORD len = GetTempPathA(MAX_PATH, buf);
+  // Strip trailing backslash if present.
+  if (len > 0 && (buf[len - 1] == '\\' || buf[len - 1] == '/')) {
+    buf[len - 1] = '\0';
+  }
+  return buf;
+#else
+  return "/tmp";
+#endif
+}
+
+// Returns true if the path is absolute on the current platform.
+bool IsAbsolutePath(const char* path) {
+#ifdef _WIN32
+  return path && std::isalpha(static_cast<unsigned char>(path[0])) &&
+         path[1] == ':';
+#else
+  return path && path[0] == '/';
+#endif
+}
+
+}  // namespace
 
 // Helper: create a unique temp directory for each test.
 class PlatformTest : public BaseTest {
  protected:
   void SetUp() override {
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
-    snprintf(tmp_dir_, sizeof(tmp_dir_), "/tmp/game_test_%d_%s",
+    snprintf(tmp_dir_, sizeof(tmp_dir_), "%s/game_test_%d_%s", TempDir(),
              static_cast<int>(getpid()), info->name());
     ASSERT_FALSE(MakeDirs(tmp_dir_).is_error());
   }
@@ -237,7 +265,7 @@ TEST_F(PlatformTest, GetCwdSucceeds) {
 TEST_F(PlatformTest, AbsolutePathResolves) {
   const char* abs = AbsolutePath(tmp_dir_);
   EXPECT_NE(abs, nullptr);
-  EXPECT_EQ(abs[0], '/');
+  EXPECT_TRUE(IsAbsolutePath(abs));
 }
 
 // WriteFileF
