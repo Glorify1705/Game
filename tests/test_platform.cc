@@ -13,9 +13,14 @@ namespace {
 // Returns a platform-appropriate temporary directory path (no trailing slash).
 const char* TempDir() {
 #ifdef _WIN32
-  static char buf[MAX_PATH];
-  DWORD len = GetTempPathA(MAX_PATH, buf);
-  // Strip trailing backslash if present.
+  // TEMP is always set on Windows CI and desktop.
+  const char* tmp = std::getenv("TEMP");
+  if (!tmp) tmp = std::getenv("TMP");
+  if (!tmp) tmp = "C:\\Temp";
+  // Strip trailing separator if present.
+  static char buf[512];
+  std::snprintf(buf, sizeof(buf), "%s", tmp);
+  size_t len = std::strlen(buf);
   if (len > 0 && (buf[len - 1] == '\\' || buf[len - 1] == '/')) {
     buf[len - 1] = '\0';
   }
