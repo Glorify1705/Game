@@ -1410,15 +1410,14 @@ ErrorOr<Renderer::FontInfo> Renderer::LoadSDFFromCache(
   font.atlas_width = stmt.ColumnInt(0);
   font.atlas_height = stmt.ColumnInt(1);
 
-  const auto* metrics =
-      static_cast<const uint8_t*>(stmt.ColumnBlob(2));
-  const int metrics_size = stmt.ColumnBytes(2);
+  ByteSlice metrics_blob = stmt.ColumnBlob(2);
+  const auto* metrics = metrics_blob.data();
   constexpr int kGlyphFields = 9;
   const size_t expected_size =
       static_cast<size_t>(kNumChars) * kGlyphFields * sizeof(float);
-  if (metrics_size != expected_size) {
+  if (metrics_blob.size() != expected_size) {
     LOG("SDF cache metrics size mismatch for ", font_name, ": got ",
-        metrics_size, " expected ", expected_size);
+        metrics_blob.size(), " expected ", expected_size);
     return Error::Message("SDF cache metrics corrupted");
   }
   // Deserialize field-by-field via memcpy to avoid alignment issues with
@@ -1438,14 +1437,13 @@ ErrorOr<Renderer::FontInfo> Renderer::LoadSDFFromCache(
     std::memcpy(&g.advance, src + 32, 4);
   }
 
-  const void* atlas_blob = stmt.ColumnBlob(3);
-  const int atlas_size = stmt.ColumnBytes(3);
+  ByteSlice atlas_blob = stmt.ColumnBlob(3);
   const int expected_atlas = font.atlas_width * font.atlas_height;
-  if (atlas_size != expected_atlas) {
+  if (static_cast<int>(atlas_blob.size()) != expected_atlas) {
     LOG("SDF cache atlas size mismatch for ", font_name);
     return Error::Message("SDF cache atlas corrupted");
   }
-  font.texture = renderer_->LoadFontTexture(atlas_blob, font.atlas_width,
+  font.texture = renderer_->LoadFontTexture(atlas_blob.data(), font.atlas_width,
                                             font.atlas_height);
   return font;
 }
@@ -1478,8 +1476,9 @@ void Renderer::SaveSDFToCache(sqlite3* db, std::string_view font_name,
     f[7] = g.height;
     f[8] = g.advance;
   }
-  stmt.BindBlobTransient(5, metrics, sizeof(metrics));
-  stmt.BindBlob(6, atlas_bitmap, font.atlas_width * font.atlas_height);
+  stmt.BindBlobTransient(5, MakeByteSlice(metrics, sizeof(metrics)));
+  stmt.BindBlob(6, ByteSlice(atlas_bitmap,
+                              font.atlas_width * font.atlas_height));
   auto step = stmt.Step();
   if (step.is_error()) {
     LOG("SDF cache write failed for ", font_name);

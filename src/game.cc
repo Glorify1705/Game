@@ -378,8 +378,7 @@ void Game::DispatchNetworkEvents() {
         engine->lua.HandleNetworkDisconnect(e.peer_id);
         break;
       case Network::Event::kReceive:
-        engine->lua.HandleNetworkReceive(e.peer_id, e.data.data(),
-                                         e.data.size(), e.channel);
+        engine->lua.HandleNetworkReceive(e.peer_id, e.data, e.channel);
         break;
     }
   }

@@ -53,8 +53,8 @@ void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
   CHECK(MUST(stmt.Step()), "No audio ", filename);
   // Copy blob data into buffer immediately; the sqlite3 pointer is only valid
   // until the statement is finalized.
-  auto* contents = stmt.ColumnBlob(0);
-  std::memmove(buffer, contents, size);
+  ByteSlice blob = stmt.ColumnBlob(0);
+  std::memmove(buffer, blob.data(), blob.size());
   Sound sound;
   sound.name = filename;
   sound.contents = buffer;
@@ -111,14 +111,12 @@ void DbAssets::LoadProtoDescriptor(std::string_view filename, uint8_t* buffer,
   CHECK(stmt.ok(), "Failed to prepare LoadProtoDescriptor query");
   stmt.BindText(1, filename);
   CHECK(MUST(stmt.Step()), "No proto descriptor ", filename);
-  auto* contents =
-      reinterpret_cast<const uint8_t*>(stmt.ColumnBlob(0));
-  size_t blob_size = stmt.ColumnBytes(0);
-  std::memcpy(buffer, contents, blob_size);
+  ByteSlice blob = stmt.ColumnBlob(0);
+  std::memcpy(buffer, blob.data(), blob.size());
   ProtoDescriptor desc;
   desc.name = filename;
   desc.contents = buffer;
-  desc.size = blob_size;
+  desc.size = blob.size();
   desc.checksum = checksum;
   proto_loader_.Load(&desc);
 }
@@ -169,8 +167,8 @@ void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
   CHECK(MUST(stmt.Step()), "No image ", filename);
   // Copy blob data into buffer immediately; the sqlite3 pointer is only valid
   // until the statement is finalized.
-  auto* contents = stmt.ColumnBlob(0);
-  std::memmove(buffer, contents, size);
+  ByteSlice blob = stmt.ColumnBlob(0);
+  std::memmove(buffer, blob.data(), blob.size());
   buffer[size] = '\0';
   Image image;
   image.name = filename;
