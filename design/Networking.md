@@ -1,11 +1,11 @@
 ---
-status: in-design
+status: implemented
 tags: [networking, multiplayer]
 ---
 
 # Networking Support
 
-**Status: Under consideration.**
+**Status: Implemented.** ENet-based networking merged in PR #77.
 
 ## Overview
 

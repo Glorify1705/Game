@@ -16,6 +16,7 @@ tags: [index]
 | [CPU sampling profiler](CPU%20sampling%20profiler.md) | profiling, performance, tooling | samply-based CPU profiling in devenv (`game-samply` script) |
 | [Debug logging system](Debug%20logging%20system.md) | logging, debugging | Leveled logging with channels, compile-time filtering, custom sinks |
 | [Debug printing consolidation](Debug%20printing%20consolidation.md) | debugging, strings | Unified AppendToString API for type-safe string formatting |
+| [Debug UI](Debug%20UI.md) | debugging, ui, tooling, renderer | ImGui-based debug overlay with 12 panels, REPL, text editor, frame breakdown |
 | [Draw call optimization](Draw%20call%20optimization.md) | renderer, performance | Redundant state filtering and texture dedup to reduce draw calls |
 | [Engine comparison](Engine%20comparison.md) | reference, comparison | Feature gap analysis vs Love2D, high_impact, Anchor, Carimbo, Raylib, libGDX |
 | [ErrorOr and TRY macro](ErrorOr%20and%20TRY%20macro.md) | error-handling, core | Result type with TRY macro for propagating errors without exceptions |
@@ -26,6 +27,8 @@ tags: [index]
 | [Layer and canvas system](Layer%20and%20canvas%20system.md) | renderer, canvas | Off-screen render targets with blend modes and premultiplied alpha |
 | [Lua API for LSP and LLMs](Lua%20API%20for%20LSP%20and%20LLMs.md) | lua, tooling, lsp | LuaLS stub generation with LuaCATS annotations and type registry |
 | [Memory allocators for third-party libraries](Memory%20allocators%20for%20third-party%20libraries.md) | memory, allocators | SQLite memsys5 + mimalloc for Lua, carved from engine arena |
+| [Networking](Networking.md) | networking, multiplayer | ENet reliable UDP for client/server multiplayer (PR #77) |
+| [Sound stream free list](Sound%20stream%20free%20list.md) | audio, memory | Ownership-based stream slot reclamation (auto-free for fire-and-forget, managed for Lua handles) |
 | [QOA audio format](QOA%20audio%20format.md) | audio, codec | QOA codec replacing OGG Vorbis for streaming audio |
 | [SDL3 migration](SDL3%20migration.md) | sdl, migration, core | Full SDL2-to-SDL3 API migration: events, audio stream, window, gamepad, IO, threading |
 | [SDF font rendering](SDF%20font%20rendering.md) | renderer, fonts, sdf | SDF generation, shader, caching, outline support |
@@ -44,7 +47,7 @@ tags: [index]
 
 | Document | Tags | Summary | Status |
 |----------|------|---------|--------|
-| [Cross compilation](Cross%20compilation.md) | build, cross-compilation, packaging, sfx | MinGW cross-compile from Linux to Windows | Phases 0–2 done (toolchain, packaging, SFX, DLL copying); `--target` convenience flag and CI pending |
+| [Cross compilation](Cross%20compilation.md) | build, cross-compilation, packaging, sfx | MinGW cross-compile Linux→Windows, osxcross for macOS | Phases 0–2 done; macOS CI done (GL 4.1 downgrade, osxcross, GitHub Actions); `--target` convenience flag and CI release builds pending |
 | [REPL and live interaction](REPL%20and%20live%20interaction.md) | debugging, lua, repl | TCP REPL server for live Lua evaluation | Phase 1 (TCP server + NDJSON eval) implemented on `worktree-repl-server` branch; not yet merged |
 
 ## Partially Implemented
@@ -53,7 +56,7 @@ tags: [index]
 |----------|------|---------|
 | [Audio features](Audio%20features.md) | audio, lua-api | Pitch, looping, panning done; seek/tell, 3D audio, effects pending |
 | [Bug fixes and minor improvements](Bug%20fixes%20and%20minor%20improvements.md) | bugs, code-quality, testing | ASan-confirmed leaks (Box2D alloc mismatch, Canvas __gc, renderbuffer), logic bugs (has_mouse_focus flag), defensive fixes; some code quality done, platform watchers and test coverage pending |
-| [CMake and CTest improvements](CMake%20and%20CTest%20improvements.md) | build, testing, cmake, ctest | Phases 1–2 done (preset fix, ctest execution, timeouts, labels, parallel); test file split and coverage expansion pending |
+| [CMake and CTest improvements](CMake%20and%20CTest%20improvements.md) | build, testing, cmake, ctest | Phases 1–2 done (preset fix, ctest, timeouts, labels, parallel, test file split); coverage expansion pending (color.cc, stats.cc, xml.cc, qoa.cc) |
 | [Physics system expansion](Physics%20system%20expansion.md) | physics, lua-api | Phase 1 mostly done (kinematic bodies, material properties, filtering, sensors, raycasting, per-body properties, world config); joints, advanced shapes, debug draw, deferred destruction pending |
 | [Profiling and tracing](Profiling%20and%20tracing.md) | profiling, performance | Chrome Tracing done; perf and pprof are external devenv tools, not engine integration |
 | [Renderer improvements](Renderer%20improvements.md) | renderer, graphics | Stencil/scissor/blend/primitives done; post-processing pipeline and lighting pending |
@@ -65,15 +68,13 @@ tags: [index]
 |----------|------|---------|
 | [AI utilities](AI%20utilities.md) | gameplay, ai | Behavior trees, decision trees, and AI scaffolding |
 | [Asset system improvements](Asset%20system%20improvements.md) | assets, packaging | ZIP archive + SQLite index for lazy loading and modding |
-| [Debug UI](Debug%20UI.md) | debugging, ui, tooling | ImGui-based debug overlay with performance graphs, entity inspector, physics/collision visualization, log console |
 | [LuaJIT Migration](LuaJIT%20Migration.md) | lua, performance | Migration from Lua 5.1 to LuaJIT with WASM fallback |
 | [Module memory budgets](Module%20memory%20budgets.md) | memory, allocators, architecture | Only batch renderer overflow fix shipped; per-module sub-arenas, watermarks, and budget system not started |
-| [Networking](Networking.md) | networking, multiplayer | ENet reliable UDP for client/server multiplayer |
+| [Multiplatform support](Multiplatform%20support.md) | wasm, android, ios, portability | WASM, Android, and iOS support: shader precompiler, touch input, lifecycle events, build toolchains |
 | [Particle system](Particle%20system.md) | renderer, particles, lua-api | CPU particle system with PropertyRamp and instanced rendering |
 | [Save and persistence](Save%20and%20persistence.md) | persistence, save, achievements, lua-api | Namespaced SQLite KV store for save data, settings, achievements |
-| [Sound stream free list](Sound%20stream%20free%20list.md) | audio, memory | Free list allocator to prevent sound slot exhaustion |
+| [Scene and state management](Scene%20and%20state%20management.md) | scenes, state, lua-api, gameplay | Scene stack with switch/push/pop, lifecycle hooks, deferred transitions |
 | [Test input system](Test%20input%20system.md) | testing, input | Synthetic input injection for automated testing |
-| [WebAssembly and cross-platform portability](WebAssembly%20and%20cross-platform%20portability.md) | wasm, portability | Emscripten/WASM support with main loop refactoring |
 
 ## Reference
 
@@ -91,7 +92,7 @@ the engine stand out and what's needed to ship complete games.
 **Engine differentiators** (things no comparison engine has): hot reload, Fennel
 scripting, CLI tooling, SDF fonts, SQLite asset pipeline, type stubs for IDE,
 arena memory management, vendored SDL3 source build, Linux-to-Windows
-cross-compilation with SFX packaging.
+cross-compilation with SFX packaging, Debug UI with REPL, ENet networking.
 
 ### P0 — Finish what's started
 
@@ -101,7 +102,7 @@ Low effort, high return. Complete in-progress work to close gaps cheaply.
 |----------|-----------|
 | [Physics system expansion](Physics%20system%20expansion.md) | Phase 1 (bodies, properties, filtering, sensors, raycasting) is done. Next: joints (Phase 2) — the killer feature that justifies Box2D over the simpler collision system. |
 | [Bug fixes and minor improvements](Bug%20fixes%20and%20minor%20improvements.md) | Low-hanging fruit: error handling TODOs, platform file watchers, missing tests, allocator instrumentation. |
-| [CMake and CTest improvements](CMake%20and%20CTest%20improvements.md) | Phases 1–2 done. Next: split test.cc into per-subsystem files, expand test coverage to mat.h, color.cc, stats.cc, etc. |
+| [CMake and CTest improvements](CMake%20and%20CTest%20improvements.md) | Phases 1–2 done, test files split (201 tests across 9 files). Next: expand test coverage to color.cc, stats.cc, xml.cc, qoa.cc. |
 
 ### P1 — High-impact missing features
 
@@ -112,7 +113,7 @@ The biggest remaining gaps vs other engines. Required to ship non-trivial games.
 | [Save and persistence](Save%20and%20persistence.md) | Can't ship any game with progression without this. SQLite KV store, platform save dirs, achievements. Only Carimbo has built-in achievements.                                            |
 | [Test input system](Test%20input%20system.md)       | Automated testing via synthetic input. Raylib and libGDX both support this — strongest cross-engine signal for testability. Pairs with CI.                                               |
 | Math utilities                                      | Lerp, distance, angle, direction, noise. Used in virtually every game script.                                                                                                            |
-| Scene/state management                              | Scene lifecycle (init/update/draw/cleanup), deferred switching, per-scene resource cleanup. Reduces boilerplate for menu/gameplay/pause states. Carimbo's SceneManager is the reference. |
+| [Scene and state management](Scene%20and%20state%20management.md) | Scene lifecycle with switch/push/pop, deferred transitions, lifecycle hooks. Reduces boilerplate for menu/gameplay/pause states. |
 | Input action binding                                | Abstract action mapping (buttons to "jump"/"shoot"), rebinding, hold detection. high_impact and Anchor support this.                                                                     |
 
 ### P2 — Strengthen differentiators
@@ -121,10 +122,9 @@ Invest in what already sets the engine apart.
 
 | Document | Rationale |
 |----------|-----------|
-| [Cross compilation](Cross%20compilation.md) | Phases 0–2 done. Remaining: `--target` convenience flag (Phase 3) and CI release builds (Phase 4). |
+| [Cross compilation](Cross%20compilation.md) | Phases 0–2 done, macOS CI done. Remaining: `--target` convenience flag (Phase 3) and CI release builds (Phase 4). |
 | [REPL and live interaction](REPL%20and%20live%20interaction.md) | Phase 1 on branch. Extends hot-reload into live debugging — no comparison engine has this. |
 | [Sound hot reload](Sound%20hot%20reload.md) | Per-asset incremental reload. Current implementation stops all sounds on any change. |
-| [Sound stream free list](Sound%20stream%20free%20list.md) | Prevents slot exhaustion during rapid sound effects. Small fix, real gameplay bug. |
 
 ### P3 — Platform expansion
 
@@ -132,7 +132,7 @@ Reaching more platforms multiplies the value of everything above.
 
 | Document | Rationale |
 |----------|-----------|
-| [WebAssembly and cross-platform portability](WebAssembly%20and%20cross-platform%20portability.md) | Instant sharing via browser. 5 of 6 comparison engines ship to web — biggest remaining platform gap. |
+| [Multiplatform support](Multiplatform%20support.md) | WASM, Android, iOS. Instant sharing via browser is the biggest platform gap (5 of 6 comparison engines ship to web). Mobile extends reach further. |
 
 ### P4 — Future
 
@@ -144,7 +144,6 @@ Valuable but not blocking. Build these when a specific game needs them.
 | Tilemap system                                                | Essential for platformers/RPGs. libGDX has Tiled/TMX import; high_impact has slope collision. No design doc yet. |
 | Drawing primitives                                            | Ellipses, arcs, rounded rects, polygons, gradients. Raylib is the reference.                                     |
 | [Module memory budgets](Module%20memory%20budgets.md)         | Per-module sub-arenas and watermarks. Only needed before targeting memory-constrained platforms (web, mobile).    |
-| [Networking](Networking.md)                                   | Only needed for multiplayer games.                                                                               |
 | [AI utilities](AI%20utilities.md)                             | Only needed for games with AI agents.                                                                            |
 | [LuaJIT Migration](LuaJIT%20Migration.md)                    | Performance optimization. Current Lua 5.1 is adequate for most games.                                            |
 | [Asset system improvements](Asset%20system%20improvements.md) | Current SQLite system works. ZIP+index is an optimization for large games.                                       |
