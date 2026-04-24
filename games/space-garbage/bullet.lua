@@ -12,7 +12,7 @@ function Bullet:new(x, y, angle, world_w, world_h)
 	count = count + 1
 	Bullet.super.new(self, x, y, angle, "laserGreen11", id, {
 		category = "bullet",
-		collides_with = { "meteor" },
+		collides_with = { "meteor", "enemy" },
 	})
 	self.physics:set_fixed_rotation(true)
 	self.dead = false

@@ -1,6 +1,11 @@
 local Player = require("player")
 local Meteor = require("meteor")
 local Bullet = require("bullet")
+local Enemy = require("enemy")
+local Turret = require("turret")
+local Bomber = require("bomber")
+local EnemyBullet = require("enemy_bullet")
+local Bomb = require("bomb")
 local Random = require("random")
 local Object = require("classic")
 local Starfield = require("starfield")
@@ -71,6 +76,27 @@ function Entities:count_meteors()
 	return count
 end
 
+function Entities:count_enemies()
+	local count = 0
+	for _, entity in pairs(self.entities) do
+		if entity.is_enemy and entity:is_enemy() then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+function Entities:get_enemy_positions(exclude)
+	local positions = {}
+	for _, entity in pairs(self.entities) do
+		if entity.is_enemy and entity:is_enemy() and entity ~= exclude and not entity.dead then
+			local v = entity.physics:position()
+			positions[#positions + 1] = { x = v.x, y = v.y }
+		end
+	end
+	return positions
+end
+
 local WORLD_W = 8000
 local WORLD_H = 6000
 
@@ -106,6 +132,10 @@ local METEOR_SAFE_DIST = 300
 local METEOR_SAFE_PUSH = 400
 local CHILD_DRIFT = 25
 local POWERUP_DROP_CHANCE = 20
+local ENEMY_SCORE = 200
+local TURRET_SCORE = 300
+local BOMBER_SCORE = 250
+local ENEMY_DROP_CHANCE = 30
 local POWERUP_TYPES = { "shield", "rapid_fire", "heal", "score_bonus" }
 local POWERUP_HUD_SPRITES = {
 	shield = "powerupBlue_shield",
@@ -118,7 +148,7 @@ local POWERUP_NAMES = {
 	score_bonus = "SCORE +500",
 }
 
-function G1:init()
+function G1:enter()
 	-- Clean up previous state on restart
 	if self.music_source then
 		G.sound.stop_source(self.music_source)
@@ -362,6 +392,89 @@ function G1:spawn_meteor(size, grey)
 	self.entities:add(m)
 end
 
+function G1:spawn_enemy()
+	local rng = self.rnd.rnd
+	local x = G.random.sample(rng, 100, WORLD_W - 100)
+	local y = G.random.sample(rng, 100, WORLD_H - 100)
+	if self.player and self.player:is_alive() then
+		local pv = self.player.physics:position()
+		local dx = x - pv.x
+		local dy = y - pv.y
+		if dx * dx + dy * dy < METEOR_SAFE_DIST * METEOR_SAFE_DIST then
+			x = x + (dx >= 0 and METEOR_SAFE_PUSH or -METEOR_SAFE_PUSH)
+			y = y + (dy >= 0 and METEOR_SAFE_PUSH or -METEOR_SAFE_PUSH)
+		end
+	end
+	local get_player = function()
+		if self.player and self.player:is_alive() then
+			return self.player
+		end
+		return nil
+	end
+	local get_enemy_positions = function(exclude)
+		return self.entities:get_enemy_positions(exclude)
+	end
+	local e = Enemy(x, y, WORLD_W, WORLD_H, get_player, get_enemy_positions)
+	self.entities:add(e)
+end
+
+function G1:spawn_safe_position()
+	local rng = self.rnd.rnd
+	local x = G.random.sample(rng, 100, WORLD_W - 100)
+	local y = G.random.sample(rng, 100, WORLD_H - 100)
+	if self.player and self.player:is_alive() then
+		local pv = self.player.physics:position()
+		local dx = x - pv.x
+		local dy = y - pv.y
+		if dx * dx + dy * dy < METEOR_SAFE_DIST * METEOR_SAFE_DIST then
+			x = x + (dx >= 0 and METEOR_SAFE_PUSH or -METEOR_SAFE_PUSH)
+			y = y + (dy >= 0 and METEOR_SAFE_PUSH or -METEOR_SAFE_PUSH)
+		end
+	end
+	return x, y
+end
+
+function G1:make_enemy_helpers()
+	local get_player = function()
+		if self.player and self.player:is_alive() then
+			return self.player
+		end
+		return nil
+	end
+	local get_enemy_positions = function(exclude)
+		return self.entities:get_enemy_positions(exclude)
+	end
+	return get_player, get_enemy_positions
+end
+
+function G1:spawn_turret()
+	local x, y = self:spawn_safe_position()
+	local get_player, get_enemy_positions = self:make_enemy_helpers()
+	local spawn_bullet_fn = function(bx, by, angle)
+		local b = EnemyBullet(bx, by, angle)
+		self.entities:add(b)
+	end
+	local t = Turret(x, y, WORLD_W, WORLD_H, get_player, get_enemy_positions, spawn_bullet_fn)
+	self.entities:add(t)
+end
+
+function G1:spawn_bomber()
+	local x, y = self:spawn_safe_position()
+	local get_player, get_enemy_positions = self:make_enemy_helpers()
+	local spawn_bomb_fn = function(bx, by, tx, ty)
+		local get_p = function()
+			if self.player and self.player:is_alive() then
+				return self.player
+			end
+			return nil
+		end
+		local b = Bomb(bx, by, tx, ty, get_p)
+		self.entities:add(b)
+	end
+	local bm = Bomber(x, y, WORLD_W, WORLD_H, get_player, get_enemy_positions, spawn_bomb_fn)
+	self.entities:add(bm)
+end
+
 function G1:handle_debug_keys()
 	if G.input.is_key_pressed("1") then
 		if self.player and self.player:is_alive() then
@@ -435,9 +548,10 @@ end
 function G1:start_next_wave()
 	self.wave = self.wave + 1
 	self.wave_active = true
-	local num_big = self.wave * 3 + 6
-	local num_med = self.wave * 2 + 2
-	local num_small = self.wave
+	-- Wave 1 has fewer meteors to ease the player in.
+	local num_big = self.wave == 1 and 3 or (self.wave * 3 + 6)
+	local num_med = self.wave == 1 and 2 or (self.wave * 2 + 2)
+	local num_small = self.wave == 1 and 0 or self.wave
 	local use_grey = self.wave > 3
 
 	for _ = 1, num_big do
@@ -451,6 +565,30 @@ function G1:start_next_wave()
 	for _ = 1, num_small do
 		local grey = use_grey and G.random.sample(self.rnd.rnd, 1, 100) > 50
 		self:spawn_meteor("small", grey)
+	end
+
+	-- Chasers from wave 2.
+	if self.wave >= 2 then
+		local num_enemies = self.wave - 1
+		for _ = 1, num_enemies do
+			self:spawn_enemy()
+		end
+	end
+
+	-- Turrets from wave 4.
+	if self.wave >= 4 then
+		local num_turrets = math.floor((self.wave - 3) / 2)
+		for _ = 1, num_turrets do
+			self:spawn_turret()
+		end
+	end
+
+	-- Bombers from wave 6.
+	if self.wave >= 6 then
+		local num_bombers = math.floor((self.wave - 5) / 2)
+		for _ = 1, num_bombers do
+			self:spawn_bomber()
+		end
 	end
 end
 
@@ -477,7 +615,8 @@ function G1:update(t, dt)
 
 	if self.confirm_quit then
 		if G.input.is_key_pressed("y") then
-			self.state = "enter_name"
+			G.scene.switch("name_entry", self.score)
+			return
 		end
 		if G.input.is_key_pressed("n") or G.input.is_key_pressed("escape") then
 			self.confirm_quit = false
@@ -521,8 +660,10 @@ function G1:update(t, dt)
 	G.camera.set_zoom(zoom)
 
 	if self.state == "game_over" then
-		if G.input.is_key_pressed("return") then
-			self.state = "enter_name"
+		if G.input.is_key_pressed("return") or G.input.is_key_pressed("enter") then
+			G.log.info("Game over -> name_entry with score " .. tostring(self.score))
+			G.scene.switch("name_entry", self.score)
+			return
 		end
 		return
 	end
@@ -534,7 +675,7 @@ function G1:update(t, dt)
 	self:update_particles(dt)
 
 	for _, entity in pairs(self.entities.entities) do
-		if entity:is_player() or (entity.is_meteor and entity:is_meteor()) then
+		if entity:is_player() or (entity.is_meteor and entity:is_meteor()) or (entity.is_enemy and entity:is_enemy()) then
 			self:screen_wrap_entity(entity)
 		end
 	end
@@ -580,6 +721,22 @@ function G1:update(t, dt)
 				powerup_spawns[#powerup_spawns + 1] = { x = v.x, y = v.y, ptype = ptype }
 			end
 		end
+		if entity.is_enemy and entity:is_enemy() then
+			local score = ENEMY_SCORE
+			if entity.is_turret and entity:is_turret() then
+				score = TURRET_SCORE
+			elseif entity.is_bomber and entity:is_bomber() then
+				score = BOMBER_SCORE
+			end
+			self.score = self.score + score
+			local v = entity.physics:position()
+			self:spawn_particles(v.x, v.y, G.random.sample(self.rnd.rnd, 8, 12))
+			G.camera.shake(8, 0.3)
+			if G.random.sample(self.rnd.rnd, 1, 100) <= ENEMY_DROP_CHANCE then
+				local ptype = G.random.pick(self.rnd.rnd, POWERUP_TYPES)
+				powerup_spawns[#powerup_spawns + 1] = { x = v.x, y = v.y, ptype = ptype }
+			end
+		end
 	end
 
 	self.entities:remove_dead()
@@ -596,7 +753,7 @@ function G1:update(t, dt)
 		self.entities:add(pu)
 	end
 
-	if self.wave_active and self.entities:count_meteors() == 0 then
+	if self.wave_active and self.entities:count_meteors() == 0 and self.entities:count_enemies() == 0 then
 		self.wave_active = false
 		G.timer.after(2, function()
 			self:start_next_wave()
@@ -649,6 +806,19 @@ function G1:draw_minimap()
 			local px = mx + v.x * sx
 			local py = my + v.y * sy
 			G.graphics.set_color(180, 120, 60, 220)
+			G.graphics.draw_circle(px, py, 2)
+		end
+		if entity.is_enemy and entity:is_enemy() then
+			local v = entity.physics:position()
+			local px = mx + v.x * sx
+			local py = my + v.y * sy
+			G.graphics.set_color(255, 60, 60, 220)
+			G.graphics.draw_circle(px, py, 2)
+		end
+		if entity.is_bomb and entity:is_bomb() then
+			local px = mx + entity.x * sx
+			local py = my + entity.y * sy
+			G.graphics.set_color(255, 140, 30, 220)
 			G.graphics.draw_circle(px, py, 2)
 		end
 		if entity.is_powerup and entity:is_powerup() then
@@ -807,9 +977,16 @@ function G1:draw()
 	G.graphics.set_color("white")
 end
 
+function G1:leave()
+	if self.music_source then
+		G.sound.stop_source(self.music_source)
+		self.music_source = nil
+	end
+end
+
 local Menu = {}
 
-function Menu:init()
+function Menu:enter()
 	self.screen_w, self.screen_h = G.window.dimensions()
 	self.selected = 1
 	self.items = { "PLAY GAME", "HIGH SCORES", "QUIT" }
@@ -847,9 +1024,9 @@ function Menu:update(t, dt)
 
 	if G.input.is_key_pressed("return") or G.input.is_key_pressed("space") then
 		if self.selected == 1 then
-			return "play"
+			G.scene.switch("playing")
 		elseif self.selected == 2 then
-			return "high_scores"
+			G.scene.switch("high_scores")
 		elseif self.selected == 3 then
 			G.system.quit()
 		end
@@ -889,67 +1066,4 @@ function Menu:draw()
 	G.graphics.set_color("white")
 end
 
-local Game = {}
-
-function Game:init()
-	G.window.set_title("Space Garbage!")
-	self.state = "menu"
-	Menu:init()
-end
-
-function Game:update(t, dt)
-	if self.state == "menu" then
-		local result = Menu:update(t, dt)
-		if result == "play" then
-			self.state = "playing"
-			G1:init()
-		elseif result == "high_scores" then
-			self.state = "high_scores"
-			HighScoresView:init()
-		end
-	elseif self.state == "high_scores" then
-		local result = HighScoresView:update(t, dt)
-		if result == "back" then
-			self.state = "menu"
-			Menu:init()
-		end
-	elseif self.state == "playing" then
-		G1:update(t, dt)
-		if G1.state == "enter_name" then
-			if G1.music_source then
-				G.sound.stop_source(G1.music_source)
-			end
-			self.state = "name_entry"
-			NameEntry:init(G1.score)
-		elseif G1.state == "back_to_menu" then
-			if G1.music_source then
-				G.sound.stop_source(G1.music_source)
-			end
-			self.state = "menu"
-			Menu:init()
-		end
-	elseif self.state == "name_entry" then
-		NameEntry:update(t, dt)
-		if NameEntry.done then
-			local scores = Scores.load()
-			Scores.insert(scores, NameEntry:get_name(), NameEntry.score)
-			Scores.save(scores)
-			self.state = "high_scores"
-			HighScoresView:init()
-		end
-	end
-end
-
-function Game:draw()
-	if self.state == "menu" then
-		Menu:draw()
-	elseif self.state == "high_scores" then
-		HighScoresView:draw()
-	elseif self.state == "name_entry" then
-		NameEntry:draw()
-	elseif self.state == "playing" then
-		G1:draw()
-	end
-end
-
-return Game
+return { Menu = Menu, Playing = G1 }

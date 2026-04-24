@@ -17,7 +17,7 @@ local Player = Entity:extend()
 function Player:new(x, y)
 	Player.super.new(self, x, y, 0, "playerShip1_green", "player", {
 		category = "player",
-		collides_with = { "meteor", "powerup" },
+		collides_with = { "meteor", "powerup", "enemy", "enemy_bullet" },
 	})
 	self.health = 100
 	self.cooldown = { v = 0, r = 255, g = 255, b = 255, a = 255 }
