@@ -306,7 +306,8 @@ class Lua {
   // Loads a binary protobuf FileDescriptorSet into the pb type registry.
   bool LoadProtoDescriptor(ByteSlice data);
 
-  // Network event callbacks dispatched to _Game:on_connect/on_receive/on_disconnect.
+  // Network event callbacks dispatched to
+  // _Game:on_connect/on_receive/on_disconnect.
   void HandleNetworkConnect(uint32_t peer_id);
   void HandleNetworkDisconnect(uint32_t peer_id);
   void HandleNetworkReceive(uint32_t peer_id, ByteSlice data, uint8_t channel);
@@ -386,6 +387,8 @@ class Lua {
   }
 
   int PackageLoader();
+  // Pushes the active scene table or _Game onto the Lua stack.
+  void PushCallbackTarget();
 
   friend void AddGraphicsLibrary(Lua* lua);
   friend void AddMathLibrary(Lua* lua);
@@ -406,6 +409,7 @@ class Lua {
   friend void AddTestLibrary(Lua* lua);
   friend void AddDataLibrary(Lua* lua, DbAssets* db_assets);
   friend void AddNetworkLibrary(Lua* lua);
+  friend void AddSceneLibrary(Lua* lua);
 
  private:
   int LoadLuaAsset(std::string_view filename, std::string_view script_contents,

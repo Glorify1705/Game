@@ -7,16 +7,17 @@
 #include "lua_bytebuffer.h"
 #include "lua_camera.h"
 #include "lua_collision.h"
+#include "lua_data.h"
 #include "lua_filesystem.h"
 #include "lua_graphics.h"
 #include "lua_input.h"
 #include "lua_json.h"
 #include "lua_log.h"
 #include "lua_math.h"
+#include "lua_network.h"
 #include "lua_physics.h"
 #include "lua_random.h"
-#include "lua_data.h"
-#include "lua_network.h"
+#include "lua_scene.h"
 #include "lua_sound.h"
 #include "lua_system.h"
 #include "lua_test.h"
@@ -92,6 +93,7 @@ void Engine::Initialize() {
   AddJsonLibrary(&lua);
   AddTestLibrary(&lua);
   AddTimerLibrary(&lua);
+  AddSceneLibrary(&lua);
   lua.BuildCompilationCache();
   // Register asset loaders.
   assets->RegisterShaderLoad(

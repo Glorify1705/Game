@@ -6,6 +6,7 @@
 
 #include "clock.h"
 #include "defer.h"
+#include "lua_scene.h"
 #include "sqlite_helpers.h"
 
 namespace G {
@@ -1153,6 +1154,15 @@ void Lua::SetPackagePreload(std::string_view modname) {
   lua_pop(state_, 2);
 }
 
+// Pushes the active scene table (or _Game if scenes aren't active).
+void Lua::PushCallbackTarget() {
+  if (IsSceneActive(state_)) {
+    PushActiveScene(state_);
+  } else {
+    lua_getglobal(state_, "_Game");
+  }
+}
+
 void Lua::Init() {
   LUA_CHECK_STACK(state_);
 
@@ -1178,7 +1188,8 @@ void Lua::Update(float t, float dt) {
   READY();
   t_ = t;
   dt_ = dt;
-  lua_getglobal(state_, "_Game");
+  ProcessPendingTransition(state_);
+  PushCallbackTarget();
   lua_getfield(state_, -1, "update");
   lua_insert(state_, -2);
   lua_pushnumber(state_, static_cast<double>(t));
@@ -1194,7 +1205,7 @@ void Lua::Draw() {
 
   if (!error_.empty()) return;
   READY();
-  lua_getglobal(state_, "_Game");
+  PushCallbackTarget();
   lua_getfield(state_, -1, "draw");
   lua_insert(state_, -2);
   if (lua_pcall(state_, 1, 0, traceback_handler_)) {
@@ -1208,7 +1219,7 @@ void Lua::HandleKeypressed(int scancode) {
 
   if (!error_.empty()) return;
   READY();
-  lua_getglobal(state_, "_Game");
+  PushCallbackTarget();
   lua_getfield(state_, -1, "keypressed");
   if (lua_isnil(state_, -1)) {
     lua_pop(state_, 2);
@@ -1228,7 +1239,7 @@ void Lua::HandleKeyreleased(int scancode) {
 
   if (!error_.empty()) return;
   READY();
-  lua_getglobal(state_, "_Game");
+  PushCallbackTarget();
   lua_getfield(state_, -1, "keyreleased");
   if (lua_isnil(state_, -1)) {
     lua_pop(state_, 2);
@@ -1247,7 +1258,7 @@ void Lua::HandleMousePressed(int button) {
 
   if (!error_.empty()) return;
   READY();
-  lua_getglobal(state_, "_Game");
+  PushCallbackTarget();
   lua_getfield(state_, -1, "mousepressed");
   if (lua_isnil(state_, -1)) {
     lua_pop(state_, 2);
@@ -1266,7 +1277,7 @@ void Lua::HandleTextInput(std::string_view input) {
 
   if (!error_.empty()) return;
   READY();
-  lua_getglobal(state_, "_Game");
+  PushCallbackTarget();
   lua_getfield(state_, -1, "textinput");
   if (lua_isnil(state_, -1)) {
     lua_pop(state_, 2);
@@ -1285,7 +1296,7 @@ void Lua::HandleMouseReleased(int button) {
 
   if (!error_.empty()) return;
   READY();
-  lua_getglobal(state_, "_Game");
+  PushCallbackTarget();
   lua_getfield(state_, -1, "mousereleased");
   if (lua_isnil(state_, -1)) {
     lua_pop(state_, 2);
@@ -1305,7 +1316,7 @@ void Lua::HandleMouseMoved(FVec2 pos, FVec2 delta) {
 
   if (!error_.empty()) return;
   READY();
-  lua_getglobal(state_, "_Game");
+  PushCallbackTarget();
   lua_getfield(state_, -1, "mousemoved");
   if (lua_isnil(state_, -1)) {
     lua_pop(state_, 2);
@@ -1409,7 +1420,7 @@ void Lua::HandleQuit() {
 
   if (!error_.empty()) return;
   READY();
-  lua_getglobal(state_, "_Game");
+  PushCallbackTarget();
   lua_getfield(state_, -1, "quit");
   if (lua_isnil(state_, -1)) {
     lua_pop(state_, 2);
@@ -1441,7 +1452,7 @@ void Lua::HandleNetworkConnect(uint32_t peer_id) {
   LUA_CHECK_STACK(state_);
   if (!error_.empty()) return;
   READY();
-  lua_getglobal(state_, "_Game");
+  PushCallbackTarget();
   lua_getfield(state_, -1, "on_connect");
   if (lua_isnil(state_, -1)) {
     lua_pop(state_, 2);
@@ -1459,7 +1470,7 @@ void Lua::HandleNetworkDisconnect(uint32_t peer_id) {
   LUA_CHECK_STACK(state_);
   if (!error_.empty()) return;
   READY();
-  lua_getglobal(state_, "_Game");
+  PushCallbackTarget();
   lua_getfield(state_, -1, "on_disconnect");
   if (lua_isnil(state_, -1)) {
     lua_pop(state_, 2);
@@ -1478,7 +1489,7 @@ void Lua::HandleNetworkReceive(uint32_t peer_id, ByteSlice data,
   LUA_CHECK_STACK(state_);
   if (!error_.empty()) return;
   READY();
-  lua_getglobal(state_, "_Game");
+  PushCallbackTarget();
   lua_getfield(state_, -1, "on_receive");
   if (lua_isnil(state_, -1)) {
     lua_pop(state_, 2);
