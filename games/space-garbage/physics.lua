@@ -34,6 +34,15 @@ function Physics:apply_force(x, y)
 	G.physics.apply_force(self.handle, x, y)
 end
 
+-- Apply a force in world coordinates. The engine's apply_force uses body-local
+-- coordinates (Box2D GetWorldVector), so we un-rotate by the body's angle first.
+function Physics:apply_world_force(x, y)
+	local a = -G.physics.angle(self.handle)
+	local c = math.cos(a)
+	local s = math.sin(a)
+	G.physics.apply_force(self.handle, c * x - s * y, s * x + c * y)
+end
+
 function Physics:rotate(angle)
 	G.physics.rotate(self.handle, angle)
 end
@@ -60,6 +69,10 @@ end
 
 function Physics:set_angular_velocity(omega)
 	G.physics.set_angular_velocity(self.handle, omega)
+end
+
+function Physics:set_linear_damping(damping)
+	G.physics.set_linear_damping(self.handle, damping)
 end
 
 function Physics:set_fixed_rotation(fixed)

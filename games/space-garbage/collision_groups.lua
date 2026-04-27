@@ -6,6 +6,9 @@ local function register()
 		"meteor",
 		"bullet",
 		"powerup",
+		"enemy",
+		"enemy_bullet",
+		"bomb",
 	})
 end
 

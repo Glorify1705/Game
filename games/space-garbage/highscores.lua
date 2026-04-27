@@ -21,9 +21,9 @@ local NameEntry = {}
 local NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
 local NAME_LENGTH = 3
 
-function NameEntry:init(score)
+function NameEntry:enter(prev, score)
 	self.screen_w, self.screen_h = G.window.dimensions()
-	self.score = score
+	self.score = score or 0
 	self.chars = { 1, 1, 1 }  -- indices into NAME_CHARS
 	self.pos = 1               -- which character we're editing (1..3)
 	self.done = false
@@ -51,7 +51,10 @@ function NameEntry:update(t, dt)
 		if self.pos > 1 then self.pos = self.pos - 1 end
 	end
 	if G.input.is_key_pressed("return") or G.input.is_key_pressed("space") then
-		self.done = true
+		local scores = Scores.load()
+		Scores.insert(scores, self:get_name(), self.score)
+		Scores.save(scores)
+		G.scene.switch("high_scores")
 	end
 end
 
@@ -115,7 +118,7 @@ end
 -- High scores display screen.
 local HighScoresView = {}
 
-function HighScoresView:init()
+function HighScoresView:enter()
 	self.screen_w, self.screen_h = G.window.dimensions()
 	self.scores = Scores.load()
 	self.rnd = Random()
@@ -126,7 +129,7 @@ function HighScoresView:update(t, dt)
 	self.starfield:update(dt)
 	if G.input.is_key_pressed("return") or G.input.is_key_pressed("space")
 		or G.input.is_key_pressed("escape") then
-		return "back"
+		G.scene.switch("menu")
 	end
 end
 

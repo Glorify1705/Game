@@ -1,5 +1,5 @@
 ---
-status: in-design
+status: implemented
 tags: [audio, memory]
 ---
 

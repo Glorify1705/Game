@@ -181,10 +181,10 @@ dist/
 ├── my-game              # Engine binary (renamed to game title)
 ├── assets.sqlite3       # Packed asset database
 └── lib/                 # Shared libraries (platform-dependent)
-    └── libSDL2.so       # (or SDL2.dll on Windows, etc.)
+    └── libSDL3.so       # (or SDL3.dll on Windows, etc.)
 ```
 
-The `lib/` directory contains any dynamically linked libraries the engine depends on. On Linux, the engine binary should be launched with `LD_LIBRARY_PATH` or use `RPATH` set to `$ORIGIN/lib` at link time. On Windows, DLLs placed next to the `.exe` are found automatically. On macOS, `@rpath` or `@executable_path/lib` can be used. If the engine is statically linked against SDL2 (a build option), the `lib/` directory is unnecessary.
+The `lib/` directory contains any dynamically linked libraries the engine depends on. On Linux, the engine binary should be launched with `LD_LIBRARY_PATH` or use `RPATH` set to `$ORIGIN/lib` at link time. On Windows, DLLs placed next to the `.exe` are found automatically. On macOS, `@rpath` or `@executable_path/lib` can be used. If the engine is statically linked against SDL3 (a build option), the `lib/` directory is unnecessary.
 
 The `game package` command discovers which shared libraries are needed by inspecting the engine binary (e.g., `ldd` on Linux, `otool -L` on macOS) and copies them into `lib/`. Libraries that are part of the base OS (libc, libm, libpthread, libGL) are excluded.
 
@@ -216,7 +216,7 @@ Optionally, append the SQLite database to the end of the binary itself. The engi
 
 - `game package` produces a package for the *current* platform only.
 - The engine binary in the package is a copy of the `game` binary itself. It detects "packaged game" mode by the presence of `assets.sqlite3` next to it.
-- Shared libraries (SDL2, etc.) are discovered and copied into `lib/`. The engine binary must be linked with `RPATH=$ORIGIN/lib` (Linux), `@executable_path/lib` (macOS), or rely on DLL search order (Windows).
+- Shared libraries (SDL3, etc.) are discovered and copied into `lib/`. The engine binary must be linked with `RPATH=$ORIGIN/lib` (Linux), `@executable_path/lib` (macOS), or rely on DLL search order (Windows).
 - On macOS, a `.app` bundle could be produced instead of a loose directory (future work).
 - On Windows, the binary gets a `.exe` extension and DLLs go next to the `.exe` directly (no `lib/` subdirectory needed).
 
@@ -455,6 +455,6 @@ Extract the existing `--generate-stubs` code path into a standalone command that
 
 3. **Asset database as implementation detail**: The SQLite database should be invisible to the user in development mode. It's a cache, not a source of truth. The source directory is the truth. This is already how it works; the CLI just makes it explicit.
 
-4. **`game package` binary size**: The engine binary includes SDL2, Box2D, Lua, PhysFS, OpenGL loader, etc. This is unavoidable for a self-contained distributable. Stripping symbols helps. Static linking of SDL2 (instead of dynamic) would remove the DLL dependency on Windows. Current binary size should be documented and tracked.
+4. **`game package` binary size**: The engine binary includes SDL3, Box2D, Lua, PhysFS, OpenGL loader, etc. This is unavoidable for a self-contained distributable. Stripping symbols helps. Static linking of SDL3 (instead of dynamic) would remove the DLL dependency on Windows. Current binary size should be documented and tracked.
 
 5. **Single-file packaging**: See [[Single-file packaging]] for the full design. This is a nice-to-have, not a blocker for the CLI rework.

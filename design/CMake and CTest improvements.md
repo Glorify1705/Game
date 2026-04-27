@@ -250,21 +250,25 @@ This unblocks `game-tidy` so it can be used for ongoing development.
 
 ## Implementation order
 
-### Phase 1: Fix what's broken (small, immediate)
+### Phase 1: Fix what's broken (small, immediate) — DONE
 
-1. Fix preset cache poisoning (explicit defaults in CMakePresets.json)
-2. Fix cmd_atlas.cc tidy errors (3 casts)
-3. Add `ctest --preset dev` to game-test.sh
+1. ~~Fix preset cache poisoning (explicit defaults in CMakePresets.json)~~
+2. ~~Fix cmd_atlas.cc tidy errors (3 casts)~~
+3. ~~Add `ctest --preset dev` to game-test.sh~~
 
-### Phase 2: Improve test infrastructure (medium effort)
+### Phase 2: Improve test infrastructure (medium effort) — DONE
 
-4. Add timeouts and labels to gtest_discover_tests
-5. Add ctest parallel execution preset
-6. Split test.cc into per-subsystem files
+4. ~~Add timeouts and labels to gtest_discover_tests~~
+5. ~~Add ctest parallel execution preset~~
+6. ~~Split test.cc into per-subsystem files~~ — Split into 9 files:
+   `test_allocators.cc`, `test_collision.cc`, `test_containers.cc`,
+   `test_error.cc`, `test_executor.cc`, `test_math.cc`,
+   `test_platform.cc`, `test_strings.cc`, `test_transformations.cc`
+   (2,338 lines, 201 tests)
 
 ### Phase 3: Expand coverage (ongoing)
 
-7. Add mat.h and transformations.cc tests
+7. ~~Add mat.h and transformations.cc tests~~ — DONE (`test_transformations.cc`)
 8. Add color.cc and stats.cc tests
 9. Add xml.cc and qoa.cc tests
-10. Add test fixtures for allocator setup
+10. ~~Add test fixtures for allocator setup~~ — DONE (`BaseTest` in `test_fixture.h`)

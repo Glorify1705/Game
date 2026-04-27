@@ -18,6 +18,7 @@
 #include "lua_particles.h"
 #include "lua_physics.h"
 #include "lua_random.h"
+#include "lua_scene.h"
 #include "lua_sound.h"
 #include "lua_system.h"
 #include "lua_test.h"
@@ -93,6 +94,7 @@ void Engine::Initialize() {
   AddJsonLibrary(&lua);
   AddTestLibrary(&lua);
   AddTimerLibrary(&lua);
+  AddSceneLibrary(&lua);
   AddParticlesLibrary(&lua);
   lua.BuildCompilationCache();
   // Register asset loaders.

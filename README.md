@@ -1,6 +1,51 @@
 # Game Engine
 
-A Lua 5.1 game engine built with C++17, SDL2, and OpenGL. Write games in Lua (or [Fennel](https://fennel-lang.org/)) with built-in physics, audio, asset management, and hot-reloading.
+A 2D game engine written in C++17. Games are scripted in Lua 5.1 (or
+[Fennel](https://fennel-lang.org/)) with built-in physics, audio, collision
+detection, input handling, asset management, and hot-reloading. A CLI tool
+(`game`) drives the workflow: create a project, run it with live reload,
+and package it for distribution.
+
+## Features
+
+- **Graphics** --- Batch renderer with sprites, primitives (rect, circle,
+  triangle, ellipse, rounded rect, lines), SDF text with word-wrap and
+  outlines, transform stack, custom GLSL shaders, off-screen canvases,
+  blend modes, stencil/scissor clipping, screenshots
+- **Physics** --- Box2D rigid-body dynamics with collision categories,
+  contact callbacks, forces/impulses, damping, gravity scaling, CCD
+- **Collision** --- Lightweight spatial-hash broad-phase (separate from
+  Box2D) with circle/AABB shapes, move-and-slide, raycasting, overlap
+  queries
+- **Audio** --- QOA streaming for music, decoded PCM for effects, volume,
+  pitch, panning, looping, global volume control
+- **Input** --- Keyboard (pressed/down/released), mouse (buttons, position,
+  wheel), gamepad (buttons, axes), synthetic input injection for testing
+- **Camera** --- Follow with lerp, deadzone, bounds clamping, screen shake,
+  zoom, rotation, parallax, world/screen coordinate conversion
+- **Timers** --- `after`, `every`, `during`, `tween` (20+ easing curves),
+  `cooldown`, tag-based cancellation, time scaling
+- **Scenes** --- `G.scene` API with register/switch/push/pop, deferred
+  transitions, lifecycle hooks (init/enter/leave/resume), automatic
+  callback routing, overlay support via `draw_below`
+- **Networking** --- ENet reliable UDP with client/server architecture,
+  send/broadcast/receive, peer management
+- **Assets** --- SQLite-backed asset database, automatic packing, hot-reload
+  via inotify, spritesheet support (JSON and XML), single-file packaging
+- **Scripting** --- Lua 5.1 with optional Fennel, LuaLS type stubs for IDE
+  autocomplete, debug UI with ImGui overlay (Tab key)
+- **Tooling** --- CLI workflow (`game init/run/package/stubs`),
+  clang-tidy/clang-format, AddressSanitizer + UBSanitizer, Chrome Tracing
+  profiler, CPU sampling via samply
+
+## Platform support
+
+| Platform | Toolchain | CI | Status |
+|---|---|---|---|
+| Linux x86_64 | GCC | Yes | Primary target |
+| Windows x86_64 | clang-cl | Yes | Supported |
+| macOS arm64 | Apple Clang | Yes | Supported |
+| Linux-to-Windows | MinGW (cross-compile) | No | Supported (SFX packaging) |
 
 ## Quick start
 
@@ -17,12 +62,12 @@ This creates the following project structure:
 
 ```
 my-game/
-├── conf.json              # Window and project configuration
-├── main.lua               # Entry point (must return a game module)
-├── game.lua               # Game module with init/update/draw
-├── .luarc.json            # LuaLS editor configuration
-└── definitions/
-    └── game.lua           # Auto-generated type stubs for IDE support
+  conf.json              # Window and project configuration
+  main.lua               # Entry point (must return a game module)
+  game.lua               # Game module with init/update/draw
+  .luarc.json            # LuaLS editor configuration
+  definitions/
+    game.lua             # Auto-generated type stubs for IDE support
 ```
 
 ### Game lifecycle
@@ -47,11 +92,34 @@ end
 return Game
 ```
 
+### Optional callbacks
+
+The game table may also define these methods. All are optional.
+
+```lua
+function Game:keypressed(scancode)  end
+function Game:keyreleased(scancode) end
+function Game:mousepressed(button)  end
+function Game:mousereleased(button) end
+function Game:mousemoved(x, y, dx, dy) end
+function Game:textinput(text)       end
+function Game:quit()                end
+
+-- Networking (requires G.network)
+function Game:on_connect(peer_id)                   end
+function Game:on_disconnect(peer_id)                end
+function Game:on_receive(peer_id, data, channel)    end
+```
+
 ## CLI reference
 
 ### `game init [directory]`
 
-Create a new project with scaffold files. Uses the current directory if none is specified. Fails if `conf.json` already exists.
+Create a new project with scaffold files. Uses the current directory if none
+is specified. Fails if `conf.json` already exists.
+
+Options: `--fennel` scaffolds with `.fnl` files and includes the Fennel
+compiler.
 
 ### `game run [directory] [flags] [-- game-args...]`
 
@@ -61,6 +129,7 @@ Run a project in development mode.
 |------|-------------|
 | `--no-hotreload` | Disable file watching and hot-reload |
 | `--clean` | Delete cached database and repack all assets |
+| `--test` | Run in test mode (enables `G.test` API) |
 | `--` | Everything after this is forwarded to `G.system.cli_arguments()` |
 
 Assets are cached in `~/.cache/game/<project-hash>/assets.sqlite3`.
@@ -74,10 +143,18 @@ Bundle a project for distribution.
 | `-o, --output <dir>` | Output directory (default: `dist`) |
 | `--name <name>` | Override binary name (default: `app_name` from conf.json) |
 | `--strip` | Strip debug symbols from the binary |
+| `--engine-binary <path>` | Use a pre-built binary (for cross-platform packaging) |
+| `--sfx` | Produce a self-extracting .7z.exe archive (Windows) |
 
 ### `game stubs [--output <path>]`
 
 Regenerate LuaLS type stubs. Default output: `definitions/game.lua`.
+
+### `game convert`, `game atlas`
+
+Asset conversion tools. `convert` transcodes images (PNG to QOI) and audio
+(WAV/OGG resampling). `atlas` packs individual sprites into a spritesheet
+with a JSON metadata file.
 
 ### `game version`
 
@@ -119,7 +196,7 @@ is curated for browsing.
 -- Clear / color
 G.graphics.clear([r, g, b, a])
 G.graphics.set_color(name)              -- Named color, or:
-G.graphics.set_color(r, g, b, a)
+G.graphics.set_color(r, g, b, a)        -- 0-255 range
 
 -- Sprites and primitives
 G.graphics.draw_sprite(name, x, y [, angle])
@@ -221,26 +298,50 @@ G.input.get_controller_axis(axis) -> number
 Text input is delivered to the game module through the
 `Game:textinput(input)` callback rather than a polling API.
 
-### G.math
+### G.scene
+
+Scene/state management with a stack-based model. Scenes are plain Lua
+tables with optional lifecycle methods. Transitions are deferred to the
+start of the next frame.
 
 ```lua
-G.math.clamp(x, low, high) -> number
-
--- Vectors
-G.math.v2(x, y) -> vec2
-G.math.v3(x, y, z) -> vec3
-G.math.v4(x, y, z, w) -> vec4
-
--- Matrices (row-major order)
-G.math.m2x2(v1..v4)  -> mat2x2
-G.math.m3x3(v1..v9)  -> mat3x3
-G.math.m4x4(v1..v16) -> mat4x4
+G.scene.register(name, table)              -- Register a scene by name
+G.scene.switch(name, ...)                  -- Replace current scene
+G.scene.push(name, ...)                    -- Push overlay scene
+G.scene.pop(...)                           -- Pop top scene
+G.scene.current() -> string | nil          -- Active scene name
+G.scene.depth() -> integer                 -- Stack depth
+G.scene.draw_below()                       -- Draw the scene below current
 ```
 
-Vector methods (`vec2`, `vec3`, `vec4`): `dot(other)`, `len2()`,
-`normalized()`, `send_as_uniform(name)`. Operators: `+`, `-`, `* (scalar)`.
+Scene lifecycle callbacks (all optional):
 
-Matrix methods (`mat2x2`, `mat3x3`, `mat4x4`): `send_as_uniform(name)`.
+```lua
+function Scene:init()                      -- Once, before first enter
+function Scene:enter(prev_name, ...)       -- Each time scene becomes active
+function Scene:leave()                     -- When transitioning away
+function Scene:resume(...)                 -- When a pushed scene above is popped
+function Scene:update(t, dt)               -- Per-frame update
+function Scene:draw()                      -- Per-frame draw
+```
+
+Example with scenes:
+
+```lua
+-- main.lua
+local Menu = require("menu")
+local Game = require("game")
+
+G.scene.register("menu", Menu)
+G.scene.register("game", Game)
+G.scene.switch("menu")
+
+local Stub = {}
+function Stub:init() end
+function Stub:update() end
+function Stub:draw() end
+return Stub
+```
 
 ### G.physics
 
@@ -252,11 +353,11 @@ adding any dynamic bodies.
 -- Setup
 G.physics.create_ground([walls])           -- walls=true adds screen-edge fixtures
 G.physics.set_collision_categories({ "player", "enemy", ... })
-G.physics.on_begin_contact(function(a, b) ... end)               -- begin contact
-G.physics.on_end_contact(function(a, b) ... end)                 -- end contact / sensor exit
+G.physics.on_begin_contact(function(a, b) ... end)
+G.physics.on_end_contact(function(a, b) ... end)
 
--- Bodies (options table is optional: density, friction, restitution,
--- sensor, category, mask)
+-- Bodies (options: density, friction, restitution, sensor, category, mask,
+-- body_type = "dynamic"/"kinematic"/"static")
 G.physics.add_box(tx, ty, bx, by, angle, userdata [, options]) -> physics_handle
 G.physics.add_circle(cx, cy, radius, userdata [, options]) -> physics_handle
 G.physics.destroy_handle(handle)
@@ -267,7 +368,6 @@ G.physics.set_position(handle, x, y)
 G.physics.angle(handle) -> radians
 G.physics.rotate(handle, angle)
 G.physics.set_fixed_rotation(handle, fixed)
-G.physics.get_fixed_rotation(handle) -> boolean
 
 -- Velocity
 G.physics.linear_velocity(handle) -> vx, vy
@@ -276,20 +376,20 @@ G.physics.angular_velocity(handle) -> omega
 G.physics.set_angular_velocity(handle, omega)
 
 -- Forces and impulses
-G.physics.apply_force(handle, x, y)
-G.physics.apply_linear_impulse(handle, x, y)
+G.physics.apply_force(handle, x, y)              -- Body-local coordinates
+G.physics.apply_linear_impulse(handle, x, y)     -- World coordinates
 G.physics.apply_torque(handle, torque)
 
 -- Body tuning
 G.physics.set_linear_damping(handle, damping)
 G.physics.set_angular_damping(handle, damping)
 G.physics.set_gravity_scale(handle, scale)
-G.physics.set_bullet(handle, bullet)        -- Continuous collision detection
+G.physics.set_bullet(handle, bullet)              -- Continuous collision detection
 ```
 
 ### G.collision
 
-Lightweight broad-phase collision world (separate from Box2D — use this
+Lightweight broad-phase collision world (separate from Box2D --- use this
 for kinematic / character controllers and queries).
 
 ```lua
@@ -382,6 +482,57 @@ G.timer.exists(tag) -> boolean
 G.timer.set_real_time(tag, real_time)      -- Ignore time scale
 ```
 
+Easing functions: `linear`, `quad`, `cubic`, `quart`, `quint`, `sine`,
+`expo`, `circ`, `back`, `bounce`, `elastic`. Each supports `in-`, `out-`,
+`in-out-`, `out-in-` prefixes (e.g. `"out-quad"`).
+
+### G.network
+
+ENet-based reliable UDP networking.
+
+```lua
+G.network.create_server(port [, max_clients]) -> boolean
+G.network.create_client() -> boolean
+G.network.connect(host, port) -> boolean
+G.network.disconnect()
+G.network.send(peer_id, data [, channel, flag])
+G.network.broadcast(data [, channel, flag])
+G.network.peer_count() -> integer
+G.network.is_server() -> boolean
+```
+
+Incoming events are delivered via callbacks on the game module:
+`on_connect(peer_id)`, `on_disconnect(peer_id)`,
+`on_receive(peer_id, data, channel)`.
+
+### G.json
+
+```lua
+G.json.encode(value) -> string
+G.json.decode(string) -> value
+```
+
+### G.math
+
+```lua
+G.math.clamp(x, low, high) -> number
+
+-- Vectors
+G.math.v2(x, y) -> vec2
+G.math.v3(x, y, z) -> vec3
+G.math.v4(x, y, z, w) -> vec4
+
+-- Matrices (row-major order)
+G.math.m2x2(v1..v4)  -> mat2x2
+G.math.m3x3(v1..v9)  -> mat3x3
+G.math.m4x4(v1..v16) -> mat4x4
+```
+
+Vector methods (`vec2`, `vec3`, `vec4`): `dot(other)`, `len2()`,
+`normalized()`, `send_as_uniform(name)`. Operators: `+`, `-`, `* (scalar)`.
+
+Matrix methods (`mat2x2`, `mat3x3`, `mat4x4`): `send_as_uniform(name)`.
+
 ### G.system
 
 ```lua
@@ -449,6 +600,9 @@ G.data.hash(data) -> number       -- Hash a string or byte_buffer
 ```lua
 G.log.set_level(channel, level)
 G.log.get_level(channel) -> string
+G.log.info(message)
+G.log.warn(message)
+G.log.error(message)
 ```
 
 Channels: `general`, `graphics`, `physics`, `audio`, `input`, `assets`,
@@ -489,7 +643,8 @@ G.test.assert_true(cond [, msg])
 
 ## Asset pipeline
 
-Place assets in an `assets/` directory in your project. They are packed into an SQLite database automatically when running or packaging.
+Place assets in your project directory. They are packed into an SQLite
+database automatically when running or packaging.
 
 ### Supported formats
 
@@ -520,29 +675,95 @@ XML spritesheets using the TextureAtlas format are also supported.
 
 ### Hot-reload
 
-In development mode (`game run`), the engine watches the project directory for changes using inotify. When a file changes, assets are repacked and scripts are reloaded automatically. Disable with `--no-hotreload`.
+In development mode (`game run`), the engine watches the project directory
+for changes using inotify. When a file changes, assets are repacked and
+scripts are reloaded automatically. Disable with `--no-hotreload`.
+
+## Example games
+
+The `games/` directory contains example projects:
+
+- **space-garbage/** --- Asteroids-style shooter with menus, waves of
+  splitting meteors, three enemy types (chaser, turret, bomber), powerups,
+  high scores, CRT shader, parallax starfield. Demonstrates the scene
+  system, FSM-based AI, and steering behaviors.
+- **flappybird/** --- Classic Flappy Bird clone written in Fennel.
+
+The `assets/` directory contains additional test programs (testdrawing,
+pong, etc.) used during engine development.
 
 ## Building from source
 
-Requires CMake 3.21+, a C++17 compiler, SDL2, and OpenGL.
+Requires CMake 3.21+, a C++17 compiler, and SDL3 (vendored). OpenGL
+headers are required from the system.
 
 ```bash
-cmake -B build
+cmake -G Ninja -B build
 cmake --build build
 ```
 
-### System dependencies
+With the [devenv](https://devenv.sh/) development environment (recommended):
 
-- **SDL2** - install via your package manager (`libsdl2-dev`, `sdl2`, etc.)
-- **OpenGL** - typically provided by your graphics driver
+```bash
+game-build          # CMake configure + Ninja build
+game-test           # Build and run tests (GoogleTest, always with sanitizers)
+game-run            # Run the engine with hot-reload
+game-format         # clang-format all source files
+game-tidy           # Run clang-tidy
+game-clean          # Clean build artifacts
+```
+
+Additional devenv commands: `game-debug` (GDB), `game-profile` (gperftools),
+`game-samply` (CPU sampling profiler), `game-sanitize` (ASan+UBSan build),
+`game-build-win64` (MinGW cross-compilation to Windows).
 
 ### Bundled libraries
 
-Box2D, Lua 5.1, PhysFS, mimalloc, glad, stb_truetype, stb_rect_pack, stb_vorbis, dr_wav, pugixml, sqlite3, double-conversion.
+All dependencies are vendored --- no system packages required beyond a C++17
+compiler, OpenGL headers, and standard platform libraries.
+
+Box2D, Lua 5.1, SDL3, PhysFS, ENet, mimalloc, glad, GoogleTest,
+stb_truetype, stb_rect_pack, stb_image, stb_image_write, stb_vorbis,
+dr_wav, pugixml, sqlite3, double-conversion, yyjson, backward-cpp,
+pcg-random, Dear ImGui.
+
+## Project structure
+
+```
+src/                 C++ engine source (~80 files)
+libraries/           Vendored third-party libraries
+games/               Example game projects
+assets/              Test programs, sprites, shaders, audio
+tests/               GoogleTest suite (201 tests, 9 files)
+design/              Design documents and architecture notes
+scripts/             Build and development helper scripts
+cmake/               CMake toolchain files (MinGW, osxcross)
+.github/workflows/   CI configuration (Linux, Windows, macOS)
+```
+
+### Source organization
+
+All engine code lives in `src/` under namespace `G`. Major subsystems:
+
+| Subsystem | Files | Description |
+|-----------|-------|-------------|
+| Core | `game.cc`, `engine.cc`, `config.cc`, `clock.cc`, `platform.cc` | Main loop, SDL init, hot-reload |
+| Graphics | `renderer.cc`, `shaders.cc`, `image.cc`, `color.cc` | Batch renderer, textures, shaders |
+| Audio | `sound.cc`, `qoa.cc` | SDL audio callback, QOA codec |
+| Physics | `physics.cc`, `collision.cc`, `collision_world.cc` | Box2D wrapper, spatial hash |
+| Input | `input.cc` | Keyboard, mouse, gamepad |
+| Assets | `assets.cc`, `packer.cc`, `filesystem.cc` | SQLite asset DB, packing pipeline |
+| Lua bindings | `lua_*.cc` (18 files) | `G.*` API exposed to scripts |
+| CLI | `cmd_run.cc`, `cmd_package.cc`, `cmd_init.cc`, `cmd_stubs.cc` | Subcommand implementations |
+| Data structures | `vec.h`, `mat.h`, `array.h`, `dictionary.h`, `allocators.h` | Header-only containers |
+| Threading | `executor.cc` | Thread pool with work stealing |
+| Debug | `debug_ui.cc`, `logging.cc`, `stats.cc`, `profiler.cc` | ImGui overlay, tracing |
 
 ## Static analysis
 
-These tools require the [devenv](https://devenv.sh/) development environment, which provides wrapped versions of clang-tidy and clang-include-cleaner with the correct Nix include paths.
+These tools require the [devenv](https://devenv.sh/) development
+environment, which provides wrapped versions of clang-tidy and
+clang-include-cleaner with the correct Nix include paths.
 
 ### clang-tidy
 
@@ -550,7 +771,8 @@ These tools require the [devenv](https://devenv.sh/) development environment, wh
 game-tidy
 ```
 
-Builds the project with clang-tidy enabled. Findings are treated as errors. Configuration lives in `.clang-tidy`.
+Builds the project with clang-tidy enabled. Findings are treated as errors.
+Configuration lives in `.clang-tidy`.
 
 ### Unused include detection
 
@@ -558,7 +780,8 @@ Builds the project with clang-tidy enabled. Findings are treated as errors. Conf
 game-include-cleaner
 ```
 
-Runs `clang-include-cleaner` on all engine sources, reporting only unused `#include` directives (insertions are disabled). Requires a compile database in `build/` (generated automatically).
+Runs `clang-include-cleaner` on all engine sources, reporting only unused
+`#include` directives (insertions are disabled).
 
 ### Sanitizers (ASan + UBSan)
 
@@ -566,7 +789,8 @@ Runs `clang-include-cleaner` on all engine sources, reporting only unused `#incl
 game-sanitize
 ```
 
-Builds a Debug binary with AddressSanitizer and UndefinedBehaviorSanitizer enabled. The test binary always has sanitizers on.
+Builds a Debug binary with AddressSanitizer and UndefinedBehaviorSanitizer
+enabled. The test binary always has sanitizers on.
 
 ## Asset credits
 

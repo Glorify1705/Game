@@ -207,6 +207,7 @@ set(ENGINE_SRCS
     src/lua_sound.cc
     src/lua_system.cc
     src/lua_test.cc
+    src/lua_scene.cc
     src/lua_timer.cc
     src/lua_math.cc
     src/physics.cc

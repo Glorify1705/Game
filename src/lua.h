@@ -387,6 +387,8 @@ class Lua {
   }
 
   int PackageLoader();
+  // Pushes the active scene table or _Game onto the Lua stack.
+  void PushCallbackTarget();
 
   friend void AddGraphicsLibrary(Lua* lua);
   friend void AddMathLibrary(Lua* lua);
@@ -407,6 +409,7 @@ class Lua {
   friend void AddTestLibrary(Lua* lua);
   friend void AddDataLibrary(Lua* lua, DbAssets* db_assets);
   friend void AddNetworkLibrary(Lua* lua);
+  friend void AddSceneLibrary(Lua* lua);
   friend void AddParticlesLibrary(Lua* lua);
 
  private:

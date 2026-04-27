@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: partially-implemented
 tags: [build, cross-compilation, packaging, portability, sfx]
 ---
 
@@ -46,7 +46,7 @@ run directly.
 | Vendored SDL2 Windows libs are stale | **Fixed.** Deleted; SDL3 vendored from source |
 | MSVC compatibility unverified | Deferred — MinGW uses GCC, no issue for cross-compilation |
 | No SDL3 Windows libraries vendored | **Fixed.** SDL3 built via `add_subdirectory()` |
-| No CI for Windows builds | Pending (Phase 4) |
+| No CI for Windows builds | **Fixed.** GitHub Actions CI with clang-cl |
 
 ## Current state
 
@@ -322,35 +322,18 @@ platform-specific code already exists:
 | backward.h | ✅ Done | Detects `BACKWARD_SYSTEM_DARWIN` |
 | All vendored libs | ✅ Portable | Box2D, Lua, SQLite, mimalloc, etc. |
 
-### Blocking issue: OpenGL version
+### OpenGL version — RESOLVED
 
-The engine requests an **OpenGL 4.6** context and uses `#version 460 core`
-shaders. **macOS supports OpenGL 4.1 maximum** (deprecated since 10.14 but
-still functional on both Intel and Apple Silicon via a Metal translation
-layer).
+The engine was downgraded from OpenGL 4.6 to **OpenGL 4.1 core profile**
+with `#version 410 core` shaders. macOS supports OpenGL 4.1 maximum
+(deprecated since 10.14 but still functional on both Intel and Apple
+Silicon via a Metal translation layer). GLAD was regenerated for 4.1.
 
-However, the engine's actual GL usage fits within **OpenGL 3.3**:
-
-- No DSA calls (GL 4.5)
-- No compute shaders (GL 4.3)
-- No buffer storage (GL 4.4)
-- `glDebugMessageCallback` (GL 4.3) is already guarded behind
-  `GLAD_GL_VERSION_4_3 && GLAD_GL_KHR_debug`
-- All shader features (`layout(location)`, `dFdx`/`dFdy`, `smoothstep`)
-  are GLSL 3.30
-
-**Fix:** Change `SDL_GL_CONTEXT_MAJOR_VERSION` from 4 to 3 (or 4/1),
-change all `#version 460 core` to `#version 330 core` (or `#version 410
-core`), and regenerate GLAD for the lower version. This is a small,
-mechanical change (~10 lines).
-
-**Alternatives:**
-- [MGL](https://github.com/openglonmetal/MGL) — OpenGL 4.6 on Metal
-  (incomplete, macOS-only)
-- [ANGLE](https://chromium.googlesource.com/angle/angle) — OpenGL ES on
-  Metal (production-grade, but requires ES porting)
-- SDL3 GPU API — cross-platform Metal/Vulkan/D3D12 abstraction (requires
-  renderer rewrite)
+The engine's actual GL usage fits within OpenGL 3.3 — no DSA, compute,
+buffer storage, or geometry shaders. `glDebugMessageCallback` (GL 4.3) is
+guarded behind `GLAD_GL_VERSION_4_3 && GLAD_GL_KHR_debug`. A further
+downgrade to 3.3 is possible if needed for broader compatibility (see
+[[Multiplatform support]]).
 
 ### Cross-compilation: osxcross
 
@@ -464,10 +447,11 @@ set_target_properties(Game PROPERTIES
 
 ### Implementation plan
 
-1. **GL version downgrade** — change context request and shader versions
-   from 4.6 to 4.1 (or 3.3). Regenerate GLAD. ~10 lines.
-2. **CMakePresets.json** — add a `macos` preset.
-3. **GitHub Actions CI** — add `macos-14` runner job for automated builds.
+1. ~~**GL version downgrade**~~ DONE. Changed to OpenGL 4.1 core profile,
+   `#version 410 core` shaders. GLAD regenerated.
+2. ~~**CMakePresets.json**~~ DONE. macOS presets added.
+3. ~~**GitHub Actions CI**~~ DONE. `macos-14` (Apple Silicon) runner in
+   `build.yml`, building and testing alongside Linux and Windows.
 4. **App bundling** — `game package` support for `.app` creation.
 5. **FSEvents file watcher** — implement the macOS backend for hot reload
    (optional, polling fallback works).
