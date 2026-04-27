@@ -71,6 +71,12 @@ ErrorOr<void> GetExeDir(char* out, size_t out_size);
 ErrorOr<void> GetCwd(char* out, size_t out_size);
 void GetUserCacheDir(const char* app_name, char* out, size_t out_size);
 
+// Writes the platform-specific persistent save directory for the given app.
+// Linux: $XDG_DATA_HOME/<app>/ or ~/.local/share/<app>/
+// Windows: %APPDATA%\<app>\
+// macOS: ~/Library/Application Support/<app>/
+void GetUserSaveDir(const char* app_name, char* out, size_t out_size);
+
 // Platform constants.
 extern const char* const kExeExtension;
 

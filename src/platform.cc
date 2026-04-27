@@ -271,6 +271,30 @@ void GetUserCacheDir(const char* app_name, char* out, size_t out_size) {
 #endif
 }
 
+void GetUserSaveDir(const char* app_name, char* out, size_t out_size) {
+#ifdef _WIN32
+  const char* app_data = getenv("APPDATA");
+  if (app_data != nullptr) {
+    snprintf(out, out_size, "%s\\%s", app_data, app_name);
+  } else {
+    snprintf(out, out_size, ".\\%s-save", app_name);
+  }
+#elif defined(__APPLE__)
+  const char* home = getenv("HOME");
+  if (home == nullptr) home = "/tmp";
+  snprintf(out, out_size, "%s/Library/Application Support/%s", home, app_name);
+#else
+  const char* xdg_data = getenv("XDG_DATA_HOME");
+  if (xdg_data != nullptr && xdg_data[0] != '\0') {
+    snprintf(out, out_size, "%s/%s", xdg_data, app_name);
+  } else {
+    const char* home = getenv("HOME");
+    if (home == nullptr) home = "/tmp";
+    snprintf(out, out_size, "%s/.local/share/%s", home, app_name);
+  }
+#endif
+}
+
 #ifdef _WIN32
 const char* const kExeExtension = ".exe";
 #else

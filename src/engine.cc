@@ -18,11 +18,13 @@
 #include "lua_particles.h"
 #include "lua_physics.h"
 #include "lua_random.h"
+#include "lua_save.h"
 #include "lua_scene.h"
 #include "lua_sound.h"
 #include "lua_system.h"
 #include "lua_test.h"
 #include "lua_timer.h"
+#include "platform.h"
 #include "sdl_init.h"
 #include "units.h"
 #include "vec.h"
@@ -38,6 +40,7 @@ Engine::Engine(Slice<const char*> args, sqlite3* db_, DbAssets* db_assets,
       assets(db_assets),
       config(config_),
       filesystem(allocator),
+      save(allocator),
       window(sdl_window),
       shaders(allocator),
       batch_renderer(GetWindowViewport(sdl_window), &shaders, allocator),
@@ -58,6 +61,13 @@ Engine::Engine(Slice<const char*> args, sqlite3* db_, DbAssets* db_assets,
 void Engine::Initialize() {
   TIMER();
   filesystem.Initialize(config);
+  // Open the persistent save database.
+  char save_dir[1024];
+  GetUserSaveDir(config.app_name, save_dir, sizeof(save_dir));
+  auto save_result = save.Open(save_dir);
+  if (save_result.is_error()) {
+    ELOG("Failed to open save database at ", save_dir);
+  }
   lua.LoadLibraries();
   lua.Register(&shaders);
   lua.Register(&batch_renderer);
@@ -76,6 +86,7 @@ void Engine::Initialize() {
   lua.Register(assets);
   lua.Register(&timers);
   lua.Register(&frame_allocator);
+  lua.Register(&save);
   AddByteBufferLibrary(&lua);
   AddCameraLibrary(&lua);
   AddFilesystemLibrary(&lua);
@@ -96,6 +107,7 @@ void Engine::Initialize() {
   AddTimerLibrary(&lua);
   AddSceneLibrary(&lua);
   AddParticlesLibrary(&lua);
+  AddSaveLibrary(&lua);
   lua.BuildCompilationCache();
   // Register asset loaders.
   assets->RegisterShaderLoad(

@@ -411,6 +411,7 @@ class Lua {
   friend void AddNetworkLibrary(Lua* lua);
   friend void AddSceneLibrary(Lua* lua);
   friend void AddParticlesLibrary(Lua* lua);
+  friend void AddSaveLibrary(Lua* lua);
 
  private:
   int LoadLuaAsset(std::string_view filename, std::string_view script_contents,
