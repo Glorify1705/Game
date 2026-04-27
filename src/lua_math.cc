@@ -1,6 +1,7 @@
 #include "lua_math.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "math.h"
 #include "shaders.h"
@@ -58,6 +59,148 @@ const struct LuaApiFunction kMathLib[] = {
        const float low = luaL_checknumber(state, 2);
        const float high = luaL_checknumber(state, 3);
        lua_pushnumber(state, std::clamp(x, low, high));
+       return 1;
+     }},
+    {"lerp",
+     "Linearly interpolates between a and b",
+     {{"a", "start value", "number"},
+      {"b", "end value", "number"},
+      {"t", "interpolation factor (0-1)", "number"}},
+     {{"result", "interpolated value", "number"}},
+     [](lua_State* state) {
+       const float a = luaL_checknumber(state, 1);
+       const float b = luaL_checknumber(state, 2);
+       const float t = luaL_checknumber(state, 3);
+       lua_pushnumber(state, a + (b - a) * t);
+       return 1;
+     }},
+    {"inverse_lerp",
+     "Returns the interpolation factor for x between a and b",
+     {{"a", "start value", "number"},
+      {"b", "end value", "number"},
+      {"x", "value to find factor for", "number"}},
+     {{"t", "interpolation factor", "number"}},
+     [](lua_State* state) {
+       const float a = luaL_checknumber(state, 1);
+       const float b = luaL_checknumber(state, 2);
+       const float x = luaL_checknumber(state, 3);
+       lua_pushnumber(state, (b != a) ? (x - a) / (b - a) : 0.0f);
+       return 1;
+     }},
+    {"remap",
+     "Remaps x from range [a1,b1] to range [a2,b2]",
+     {{"x", "value to remap", "number"},
+      {"a1", "source range start", "number"},
+      {"b1", "source range end", "number"},
+      {"a2", "target range start", "number"},
+      {"b2", "target range end", "number"}},
+     {{"result", "remapped value", "number"}},
+     [](lua_State* state) {
+       const float x = luaL_checknumber(state, 1);
+       const float a1 = luaL_checknumber(state, 2);
+       const float b1 = luaL_checknumber(state, 3);
+       const float a2 = luaL_checknumber(state, 4);
+       const float b2 = luaL_checknumber(state, 5);
+       const float t = (b1 != a1) ? (x - a1) / (b1 - a1) : 0.0f;
+       lua_pushnumber(state, a2 + (b2 - a2) * t);
+       return 1;
+     }},
+    {"sign",
+     "Returns -1, 0, or 1 depending on the sign of x",
+     {{"x", "the value", "number"}},
+     {{"result", "-1, 0, or 1", "number"}},
+     [](lua_State* state) {
+       const float x = luaL_checknumber(state, 1);
+       lua_pushnumber(state, (x > 0.0f) ? 1.0f : (x < 0.0f) ? -1.0f : 0.0f);
+       return 1;
+     }},
+    {"round",
+     "Rounds x to the nearest integer",
+     {{"x", "the value to round", "number"}},
+     {{"result", "rounded value", "number"}},
+     [](lua_State* state) {
+       lua_pushnumber(state, std::round(luaL_checknumber(state, 1)));
+       return 1;
+     }},
+    {"distance",
+     "Euclidean distance between two 2D points",
+     {{"x1", "first point x", "number"},
+      {"y1", "first point y", "number"},
+      {"x2", "second point x", "number"},
+      {"y2", "second point y", "number"}},
+     {{"dist", "distance", "number"}},
+     [](lua_State* state) {
+       const float dx = luaL_checknumber(state, 3) - luaL_checknumber(state, 1);
+       const float dy = luaL_checknumber(state, 4) - luaL_checknumber(state, 2);
+       lua_pushnumber(state, std::sqrt(dx * dx + dy * dy));
+       return 1;
+     }},
+    {"distance2",
+     "Squared distance between two 2D points (no sqrt)",
+     {{"x1", "first point x", "number"},
+      {"y1", "first point y", "number"},
+      {"x2", "second point x", "number"},
+      {"y2", "second point y", "number"}},
+     {{"dist2", "squared distance", "number"}},
+     [](lua_State* state) {
+       const float dx = luaL_checknumber(state, 3) - luaL_checknumber(state, 1);
+       const float dy = luaL_checknumber(state, 4) - luaL_checknumber(state, 2);
+       lua_pushnumber(state, dx * dx + dy * dy);
+       return 1;
+     }},
+    {"angle",
+     "Angle in radians from point (x1,y1) to (x2,y2)",
+     {{"x1", "from x", "number"},
+      {"y1", "from y", "number"},
+      {"x2", "to x", "number"},
+      {"y2", "to y", "number"}},
+     {{"radians", "angle in radians", "number"}},
+     [](lua_State* state) {
+       const float dx = luaL_checknumber(state, 3) - luaL_checknumber(state, 1);
+       const float dy = luaL_checknumber(state, 4) - luaL_checknumber(state, 2);
+       lua_pushnumber(state, std::atan2(dy, dx));
+       return 1;
+     }},
+    {"direction",
+     "Converts an angle and magnitude to x,y components",
+     {{"angle", "angle in radians", "number"},
+      {"magnitude", "length (default 1)", "number?"}},
+     {{"x", "x component", "number"}, {"y", "y component", "number"}},
+     [](lua_State* state) {
+       const float angle = luaL_checknumber(state, 1);
+       const float mag = luaL_optnumber(state, 2, 1.0);
+       lua_pushnumber(state, std::cos(angle) * mag);
+       lua_pushnumber(state, std::sin(angle) * mag);
+       return 2;
+     }},
+    {"smoothstep",
+     "Hermite smoothstep interpolation between edge0 and edge1",
+     {{"edge0", "lower edge", "number"},
+      {"edge1", "upper edge", "number"},
+      {"x", "value to interpolate", "number"}},
+     {{"result", "smoothed value in [0,1]", "number"}},
+     [](lua_State* state) {
+       const float edge0 = luaL_checknumber(state, 1);
+       const float edge1 = luaL_checknumber(state, 2);
+       const float x = luaL_checknumber(state, 3);
+       float t = std::clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+       lua_pushnumber(state, t * t * (3.0f - 2.0f * t));
+       return 1;
+     }},
+    {"radians",
+     "Converts degrees to radians",
+     {{"degrees", "angle in degrees", "number"}},
+     {{"radians", "angle in radians", "number"}},
+     [](lua_State* state) {
+       lua_pushnumber(state, luaL_checknumber(state, 1) * (M_PI / 180.0));
+       return 1;
+     }},
+    {"degrees",
+     "Converts radians to degrees",
+     {{"radians", "angle in radians", "number"}},
+     {{"degrees", "angle in degrees", "number"}},
+     [](lua_State* state) {
+       lua_pushnumber(state, luaL_checknumber(state, 1) * (180.0 / M_PI));
        return 1;
      }},
     {"v2",
@@ -175,11 +318,93 @@ constexpr luaL_Reg kV2Methods[] = {
        lua_pushnumber(state, v->Length2());
        return 1;
      }},
+    {"length",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec2>(state, 1);
+       lua_pushnumber(state, v->Length());
+       return 1;
+     }},
     {"normalized",
      [](lua_State* state) {
        auto* v = AsUserdata<FVec2>(state, 1);
        NewUserdata<FVec2>(state, v->Normalized());
        return 1;
+     }},
+    {"distance",
+     [](lua_State* state) {
+       auto* a = AsUserdata<FVec2>(state, 1);
+       auto* b = AsUserdata<FVec2>(state, 2);
+       FVec2 d = *a - *b;
+       lua_pushnumber(state, d.Length());
+       return 1;
+     }},
+    {"distance2",
+     [](lua_State* state) {
+       auto* a = AsUserdata<FVec2>(state, 1);
+       auto* b = AsUserdata<FVec2>(state, 2);
+       FVec2 d = *a - *b;
+       lua_pushnumber(state, d.Length2());
+       return 1;
+     }},
+    {"angle",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec2>(state, 1);
+       lua_pushnumber(state, std::atan2(v->y, v->x));
+       return 1;
+     }},
+    {"angle_between",
+     [](lua_State* state) {
+       auto* a = AsUserdata<FVec2>(state, 1);
+       auto* b = AsUserdata<FVec2>(state, 2);
+       lua_pushnumber(state, std::atan2(b->y - a->y, b->x - a->x));
+       return 1;
+     }},
+    {"lerp",
+     [](lua_State* state) {
+       auto* a = AsUserdata<FVec2>(state, 1);
+       auto* b = AsUserdata<FVec2>(state, 2);
+       float t = luaL_checknumber(state, 3);
+       NewUserdata<FVec2>(state, a->x + (b->x - a->x) * t,
+                          a->y + (b->y - a->y) * t);
+       return 1;
+     }},
+    {"rotate",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec2>(state, 1);
+       float angle = luaL_checknumber(state, 2);
+       float c = std::cos(angle);
+       float s = std::sin(angle);
+       NewUserdata<FVec2>(state, v->x * c - v->y * s, v->x * s + v->y * c);
+       return 1;
+     }},
+    {"perpendicular",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec2>(state, 1);
+       NewUserdata<FVec2>(state, -v->y, v->x);
+       return 1;
+     }},
+    {"reflect",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec2>(state, 1);
+       auto* n = AsUserdata<FVec2>(state, 2);
+       float d = 2.0f * v->Dot(*n);
+       NewUserdata<FVec2>(state, v->x - d * n->x, v->y - d * n->y);
+       return 1;
+     }},
+    {"project",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec2>(state, 1);
+       auto* onto = AsUserdata<FVec2>(state, 2);
+       float d = v->Dot(*onto) / onto->Length2();
+       NewUserdata<FVec2>(state, onto->x * d, onto->y * d);
+       return 1;
+     }},
+    {"unpack",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec2>(state, 1);
+       lua_pushnumber(state, v->x);
+       lua_pushnumber(state, v->y);
+       return 2;
      }},
     {"__add",
      [](lua_State* state) {
@@ -206,6 +431,12 @@ constexpr luaL_Reg kV2Methods[] = {
          const float w = luaL_checknumber(state, 2);
          NewUserdata<FVec2>(state, (*v) * w);
        }
+       return 1;
+     }},
+    {"__unm",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec2>(state, 1);
+       NewUserdata<FVec2>(state, -(*v));
        return 1;
      }},
     {"__tostring",
@@ -242,18 +473,41 @@ constexpr luaL_Reg kV3Methods[] = {
        lua_pushnumber(state, v->Length2());
        return 1;
      }},
-    {"__tostring",
+    {"length",
      [](lua_State* state) {
        auto* v = AsUserdata<FVec3>(state, 1);
-       FixedStringBuffer<64> buf;
-       buf.Append(*v);
-       lua_pushlstring(state, buf.str(), buf.size());
+       lua_pushnumber(state, v->Length());
        return 1;
      }},
     {"normalized",
      [](lua_State* state) {
        auto* v = AsUserdata<FVec3>(state, 1);
        NewUserdata<FVec3>(state, v->Normalized());
+       return 1;
+     }},
+    {"lerp",
+     [](lua_State* state) {
+       auto* a = AsUserdata<FVec3>(state, 1);
+       auto* b = AsUserdata<FVec3>(state, 2);
+       float t = luaL_checknumber(state, 3);
+       NewUserdata<FVec3>(state, a->x + (b->x - a->x) * t,
+                          a->y + (b->y - a->y) * t, a->z + (b->z - a->z) * t);
+       return 1;
+     }},
+    {"unpack",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec3>(state, 1);
+       lua_pushnumber(state, v->x);
+       lua_pushnumber(state, v->y);
+       lua_pushnumber(state, v->z);
+       return 3;
+     }},
+    {"__tostring",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec3>(state, 1);
+       FixedStringBuffer<64> buf;
+       buf.Append(*v);
+       lua_pushlstring(state, buf.str(), buf.size());
        return 1;
      }},
     {"__add",
@@ -283,6 +537,12 @@ constexpr luaL_Reg kV3Methods[] = {
        }
        return 1;
      }},
+    {"__unm",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec3>(state, 1);
+       NewUserdata<FVec3>(state, -(*v));
+       return 1;
+     }},
     {"send_as_uniform", [](lua_State* state) {
        auto* v = AsUserdata<FVec3>(state, 1);
        const char* name = luaL_checkstring(state, 2);
@@ -309,18 +569,43 @@ constexpr luaL_Reg kV4Methods[] = {
        lua_pushnumber(state, v->Length2());
        return 1;
      }},
-    {"__tostring",
+    {"length",
      [](lua_State* state) {
        auto* v = AsUserdata<FVec4>(state, 1);
-       FixedStringBuffer<64> buf;
-       buf.Append(*v);
-       lua_pushlstring(state, buf.str(), buf.size());
+       lua_pushnumber(state, v->Length());
        return 1;
      }},
     {"normalized",
      [](lua_State* state) {
        auto* v = AsUserdata<FVec4>(state, 1);
        NewUserdata<FVec4>(state, v->Normalized());
+       return 1;
+     }},
+    {"lerp",
+     [](lua_State* state) {
+       auto* a = AsUserdata<FVec4>(state, 1);
+       auto* b = AsUserdata<FVec4>(state, 2);
+       float t = luaL_checknumber(state, 3);
+       NewUserdata<FVec4>(state, a->x + (b->x - a->x) * t,
+                          a->y + (b->y - a->y) * t, a->z + (b->z - a->z) * t,
+                          a->w + (b->w - a->w) * t);
+       return 1;
+     }},
+    {"unpack",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec4>(state, 1);
+       lua_pushnumber(state, v->x);
+       lua_pushnumber(state, v->y);
+       lua_pushnumber(state, v->z);
+       lua_pushnumber(state, v->w);
+       return 4;
+     }},
+    {"__tostring",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec4>(state, 1);
+       FixedStringBuffer<64> buf;
+       buf.Append(*v);
+       lua_pushlstring(state, buf.str(), buf.size());
        return 1;
      }},
     {"__add",
@@ -348,6 +633,12 @@ constexpr luaL_Reg kV4Methods[] = {
          const float w = luaL_checknumber(state, 2);
          NewUserdata<FVec4>(state, (*v) * w);
        }
+       return 1;
+     }},
+    {"__unm",
+     [](lua_State* state) {
+       auto* v = AsUserdata<FVec4>(state, 1);
+       NewUserdata<FVec4>(state, -(*v));
        return 1;
      }},
     {"send_as_uniform", [](lua_State* state) {
@@ -411,20 +702,70 @@ const LuaUserdataMethod kVecMethods[] = {
      "Squared length of the vector",
      {},
      {{"result", "squared length", "number"}}},
+    {"length",
+     "Length (magnitude) of the vector",
+     {},
+     {{"result", "length", "number"}}},
     {"normalized",
      "Returns a normalized copy of the vector",
      {},
      {{"result", "normalized vector", "self"}}},
+    {"lerp",
+     "Linearly interpolates between this vector and another",
+     {{"other", "target vector", "self"},
+      {"t", "interpolation factor (0-1)", "number"}},
+     {{"result", "interpolated vector", "self"}}},
+    {"unpack",
+     "Returns the vector components as separate numbers",
+     {},
+     {{"x", "x component", "number"}, {"y", "y component", "number"}}},
     {"send_as_uniform",
      "Sends this value as a shader uniform. Errors if uniform not found.",
      {{"name", "uniform name", "string"}},
      {}},
 };
 
+// Vec2-specific methods (not on vec3/vec4).
+const LuaUserdataMethod kVec2ExtraMethods[] = {
+    {"distance",
+     "Distance to another vector",
+     {{"other", "the other vector", "vec2"}},
+     {{"result", "distance", "number"}}},
+    {"distance2",
+     "Squared distance to another vector",
+     {{"other", "the other vector", "vec2"}},
+     {{"result", "squared distance", "number"}}},
+    {"angle",
+     "Angle of this vector in radians (atan2(y, x))",
+     {},
+     {{"radians", "angle", "number"}}},
+    {"angle_between",
+     "Angle from this vector to another",
+     {{"other", "the other vector", "vec2"}},
+     {{"radians", "angle", "number"}}},
+    {"rotate",
+     "Returns a copy rotated by the given angle",
+     {{"angle", "rotation in radians", "number"}},
+     {{"result", "rotated vector", "vec2"}}},
+    {"perpendicular",
+     "Returns the perpendicular vector (-y, x)",
+     {},
+     {{"result", "perpendicular vector", "vec2"}}},
+    {"reflect",
+     "Reflects this vector off a surface normal",
+     {{"normal", "surface normal", "vec2"}},
+     {{"result", "reflected vector", "vec2"}}},
+    {"project",
+     "Projects this vector onto another",
+     {{"onto", "vector to project onto", "vec2"}},
+     {{"result", "projected vector", "vec2"}}},
+};
+
 const LuaUserdataOperator kVecOperators[] = {
     {"add", "self", "self"},
     {"sub", "self", "self"},
     {"mul", "number", "self"},
+    {"unm", "", "self"},
 };
 
 const LuaUserdataMethod kMatMethods[] = {
@@ -445,9 +786,11 @@ void AddMathLibrary(Lua* lua) {
   LOAD_METATABLE(lua, "fmat4x4", kM4x4Methods);
   lua->AddLibrary("math", kMathLib);
 
+  // Vec2 gets the shared methods plus vec2-specific methods.
   lua->RegisterUserdataType({"fvec2", "vec2", "A 2D floating-point vector",
-                             nullptr, 0, kVecMethods, std::size(kVecMethods),
-                             kVecOperators, std::size(kVecOperators)});
+                             nullptr, 0, kVec2ExtraMethods,
+                             std::size(kVec2ExtraMethods), kVecOperators,
+                             std::size(kVecOperators)});
   lua->RegisterUserdataType({"fvec3", "vec3", "A 3D floating-point vector",
                              nullptr, 0, kVecMethods, std::size(kVecMethods),
                              kVecOperators, std::size(kVecOperators)});
@@ -467,8 +810,9 @@ LuaLibraryDef GetMathLibraryDef() {
       {"math", kMathLib, std::size(kMathLib)},
   };
   static const LuaUserdataType kTypes[] = {
-      {"fvec2", "vec2", "A 2D floating-point vector", nullptr, 0, kVecMethods,
-       std::size(kVecMethods), kVecOperators, std::size(kVecOperators)},
+      {"fvec2", "vec2", "A 2D floating-point vector", nullptr, 0,
+       kVec2ExtraMethods, std::size(kVec2ExtraMethods), kVecOperators,
+       std::size(kVecOperators)},
       {"fvec3", "vec3", "A 3D floating-point vector", nullptr, 0, kVecMethods,
        std::size(kVecMethods), kVecOperators, std::size(kVecOperators)},
       {"fvec4", "vec4", "A 4D floating-point vector", nullptr, 0, kVecMethods,

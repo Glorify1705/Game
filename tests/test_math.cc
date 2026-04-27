@@ -70,4 +70,66 @@ TEST(EasingTest, InOutSymmetry) {
   }
 }
 
+// FVec2 new methods.
+
+TEST(VectorTest, Vec2Length) {
+  FVec2 v(3.0f, 4.0f);
+  EXPECT_FLOAT_EQ(v.Length(), 5.0f);
+  EXPECT_FLOAT_EQ(v.Length2(), 25.0f);
+}
+
+TEST(VectorTest, Vec2Distance) {
+  FVec2 a(1.0f, 2.0f);
+  FVec2 b(4.0f, 6.0f);
+  FVec2 d = a - b;
+  EXPECT_FLOAT_EQ(d.Length(), 5.0f);
+}
+
+TEST(VectorTest, Vec2Rotate) {
+  FVec2 v(1.0f, 0.0f);
+  float angle = static_cast<float>(M_PI / 2.0);
+  float c = std::cos(angle);
+  float s = std::sin(angle);
+  FVec2 rotated(v.x * c - v.y * s, v.x * s + v.y * c);
+  EXPECT_NEAR(rotated.x, 0.0f, 1e-6f);
+  EXPECT_NEAR(rotated.y, 1.0f, 1e-6f);
+}
+
+TEST(VectorTest, Vec2Perpendicular) {
+  FVec2 v(3.0f, 4.0f);
+  FVec2 perp(-v.y, v.x);
+  EXPECT_FLOAT_EQ(v.Dot(perp), 0.0f);
+}
+
+TEST(VectorTest, Vec2Reflect) {
+  FVec2 v(1.0f, -1.0f);
+  FVec2 n(0.0f, 1.0f);
+  float d = 2.0f * v.Dot(n);
+  FVec2 reflected(v.x - d * n.x, v.y - d * n.y);
+  EXPECT_NEAR(reflected.x, 1.0f, 1e-6f);
+  EXPECT_NEAR(reflected.y, 1.0f, 1e-6f);
+}
+
+TEST(VectorTest, Vec2Project) {
+  FVec2 v(3.0f, 4.0f);
+  FVec2 onto(1.0f, 0.0f);
+  float d = v.Dot(onto) / onto.Length2();
+  FVec2 projected = onto * d;
+  EXPECT_NEAR(projected.x, 3.0f, 1e-6f);
+  EXPECT_NEAR(projected.y, 0.0f, 1e-6f);
+}
+
+TEST(VectorTest, Vec2Angle) {
+  FVec2 v(0.0f, 1.0f);
+  EXPECT_NEAR(std::atan2(v.y, v.x), M_PI / 2.0, 1e-6);
+}
+
+TEST(VectorTest, Vec2Lerp) {
+  FVec2 a(0.0f, 0.0f);
+  FVec2 b(10.0f, 20.0f);
+  FVec2 mid(a.x + (b.x - a.x) * 0.5f, a.y + (b.y - a.y) * 0.5f);
+  EXPECT_FLOAT_EQ(mid.x, 5.0f);
+  EXPECT_FLOAT_EQ(mid.y, 10.0f);
+}
+
 }  // namespace G
