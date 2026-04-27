@@ -4,8 +4,9 @@ local steer = require("steer")
 
 local Enemy = Entity:extend()
 
-local CHASE_FORCE = 40
-local SEPARATE_FORCE = 30
+local CHASE_FORCE = 200
+local DAMPING = 1.0
+local SEPARATE_FORCE = 60
 local SEPARATE_DIST = 80
 local MAX_HEALTH = 3
 local SPAWN_TIME = 1.5
@@ -35,6 +36,7 @@ function Enemy:new(x, y, world_w, world_h, get_player, get_enemy_positions)
 	self.spawn_timer = SPAWN_TIME
 	self.visible = true
 	self.blink_timer = 0
+	self.physics:set_linear_damping(DAMPING)
 	self.fsm = FSM.new(self:make_states(), "spawn")
 end
 

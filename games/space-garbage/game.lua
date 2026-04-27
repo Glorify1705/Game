@@ -533,6 +533,36 @@ function G1:handle_debug_keys()
 	if G.input.is_key_pressed("-") then
 		self:debug_spawn_powerup("score_bonus")
 	end
+	if G.input.is_key_pressed("[") then
+		self:spawn_enemy()
+		self:show_message("SPAWNED CHASER")
+	end
+	if G.input.is_key_pressed("]") then
+		self:spawn_turret()
+		self:show_message("SPAWNED TURRET")
+	end
+	if G.input.is_key_pressed("\\") then
+		self:spawn_bomber()
+		self:show_message("SPAWNED BOMBER")
+	end
+	if G.input.is_key_pressed("=") then
+		if self.player and self.player:is_alive() then
+			local pv = self.player.physics:position()
+			local angle = math.random() * math.pi * 2
+			local dist = 300
+			local bx = pv.x + math.cos(angle) * dist
+			local by = pv.y + math.sin(angle) * dist
+			local get_p = function()
+				if self.player and self.player:is_alive() then
+					return self.player
+				end
+				return nil
+			end
+			local b = Bomb(bx, by, pv.x, pv.y, get_p)
+			self.entities:add(b)
+			self:show_message("SPAWNED BOMB")
+		end
+	end
 end
 
 function G1:debug_spawn_powerup(ptype)

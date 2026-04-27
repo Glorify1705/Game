@@ -8,7 +8,7 @@ local LIFETIME = 2.5
 local count = 0
 
 function EnemyBullet:new(x, y, angle)
-	self.image = "laserBlue11"
+	self.image = "laserBlue01"
 	self.entity_id = "enemy_bullet" .. count
 	count = count + 1
 	self.dead = false

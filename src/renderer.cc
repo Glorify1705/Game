@@ -6,12 +6,12 @@
 #include "bits.h"
 #include "clock.h"
 #include "defer.h"
-#include "sqlite_helpers.h"
 #include "image.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
 #include "libraries/stb_rect_pack.h"
 #include "profiler.h"
+#include "sqlite_helpers.h"
 #include "transformations.h"
 #include "units.h"
 
@@ -922,10 +922,9 @@ void BatchRenderer::Render() {
     float scale = scale_x < scale_y ? scale_x : scale_y;
     FVec2 draw_size = vp * scale;
     FVec2 offset = (win - draw_size) * 0.5f;
-    OPENGL_CALL(glViewport(static_cast<int>(offset.x),
-                           static_cast<int>(offset.y),
-                           static_cast<int>(draw_size.x),
-                           static_cast<int>(draw_size.y)));
+    OPENGL_CALL(glViewport(
+        static_cast<int>(offset.x), static_cast<int>(offset.y),
+        static_cast<int>(draw_size.x), static_cast<int>(draw_size.y)));
   }
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   frame_stats_.draw_calls++;
@@ -953,8 +952,7 @@ BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
   auto* buffer = allocator->Alloc(bytes, /*align=*/4);
   // Read from the resolved (non-MSAA) framebuffer.
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, downsampled_target_));
-  glReadPixels(0, 0, viewport.x, viewport.y, GL_RGBA, GL_UNSIGNED_BYTE,
-               buffer);
+  glReadPixels(0, 0, viewport.x, viewport.y, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   // Flip the rows.
   ArenaAllocator scratch(allocator, Megabytes(1));
@@ -1153,16 +1151,15 @@ struct UnitCircle {
   }
 };
 
-static const UnitCircle<22> kCircle22;
-static const UnitCircle<32> kCircle32;
+static const UnitCircle<64> kCircle64;
 
 void Renderer::DrawCircle(FVec2 center, float radius) {
   ClearTextureDedup();
-  for (size_t i = 0; i < 22; ++i) {
-    const FVec2 p0(center.x + radius * kCircle22.v[i].x,
-                   center.y + radius * kCircle22.v[i].y);
-    const FVec2 p1(center.x + radius * kCircle22.v[i + 1].x,
-                   center.y + radius * kCircle22.v[i + 1].y);
+  for (size_t i = 0; i < 64; ++i) {
+    const FVec2 p0(center.x + radius * kCircle64.v[i].x,
+                   center.y + radius * kCircle64.v[i].y);
+    const FVec2 p1(center.x + radius * kCircle64.v[i + 1].x,
+                   center.y + radius * kCircle64.v[i + 1].y);
     renderer_->PushTriangle(center, p0, p1, FVec(0, 0), FVec(1, 0), FVec(1, 1));
   }
 }
@@ -1195,11 +1192,11 @@ void Renderer::DrawRectOutline(FVec2 top_left, FVec2 bottom_right,
 
 void Renderer::DrawCircleOutline(FVec2 center, float radius) {
   ClearTextureDedup();
-  constexpr size_t kSegments = 32;
+  constexpr size_t kSegments = 64;
   FVec2 points[kSegments + 1];
   for (size_t i = 0; i <= kSegments; ++i) {
-    points[i] = FVec(center.x + radius * kCircle32.v[i].x,
-                     center.y + radius * kCircle32.v[i].y);
+    points[i] = FVec(center.x + radius * kCircle64.v[i].x,
+                     center.y + radius * kCircle64.v[i].y);
   }
   renderer_->BeginLine();
   renderer_->PushLinePoints(Slice<FVec2>(points, kSegments + 1));
@@ -1216,22 +1213,22 @@ void Renderer::DrawTriangleOutline(FVec2 p1, FVec2 p2, FVec2 p3) {
 
 void Renderer::DrawEllipse(FVec2 center, float rx, float ry) {
   ClearTextureDedup();
-  for (size_t i = 0; i < 32; ++i) {
-    const FVec2 p0(center.x + rx * kCircle32.v[i].x,
-                   center.y + ry * kCircle32.v[i].y);
-    const FVec2 p1(center.x + rx * kCircle32.v[i + 1].x,
-                   center.y + ry * kCircle32.v[i + 1].y);
+  for (size_t i = 0; i < 64; ++i) {
+    const FVec2 p0(center.x + rx * kCircle64.v[i].x,
+                   center.y + ry * kCircle64.v[i].y);
+    const FVec2 p1(center.x + rx * kCircle64.v[i + 1].x,
+                   center.y + ry * kCircle64.v[i + 1].y);
     renderer_->PushTriangle(center, p0, p1, FVec(0, 0), FVec(1, 0), FVec(1, 1));
   }
 }
 
 void Renderer::DrawEllipseOutline(FVec2 center, float rx, float ry) {
   ClearTextureDedup();
-  constexpr size_t kSegments = 32;
+  constexpr size_t kSegments = 64;
   FVec2 points[kSegments + 1];
   for (size_t i = 0; i <= kSegments; ++i) {
-    points[i] = FVec(center.x + rx * kCircle32.v[i].x,
-                     center.y + ry * kCircle32.v[i].y);
+    points[i] = FVec(center.x + rx * kCircle64.v[i].x,
+                     center.y + ry * kCircle64.v[i].y);
   }
   renderer_->BeginLine();
   renderer_->PushLinePoints(Slice<FVec2>(points, kSegments + 1));
@@ -1477,8 +1474,8 @@ void Renderer::SaveSDFToCache(sqlite3* db, std::string_view font_name,
     f[8] = g.advance;
   }
   stmt.BindBlobTransient(5, MakeByteSlice(metrics, sizeof(metrics)));
-  stmt.BindBlob(6, ByteSlice(atlas_bitmap,
-                              font.atlas_width * font.atlas_height));
+  stmt.BindBlob(6,
+                ByteSlice(atlas_bitmap, font.atlas_width * font.atlas_height));
   auto step = stmt.Step();
   if (step.is_error()) {
     LOG("SDF cache write failed for ", font_name);

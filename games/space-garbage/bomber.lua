@@ -4,8 +4,9 @@ local steer = require("steer")
 
 local Bomber = Entity:extend()
 
-local APPROACH_FORCE = 30
-local FLEE_FORCE = 35
+local APPROACH_FORCE = 112
+local DAMPING = 1.0
+local FLEE_FORCE = 126
 local SEPARATE_FORCE = 25
 local SEPARATE_DIST = 80
 local MAX_HEALTH = 3
@@ -44,6 +45,7 @@ function Bomber:new(x, y, world_w, world_h, get_player, get_enemy_positions, spa
 	self.blink_timer = 0
 	self.throw_cooldown = THROW_COOLDOWN * 0.5
 	self.physics:set_fixed_rotation(true)
+	self.physics:set_linear_damping(DAMPING)
 	self.fsm = FSM.new(self:make_states(), "spawn")
 end
 

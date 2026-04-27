@@ -4,8 +4,9 @@ local steer = require("steer")
 
 local Turret = Entity:extend()
 
-local ORBIT_FORCE = 20
-local SEPARATE_FORCE = 25
+local ORBIT_FORCE = 120
+local DAMPING = 1.5
+local SEPARATE_FORCE = 50
 local SEPARATE_DIST = 80
 local MAX_HEALTH = 4
 local SPAWN_TIME = 1.5
@@ -42,6 +43,7 @@ function Turret:new(x, y, world_w, world_h, get_player, get_enemy_positions, spa
 	self.blink_timer = 0
 	self.fire_timer = FIRE_COOLDOWN
 	self.physics:set_fixed_rotation(true)
+	self.physics:set_linear_damping(DAMPING)
 	self.fsm = FSM.new(self:make_states(), "spawn")
 end
 
@@ -141,10 +143,11 @@ function Turret:make_states()
 						local tx = ev.x + dx + pvx * predict
 						local ty = ev.y + dy + pvy * predict
 						local angle = math.atan2(tx - ev.x, -(ty - ev.y))
-						-- Spawn bullet from turret nose.
 						local nose_x = ev.x + math.sin(angle) * 40
 						local nose_y = ev.y - math.cos(angle) * 40
-						s.spawn_bullet_fn(nose_x, nose_y, angle)
+						local fire_angle = math.atan2(tx - nose_x, -(ty - nose_y))
+						s.spawn_bullet_fn(nose_x, nose_y, fire_angle)
+						G.sound.play_effect("laser.wav")
 					end
 					s.fire_timer = FIRE_COOLDOWN
 					s.fsm:transition(s, "orbit")

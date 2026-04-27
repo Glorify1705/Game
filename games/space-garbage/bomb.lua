@@ -19,6 +19,8 @@ function Bomb:new(x, y, target_x, target_y, get_player)
 	self.category = "bomb"
 	self.get_player = get_player
 
+	self.x = x
+	self.y = y
 	self.target_x = target_x
 	self.target_y = target_y
 	self.phase = "travel"
