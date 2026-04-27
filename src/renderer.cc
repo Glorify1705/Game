@@ -6,12 +6,12 @@
 #include "bits.h"
 #include "clock.h"
 #include "defer.h"
-#include "sqlite_helpers.h"
 #include "image.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
 #include "libraries/stb_rect_pack.h"
 #include "profiler.h"
+#include "sqlite_helpers.h"
 #include "transformations.h"
 #include "units.h"
 
@@ -79,6 +79,7 @@ constexpr size_t BatchRenderer::SizeOfCommand(CommandType t) {
       Align(sizeof(EndStencilWriteCmd), kAlign),
       Align(sizeof(SetStencilTestCmd), kAlign),
       Align(sizeof(ClearStencilTestCmd), kAlign),
+      Align(sizeof(RenderParticlesCmd), kAlign),
       0,  // kDone
   };
   return kSizes[t];
@@ -126,6 +127,8 @@ constexpr std::string_view BatchRenderer::CommandName(CommandType t) {
       return "SET_STENCIL_TEST";
     case kClearStencilTest:
       return "CLEAR_STENCIL_TEST";
+    case kRenderParticles:
+      return "RENDER_PARTICLES";
     case kDone:
       return "DONE";
   }
@@ -238,6 +241,8 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   OPENGL_CALL(glVertexAttribPointer(tex_attribute, 2, GL_FLOAT, GL_FALSE,
                                     4 * sizeof(float),
                                     (void*)(2 * sizeof(float))));
+  InitializeParticleResources();
+
   InitializeFramebuffers();
   rec_canvas_ = {render_target_, viewport_.x, viewport_.y};
   // Load an empty texture, just white pixels, to be able to draw colors without
@@ -324,13 +329,18 @@ size_t BatchRenderer::LoadTexture(const DbAssets::Image& image) {
 }
 
 BatchRenderer::~BatchRenderer() {
-  std::array<GLuint, 3> object_buffers = {vbo_, ebo_, screen_quad_vbo_};
+  std::array<GLuint, 6> object_buffers = {vbo_,
+                                          ebo_,
+                                          screen_quad_vbo_,
+                                          particle_quad_vbo_,
+                                          particle_quad_ebo_,
+                                          particle_instance_vbo_};
   OPENGL_CALL(glDeleteBuffers(object_buffers.size(), object_buffers.data()));
   std::array<GLuint, 2> frame_buffers = {render_target_, downsampled_target_};
   OPENGL_CALL(glDeleteFramebuffers(frame_buffers.size(), frame_buffers.data()));
   OPENGL_CALL(glDeleteRenderbuffers(1, &depth_buffer_));
-  OPENGL_CALL(glDeleteVertexArrays(1, &vao_));
-  OPENGL_CALL(glDeleteVertexArrays(1, &screen_quad_vao_));
+  std::array<GLuint, 3> vaos = {vao_, screen_quad_vao_, particle_vao_};
+  OPENGL_CALL(glDeleteVertexArrays(vaos.size(), vaos.data()));
   std::array<GLuint, 2> render_target_textures = {render_texture_,
                                                   downsampled_texture_};
   OPENGL_CALL(glDeleteTextures(render_target_textures.size(),
@@ -456,6 +466,112 @@ void BatchRenderer::SetupGLState() {
   }
 }
 
+void BatchRenderer::InitializeParticleResources() {
+  OPENGL_CALL(glGenVertexArrays(1, &particle_vao_));
+  OPENGL_CALL(glGenBuffers(1, &particle_quad_vbo_));
+  OPENGL_CALL(glGenBuffers(1, &particle_quad_ebo_));
+  OPENGL_CALL(glGenBuffers(1, &particle_instance_vbo_));
+  OPENGL_CALL(glBindVertexArray(particle_vao_));
+  // Static unit quad: positions [-0.5, 0.5], tex coords [0, 1].
+  float quad_verts[] = {
+      -0.5f, -0.5f, 0.0f, 0.0f,  // bottom-left
+      0.5f,  -0.5f, 1.0f, 0.0f,  // bottom-right
+      0.5f,  0.5f,  1.0f, 1.0f,  // top-right
+      -0.5f, 0.5f,  0.0f, 1.0f,  // top-left
+  };
+  GLuint quad_indices[] = {0, 1, 3, 1, 2, 3};
+  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particle_quad_vbo_));
+  OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(quad_verts), quad_verts,
+                           GL_STATIC_DRAW));
+  // location 0: input_position (vec2)
+  OPENGL_CALL(glEnableVertexAttribArray(0));
+  OPENGL_CALL(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                                    (void*)0));
+  // location 1: input_tex_coord (vec2)
+  OPENGL_CALL(glEnableVertexAttribArray(1));
+  OPENGL_CALL(glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                                    (void*)(2 * sizeof(float))));
+  OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, particle_quad_ebo_));
+  OPENGL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quad_indices),
+                           quad_indices, GL_STATIC_DRAW));
+  // Per-instance attributes from instance VBO.
+  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particle_instance_vbo_));
+  // location 2: instance_pos (vec2)
+  OPENGL_CALL(glEnableVertexAttribArray(2));
+  OPENGL_CALL(glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
+                                    sizeof(ParticleInstanceData),
+                                    (void*)offsetof(ParticleInstanceData, x)));
+  OPENGL_CALL(glVertexAttribDivisor(2, 1));
+  // location 3: instance_size (float)
+  OPENGL_CALL(glEnableVertexAttribArray(3));
+  OPENGL_CALL(glVertexAttribPointer(
+      3, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleInstanceData),
+      (void*)offsetof(ParticleInstanceData, size)));
+  OPENGL_CALL(glVertexAttribDivisor(3, 1));
+  // location 4: instance_angle (float)
+  OPENGL_CALL(glEnableVertexAttribArray(4));
+  OPENGL_CALL(glVertexAttribPointer(
+      4, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleInstanceData),
+      (void*)offsetof(ParticleInstanceData, angle)));
+  OPENGL_CALL(glVertexAttribDivisor(4, 1));
+  // location 5: instance_color (vec4 u8 normalized)
+  OPENGL_CALL(glEnableVertexAttribArray(5));
+  OPENGL_CALL(glVertexAttribPointer(
+      5, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(ParticleInstanceData),
+      (void*)offsetof(ParticleInstanceData, color)));
+  OPENGL_CALL(glVertexAttribDivisor(5, 1));
+  OPENGL_CALL(glBindVertexArray(0));
+}
+
+void BatchRenderer::RenderParticlesBatch(const RenderParticlesCmd& rp,
+                                         int viewport_w, int viewport_h,
+                                         const FMat4x4& transform,
+                                         FrameStats& stats) {
+  if (rp.count == 0) return;
+  // Set particle blend mode.
+  switch (rp.blend) {
+    case BLEND_ALPHA:
+      OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+      break;
+    case BLEND_ADD:
+      OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE));
+      break;
+    case BLEND_MULTIPLY:
+      OPENGL_CALL(glBlendFunc(GL_DST_COLOR, GL_ZERO));
+      break;
+    case BLEND_REPLACE:
+      OPENGL_CALL(glBlendFunc(GL_ONE, GL_ZERO));
+      break;
+    case BLEND_PREMULTIPLIED:
+      OPENGL_CALL(glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+      break;
+  }
+  // Bind particle texture.
+  OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + rp.texture_unit));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex_[rp.texture_unit]));
+  // Switch to particle shader.
+  shaders_->UseProgram("particle");
+  shaders_->SetUniformSilent("tex", static_cast<int>(rp.texture_unit));
+  shaders_->SetUniformSilent("projection", Ortho(0, viewport_w, 0, viewport_h));
+  shaders_->SetUniformSilent("transform", transform);
+  shaders_->SetUniformSilent("global_color", Color::White().ToFloat());
+  // Bind particle VAO and upload instance data.
+  OPENGL_CALL(glBindVertexArray(particle_vao_));
+  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particle_instance_vbo_));
+  OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER,
+                           rp.count * sizeof(ParticleInstanceData), rp.data,
+                           GL_STREAM_DRAW));
+  // Draw: 6 indices per quad, rp.count instances.
+  OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, particle_quad_ebo_));
+  OPENGL_CALL(glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr,
+                                      rp.count));
+  stats.draw_calls++;
+  // Restore normal rendering state.
+  OPENGL_CALL(glBindVertexArray(vao_));
+  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, vbo_));
+  OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
+}
+
 void BatchRenderer::FlushAndContinue() {
   Finish();
   SetupGLState();
@@ -464,6 +580,13 @@ void BatchRenderer::FlushAndContinue() {
   pos_ = 0;
   ReEmitState();
   flush_overflow_++;
+}
+
+void BatchRenderer::DrawParticles(const ParticleInstanceData* instance_data,
+                                  uint32_t count, size_t texture_unit,
+                                  BlendMode blend) {
+  AddCommand(kRenderParticles,
+             RenderParticlesCmd{instance_data, count, texture_unit, blend});
 }
 
 void BatchRenderer::ReEmitState() {
@@ -857,6 +980,34 @@ void BatchRenderer::RenderBatch() {
         stats.flush_other++;
         OPENGL_CALL(glDisable(GL_STENCIL_TEST));
         break;
+      case kRenderParticles: {
+        flush();
+        stats.flush_particles++;
+        RenderParticlesBatch(c->render_particles, current_viewport_w,
+                             current_viewport_h, transform, stats);
+        // Restore shader and blend mode after the particle draw.
+        set_program_state(current_shader_handle
+                              ? StringByHandle(current_shader_handle)
+                              : std::string_view("pre_pass"));
+        switch (blend_mode) {
+          case BLEND_ALPHA:
+            OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+            break;
+          case BLEND_ADD:
+            OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE));
+            break;
+          case BLEND_MULTIPLY:
+            OPENGL_CALL(glBlendFunc(GL_DST_COLOR, GL_ZERO));
+            break;
+          case BLEND_REPLACE:
+            OPENGL_CALL(glBlendFunc(GL_ONE, GL_ZERO));
+            break;
+          case BLEND_PREMULTIPLIED:
+            OPENGL_CALL(glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+            break;
+        }
+        break;
+      }
       case kDone:
         color = Color::White();
         flush();
@@ -889,6 +1040,7 @@ void BatchRenderer::AccumulateStats(const FrameStats& stats,
   frame_stats_.redundant_blend += stats.redundant_blend;
   frame_stats_.redundant_line_width += stats.redundant_line_width;
   frame_stats_.redundant_sdf_outline += stats.redundant_sdf_outline;
+  frame_stats_.flush_particles += stats.flush_particles;
 }
 
 void BatchRenderer::Render() {
@@ -922,10 +1074,9 @@ void BatchRenderer::Render() {
     float scale = scale_x < scale_y ? scale_x : scale_y;
     FVec2 draw_size = vp * scale;
     FVec2 offset = (win - draw_size) * 0.5f;
-    OPENGL_CALL(glViewport(static_cast<int>(offset.x),
-                           static_cast<int>(offset.y),
-                           static_cast<int>(draw_size.x),
-                           static_cast<int>(draw_size.y)));
+    OPENGL_CALL(glViewport(
+        static_cast<int>(offset.x), static_cast<int>(offset.y),
+        static_cast<int>(draw_size.x), static_cast<int>(draw_size.y)));
   }
   OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   frame_stats_.draw_calls++;
@@ -953,8 +1104,7 @@ BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
   auto* buffer = allocator->Alloc(bytes, /*align=*/4);
   // Read from the resolved (non-MSAA) framebuffer.
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, downsampled_target_));
-  glReadPixels(0, 0, viewport.x, viewport.y, GL_RGBA, GL_UNSIGNED_BYTE,
-               buffer);
+  glReadPixels(0, 0, viewport.x, viewport.y, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   // Flip the rows.
   ArenaAllocator scratch(allocator, Megabytes(1));
@@ -1477,8 +1627,8 @@ void Renderer::SaveSDFToCache(sqlite3* db, std::string_view font_name,
     f[8] = g.advance;
   }
   stmt.BindBlobTransient(5, MakeByteSlice(metrics, sizeof(metrics)));
-  stmt.BindBlob(6, ByteSlice(atlas_bitmap,
-                              font.atlas_width * font.atlas_height));
+  stmt.BindBlob(6,
+                ByteSlice(atlas_bitmap, font.atlas_width * font.atlas_height));
   auto step = stmt.Step();
   if (step.is_error()) {
     LOG("SDF cache write failed for ", font_name);

@@ -63,6 +63,42 @@ constexpr std::string_view kPrePassFragmentShader = R"(
     }
   )";
 
+constexpr std::string_view kParticleVertexShader = R"(
+    #version 410 core
+
+    // Per-vertex: static unit quad.
+    layout (location = 0) in vec2 input_position;
+    layout (location = 1) in vec2 input_tex_coord;
+
+    // Per-instance: one per particle (divisor = 1).
+    layout (location = 2) in vec2 instance_pos;
+    layout (location = 3) in float instance_size;
+    layout (location = 4) in float instance_angle;
+    layout (location = 5) in vec4 instance_color;
+
+    uniform mat4x4 projection;
+    uniform mat4x4 transform;
+    uniform vec4 global_color;
+
+    out vec2 tex_coord;
+    out vec4 out_color;
+    out vec2 screen_coord;
+
+    void main() {
+        float c = cos(instance_angle);
+        float s = sin(instance_angle);
+        vec2 rotated = vec2(
+            input_position.x * c - input_position.y * s,
+            input_position.x * s + input_position.y * c
+        );
+        vec2 world_pos = instance_pos + rotated * instance_size * 2.0;
+        gl_Position = projection * transform * vec4(world_pos, 0.0, 1.0);
+        tex_coord = input_tex_coord;
+        out_color = global_color * instance_color;
+        screen_coord = world_pos;
+    }
+  )";
+
 constexpr std::string_view kPostPassVertexShader = R"(
   #version 410 core
   layout (location = 0) in vec2 input_position;
@@ -205,6 +241,9 @@ Shaders::Shaders(Allocator* allocator)
   MUST(Compile(DbAssets::ShaderType::kFragment, "post_pass.frag",
                kPostPassFragmentShader, kUseCache));
   MUST(Link("post_pass", "post_pass.vert", "post_pass.frag", kUseCache));
+  MUST(Compile(DbAssets::ShaderType::kVertex, "particle.vert",
+               kParticleVertexShader, kUseCache));
+  MUST(Link("particle", "particle.vert", "pre_pass.frag", kUseCache));
 }
 
 Shaders::~Shaders() {

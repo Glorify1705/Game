@@ -106,6 +106,40 @@ When using worktrees, name the branch `worktree-<worktree name>` (e.g.
 `worktree-sdl3-migration`). Place worktrees under `.claude/worktrees/<name>`
 (e.g. `.claude/worktrees/sdl3-migration`).
 
+## Profiling
+
+Two profiling workflows are available. Both accept an optional scene name
+(defaults to `testBenchmark`).
+
+**CPU sampling profile** (recommended for finding hotspots):
+
+```sh
+game-samply testparticles        # record for 10s (default), opens Firefox Profiler
+game-samply testparticles 20     # record for 20s
+```
+
+This builds a RelWithDebInfo binary in `build-profile/`, records with
+`samply`, and opens the result in Firefox Profiler. Use RelWithDebInfo
+because the Debug build's `-O1 -fno-inline` creates false hotspots.
+
+**Analyze a samply capture** without the browser:
+
+```sh
+python3 scripts/samply-summary.py build-profile/samply.json.gz --thread game --top 30
+```
+
+This prints a flat top-N profile (self samples and inclusive samples) that
+fits in a conversation. Use `--thread game` to filter to the main thread.
+
+**In-engine Chrome Tracing** (for per-frame timeline):
+
+```sh
+game-profile testparticles
+```
+
+Builds with `ENABLE_PROFILING=ON` which activates `TIMER()` macros. Load
+the output in `chrome://tracing` or [Perfetto](https://ui.perfetto.dev/).
+
 ## Tests
 
 Tests live in `tests/test.cc` using GoogleTest. They always compile with

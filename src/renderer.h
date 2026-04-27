@@ -11,6 +11,7 @@
 #include "libraries/stb_rect_pack.h"
 #include "libraries/stb_truetype.h"
 #include "mat.h"
+#include "particles.h"
 #include "shaders.h"
 #include "transformations.h"
 #include "vec.h"
@@ -58,6 +59,7 @@ struct FrameStats {
   int redundant_blend = 0;
   int redundant_line_width = 0;
   int redundant_sdf_outline = 0;
+  int flush_particles = 0;
 };
 
 class BatchRenderer {
@@ -177,6 +179,12 @@ class BatchRenderer {
                ps.size() * sizeof(FVec2));
   }
 
+  // Pushes a single instanced draw command for particles. The instance_data
+  // pointer must remain valid until RenderBatch completes (use frame
+  // allocator).
+  void DrawParticles(const ParticleInstanceData* instance_data, uint32_t count,
+                     size_t texture_unit, BlendMode blend);
+
   void SetShaderProgram(std::string_view program_name) {
     current_shader_ = StringIntern(program_name);
     AddCommand(kSetShader, SetShader{current_shader_});
@@ -275,6 +283,7 @@ class BatchRenderer {
     kEndStencilWrite,
     kSetStencilTest,
     kClearStencilTest,
+    kRenderParticles,
     kDone
   };
 
@@ -359,6 +368,14 @@ class BatchRenderer {
 
   struct ClearStencilTestCmd {};
 
+  // Instanced particle draw. Data pointer is frame-allocator-owned.
+  struct RenderParticlesCmd {
+    const ParticleInstanceData* data;
+    uint32_t count;
+    size_t texture_unit;
+    BlendMode blend;
+  };
+
   inline static constexpr uint32_t kMaxCount = 1 << 20;
 
   struct QueueEntry {
@@ -387,6 +404,7 @@ class BatchRenderer {
     EndStencilWriteCmd end_stencil_write;
     SetStencilTestCmd set_stencil_test;
     ClearStencilTestCmd clear_stencil_test;
+    RenderParticlesCmd render_particles;
   };
 
   static_assert(std::is_trivially_copyable_v<Command>);
@@ -434,6 +452,14 @@ class BatchRenderer {
   // Sets up common GL state for rendering (blend, multisample, etc.).
   void SetupGLState();
 
+  // Initializes the particle VAO, quad VBO/EBO, and instance VBO.
+  void InitializeParticleResources();
+
+  // Renders particles via instanced draw. Called from within RenderBatch.
+  void RenderParticlesBatch(const RenderParticlesCmd& cmd, int viewport_w,
+                            int viewport_h, const FMat4x4& transform,
+                            FrameStats& stats);
+
   Allocator* allocator_;
   uint8_t* command_buffer_ = nullptr;
   size_t pos_ = 0;
@@ -446,6 +472,8 @@ class BatchRenderer {
   GLuint ebo_, vao_, vbo_;
   size_t noop_texture_;
   GLuint screen_quad_vao_, screen_quad_vbo_;
+  GLuint particle_vao_, particle_quad_vbo_, particle_quad_ebo_,
+      particle_instance_vbo_;
   GLuint render_target_, downsampled_target_, render_texture_,
       downsampled_texture_, depth_buffer_;
   GLint antialiasing_samples_;
@@ -522,9 +550,7 @@ class Renderer {
     return MakeSlice(loaded_sprites_);
   }
 
-  Slice<DbAssets::Image> GetImages() const {
-    return MakeSlice(loaded_images_);
-  }
+  Slice<DbAssets::Image> GetImages() const { return MakeSlice(loaded_images_); }
 
   // Returns the GL texture ID for a spritesheet/image by name, or 0.
   GLuint GetTextureByName(std::string_view name) const {
