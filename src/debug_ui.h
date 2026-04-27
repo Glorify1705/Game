@@ -3,9 +3,8 @@
 #define _GAME_DEBUG_UI_H
 
 #include <SDL3/SDL.h>
-
-#include <imgui.h>
 #include <TextEditor.h>
+#include <imgui.h>
 
 #include "allocators.h"
 #include "circular_buffer.h"
@@ -165,6 +164,7 @@ class DebugUI {
   void DrawCameraPanel();
   void DrawPhysicsPanel();
   void DrawNetworkPanel();
+  void DrawSavePanel();
   // Draws the asset viewer with tabbed image, sprite, audio, script views.
   void DrawAssetViewer();
   void DrawAssetImagesTab();
@@ -238,10 +238,11 @@ class DebugUI {
     kPanelWatch = 1 << 11,
     kPanelZones = 1 << 12,
     kPanelNetwork = 1 << 13,
+    kPanelSave = 1 << 14,
     kPanelAll = kPanelPerformance | kPanelLogConsole | kPanelEntityInspector |
                 kPanelAudio | kPanelMemory | kPanelRenderer | kPanelCamera |
                 kPanelPhysics | kPanelAssets | kPanelDocs | kPanelWatch |
-                kPanelZones | kPanelNetwork,
+                kPanelZones | kPanelNetwork | kPanelSave,
   };
   // Default panels (also preset index 2).
   static constexpr uint64_t kPanelDefault =

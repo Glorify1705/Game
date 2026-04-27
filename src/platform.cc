@@ -271,6 +271,34 @@ void GetUserCacheDir(const char* app_name, char* out, size_t out_size) {
 #endif
 }
 
+void GetUserSaveDir(const char* app_name, char* out, size_t out_size) {
+  PathBuffer buf;
+#ifdef _WIN32
+  const char* app_data = getenv("APPDATA");
+  if (app_data != nullptr) {
+    buf.Set(app_data, "\\", app_name);
+  } else {
+    buf.Set(".\\", app_name, "-save");
+  }
+#elif defined(__APPLE__)
+  const char* home = getenv("HOME");
+  if (home == nullptr) home = "/tmp";
+  buf.Set(home, "/Library/Application Support/", app_name);
+#else
+  const char* xdg_data = getenv("XDG_DATA_HOME");
+  if (xdg_data != nullptr && xdg_data[0] != '\0') {
+    buf.Set(xdg_data, "/", app_name);
+  } else {
+    const char* home = getenv("HOME");
+    if (home == nullptr) home = "/tmp";
+    buf.Set(home, "/.local/share/", app_name);
+  }
+#endif
+  size_t len = buf.size() < out_size - 1 ? buf.size() : out_size - 1;
+  std::memcpy(out, buf.str(), len);
+  out[len] = '\0';
+}
+
 #ifdef _WIN32
 const char* const kExeExtension = ".exe";
 #else

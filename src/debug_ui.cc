@@ -2,22 +2,22 @@
 
 #ifdef GAME_WITH_IMGUI
 
+#include <TextEditor.h>
+#include <imgui.h>
+#include <imgui_impl_opengl3.h>
+#include <imgui_impl_sdl3.h>
+
 #include <cctype>
 #include <cstring>
 #include <string_view>
 
-#include <imgui.h>
-#include <imgui_impl_opengl3.h>
-#include <imgui_impl_sdl3.h>
-#include <TextEditor.h>
-
 #include "engine.h"
 #include "libraries/sqlite3.h"
-#include "sqlite_helpers.h"
-#include "zone_stats.h"
 #include "lua.h"
 #include "platform.h"
+#include "sqlite_helpers.h"
 #include "string_table.h"
+#include "zone_stats.h"
 
 namespace G {
 
@@ -78,14 +78,14 @@ void DebugUI::Init(SDL_Window* window, SDL_GLContext gl_context) {
   style.Colors[ImGuiCol_WindowBg].w = 0.85f;
   ImGui_ImplSDL3_InitForOpenGL(window, gl_context);
   ImGui_ImplOpenGL3_Init(/*glsl_version=*/"#version 150");
-  frame_times_ = allocator_->New<CircularBuffer<float>>(kFrameTimeHistory,
-                                                        allocator_);
-  lua_memory_samples_ = allocator_->New<CircularBuffer<float>>(
-      kFrameTimeHistory, allocator_);
+  frame_times_ =
+      allocator_->New<CircularBuffer<float>>(kFrameTimeHistory, allocator_);
+  lua_memory_samples_ =
+      allocator_->New<CircularBuffer<float>>(kFrameTimeHistory, allocator_);
   breakdown_history_ = allocator_->New<CircularBuffer<FrameBreakdown>>(
       kFrameTimeHistory, allocator_);
-  repl_entries_ = allocator_->New<CircularBuffer<ReplEntry>>(
-      kMaxReplEntries, allocator_);
+  repl_entries_ =
+      allocator_->New<CircularBuffer<ReplEntry>>(kMaxReplEntries, allocator_);
   initialized_ = true;
   LOG("Debug UI initialized (Dear ImGui ", IMGUI_VERSION, ")");
 }
@@ -197,14 +197,15 @@ void DebugUI::LogMessage(LogLevel level, const char* message) {
 }
 
 // Panel implementations (unity build includes).
-#include "debug_ui_performance.inc.cc"
-#include "debug_ui_log.inc.cc"
-#include "debug_ui_inspector.inc.cc"
-#include "debug_ui_panels.inc.cc"
+#include "debug_ui_assets.inc.cc"
 #include "debug_ui_docs.inc.cc"
+#include "debug_ui_inspector.inc.cc"
+#include "debug_ui_log.inc.cc"
+#include "debug_ui_panels.inc.cc"
+#include "debug_ui_performance.inc.cc"
+#include "debug_ui_save.inc.cc"
 #include "debug_ui_watch.inc.cc"
 #include "debug_ui_zones.inc.cc"
-#include "debug_ui_assets.inc.cc"
 
 // Window resize presets shared by menu and F7 shortcut.
 struct WindowPreset {
@@ -256,6 +257,7 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       PanelMenuItem("Camera", kPanelCamera);
       PanelMenuItem("Physics", kPanelPhysics);
       PanelMenuItem("Network", kPanelNetwork);
+      PanelMenuItem("Save Data", kPanelSave);
       PanelMenuItem("Assets", kPanelAssets);
       PanelMenuItem("API Docs", kPanelDocs);
       PanelMenuItem("Watch", kPanelWatch);
@@ -299,8 +301,7 @@ void DebugUI::DrawMenuBar(const FrameContext& ctx) {
       ImGui::Text("Current: %dx%d", w, h);
       ImGui::Separator();
       for (int i = 0; i < kWindowPresetCount; ++i) {
-        bool current =
-            (w == kWindowPresets[i].w && h == kWindowPresets[i].h);
+        bool current = (w == kWindowPresets[i].w && h == kWindowPresets[i].h);
         if (ImGui::MenuItem(kWindowPresets[i].label, nullptr, current)) {
           ResizeWindow(kWindowPresets[i].w, kWindowPresets[i].h);
         }
@@ -368,11 +369,10 @@ void DebugUI::DrawMiniHud(const FrameContext& ctx) {
   float hud_x = static_cast<float>(win_w) - 155.0f;
   ImGui::SetNextWindowPos(ImVec2(hud_x, 5.0f));
   ImGui::SetNextWindowBgAlpha(0.5f);
-  ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
-                           ImGuiWindowFlags_NoInputs |
-                           ImGuiWindowFlags_AlwaysAutoResize |
-                           ImGuiWindowFlags_NoFocusOnAppearing |
-                           ImGuiWindowFlags_NoNav;
+  ImGuiWindowFlags flags =
+      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing |
+      ImGuiWindowFlags_NoNav;
   if (ImGui::Begin("##MiniHud", nullptr, flags)) {
     float last_ms = 0.0f;
     if (frame_times_ != nullptr && frame_times_->size() > 0) {
@@ -409,8 +409,7 @@ void DebugUI::DrawDropDownRepl() {
   ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.05f, 0.05f, 0.1f, 0.92f));
 
   ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
-                           ImGuiWindowFlags_NoResize |
-                           ImGuiWindowFlags_NoMove |
+                           ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                            ImGuiWindowFlags_NoCollapse;
   if (ImGui::Begin("##DropDownRepl", nullptr, flags)) {
     // Header.
@@ -433,9 +432,8 @@ void DebugUI::DrawDropDownRepl() {
       dropdown_editor_.SetLanguage(editor_lang);
     }
     ImGui::SameLine();
-    if (ImGui::SmallButton("Run") ||
-        (ImGui::IsKeyDown(ImGuiMod_Ctrl) &&
-         ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+    if (ImGui::SmallButton("Run") || (ImGui::IsKeyDown(ImGuiMod_Ctrl) &&
+                                      ImGui::IsKeyPressed(ImGuiKey_Enter))) {
       std::string code = dropdown_editor_.GetText();
       while (!code.empty() && (code.back() == '\n' || code.back() == '\r' ||
                                code.back() == ' ')) {
@@ -467,11 +465,9 @@ void DebugUI::DrawDropDownRepl() {
       for (size_t i = 0; i < count; ++i) {
         const auto& entry = (*repl_entries_)[i];
         if (entry.is_input) {
-          ImGui::PushStyleColor(ImGuiCol_Text,
-                                ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+          ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
         } else if (entry.is_error) {
-          ImGui::PushStyleColor(ImGuiCol_Text,
-                                ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+          ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
         }
         ImGui::TextUnformatted(entry.text);
         if (entry.is_input || entry.is_error) ImGui::PopStyleColor();
@@ -533,8 +529,8 @@ void DebugUI::DrawPhysicsDebug() {
   // Velocity arrows.
   if (show_velocities_) {
     ImDrawList* dl = ImGui::GetBackgroundDrawList();
-    for (const b2Body* body = engine_->physics.GetBodyList();
-         body != nullptr; body = body->GetNext()) {
+    for (const b2Body* body = engine_->physics.GetBodyList(); body != nullptr;
+         body = body->GetNext()) {
       if (body->GetType() != b2_dynamicBody || !body->IsAwake()) continue;
       b2Vec2 pos = body->GetPosition();
       b2Vec2 vel = body->GetLinearVelocity();
@@ -544,8 +540,8 @@ void DebugUI::DrawPhysicsDebug() {
       if (arrow_len > 100.0f) arrow_len = 100.0f;
       b2Vec2 dir(vel.x / speed, vel.y / speed);
       b2Vec2 tip = pos + (arrow_len / ppm) * dir;
-      dl->AddLine(to_screen(pos), to_screen(tip),
-                  IM_COL32(0, 255, 255, 200), 2.0f);
+      dl->AddLine(to_screen(pos), to_screen(tip), IM_COL32(0, 255, 255, 200),
+                  2.0f);
     }
   }
 
@@ -594,6 +590,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   if (PanelOpen(kPanelCamera)) DrawCameraPanel();
   if (PanelOpen(kPanelPhysics)) DrawPhysicsPanel();
   if (PanelOpen(kPanelNetwork)) DrawNetworkPanel();
+  if (PanelOpen(kPanelSave)) DrawSavePanel();
   if (PanelOpen(kPanelAssets)) DrawAssetViewer();
   if (PanelOpen(kPanelDocs)) DrawDocsPanel();
   if (PanelOpen(kPanelWatch)) DrawWatchPanel();
@@ -619,6 +616,7 @@ void DebugUI::DrawPanelSelector() {
     PanelMenuItem("API Docs", kPanelDocs);
     PanelMenuItem("Watch", kPanelWatch);
     PanelMenuItem("Hot Zones", kPanelZones);
+    PanelMenuItem("Save Data", kPanelSave);
   }
   ImGui::End();
   if (!open) TogglePanel(kPanelSelector);
@@ -666,16 +664,14 @@ void DebugUI::DrawTextureZoom() {
           float a = zoom_pixels_[offset + 3] / 255.0f;
           ImVec4 color(r, g, b, a);
           ImGui::BeginTooltip();
-          ImGui::ColorButton("##pixel", color,
-                             ImGuiColorEditFlags_AlphaPreview,
+          ImGui::ColorButton("##pixel", color, ImGuiColorEditFlags_AlphaPreview,
                              ImVec2(32, 32));
           ImGui::SameLine();
-          ImGui::Text("(%d, %d)\n#%02X%02X%02X%02X\nRGBA: %d %d %d %d",
-                      px, py, zoom_pixels_[offset],
-                      zoom_pixels_[offset + 1], zoom_pixels_[offset + 2],
-                      zoom_pixels_[offset + 3], zoom_pixels_[offset],
-                      zoom_pixels_[offset + 1], zoom_pixels_[offset + 2],
-                      zoom_pixels_[offset + 3]);
+          ImGui::Text("(%d, %d)\n#%02X%02X%02X%02X\nRGBA: %d %d %d %d", px, py,
+                      zoom_pixels_[offset], zoom_pixels_[offset + 1],
+                      zoom_pixels_[offset + 2], zoom_pixels_[offset + 3],
+                      zoom_pixels_[offset], zoom_pixels_[offset + 1],
+                      zoom_pixels_[offset + 2], zoom_pixels_[offset + 3]);
           ImGui::EndTooltip();
         }
       }

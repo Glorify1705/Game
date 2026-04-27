@@ -18,6 +18,7 @@
 #include "network.h"
 #include "physics.h"
 #include "renderer.h"
+#include "save.h"
 #include "shaders.h"
 #include "sound.h"
 #include "timer.h"
@@ -56,6 +57,7 @@ struct Engine {
   DbAssets* assets;
   GameConfig config;
   Filesystem filesystem;
+  Save save;
   SDL_Window* window;
   Shaders shaders;
   BatchRenderer batch_renderer;
