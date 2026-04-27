@@ -273,34 +273,22 @@ int EmitterBurst(lua_State* state) {
 int EmitterDraw(lua_State* state) {
   auto* e = CheckEmitter(state, 1);
   auto* br = Registry<BatchRenderer>::Retrieve(state);
+  auto* frame_alloc = Registry<ArenaAllocator>::Retrieve(state);
 
   const ParticlePool& p = e->pool;
   if (p.count == 0) return 0;
 
-  // Save and set blend mode.
-  BlendMode prev_blend = br->GetCurrentBlendMode();
-  br->SetActiveBlendMode(e->def.blend_mode);
+  // Allocate instance data from the frame allocator (valid until frame end).
+  auto* instances = static_cast<ParticleInstanceData*>(frame_alloc->Alloc(
+      p.count * sizeof(ParticleInstanceData), alignof(ParticleInstanceData)));
 
-  // Use the noop texture (solid white) so color tinting works.
-  br->ClearTexture();
-
-  // Draw each particle as a quad.
+  // Build instance data from SoA particle arrays.
   for (uint32_t i = 0; i < p.count; ++i) {
-    float half = p.size[i];
-    float px = p.x[i];
-    float py = p.y[i];
-    br->SetActiveColor(p.color[i]);
-    br->PushQuad(FVec(px - half, py - half),  // top-left
-                 FVec(px + half, py + half),  // bottom-right
-                 FVec(0.0f, 0.0f),            // tex top-left
-                 FVec(1.0f, 1.0f),            // tex bottom-right
-                 FVec(px, py),                // rotation origin
-                 p.angle[i]);
+    instances[i] = {p.x[i], p.y[i], p.size[i], p.angle[i], p.color[i]};
   }
 
-  // Restore blend mode.
-  br->SetActiveBlendMode(prev_blend);
-
+  // Push a single instanced draw command.
+  br->DrawParticles(instances, p.count, br->noop_texture(), e->def.blend_mode);
   return 0;
 }
 

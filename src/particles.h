@@ -192,6 +192,16 @@ Color EvalColorRamp(const ColorRamp& ramp, float t);
 // Picks the initial value from a property ramp at spawn time.
 float EvalSpawnRamp(const PropertyRamp& ramp, Emitter* emitter);
 
+// Per-particle data for GPU instanced rendering.
+struct ParticleInstanceData {
+  float x, y;   // World-space center position.
+  float size;   // Half-extent of the quad.
+  float angle;  // Rotation in radians.
+  Color color;  // RGBA color (4 bytes).
+};
+
+static_assert(sizeof(ParticleInstanceData) == 20);
+
 }  // namespace G
 
 #endif  // _GAME_PARTICLES_H
