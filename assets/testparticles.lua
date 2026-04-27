@@ -166,8 +166,8 @@ function M:update(t, dt)
     end
   end
 
-  -- Burst on left click (button 1).
-  if G.input.is_mouse_pressed(1) then
+  -- Burst on left click.
+  if G.input.is_mouse_pressed("left") then
     self.emitters[self.current]:burst(50, self.mouse_x, self.mouse_y)
   end
 
