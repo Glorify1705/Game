@@ -5,6 +5,17 @@
 namespace G {
 namespace {
 
+// Maps a mouse button argument to a number. Accepts a number directly or
+// a string name: "left" (1), "middle"/"mid" (2), "right" (3).
+int CheckMouseButton(lua_State* state, int index) {
+  if (lua_isnumber(state, index)) return lua_tointeger(state, index);
+  std::string_view name = GetLuaString(state, index);
+  if (name == "left") return 1;
+  if (name == "middle" || name == "mid") return 2;
+  if (name == "right") return 3;
+  return luaL_error(state, "unknown mouse button: %s", name.data());
+}
+
 const struct LuaApiFunction kInputLib[] = {
     {"mouse_position",
      "Returns the current mouse position",
@@ -60,32 +71,35 @@ const struct LuaApiFunction kInputLib[] = {
      }},
     {"is_mouse_pressed",
      "Returns true if the mouse button was pressed this frame",
-     {{"button", "the mouse button number", "number"}},
+     {{"button",
+       "Button number or name (\"left\", \"middle\"/\"mid\", \"right\")",
+       "number|string"}},
      {{"pressed", "whether the button was pressed", "boolean"}},
      [](lua_State* state) {
        auto* mouse = Registry<Mouse>::Retrieve(state);
-       const auto button = luaL_checknumber(state, 1);
-       lua_pushboolean(state, mouse->IsPressed(button));
+       lua_pushboolean(state, mouse->IsPressed(CheckMouseButton(state, 1)));
        return 1;
      }},
     {"is_mouse_released",
      "Returns true if the mouse button was released this frame",
-     {{"button", "the mouse button number", "number"}},
+     {{"button",
+       "Button number or name (\"left\", \"middle\"/\"mid\", \"right\")",
+       "number|string"}},
      {{"released", "whether the button was released", "boolean"}},
      [](lua_State* state) {
        auto* mouse = Registry<Mouse>::Retrieve(state);
-       const auto button = luaL_checknumber(state, 1);
-       lua_pushboolean(state, mouse->IsReleased(button));
+       lua_pushboolean(state, mouse->IsReleased(CheckMouseButton(state, 1)));
        return 1;
      }},
     {"is_mouse_down",
      "Returns true if the mouse button is currently held down",
-     {{"button", "the mouse button number", "number"}},
+     {{"button",
+       "Button number or name (\"left\", \"middle\"/\"mid\", \"right\")",
+       "number|string"}},
      {{"down", "whether the button is down", "boolean"}},
      [](lua_State* state) {
        auto* mouse = Registry<Mouse>::Retrieve(state);
-       const auto button = luaL_checknumber(state, 1);
-       lua_pushboolean(state, mouse->IsDown(button));
+       lua_pushboolean(state, mouse->IsDown(CheckMouseButton(state, 1)));
        return 1;
      }},
     {"is_controller_button_pressed",

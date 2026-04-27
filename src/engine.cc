@@ -15,6 +15,7 @@
 #include "lua_log.h"
 #include "lua_math.h"
 #include "lua_network.h"
+#include "lua_particles.h"
 #include "lua_physics.h"
 #include "lua_random.h"
 #include "lua_scene.h"
@@ -94,6 +95,7 @@ void Engine::Initialize() {
   AddTestLibrary(&lua);
   AddTimerLibrary(&lua);
   AddSceneLibrary(&lua);
+  AddParticlesLibrary(&lua);
   lua.BuildCompilationCache();
   // Register asset loaders.
   assets->RegisterShaderLoad(

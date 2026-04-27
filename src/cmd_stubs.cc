@@ -15,6 +15,7 @@
 #include "lua_json.h"
 #include "lua_log.h"
 #include "lua_math.h"
+#include "lua_particles.h"
 #include "lua_physics.h"
 #include "lua_random.h"
 #include "lua_scene.h"
@@ -53,7 +54,7 @@ int CmdStubs(Slice<const char*> args, Allocator* allocator) {
       GetSystemLibraryDef(),     GetAssetsLibraryDef(),
       GetCollisionLibraryDef(),  GetJsonLibraryDef(),
       GetTestLibraryDef(),       GetTimerLibraryDef(),
-      GetSceneLibraryDef(),
+      GetSceneLibraryDef(),      GetParticlesLibraryDef(),
   };
 
   WriteLuaLSStubs(output, defs, std::size(defs));

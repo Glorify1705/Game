@@ -410,6 +410,7 @@ class Lua {
   friend void AddDataLibrary(Lua* lua, DbAssets* db_assets);
   friend void AddNetworkLibrary(Lua* lua);
   friend void AddSceneLibrary(Lua* lua);
+  friend void AddParticlesLibrary(Lua* lua);
 
  private:
   int LoadLuaAsset(std::string_view filename, std::string_view script_contents,

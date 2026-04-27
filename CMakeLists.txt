@@ -239,6 +239,8 @@ set(ENGINE_SRCS
     src/network.cc
     src/lua_data.cc
     src/lua_network.cc
+    src/lua_particles.cc
+    src/particles.cc
     src/platform.cc
     $<$<BOOL:${ENABLE_IMGUI}>:src/debug_ui.cc>
     libraries/lua-protobuf/pb.c)
@@ -371,6 +373,7 @@ if(NOT CMAKE_CROSSCOMPILING)
       tests/test_executor.cc
       tests/test_platform.cc
       tests/test_transformations.cc
+      tests/test_particles.cc
   )
 
   target_compile_features(Tests PRIVATE cxx_std_17)
