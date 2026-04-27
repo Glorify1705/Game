@@ -42,6 +42,8 @@ tags: [index]
 | [Thread pool and executor](Thread%20pool%20and%20executor.md) | threading, core | Executor interface with ThreadPool, Inline, and MainThread variants |
 | [Timer and tween system](Timer%20and%20tween%20system.md) | gameplay, lua-api | Timers, tweens, easing functions, cooldowns, and springs |
 | [Vendor all libraries](Vendor%20all%20libraries.md) | build, dependencies | All libraries vendored directly, no git submodules |
+| [Particle system](Particle%20system.md) | renderer, particles, lua-api | CPU particle system with SoA layout, PropertyRamp/ColorRamp, instanced rendering, G.particles Lua API |
+| [Scene and state management](Scene%20and%20state%20management.md) | scenes, state, lua-api, gameplay | G.scene API with switch/push/pop, lifecycle hooks, deferred transitions |
 
 ## In Progress
 
@@ -71,9 +73,7 @@ tags: [index]
 | [LuaJIT Migration](LuaJIT%20Migration.md) | lua, performance | Migration from Lua 5.1 to LuaJIT with WASM fallback |
 | [Module memory budgets](Module%20memory%20budgets.md) | memory, allocators, architecture | Only batch renderer overflow fix shipped; per-module sub-arenas, watermarks, and budget system not started |
 | [Multiplatform support](Multiplatform%20support.md) | wasm, android, ios, portability | WASM, Android, and iOS support: shader precompiler, touch input, lifecycle events, build toolchains |
-| [Particle system](Particle%20system.md) | renderer, particles, lua-api | CPU particle system with PropertyRamp and instanced rendering |
 | [Save and persistence](Save%20and%20persistence.md) | persistence, save, achievements, lua-api | Namespaced SQLite KV store for save data, settings, achievements |
-| [Scene and state management](Scene%20and%20state%20management.md) | scenes, state, lua-api, gameplay | Scene stack with switch/push/pop, lifecycle hooks, deferred transitions |
 | [Test input system](Test%20input%20system.md) | testing, input | Synthetic input injection for automated testing |
 
 ## Reference
@@ -113,7 +113,6 @@ The biggest remaining gaps vs other engines. Required to ship non-trivial games.
 | [Save and persistence](Save%20and%20persistence.md) | Can't ship any game with progression without this. SQLite KV store, platform save dirs, achievements. Only Carimbo has built-in achievements.                                            |
 | [Test input system](Test%20input%20system.md)       | Automated testing via synthetic input. Raylib and libGDX both support this — strongest cross-engine signal for testability. Pairs with CI.                                               |
 | Math utilities                                      | Lerp, distance, angle, direction, noise. Used in virtually every game script.                                                                                                            |
-| [Scene and state management](Scene%20and%20state%20management.md) | Scene lifecycle with switch/push/pop, deferred transitions, lifecycle hooks. Reduces boilerplate for menu/gameplay/pause states. |
 | Input action binding                                | Abstract action mapping (buttons to "jump"/"shoot"), rebinding, hold detection. high_impact and Anchor support this.                                                                     |
 
 ### P2 — Strengthen differentiators
@@ -140,7 +139,6 @@ Valuable but not blocking. Build these when a specific game needs them.
 
 | Document                                                      | Rationale                                                                                                        |
 | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| [Particle system](Particle%20system.md)                       | Visual polish. Can be prototyped in Lua first.                                                                   |
 | Tilemap system                                                | Essential for platformers/RPGs. libGDX has Tiled/TMX import; high_impact has slope collision. No design doc yet. |
 | Drawing primitives                                            | Ellipses, arcs, rounded rects, polygons, gradients. Raylib is the reference.                                     |
 | [Module memory budgets](Module%20memory%20budgets.md)         | Per-module sub-arenas and watermarks. Only needed before targeting memory-constrained platforms (web, mobile).    |

@@ -28,6 +28,8 @@ and package it for distribution.
 - **Scenes** --- `G.scene` API with register/switch/push/pop, deferred
   transitions, lifecycle hooks (init/enter/leave/resume), automatic
   callback routing, overlay support via `draw_below`
+- **Particles** --- `G.particles` API with SoA pool, PropertyRamp/ColorRamp
+  over-lifetime modulation, instanced GPU rendering, emission shapes
 - **Networking** --- ENet reliable UDP with client/server architecture,
   send/broadcast/receive, peer management
 - **Assets** --- SQLite-backed asset database, automatic packing, hot-reload
@@ -341,6 +343,51 @@ function Stub:init() end
 function Stub:update() end
 function Stub:draw() end
 return Stub
+```
+
+### G.particles
+
+CPU particle system with instanced GPU rendering. Emitters are configured
+with a declarative table and support property ramps (constant, random range,
+or N-stop interpolation) for size, speed, spin, and color over lifetime.
+
+```lua
+local emitter = G.particles.new_emitter({
+    max_particles = 3000,
+    emission_rate = 200,                -- particles/sec (0 = burst only)
+    lifetime = {0.3, 0.8},             -- {min, max} seconds
+    speed = {50, 150},                 -- {min, max} pixels/sec
+    direction = -math.pi / 2,          -- upward
+    spread = math.pi / 6,              -- 30-degree cone
+    size = {4, 8},                     -- {min, max} half-extent
+    size_over_life = {1.0, 0.5, 0.0},  -- ramp: full -> half -> zero
+    color_over_life = {                 -- RGBA stops (0-1 floats)
+        {1, 1, 0.6, 1},               -- bright yellow
+        {1, 0.5, 0, 0.8},             -- orange
+        {0.6, 0.1, 0, 0},             -- dark red, transparent
+    },
+    gravity = {0, -50},                -- {x, y} pixels/sec^2
+    damping = 0.95,                    -- velocity retention per second
+    blend_mode = "add",                -- "add", "alpha", "multiply", "replace"
+    shape = "point",                   -- "point", "circle", "rect"
+})
+```
+
+Emitter methods:
+
+```lua
+emitter:set_position(x, y)            -- Set emitter world position
+emitter:start()                       -- Begin continuous emission
+emitter:stop()                        -- Stop emission (particles finish)
+emitter:burst(count [, x, y])         -- Spawn count particles immediately
+emitter:update(dt)                    -- Advance simulation
+emitter:draw()                        -- Render all live particles
+emitter:particle_count() -> integer   -- Number of live particles
+emitter:is_active() -> boolean        -- Whether emitting
+emitter:set_emission_rate(rate)       -- Change particles/sec
+emitter:set_direction(angle)          -- Change emission angle
+emitter:set_spread(spread)            -- Change cone half-angle
+emitter:set_gravity(gx, gy)           -- Change gravity force
 ```
 
 ### G.physics

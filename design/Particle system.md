@@ -1,5 +1,5 @@
 ---
-status: in-design
+status: implemented
 tags: [renderer, particles, lua-api]
 ---
 
@@ -995,31 +995,23 @@ pointer to "allocate" and resets the pointer to "free everything."
 
 ## Implementation Plan
 
-**Phase 1 -- CPU Particles with Instanced Draw (target: working prototype)**
+**Phase 1 -- CPU Particles with Instanced Draw (DONE, PR #82)**
 
-1. Add `particles.h` / `particles.cc` with `ParticlePool`, `EmitterDef`,
-   `Emitter`, `PropertyRamp`, `ColorRamp`. Pure C++ data structures and
-   simulation logic, no OpenGL calls.
-2. Implement `Update()`, `Spawn()`, `Burst()` on the CPU with SoA layout.
-   This is the core simulation loop described above.
-3. Add a particle-specific vertex shader (the GLSL code shown above) and
-   the OpenGL setup to create and populate the instance buffer. This involves
-   creating a Vertex Array Object (VAO) -- an OpenGL object that describes
-   the layout of vertex data -- and configuring per-instance attribute
-   divisors (telling OpenGL "advance this attribute once per instance, not
-   once per vertex").
-4. Add `kRenderParticles` command to `BatchRenderer`. When the renderer
-   encounters this command during its flush, it switches to the particle
-   shader, binds the particle VAO and instance buffer, and calls
-   `glDrawElementsInstanced`.
-5. Add `lua_particles.cc` with `new_emitter`, `set_position`, `start`,
-   `stop`, `burst`, `update`, `draw`, `destroy`. Follow the existing Lua
-   binding pattern (`LuaApiFunction` arrays, `Registry` for C++ object
-   access).
-6. Write tests in `tests/test.cc`: pool lifecycle (create, spawn, kill,
-   destroy), swap-and-compact correctness, ramp evaluation at boundary
-   values (t=0, t=1, t=0.5), edge cases (zero lifetime, pool at max
-   capacity, zero emission rate, burst when pool is nearly full).
+All items complete:
+
+1. `particles.h` / `particles.cc`: `ParticlePool` (SoA), `EmitterDef`,
+   `Emitter`, `PropertyRamp`, `ColorRamp`. Uses vendored pcg32 RNG.
+2. `Update()`, `Spawn()`, `Burst()` with SoA layout and swap-and-compact.
+3. Particle vertex shader with per-instance attributes (`glVertexAttribDivisor`).
+   Dedicated particle VAO, quad VBO, instance VBO.
+4. `kRenderParticles` command in `BatchRenderer`. `RenderParticlesBatch()`
+   handles shader switch, instance upload, and `glDrawElementsInstanced`.
+5. `lua_particles.cc` with `G.particles.new_emitter()`, emitter methods
+   (`set_position`, `start`, `stop`, `burst`, `update`, `draw`, etc.).
+6. 22 tests in `tests/test_particles.cc`: ramps, pool lifecycle, spawn/kill,
+   gravity, damping, swap-compact, edge cases.
+7. Two demo programs: `testparticles.lua` (interactive, 5 effects) and
+   `testparticles_auto.lua` (automated API test with synthetic inputs).
 
 **Phase 2 -- Polish and Features**
 
@@ -1030,7 +1022,8 @@ pointer to "allocate" and resets the pointer to "free everything."
    from the emitter rather than world coordinates, so they follow it).
 10. Debug overlay: show emitter bounding boxes, live/max particle counts,
     and pool utilization in the Tab debug panel.
-11. Emission shapes beyond point: circle and rectangle spawning.
+11. Textured particles: pass sprite name to `draw()`, look up spritesheet
+    UV rect, and pass texture unit through the `kRenderParticles` command.
 
 **Phase 3 -- GPU Compute (future, if needed)**
 
