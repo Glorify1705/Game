@@ -1,34 +1,52 @@
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 
 #include "gtest/gtest.h"
 #include "platform.h"
 #include "save.h"
 
+#ifdef _WIN32
+#include <process.h>
+#define getpid _getpid
+#else
+#include <unistd.h>
+#endif
+
 namespace G {
+namespace {
+
+const char* TempDir() {
+#ifdef _WIN32
+  const char* tmp = std::getenv("TEMP");
+  if (!tmp) tmp = std::getenv("TMP");
+  if (!tmp) tmp = "C:\\Temp";
+  return tmp;
+#else
+  return "/tmp";
+#endif
+}
+
+}  // namespace
 
 class SaveTest : public ::testing::Test {
  protected:
   SystemAllocator allocator_;
-  char dir_[256] = {};
+  char dir_[512] = {};
 
   void SetUp() override {
-    // Use a temp directory for each test.
-    const char* tmp = getenv("TMPDIR");
-    if (tmp == nullptr) tmp = "/tmp";
-    snprintf(dir_, sizeof(dir_), "%s/game_test_save_XXXXXX", tmp);
-    ASSERT_NE(mkdtemp(dir_), nullptr);
+    const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+    std::snprintf(dir_, sizeof(dir_), "%s/game_save_test_%d_%s", TempDir(),
+                  static_cast<int>(getpid()), info->name());
+    ASSERT_FALSE(MakeDirs(dir_).is_error());
   }
 
   void TearDown() override {
-    // Clean up: remove database files and directory.
-    char path[512];
-    snprintf(path, sizeof(path), "%s/save.sqlite3", dir_);
+    char path[768];
+    std::snprintf(path, sizeof(path), "%s/save.sqlite3", dir_);
     std::remove(path);
-    snprintf(path, sizeof(path), "%s/save.sqlite3-wal", dir_);
+    std::snprintf(path, sizeof(path), "%s/save.sqlite3-wal", dir_);
     std::remove(path);
-    snprintf(path, sizeof(path), "%s/save.sqlite3-shm", dir_);
+    std::snprintf(path, sizeof(path), "%s/save.sqlite3-shm", dir_);
     std::remove(path);
     std::remove(dir_);
   }

@@ -73,7 +73,7 @@ void GetUserCacheDir(const char* app_name, char* out, size_t out_size);
 
 // Writes the platform-specific persistent save directory for the given app.
 // Linux: $XDG_DATA_HOME/<app>/ or ~/.local/share/<app>/
-// Windows: %APPDATA%\<app>\
+// Windows: %APPDATA%/<app>
 // macOS: ~/Library/Application Support/<app>/
 void GetUserSaveDir(const char* app_name, char* out, size_t out_size);
 
