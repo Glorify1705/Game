@@ -446,6 +446,326 @@ ENet supports multiple channels per connection. A sensible default convention:
 
 The number of channels is configurable at host creation time. Game scripts can define their own channel semantics.
 
+## Dedicated Server Binary
+
+The game engine binary (`game`) initializes SDL3, creates an OpenGL context,
+allocates a 1 GB arena, generates SDF font atlases, loads textures, sets up
+audio — none of which a server needs. Running the full engine as a server
+wastes resources and adds unnecessary complexity.
+
+Instead, a separate lightweight **`server`** binary provides headless server
+support. It shares the vendored libraries (Lua, ENet, lua-protobuf, SQLite,
+PhysFS, mimalloc) but links nothing from SDL, OpenGL, Box2D, the renderer,
+audio, or image loading.
+
+### What the server binary includes
+
+| Component | Library | Purpose |
+|---|---|---|
+| Lua VM | lua (vendored) | Run server game logic |
+| Networking | ENet (vendored) | Transport |
+| Serialization | lua-protobuf (vendored) | `G.data.encode`/`G.data.decode` |
+| Asset DB | SQLite3 (vendored) | Load `.proto` descriptors, server scripts |
+| Filesystem | PhysFS (vendored) | Asset path resolution |
+| Allocator | mimalloc (vendored) | General-purpose allocator (no large arena) |
+| Logging | `logging.cc` | `G.log` for server scripts |
+| Clock | `clock.cc` | `G.clock.time()`, tick timing |
+
+### What it excludes
+
+SDL3, OpenGL, glad, Box2D, the batch renderer, shaders, SDF fonts, audio
+(QOA, SDL audio), image loading (stb_image, QOI), camera, input handling,
+file watcher, hot-reload, profiler.
+
+### Build integration
+
+```cmake
+# Lightweight dedicated server — Lua + ENet + protobuf, no SDL/GL.
+add_executable(Server src/server.cc)
+set_target_properties(Server PROPERTIES OUTPUT_NAME "server")
+target_link_libraries(Server PRIVATE
+    lua mimalloc-static enet physfs-static)
+```
+
+The devenv provides a `game-server` wrapper (matching `game-build`,
+`game-test`, etc.):
+
+```sh
+server assets/                # load scripts + protos from assets/
+server assets/ --port 7777    # custom port
+```
+
+### Server framework
+
+`server.cc` provides a minimal Lua framework (~200-300 lines of C++):
+
+1. Initialize mimalloc (small heap, not a 1 GB arena)
+2. Open the asset DB (SQLite), load `.proto` descriptors
+3. Create a Lua VM, register `G.network`, `G.data`, `G.log`, `G.clock`
+4. Load and execute `server.lua` from the asset DB
+5. Run a fixed-timestep tick loop:
+   - Poll ENet (receive packets, detect connect/disconnect)
+   - Dispatch events to Lua callbacks (`_Server:on_connect`,
+     `_Server:on_receive`, `_Server:on_disconnect`)
+   - Call `_Server:tick(dt)` at the configured tick rate
+6. On shutdown: disconnect all peers, close ENet, close Lua
+
+The Lua API available on the server is a subset of the client's `G.*`:
+
+| Module | Available | Notes |
+|---|---|---|
+| `G.network` | Yes | Full API (create_server, send, broadcast, etc.) |
+| `G.data` | Yes | encode/decode, same protobuf schemas |
+| `G.log` | Yes | Logging |
+| `G.clock` | Yes | Time, delta time |
+| `G.json` | Yes | Config parsing |
+| `G.graphics` | No | No renderer |
+| `G.sound` | No | No audio |
+| `G.input` | No | No window |
+| `G.physics` | No | No Box2D (could add later if server needs physics) |
+| `G.collision` | No | No collision world |
+
+### Server script structure
+
+```lua
+-- assets/server.lua
+
+local config = {
+    port = 7777,
+    max_clients = 8,
+    tick_rate = 20,  -- 20 ticks/sec (50ms per tick)
+}
+
+function _Server:init()
+    G.network.create_server(config.port, config.max_clients)
+    self.players = {}
+    log("Server started on port " .. config.port)
+end
+
+function _Server:on_connect(peer_id)
+    self.players[peer_id] = { x = 0, y = 0, color = math.random(1, 6) }
+    log("Player " .. peer_id .. " connected")
+    -- Tell the new player about existing players
+    for id, p in pairs(self.players) do
+        G.network.send(peer_id,
+            G.data.encode("PlayerJoined", { peer_id = id, color = p.color }),
+            { channel = 0, reliable = true })
+    end
+    -- Tell everyone about the new player
+    G.network.broadcast(
+        G.data.encode("PlayerJoined", { peer_id = peer_id, color = self.players[peer_id].color }),
+        { channel = 0, reliable = true })
+end
+
+function _Server:on_receive(peer_id, data, channel)
+    local input = G.data.decode("PlayerInput", data)
+    local p = self.players[peer_id]
+    if not p then return end
+    -- Apply input to authoritative state
+    if input.left then p.x = p.x - 200 * (1/config.tick_rate) end
+    if input.right then p.x = p.x + 200 * (1/config.tick_rate) end
+    if input.up then p.y = p.y - 200 * (1/config.tick_rate) end
+    if input.down then p.y = p.y + 200 * (1/config.tick_rate) end
+end
+
+function _Server:tick(dt)
+    -- Broadcast authoritative state to all clients
+    local players = {}
+    for id, p in pairs(self.players) do
+        table.insert(players, { peer_id = id, x = p.x, y = p.y, color = p.color })
+    end
+    G.network.broadcast(
+        G.data.encode("GameSnapshot", { players = players, server_time = G.clock.time() }),
+        { channel = 1, reliable = false })
+end
+
+function _Server:on_disconnect(peer_id)
+    self.players[peer_id] = nil
+    G.network.broadcast(
+        G.data.encode("PlayerLeft", { peer_id = peer_id }),
+        { channel = 0, reliable = true })
+    log("Player " .. peer_id .. " disconnected")
+end
+```
+
+### Comparison with the game binary
+
+| | `game` (client) | `server` (dedicated) |
+|---|---|---|
+| Entry point | `src/game.cc` | `src/server.cc` |
+| Window | Yes (SDL3 + OpenGL) | No |
+| Renderer | Full batch renderer, shaders, fonts | None |
+| Audio | SDL audio + QOA streaming | None |
+| Physics | Box2D | None (could opt-in later) |
+| Memory | 1 GB arena + sub-arenas | Small mimalloc heap |
+| Lua script | `main.lua` (`_Game` table) | `server.lua` (`_Server` table) |
+| Networking | Client or host-as-player | Dedicated server |
+| Hot-reload | Yes (file watcher) | Optional (simpler: restart on change) |
+| Binary size | Large (SDL3, OpenGL, fonts, audio) | Small (Lua, ENet, protobuf, SQLite) |
+
+## Test Game: Multiplayer Arena
+
+A minimal networked game to validate the full stack: ENet transport, protobuf
+serialization, dedicated server, client rendering, connect/disconnect lifecycle.
+
+### Concept
+
+Colored squares moving on a shared 2D arena. Each player controls their square
+with arrow keys. The server runs authoritative simulation; clients send inputs
+and render the server's state.
+
+### What it tests
+
+| Feature | How it's exercised |
+|---|---|
+| ENet connection lifecycle | Players appear on connect, disappear on disconnect |
+| Unreliable broadcast | Server sends `GameSnapshot` (all positions) every tick |
+| Reliable messages | `PlayerJoined`, `PlayerLeft`, color change |
+| Protobuf round-trip | Every message is encoded/decoded through `G.data` |
+| Dedicated server | Headless `server` binary runs game logic |
+| Client rendering | `game` binary renders state received from server |
+| Multiple clients | Run 2-4 `game` instances against one `server` |
+| Hot-reload (client) | Edit client script while connected — rendering changes, connection stays |
+| Asset pipeline | `.proto` file in assets/ compiled automatically by packer |
+
+### Protocol definition
+
+```protobuf
+// assets/messages.proto
+syntax = "proto2";
+
+message PlayerInput {
+    optional bool left = 1;
+    optional bool right = 2;
+    optional bool up = 3;
+    optional bool down = 4;
+    optional int32 color = 5;  // set when player changes color
+}
+
+message PlayerJoined {
+    optional int32 peer_id = 1;
+    optional int32 color = 2;
+}
+
+message PlayerLeft {
+    optional int32 peer_id = 1;
+}
+
+message PlayerState {
+    optional int32 peer_id = 1;
+    optional float x = 2;
+    optional float y = 3;
+    optional int32 color = 4;
+}
+
+message GameSnapshot {
+    repeated PlayerState players = 1;
+    optional float server_time = 2;
+}
+```
+
+5 message types, ~25 lines. Exercises repeated fields, nested messages,
+multiple scalar types.
+
+### Client script
+
+```lua
+-- assets/main.lua
+local colors = {
+    {1, 0, 0}, {0, 1, 0}, {0, 0, 1},
+    {1, 1, 0}, {1, 0, 1}, {0, 1, 1},
+}
+
+function _Game:init()
+    G.network.connect("127.0.0.1", 7777)
+    self.players = {}
+    self.connected = false
+end
+
+function _Game:on_connect(peer_id)
+    self.connected = true
+    self.server_id = peer_id
+end
+
+function _Game:on_receive(peer_id, data, channel)
+    if channel == 1 then
+        -- Unreliable: game snapshot
+        local snapshot = G.data.decode("GameSnapshot", data)
+        self.players = {}
+        for _, p in ipairs(snapshot.players) do
+            self.players[p.peer_id] = p
+        end
+    elseif channel == 0 then
+        -- Reliable: join/leave events
+        -- (handled by snapshot for simplicity in this test)
+    end
+end
+
+function _Game:update(t, dt)
+    if not self.connected then return end
+    -- Send input every frame
+    local input = {
+        left = G.input.key_down("left"),
+        right = G.input.key_down("right"),
+        up = G.input.key_down("up"),
+        down = G.input.key_down("down"),
+    }
+    -- Press 1-6 to change color
+    for i = 1, 6 do
+        if G.input.key_pressed(tostring(i)) then input.color = i end
+    end
+    G.network.send(self.server_id,
+        G.data.encode("PlayerInput", input),
+        { channel = 0, reliable = true })
+end
+
+function _Game:draw()
+    G.graphics.clear(0.1, 0.1, 0.1)
+    for id, p in pairs(self.players) do
+        local c = colors[p.color] or {1, 1, 1}
+        G.graphics.set_color(c[1], c[2], c[3])
+        G.graphics.rectangle("fill", p.x - 16, p.y - 16, 32, 32)
+    end
+    if not self.connected then
+        G.graphics.set_color(1, 1, 1)
+        G.graphics.print("Connecting...", 10, 10)
+    end
+end
+
+function _Game:on_disconnect(peer_id)
+    self.connected = false
+    self.players = {}
+end
+```
+
+### Running the test
+
+```sh
+# Terminal 1: start the dedicated server
+server assets/
+
+# Terminal 2: start a client
+game run assets/
+
+# Terminal 3: start a second client
+game run assets/
+```
+
+Both client windows show colored squares. Move with arrow keys in either
+window and see the movement reflected in the other. Press 1-6 to change
+color. Close a client window and see the square disappear in the other.
+
+### Implementation order
+
+1. **Vendor ENet** (zpl-c single header) + **lua-protobuf** (3 files)
+2. **`G.data`** module: `encode`/`decode`/`load_schema`, packer integration
+   for `.proto` files
+3. **`G.network`** module: ENet wrapper, auto-poll, callback dispatch
+4. **`server.cc`**: minimal server binary with Lua framework
+5. **Test game**: `messages.proto` + `server.lua` + `main.lua`
+6. **Iterate**: add client-side interpolation, prediction, or other features
+   based on what the test game reveals
+
 ## Future Extensions
 
 These are explicitly out of scope for the initial implementation but inform the design:
@@ -706,20 +1026,340 @@ The network allocator is independent of the frame allocator — it persists acro
 | Sized free | Modify ENet's `free` callback to accept `size` | ~24 mechanical call sites; maps directly to `Allocator::Dealloc(ptr, size)` |
 | Thread safety | Not needed | All ENet calls on main thread, single point in frame |
 
-## Open Questions
+## Data Serialization
 
-1. **Should `G.network.poll()` be called automatically by the engine, or explicitly by the game script?** Automatic polling (in the main loop, before `update()`) is simpler and prevents the user from forgetting to poll. Explicit polling gives the game script more control over when network events are processed. Love2D's lua-enet requires explicit polling; Godot polls automatically.
+ENet sends raw bytes. Games need to serialize Lua tables into bytes for
+transmission and deserialize them back on the other end. This section evaluates
+serialization libraries and describes the integration plan.
 
-2. **Should the API use callbacks or polling?** The proposed API uses polling (`G.network.poll()` returns a list of events). An alternative is callbacks (`G.network.on("connect", function(...) end)`). Polling is simpler, avoids reentrancy issues, and matches the engine's frame-based update model. Callbacks are more ergonomic for event-driven code. Both can coexist — poll internally, dispatch to registered callbacks.
+### Requirements
 
-3. **How should data serialization work?** ENet sends raw bytes. Games need to serialize Lua tables, numbers, strings into bytes and back. Options:
-   - Use the existing `ByteBuffer` userdata for manual packing/unpacking
-   - Add a simple Lua-side serialization library (like `binser` or `bitser`)
-   - Build MessagePack or a custom binary format into the engine
+| Requirement | Rationale |
+|---|---|
+| Schema-defined messages | Catch malformed data, document the wire protocol, enable versioning |
+| Lua table ↔ bytes | Game logic is in Lua — the API must serialize/deserialize Lua tables directly |
+| Encode/decode in C | The hot path (every frame, every message) must be C, not pure Lua |
+| Vendorable | Must fit in `libraries/` with no external dependencies |
+| No build-time tooling required | Game developers should not need to install protoc or any code generator |
+| Lua 5.1 compatible | Engine constraint |
+| Asset pipeline integration | `.proto` files in `assets/` should be compiled automatically by the packer |
 
-4. **Thread safety.** ENet is not thread-safe. All ENet calls must happen on the same thread. Since the engine runs a single-threaded game loop, this is fine. If the engine ever moves networking to a background thread (for non-blocking DNS resolution, etc.), ENet calls would need to be marshaled back to the main thread.
+### Library Evaluation
 
-5. **Multiple hosts.** Should a game be able to create multiple ENet hosts (e.g., a game server and a lobby client simultaneously)? ENet supports this, but the Lua API design would need to account for it.
+#### lua-protobuf (starwing/lua-protobuf)
+
+**Repository**: [github.com/starwing/lua-protobuf](https://github.com/starwing/lua-protobuf) | **License**: MIT
+
+A self-contained protobuf implementation: C core for wire format encoding/decoding,
+plus a pure Lua `.proto` text parser. No dependency on Google's protobuf library.
+
+**Properties:**
+- 3 files: `pb.h` (1,715 LOC), `pb.c` (2,152 LOC), `protoc.lua` (1,193 LOC)
+- Zero external dependencies beyond Lua headers and libc
+- `pb.c` handles encoding/decoding entirely in C — the hot path never touches Lua
+  bytecode
+- `protoc.lua` parses `.proto` text into binary `FileDescriptorSet` descriptors in
+  pure Lua — only needed at build time, not at runtime
+- Supports proto2 and proto3 syntax, enums, nested messages, repeated fields, maps,
+  oneof, imports
+- Inline schema strings: schemas can be defined as Lua string literals, no external
+  files required
+- Explicit Lua 5.1 support with compatibility shims
+- Used in production games (Tencent titles)
+- Supports `#define PB_STATIC_API` for static linking into a host binary
+
+**What the C core does (fast path):**
+- `pb.load(binary_descriptor)` — registers message types from a pre-compiled binary
+  descriptor (C, microseconds)
+- `pb.encode("TypeName", lua_table)` — traverses the Lua table via C API, writes
+  protobuf wire format into a C buffer (C)
+- `pb.decode("TypeName", bytes)` — reads protobuf wire format in C, creates a Lua
+  table (C)
+
+**What the Lua module does (build time only):**
+- `protoc.lua` parses `.proto` text and emits the binary descriptor that `pb.load`
+  consumes. This runs once during asset packing, not per-frame.
+
+**Allocator note:** Uses `malloc`/`realloc`/`free` directly for internal state
+(type registry, encode buffers). Same situation as `stb_image_write` — low priority
+to patch since allocations are infrequent (schema loading) and small.
+
+#### Alternatives considered
+
+| Library | Why not |
+|---|---|
+| **nanopb** (C, zlib) | Requires code generation (Python + protoc). Cannot load schemas at runtime. No Lua bindings. |
+| **protobuf-c** (C, BSD-2) | Requires code generation (C++ protoc plugin + libprotobuf). Even heavier build dependency than nanopb. |
+| **pbc** (cloudwu, C, MIT) | Good fit (~5.2K LOC, Lua 5.1 bindings) but its `.proto` text parser requires **LPeg**, an external Lua library we don't vendor. Without LPeg, needs pre-compiled `.pb` files from Google's protoc. lua-protobuf's self-contained `protoc.lua` avoids this dependency entirely. |
+| **upb** (Google, C, BSD-3) | Absorbed into Google's protobuf monorepo. 215+ files, no standalone releases, unstable API. Not vendorable. |
+| **FlatBuffers / flatcc** (C, Apache-2.0) | No Lua 5.1 bindings. Zero-copy benefit is nullified by Lua's value semantics (must copy every field into a Lua value). Requires code generation. |
+| **MessagePack / lua-cmsgpack** (C, BSD-2) | Excellent for schema-less serialization (1 file, 870 LOC, uses Lua's allocator). But no schemas — cannot validate messages or version the protocol. Could serve as a complementary option for simple use cases. |
+| **CBOR** | Thinner ecosystem than MessagePack, no practical advantage for game data, no good Lua 5.1 + C bindings. |
+| **bitser** (Lua, ISC) | Requires LuaJIT FFI, not standard Lua 5.1. Not endian-safe — author warns against network use. |
+| **binser** (Lua, MIT) | Pure Lua, proprietary format — C side of the engine cannot produce or consume it. |
+
+### Recommendation: lua-protobuf
+
+lua-protobuf is the clear choice:
+
+1. **Schema-defined.** `.proto` files document the wire protocol and catch
+   malformed data. Protobuf's field numbering supports protocol evolution
+   (add fields without breaking old clients).
+
+2. **C hot path.** Encoding and decoding happen entirely in `pb.c`. The only Lua
+   overhead is the unavoidable table field access via the Lua C API — same cost as
+   any engine binding (physics queries, collision results, etc.).
+
+3. **No external tooling.** `protoc.lua` replaces Google's protoc compiler. Game
+   developers write `.proto` files and the engine handles compilation. No Python,
+   no protoc binary, no code generation step.
+
+4. **Tiny footprint.** 3 files, ~5,000 lines total, zero dependencies. Vendors
+   the same way as stb headers.
+
+5. **Standard format.** Protobuf wire format is interoperable — if a game later
+   needs a dedicated server in Go/Rust/C++, it can read the same messages.
+
+### Integration Plan
+
+#### Step 1: Vendor the library
+
+```
+libraries/
+  lua-protobuf/
+    pb.h           # C header
+    pb.c           # C implementation (~2,150 LOC)
+    protoc.lua     # Pure Lua .proto parser (~1,200 LOC)
+```
+
+Add to CMakeLists.txt as part of the engine library (not a separate target —
+`pb.c` compiles with `-DPB_STATIC_API` and is linked directly):
+
+```cmake
+set(ENGINE_SRCS
+    ...
+    libraries/lua-protobuf/pb.c
+)
+target_compile_definitions(engine PRIVATE PB_STATIC_API)
+```
+
+Register `luaopen_pb` as a built-in Lua module during Lua VM initialization,
+alongside the existing `G.*` libraries.
+
+#### Step 2: Asset pipeline integration
+
+The packer (`src/packer.cc`) already recognizes file extensions and processes
+them — `.qoi` images are decoded, `.ogg`/`.wav` audio is converted, `.frag`
+shaders are loaded, `.sprites.json` atlases are parsed. Add `.proto` as a
+recognized type:
+
+1. Packer sees `messages.proto` in `assets/`
+2. Loads `protoc.lua` into the packer's Lua state
+3. Calls `protoc:load(proto_text)` to parse and compile
+4. Extracts the binary `FileDescriptorSet` via `pb.encode("google.protobuf.FileDescriptorSet", ...)`
+5. Stores the binary `.pb` descriptor in the asset DB under the original filename
+
+This happens during `game run` (before the game loop starts) and during
+`game package`. The `.proto` source text is also stored so hot-reload can
+recompile when the file changes.
+
+**Hot-reload:** When the file watcher detects a `.proto` change:
+1. Packer recompiles the `.proto` to a binary descriptor
+2. The new descriptor is stored in the asset DB
+3. The engine calls `pb.load(new_descriptor)` to update the type registry
+4. Lua code sees updated message definitions on the next encode/decode
+
+No connections are dropped. No Lua state is reset. The schema update is
+transparent.
+
+#### Step 3: Lua API
+
+Protobuf is exposed as `G.data` (not `G.network` — serialization is useful
+beyond networking, e.g. save files, config, IPC):
+
+```lua
+-- Schemas are loaded automatically from .proto files in assets/.
+-- Game code just encodes and decodes by message name.
+
+-- Encode a Lua table to binary protobuf bytes (returns a string)
+local bytes = G.data.encode("PlayerState", {
+    name = "alice",
+    x = player.x,
+    y = player.y,
+    hp = player.hp
+})
+
+-- Decode binary protobuf bytes to a Lua table
+local state = G.data.decode("PlayerState", bytes)
+print(state.name, state.x, state.y)
+
+-- Send over the network
+G.network.send(peer_id, bytes, { channel = 1, reliable = false })
+```
+
+For inline schema definition (prototyping, tests, scripts that don't want a
+separate `.proto` file):
+
+```lua
+-- Define a schema from a string (parsed once, cached)
+G.data.load_schema [[
+    message ChatMessage {
+        optional string sender = 1;
+        optional string text = 2;
+        optional int64 timestamp = 3;
+    }
+]]
+```
+
+**Enum support:**
+
+```lua
+-- Given: enum Direction { Up = 0; Down = 1; Left = 2; Right = 3; }
+local bytes = G.data.encode("PlayerInput", { dir = "Left", jump = true })
+local input = G.data.decode("PlayerInput", bytes)
+print(input.dir)  -- "Left" (decoded as string by default)
+```
+
+**Introspection (optional, useful for debug tools):**
+
+```lua
+-- List all registered message types
+for name in G.data.types() do print(name) end
+
+-- List fields of a message type
+for name, number, type in G.data.fields("PlayerState") do
+    print(name, number, type)
+end
+```
+
+#### Step 4: Example workflow
+
+A game developer adding networked player sync:
+
+1. **Create `assets/messages.proto`:**
+
+```protobuf
+syntax = "proto2";
+
+message PlayerInput {
+    optional bool left = 1;
+    optional bool right = 2;
+    optional bool jump = 3;
+    optional int32 sequence = 4;
+}
+
+message PlayerState {
+    optional int32 peer_id = 1;
+    optional float x = 2;
+    optional float y = 3;
+    optional float vx = 4;
+    optional float vy = 5;
+    optional int32 last_input_seq = 6;
+}
+
+message GameSnapshot {
+    repeated PlayerState players = 1;
+    optional float server_time = 2;
+}
+```
+
+2. **Run `game run assets/`** — the packer compiles `messages.proto`
+   automatically. No extra steps.
+
+3. **Use in game scripts:**
+
+```lua
+-- Client sends inputs every frame
+function _Game:update(t, dt)
+    local input = {
+        left = G.input.key_down("left"),
+        right = G.input.key_down("right"),
+        jump = G.input.key_down("space"),
+        sequence = self.input_seq
+    }
+    self.input_seq = self.input_seq + 1
+    G.network.send(server_id,
+        G.data.encode("PlayerInput", input),
+        { channel = 0, reliable = true })
+end
+
+-- Server broadcasts game state at fixed rate
+function _Server:tick()
+    local snapshot = { players = {}, server_time = G.clock.time() }
+    for id, player in pairs(self.players) do
+        table.insert(snapshot.players, {
+            peer_id = id, x = player.x, y = player.y,
+            vx = player.vx, vy = player.vy,
+            last_input_seq = player.last_seq
+        })
+    end
+    G.network.broadcast(
+        G.data.encode("GameSnapshot", snapshot),
+        { channel = 1, reliable = false })
+end
+```
+
+4. **Edit `messages.proto`** — hot-reload recompiles it. Add a field
+   (`optional int32 score = 7;`), save, and the schema updates live.
+   Old messages without the new field decode fine (protobuf's forward/backward
+   compatibility).
+
+### Performance characteristics
+
+| Operation | Where | Cost |
+|---|---|---|
+| `.proto` text parsing | Packer (build time) | Pure Lua, milliseconds, runs once |
+| `pb.load(descriptor)` | Engine init | C, microseconds, runs once per `.proto` file |
+| `pb.encode(name, table)` | Per message | C: iterate Lua table fields + write wire format |
+| `pb.decode(name, bytes)` | Per message | C: read wire format + create Lua table |
+
+For a typical game message (10-20 fields, 50-200 bytes encoded), encode and
+decode take single-digit microseconds on modern hardware. At 60fps with 32
+peers, this is well under 1% of frame time.
+
+The Lua/C boundary cost (reading table fields, creating tables) is identical to
+what `pb.decode("CollisionResult", ...)` or any other engine binding would cost.
+This is inherent to Lua scripting — all serialization libraries pay the same
+price.
+
+### Optional: MessagePack as a schema-less complement
+
+For use cases where schemas are overkill (debug messages, quick prototyping,
+internal engine IPC), **lua-cmsgpack** (antirez, BSD-2, 1 C file, 870 LOC) could
+be vendored as a secondary serializer:
+
+```lua
+-- No schema needed — just pack/unpack Lua tables directly
+local bytes = G.data.msgpack_encode({type = "ping", time = G.clock.time()})
+local t = G.data.msgpack_decode(bytes)
+```
+
+lua-cmsgpack uses Lua's own allocator (no malloc concern) and is battle-tested
+in Redis. This is optional — protobuf covers all use cases, but MessagePack is
+convenient for ad-hoc messages during development.
+
+## Resolved Design Decisions
+
+These questions from the original design were answered during review:
+
+1. **Polling model:** The engine polls ENet automatically each frame (before
+   `update()`). Game scripts do not call `poll()` manually.
+
+2. **Event dispatch:** Events are dispatched to registered callbacks on the game
+   table (e.g., `_Game:on_connect(peer_id)`, `_Game:on_receive(peer_id, data,
+   channel)`). Games can use coroutines internally for async-style networking.
+
+3. **Serialization:** Protocol Buffers via lua-protobuf. `.proto` files compiled
+   by the asset pipeline. `G.data.encode`/`G.data.decode` for the Lua API. See
+   the Data Serialization section above.
+
+4. **Thread safety:** All networking on the main thread. ENet is single-threaded
+   and all calls happen from the main loop.
+
+5. **Multiple hosts:** Not supported initially. The game creates one host (client
+   or server). The common case is the game acting as a client. Supporting
+   multiple hosts would complicate the API for minimal benefit — revisit if a
+   concrete use case arises.
 
 ## References
 
@@ -732,3 +1372,6 @@ The network allocator is independent of the frame allocator — it persists acro
 - [SnapNet — Netcode Architecture Series](https://www.snapnet.dev/blog/netcode-architectures-part-1-lockstep/)
 - [Raylib + ENet examples](https://github.com/raylib-extras/networking_example)
 - [enet-p2p (NAT punchthrough example)](https://github.com/codecat/enet-p2p)
+- [lua-protobuf](https://github.com/starwing/lua-protobuf) — MIT, C+Lua protobuf implementation
+- [lua-cmsgpack](https://github.com/antirez/lua-cmsgpack) — BSD-2, MessagePack for Lua (Redis)
+- [Protocol Buffers Language Guide](https://protobuf.dev/programming-guides/proto2/)
