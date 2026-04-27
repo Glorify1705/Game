@@ -16,49 +16,71 @@ uint8_t LerpChannel(uint8_t a, uint8_t b, float t) {
   return static_cast<uint8_t>(a + (b - a) * t);
 }
 
+// Number of float arrays in the SoA ParticlePool layout.
+// Must match the number of float* fields assigned in ParticlePool::Init().
+constexpr size_t kFloatArrayCount = 11;
+
+// Computes the total byte size of all SoA arrays for a given capacity.
+size_t PoolByteSize(uint32_t capacity) {
+  return capacity * kFloatArrayCount * sizeof(float) + capacity * sizeof(Color);
+}
+
+// Bump allocator over a contiguous float buffer. Used by ParticlePool::Init()
+// to carve the single allocation into per-field SoA arrays.
+struct FloatSlice {
+  float* pos;
+  uint32_t capacity;
+
+  // Returns the current position and advances by capacity floats.
+  float* Next() {
+    float* result = pos;
+    pos += capacity;
+    return result;
+  }
+};
+
 }  // namespace
 
-void ParticlePool::Init(uint32_t capacity, Allocator* allocator) {
-  max_particles = capacity;
+void ParticlePool::Init(uint32_t cap, Allocator* allocator) {
+  max_particles = cap;
   count = 0;
-  // Single allocation for all arrays.
-  size_t float_arrays = 11;
-  size_t total_floats = capacity * float_arrays;
-  size_t total_bytes = total_floats * sizeof(float) + capacity * sizeof(Color);
-  auto* mem =
-      static_cast<uint8_t*>(allocator->Alloc(total_bytes, alignof(float)));
-  auto* f = reinterpret_cast<float*>(mem);
-  x = f;
-  f += capacity;
-  y = f;
-  f += capacity;
-  vx = f;
-  f += capacity;
-  vy = f;
-  f += capacity;
-  age = f;
-  f += capacity;
-  lifetime = f;
-  f += capacity;
-  size = f;
-  f += capacity;
-  initial_size = f;
-  f += capacity;
-  angle = f;
-  f += capacity;
-  spin = f;
-  f += capacity;
-  initial_spin = f;
-  f += capacity;
-  color = reinterpret_cast<Color*>(f);
+  // Single allocation for all SoA arrays. The layout is kFloatArrayCount
+  // float arrays of `cap` elements each, followed by one Color array.
+  auto* mem = static_cast<uint8_t*>(
+      allocator->Alloc(PoolByteSize(cap), alignof(float)));
+  FloatSlice s = {reinterpret_cast<float*>(mem), cap};
+  x = s.Next();
+  y = s.Next();
+  vx = s.Next();
+  vy = s.Next();
+  age = s.Next();
+  lifetime = s.Next();
+  size = s.Next();
+  initial_size = s.Next();
+  angle = s.Next();
+  spin = s.Next();
+  initial_spin = s.Next();
+  color = reinterpret_cast<Color*>(s.pos);
+}
+
+void ParticlePool::SwapLast(uint32_t dst, uint32_t src) {
+  x[dst] = x[src];
+  y[dst] = y[src];
+  vx[dst] = vx[src];
+  vy[dst] = vy[src];
+  age[dst] = age[src];
+  lifetime[dst] = lifetime[src];
+  size[dst] = size[src];
+  initial_size[dst] = initial_size[src];
+  angle[dst] = angle[src];
+  spin[dst] = spin[src];
+  initial_spin[dst] = initial_spin[src];
+  color[dst] = color[src];
 }
 
 void ParticlePool::Destroy(Allocator* allocator) {
   if (x == nullptr) return;
-  size_t float_arrays = 11;
-  size_t total_bytes = max_particles * float_arrays * sizeof(float) +
-                       max_particles * sizeof(Color);
-  allocator->Dealloc(x, total_bytes);
+  allocator->Dealloc(x, PoolByteSize(max_particles));
   x = nullptr;
   count = 0;
 }
@@ -110,8 +132,7 @@ void Emitter::Init(const EmitterDef& definition, Allocator* alloc) {
   x = 0;
   y = 0;
   active = false;
-  // Seed with a mix of the pointer address and a constant.
-  Seed(reinterpret_cast<uintptr_t>(this) ^ 0x853c49e6748fea9bULL);
+  rng.seed(reinterpret_cast<uintptr_t>(this) ^ 0x853c49e6748fea9bULL);
 }
 
 void Emitter::Destroy() {
@@ -120,27 +141,8 @@ void Emitter::Destroy() {
   allocator = nullptr;
 }
 
-void Emitter::Seed(uint64_t seed) {
-  rng_state = 0;
-  rng_inc = (seed << 1u) | 1u;
-  RandomUint32();
-  rng_state += seed;
-  RandomUint32();
-}
-
-// PCG32 random number generator.
-uint32_t Emitter::RandomUint32() {
-  uint64_t oldstate = rng_state;
-  rng_state = oldstate * 6364136223846793005ULL + rng_inc;
-  uint32_t xorshifted =
-      static_cast<uint32_t>(((oldstate >> 18u) ^ oldstate) >> 27u);
-  uint32_t rot = static_cast<uint32_t>(oldstate >> 59u);
-  return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
-}
-
 float Emitter::RandomFloat(float lo, float hi) {
-  uint32_t r = RandomUint32();
-  float t = static_cast<float>(r) / 4294967296.0f;
+  float t = static_cast<float>(rng()) / 4294967296.0f;
   return lo + (hi - lo) * t;
 }
 
@@ -205,22 +207,8 @@ void Emitter::Update(float dt) {
   for (uint32_t i = 0; i < p.count;) {
     p.age[i] += dt;
     if (p.age[i] >= p.lifetime[i]) {
-      // Swap with last and decrement count.
       uint32_t last = p.count - 1;
-      if (i != last) {
-        p.x[i] = p.x[last];
-        p.y[i] = p.y[last];
-        p.vx[i] = p.vx[last];
-        p.vy[i] = p.vy[last];
-        p.age[i] = p.age[last];
-        p.lifetime[i] = p.lifetime[last];
-        p.size[i] = p.size[last];
-        p.initial_size[i] = p.initial_size[last];
-        p.angle[i] = p.angle[last];
-        p.spin[i] = p.spin[last];
-        p.initial_spin[i] = p.initial_spin[last];
-        p.color[i] = p.color[last];
-      }
+      if (i != last) p.SwapLast(i, last);
       p.count--;
       // Don't advance i; re-check the swapped particle.
     } else {

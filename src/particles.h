@@ -7,6 +7,7 @@
 
 #include "allocators.h"
 #include "color.h"
+#include "libraries/pcg_random.h"
 
 namespace G {
 
@@ -90,7 +91,7 @@ struct EmitterDef {
   float lifetime_min = 1.0f;
   float lifetime_max = 2.0f;
   float direction = 0;
-  float spread = 3.14159265f;
+  float spread = static_cast<float>(M_PI);
 
   // Emission shape.
   EmissionShape shape = EmissionShape::kPoint;
@@ -113,19 +114,20 @@ struct EmitterDef {
 };
 
 // SoA particle storage. All arrays are parallel, sized to max_particles.
+// Allocated as a single contiguous block; see ParticlePool::Init().
 struct ParticlePool {
-  float* x = nullptr;
-  float* y = nullptr;
-  float* vx = nullptr;
-  float* vy = nullptr;
-  float* age = nullptr;
-  float* lifetime = nullptr;
-  float* size = nullptr;
-  float* initial_size = nullptr;
-  float* angle = nullptr;
-  float* spin = nullptr;
-  float* initial_spin = nullptr;
-  Color* color = nullptr;
+  float* x = nullptr;         // World-space X position (pixels).
+  float* y = nullptr;         // World-space Y position (pixels).
+  float* vx = nullptr;        // Velocity X (pixels/sec).
+  float* vy = nullptr;        // Velocity Y (pixels/sec).
+  float* age = nullptr;       // Seconds since spawn.
+  float* lifetime = nullptr;  // Total lifetime (seconds, randomized at spawn).
+  float* size = nullptr;      // Current visual half-extent (pixels).
+  float* initial_size = nullptr;  // Size at spawn (for over-life modulation).
+  float* angle = nullptr;         // Rotation angle (radians).
+  float* spin = nullptr;          // Current angular velocity (radians/sec).
+  float* initial_spin = nullptr;  // Spin at spawn (for over-life modulation).
+  Color* color = nullptr;         // Current RGBA color.
 
   uint32_t count = 0;
   uint32_t max_particles = 0;
@@ -135,6 +137,9 @@ struct ParticlePool {
 
   // Frees all SoA arrays.
   void Destroy(Allocator* allocator);
+
+  // Copies all fields of particle `src` into slot `dst`.
+  void SwapLast(uint32_t dst, uint32_t src);
 };
 
 // Live emitter that owns a particle pool.
@@ -148,9 +153,8 @@ struct Emitter {
 
   Allocator* allocator = nullptr;
 
-  // RNG state for this emitter.
-  uint64_t rng_state = 0;
-  uint64_t rng_inc = 0;
+  // Per-emitter RNG (pcg32).
+  pcg32 rng;
 
   // Creates an emitter with the given definition.
   void Init(const EmitterDef& definition, Allocator* alloc);
@@ -173,14 +177,8 @@ struct Emitter {
   // Returns true if the emitter is actively spawning particles.
   bool IsActive() const { return active; }
 
-  // Seeds the RNG from the given value.
-  void Seed(uint64_t seed);
-
   // Returns a random float in [lo, hi).
   float RandomFloat(float lo, float hi);
-
-  // Returns a random uint32.
-  uint32_t RandomUint32();
 };
 
 // Evaluates a property ramp at normalized lifetime t in [0, 1].
@@ -200,6 +198,8 @@ struct ParticleInstanceData {
   Color color;  // RGBA color (4 bytes).
 };
 
+// Must match the vertex attribute layout in the particle instance VBO
+// (renderer.cc). Changes here require updating glVertexAttribPointer offsets.
 static_assert(sizeof(ParticleInstanceData) == 20);
 
 }  // namespace G

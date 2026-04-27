@@ -1,5 +1,7 @@
 #include "lua_particles.h"
 
+#include <cmath>
+
 #include "particles.h"
 #include "renderer.h"  // BatchRenderer, BlendMode
 
@@ -154,7 +156,7 @@ int PushNewEmitter(lua_State* state) {
   lua_pop(state, 1);
 
   def.direction = ReadFloatField(state, t, "direction", 0);
-  def.spread = ReadFloatField(state, t, "spread", 3.14159265f);
+  def.spread = ReadFloatField(state, t, "spread", static_cast<float>(M_PI));
 
   // Emission shape.
   lua_getfield(state, t, "shape");

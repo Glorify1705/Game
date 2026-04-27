@@ -452,6 +452,14 @@ class BatchRenderer {
   // Sets up common GL state for rendering (blend, multisample, etc.).
   void SetupGLState();
 
+  // Initializes the particle VAO, quad VBO/EBO, and instance VBO.
+  void InitializeParticleResources();
+
+  // Renders particles via instanced draw. Called from within RenderBatch.
+  void RenderParticlesBatch(const RenderParticlesCmd& cmd, int viewport_w,
+                            int viewport_h, const FMat4x4& transform,
+                            FrameStats& stats);
+
   Allocator* allocator_;
   uint8_t* command_buffer_ = nullptr;
   size_t pos_ = 0;

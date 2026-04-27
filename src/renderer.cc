@@ -241,61 +241,7 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   OPENGL_CALL(glVertexAttribPointer(tex_attribute, 2, GL_FLOAT, GL_FALSE,
                                     4 * sizeof(float),
                                     (void*)(2 * sizeof(float))));
-  // Particle instanced rendering resources.
-  OPENGL_CALL(glGenVertexArrays(1, &particle_vao_));
-  OPENGL_CALL(glGenBuffers(1, &particle_quad_vbo_));
-  OPENGL_CALL(glGenBuffers(1, &particle_quad_ebo_));
-  OPENGL_CALL(glGenBuffers(1, &particle_instance_vbo_));
-  OPENGL_CALL(glBindVertexArray(particle_vao_));
-  // Static unit quad: positions [-0.5, 0.5], tex coords [0, 1].
-  float quad_verts[] = {
-      -0.5f, -0.5f, 0.0f, 0.0f,  // bottom-left
-      0.5f,  -0.5f, 1.0f, 0.0f,  // bottom-right
-      0.5f,  0.5f,  1.0f, 1.0f,  // top-right
-      -0.5f, 0.5f,  0.0f, 1.0f,  // top-left
-  };
-  GLuint quad_indices[] = {0, 1, 3, 1, 2, 3};
-  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particle_quad_vbo_));
-  OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(quad_verts), quad_verts,
-                           GL_STATIC_DRAW));
-  // location 0: input_position (vec2)
-  OPENGL_CALL(glEnableVertexAttribArray(0));
-  OPENGL_CALL(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                                    (void*)0));
-  // location 1: input_tex_coord (vec2)
-  OPENGL_CALL(glEnableVertexAttribArray(1));
-  OPENGL_CALL(glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                                    (void*)(2 * sizeof(float))));
-  OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, particle_quad_ebo_));
-  OPENGL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quad_indices),
-                           quad_indices, GL_STATIC_DRAW));
-  // Per-instance attributes from instance VBO.
-  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particle_instance_vbo_));
-  // location 2: instance_pos (vec2)
-  OPENGL_CALL(glEnableVertexAttribArray(2));
-  OPENGL_CALL(glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
-                                    sizeof(ParticleInstanceData),
-                                    (void*)offsetof(ParticleInstanceData, x)));
-  OPENGL_CALL(glVertexAttribDivisor(2, 1));
-  // location 3: instance_size (float)
-  OPENGL_CALL(glEnableVertexAttribArray(3));
-  OPENGL_CALL(glVertexAttribPointer(
-      3, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleInstanceData),
-      (void*)offsetof(ParticleInstanceData, size)));
-  OPENGL_CALL(glVertexAttribDivisor(3, 1));
-  // location 4: instance_angle (float)
-  OPENGL_CALL(glEnableVertexAttribArray(4));
-  OPENGL_CALL(glVertexAttribPointer(
-      4, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleInstanceData),
-      (void*)offsetof(ParticleInstanceData, angle)));
-  OPENGL_CALL(glVertexAttribDivisor(4, 1));
-  // location 5: instance_color (vec4 u8 normalized)
-  OPENGL_CALL(glEnableVertexAttribArray(5));
-  OPENGL_CALL(glVertexAttribPointer(
-      5, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(ParticleInstanceData),
-      (void*)offsetof(ParticleInstanceData, color)));
-  OPENGL_CALL(glVertexAttribDivisor(5, 1));
-  OPENGL_CALL(glBindVertexArray(0));
+  InitializeParticleResources();
 
   InitializeFramebuffers();
   rec_canvas_ = {render_target_, viewport_.x, viewport_.y};
@@ -518,6 +464,112 @@ void BatchRenderer::SetupGLState() {
     OPENGL_CALL(glStencilMask(0x00));
     needs_clear_ = false;
   }
+}
+
+void BatchRenderer::InitializeParticleResources() {
+  OPENGL_CALL(glGenVertexArrays(1, &particle_vao_));
+  OPENGL_CALL(glGenBuffers(1, &particle_quad_vbo_));
+  OPENGL_CALL(glGenBuffers(1, &particle_quad_ebo_));
+  OPENGL_CALL(glGenBuffers(1, &particle_instance_vbo_));
+  OPENGL_CALL(glBindVertexArray(particle_vao_));
+  // Static unit quad: positions [-0.5, 0.5], tex coords [0, 1].
+  float quad_verts[] = {
+      -0.5f, -0.5f, 0.0f, 0.0f,  // bottom-left
+      0.5f,  -0.5f, 1.0f, 0.0f,  // bottom-right
+      0.5f,  0.5f,  1.0f, 1.0f,  // top-right
+      -0.5f, 0.5f,  0.0f, 1.0f,  // top-left
+  };
+  GLuint quad_indices[] = {0, 1, 3, 1, 2, 3};
+  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particle_quad_vbo_));
+  OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(quad_verts), quad_verts,
+                           GL_STATIC_DRAW));
+  // location 0: input_position (vec2)
+  OPENGL_CALL(glEnableVertexAttribArray(0));
+  OPENGL_CALL(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                                    (void*)0));
+  // location 1: input_tex_coord (vec2)
+  OPENGL_CALL(glEnableVertexAttribArray(1));
+  OPENGL_CALL(glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                                    (void*)(2 * sizeof(float))));
+  OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, particle_quad_ebo_));
+  OPENGL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quad_indices),
+                           quad_indices, GL_STATIC_DRAW));
+  // Per-instance attributes from instance VBO.
+  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particle_instance_vbo_));
+  // location 2: instance_pos (vec2)
+  OPENGL_CALL(glEnableVertexAttribArray(2));
+  OPENGL_CALL(glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
+                                    sizeof(ParticleInstanceData),
+                                    (void*)offsetof(ParticleInstanceData, x)));
+  OPENGL_CALL(glVertexAttribDivisor(2, 1));
+  // location 3: instance_size (float)
+  OPENGL_CALL(glEnableVertexAttribArray(3));
+  OPENGL_CALL(glVertexAttribPointer(
+      3, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleInstanceData),
+      (void*)offsetof(ParticleInstanceData, size)));
+  OPENGL_CALL(glVertexAttribDivisor(3, 1));
+  // location 4: instance_angle (float)
+  OPENGL_CALL(glEnableVertexAttribArray(4));
+  OPENGL_CALL(glVertexAttribPointer(
+      4, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleInstanceData),
+      (void*)offsetof(ParticleInstanceData, angle)));
+  OPENGL_CALL(glVertexAttribDivisor(4, 1));
+  // location 5: instance_color (vec4 u8 normalized)
+  OPENGL_CALL(glEnableVertexAttribArray(5));
+  OPENGL_CALL(glVertexAttribPointer(
+      5, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(ParticleInstanceData),
+      (void*)offsetof(ParticleInstanceData, color)));
+  OPENGL_CALL(glVertexAttribDivisor(5, 1));
+  OPENGL_CALL(glBindVertexArray(0));
+}
+
+void BatchRenderer::RenderParticlesBatch(const RenderParticlesCmd& rp,
+                                         int viewport_w, int viewport_h,
+                                         const FMat4x4& transform,
+                                         FrameStats& stats) {
+  if (rp.count == 0) return;
+  // Set particle blend mode.
+  switch (rp.blend) {
+    case BLEND_ALPHA:
+      OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+      break;
+    case BLEND_ADD:
+      OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE));
+      break;
+    case BLEND_MULTIPLY:
+      OPENGL_CALL(glBlendFunc(GL_DST_COLOR, GL_ZERO));
+      break;
+    case BLEND_REPLACE:
+      OPENGL_CALL(glBlendFunc(GL_ONE, GL_ZERO));
+      break;
+    case BLEND_PREMULTIPLIED:
+      OPENGL_CALL(glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+      break;
+  }
+  // Bind particle texture.
+  OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + rp.texture_unit));
+  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex_[rp.texture_unit]));
+  // Switch to particle shader.
+  shaders_->UseProgram("particle");
+  shaders_->SetUniformSilent("tex", static_cast<int>(rp.texture_unit));
+  shaders_->SetUniformSilent("projection", Ortho(0, viewport_w, 0, viewport_h));
+  shaders_->SetUniformSilent("transform", transform);
+  shaders_->SetUniformSilent("global_color", Color::White().ToFloat());
+  // Bind particle VAO and upload instance data.
+  OPENGL_CALL(glBindVertexArray(particle_vao_));
+  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particle_instance_vbo_));
+  OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER,
+                           rp.count * sizeof(ParticleInstanceData), rp.data,
+                           GL_STREAM_DRAW));
+  // Draw: 6 indices per quad, rp.count instances.
+  OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, particle_quad_ebo_));
+  OPENGL_CALL(glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr,
+                                      rp.count));
+  stats.draw_calls++;
+  // Restore normal rendering state.
+  OPENGL_CALL(glBindVertexArray(vao_));
+  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, vbo_));
+  OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
 }
 
 void BatchRenderer::FlushAndContinue() {
@@ -931,55 +983,12 @@ void BatchRenderer::RenderBatch() {
       case kRenderParticles: {
         flush();
         stats.flush_particles++;
-        const RenderParticlesCmd& rp = c->render_particles;
-        if (rp.count == 0) break;
-        // Set particle blend mode.
-        switch (rp.blend) {
-          case BLEND_ALPHA:
-            OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
-            break;
-          case BLEND_ADD:
-            OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE));
-            break;
-          case BLEND_MULTIPLY:
-            OPENGL_CALL(glBlendFunc(GL_DST_COLOR, GL_ZERO));
-            break;
-          case BLEND_REPLACE:
-            OPENGL_CALL(glBlendFunc(GL_ONE, GL_ZERO));
-            break;
-          case BLEND_PREMULTIPLIED:
-            OPENGL_CALL(glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
-            break;
-        }
-        // Bind particle texture.
-        OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + rp.texture_unit));
-        OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex_[rp.texture_unit]));
-        // Switch to particle shader.
-        shaders_->UseProgram("particle");
-        shaders_->SetUniformSilent("tex", static_cast<int>(rp.texture_unit));
-        shaders_->SetUniformSilent(
-            "projection", Ortho(0, current_viewport_w, 0, current_viewport_h));
-        shaders_->SetUniformSilent("transform", transform);
-        shaders_->SetUniformSilent("global_color", Color::White().ToFloat());
-        // Bind particle VAO and upload instance data.
-        OPENGL_CALL(glBindVertexArray(particle_vao_));
-        OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particle_instance_vbo_));
-        OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER,
-                                 rp.count * sizeof(ParticleInstanceData),
-                                 rp.data, GL_STREAM_DRAW));
-        // Draw: 6 indices per quad, rp.count instances.
-        OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, particle_quad_ebo_));
-        OPENGL_CALL(glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT,
-                                            nullptr, rp.count));
-        stats.draw_calls++;
-        // Restore normal rendering state.
-        OPENGL_CALL(glBindVertexArray(vao_));
-        OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, vbo_));
-        OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
+        RenderParticlesBatch(c->render_particles, current_viewport_w,
+                             current_viewport_h, transform, stats);
+        // Restore shader and blend mode after the particle draw.
         set_program_state(current_shader_handle
                               ? StringByHandle(current_shader_handle)
                               : std::string_view("pre_pass"));
-        // Restore blend mode.
         switch (blend_mode) {
           case BLEND_ALPHA:
             OPENGL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
