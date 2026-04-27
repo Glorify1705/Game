@@ -1,6 +1,7 @@
 #include "lua_scene.h"
 
 #include <cstring>
+#include <string_view>
 
 #include "logging.h"
 
@@ -13,12 +14,12 @@ namespace G {
 namespace {
 
 // Registry key for the scene manager table.
-const char* const kManagerKey = "_SceneManager";
+constexpr std::string_view kManagerKey = "_SceneManager";
 
 // Gets or creates the scene manager table in the Lua registry.
 // Leaves the manager table on the stack.
 void PushManager(lua_State* state) {
-  lua_getfield(state, LUA_REGISTRYINDEX, kManagerKey);
+  lua_getfield(state, LUA_REGISTRYINDEX, kManagerKey.data());
   if (!lua_isnil(state, -1)) return;
   lua_pop(state, 1);
   // Create: { scenes = {}, stack = {}, initialized = {} }
@@ -30,7 +31,7 @@ void PushManager(lua_State* state) {
   lua_newtable(state);
   lua_setfield(state, -2, "initialized");
   lua_pushvalue(state, -1);
-  lua_setfield(state, LUA_REGISTRYINDEX, kManagerKey);
+  lua_setfield(state, LUA_REGISTRYINDEX, kManagerKey.data());
 }
 
 // Pushes the scene table for a given name from manager.scenes[name].
@@ -46,19 +47,20 @@ bool PushSceneByName(lua_State* state, int manager_idx, const char* name) {
   return true;
 }
 
-// Returns the name of the top scene on the stack, or nullptr if empty.
+// Returns the name of the top scene on the stack, or empty if none.
 // Leaves nothing on the stack.
-const char* GetTopSceneName(lua_State* state, int manager_idx) {
+std::string_view GetTopSceneName(lua_State* state, int manager_idx) {
   lua_getfield(state, manager_idx, "stack");
   int len = static_cast<int>(lua_objlen(state, -1));
   if (len == 0) {
     lua_pop(state, 1);
-    return nullptr;
+    return {};
   }
   lua_rawgeti(state, -1, len);
-  const char* name = lua_tostring(state, -1);
+  size_t slen = 0;
+  const char* data = lua_tolstring(state, -1, &slen);
   lua_pop(state, 2);
-  return name;
+  return std::string_view(data, slen);
 }
 
 // Calls scene:method(args...) if the method exists. The scene table must
@@ -81,7 +83,6 @@ void CallOptional(lua_State* state, int scene_idx, const char* method,
   lua_insert(state, -(nargs + 1));
   // Stack: ..., method, self, arg1, ..., argN
   if (lua_pcall(state, nargs + 1, 0, 0)) {
-    LOG("Scene ", method, " error: ", lua_tostring(state, -1));
     lua_pop(state, 1);
   }
 }
@@ -103,9 +104,9 @@ void DoSwitch(lua_State* state, int manager_idx) {
   int nargs = static_cast<int>(lua_objlen(state, args_idx));
 
   // Get the old scene name and call leave().
-  const char* old_name = GetTopSceneName(state, manager_idx);
-  if (old_name) {
-    if (PushSceneByName(state, manager_idx, old_name)) {
+  std::string_view old_name = GetTopSceneName(state, manager_idx);
+  if (!old_name.empty()) {
+    if (PushSceneByName(state, manager_idx, old_name.data())) {
       CallOptional(state, lua_gettop(state), "leave", 0);
       lua_pop(state, 1);  // Pop old scene.
     }
@@ -142,16 +143,16 @@ void DoSwitch(lua_State* state, int manager_idx) {
   // Call enter(prev_name, args...).
   if (PushSceneByName(state, manager_idx, new_name)) {
     int scene_idx = lua_gettop(state);
-    if (old_name) {
-      lua_pushstring(state, old_name);
+    if (!old_name.empty()) {
+      lua_pushlstring(state, old_name.data(), old_name.size());
     } else {
       lua_pushnil(state);
     }
     for (int i = 1; i <= nargs; ++i) {
       lua_rawgeti(state, args_idx, i);
     }
-    LOG("Scene switch: ", old_name ? old_name : "(none)", " -> ", new_name,
-        " (", nargs, " args)");
+    LOG("Scene switch: ", old_name.empty() ? "(none)" : old_name, " -> ",
+        new_name, " (", nargs, " args)");
     CallOptional(state, scene_idx, "enter", 1 + nargs);
     lua_pop(state, 1);  // Pop scene.
   }
@@ -181,9 +182,9 @@ void DoPush(lua_State* state, int manager_idx) {
   int nargs = static_cast<int>(lua_objlen(state, args_idx));
 
   // Call leave() on current top.
-  const char* old_name = GetTopSceneName(state, manager_idx);
-  if (old_name) {
-    if (PushSceneByName(state, manager_idx, old_name)) {
+  std::string_view old_name = GetTopSceneName(state, manager_idx);
+  if (!old_name.empty()) {
+    if (PushSceneByName(state, manager_idx, old_name.data())) {
       CallOptional(state, lua_gettop(state), "leave", 0);
       lua_pop(state, 1);
     }
@@ -215,8 +216,8 @@ void DoPush(lua_State* state, int manager_idx) {
   // Call enter(prev_name, args...).
   if (PushSceneByName(state, manager_idx, new_name)) {
     int scene_idx = lua_gettop(state);
-    if (old_name) {
-      lua_pushstring(state, old_name);
+    if (!old_name.empty()) {
+      lua_pushlstring(state, old_name.data(), old_name.size());
     } else {
       lua_pushnil(state);
     }
@@ -247,9 +248,9 @@ void DoPop(lua_State* state, int manager_idx) {
   int nargs = static_cast<int>(lua_objlen(state, args_idx));
 
   // Call leave() on current top.
-  const char* top_name = GetTopSceneName(state, manager_idx);
-  if (top_name) {
-    if (PushSceneByName(state, manager_idx, top_name)) {
+  std::string_view top_name = GetTopSceneName(state, manager_idx);
+  if (!top_name.empty()) {
+    if (PushSceneByName(state, manager_idx, top_name.data())) {
       CallOptional(state, lua_gettop(state), "leave", 0);
       lua_pop(state, 1);
     }
@@ -266,9 +267,9 @@ void DoPop(lua_State* state, int manager_idx) {
   lua_pop(state, 1);
 
   // Call resume(args...) on the new top.
-  const char* new_top = GetTopSceneName(state, manager_idx);
-  if (new_top) {
-    if (PushSceneByName(state, manager_idx, new_top)) {
+  std::string_view new_top = GetTopSceneName(state, manager_idx);
+  if (!new_top.empty()) {
+    if (PushSceneByName(state, manager_idx, new_top.data())) {
       int scene_idx = lua_gettop(state);
       for (int i = 1; i <= nargs; ++i) {
         lua_rawgeti(state, args_idx, i);
@@ -361,10 +362,10 @@ const LuaApiFunction kSceneLib[] = {
      {{"name", "current scene name or nil", "string?"}},
      [](lua_State* state) -> int {
        PushManager(state);
-       const char* name = GetTopSceneName(state, lua_gettop(state));
+       std::string_view name = GetTopSceneName(state, lua_gettop(state));
        lua_pop(state, 1);
-       if (name) {
-         lua_pushstring(state, name);
+       if (!name.empty()) {
+         lua_pushlstring(state, name.data(), name.size());
        } else {
          lua_pushnil(state);
        }
@@ -414,21 +415,13 @@ const LuaApiFunction kSceneLib[] = {
 void PushActiveScene(lua_State* state) {
   PushManager(state);
   int mgr = lua_gettop(state);
-  const char* name = GetTopSceneName(state, mgr);
-  if (name && PushSceneByName(state, mgr, name)) {
+  std::string_view name = GetTopSceneName(state, mgr);
+  if (!name.empty() && PushSceneByName(state, mgr, name.data())) {
     lua_remove(state, mgr);  // Remove manager, leave scene.
     return;
   }
   lua_pop(state, 1);              // Pop manager.
   lua_getglobal(state, "_Game");  // Fallback.
-}
-
-bool IsSceneActive(lua_State* state) {
-  PushManager(state);
-  lua_getfield(state, -1, "stack");
-  int len = static_cast<int>(lua_objlen(state, -1));
-  lua_pop(state, 2);
-  return len > 0;
 }
 
 void ProcessPendingTransition(lua_State* state) {

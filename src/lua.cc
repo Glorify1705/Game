@@ -1155,13 +1155,7 @@ void Lua::SetPackagePreload(std::string_view modname) {
 }
 
 // Pushes the active scene table (or _Game if scenes aren't active).
-void Lua::PushCallbackTarget() {
-  if (IsSceneActive(state_)) {
-    PushActiveScene(state_);
-  } else {
-    lua_getglobal(state_, "_Game");
-  }
-}
+void Lua::PushCallbackTarget() { PushActiveScene(state_); }
 
 void Lua::Init() {
   LUA_CHECK_STACK(state_);

@@ -16,10 +16,6 @@ LuaLibraryDef GetSceneLibraryDef();
 // pushes the _Game global instead. Used by Lua callback routing.
 void PushActiveScene(lua_State* state);
 
-// Returns true if the scene system has been activated (at least one
-// G.scene.switch call has been made).
-bool IsSceneActive(lua_State* state);
-
 // Processes any pending scene transition (switch/push/pop). Called at the
 // start of each frame before update(). Executes lifecycle callbacks
 // (leave, init, enter, resume) as part of the transition.
