@@ -51,13 +51,30 @@ and package it for distribution.
 
 ## Quick start
 
+The project uses a [devenv](https://devenv.sh/) development environment that
+provides all build tooling. After entering the dev shell:
+
 ```bash
+# Build the engine
+game-build
+
 # Create a new project
 game init my-game
 cd my-game
 
 # Run in development mode (with hot-reload)
 game run
+
+# Run the test suite
+game-test
+```
+
+Without devenv, build manually with CMake:
+
+```bash
+cmake -G Ninja -B build
+cmake --build build
+./build/game init my-game
 ```
 
 This creates the following project structure:
@@ -562,21 +579,60 @@ G.json.decode(string) -> value
 ### G.math
 
 ```lua
+-- Scalar utilities
 G.math.clamp(x, low, high) -> number
+G.math.lerp(a, b, t) -> number
+G.math.inverse_lerp(a, b, x) -> number
+G.math.remap(x, a1, b1, a2, b2) -> number
+G.math.smoothstep(edge0, edge1, x) -> number
+G.math.sign(x) -> number                      -- -1, 0, or 1
+G.math.round(x) -> number
 
--- Vectors
+-- 2D point utilities
+G.math.distance(x1, y1, x2, y2) -> number
+G.math.distance2(x1, y1, x2, y2) -> number    -- Squared (no sqrt)
+G.math.angle(x1, y1, x2, y2) -> number        -- Radians (atan2)
+G.math.direction(angle [, magnitude]) -> x, y  -- Angle to components
+
+-- Angle conversion
+G.math.radians(degrees) -> number
+G.math.degrees(radians) -> number
+
+-- Constructors
 G.math.v2(x, y) -> vec2
 G.math.v3(x, y, z) -> vec3
 G.math.v4(x, y, z, w) -> vec4
-
--- Matrices (row-major order)
-G.math.m2x2(v1..v4)  -> mat2x2
+G.math.m2x2(v1..v4)  -> mat2x2                -- Row-major order
 G.math.m3x3(v1..v9)  -> mat3x3
 G.math.m4x4(v1..v16) -> mat4x4
 ```
 
-Vector methods (`vec2`, `vec3`, `vec4`): `dot(other)`, `len2()`,
-`normalized()`, `send_as_uniform(name)`. Operators: `+`, `-`, `* (scalar)`.
+Vector methods (shared by `vec2`, `vec3`, `vec4`):
+
+```lua
+v:dot(other) -> number
+v:len2() -> number                             -- Squared length
+v:length() -> number
+v:normalized() -> vec
+v:lerp(other, t) -> vec
+v:unpack() -> x, y [, z [, w]]
+v:send_as_uniform(name)
+```
+
+Additional `vec2`-only methods:
+
+```lua
+v:distance(other) -> number
+v:distance2(other) -> number
+v:angle() -> number                            -- atan2(y, x)
+v:angle_between(other) -> number
+v:rotate(angle) -> vec2
+v:perpendicular() -> vec2                      -- (-y, x)
+v:reflect(normal) -> vec2
+v:project(onto) -> vec2
+```
+
+Operators (all vectors): `+`, `-`, `* (scalar)`, unary `-`, `tostring`.
 
 Matrix methods (`mat2x2`, `mat3x3`, `mat4x4`): `send_as_uniform(name)`.
 
@@ -642,6 +698,37 @@ G.random.pick(rng, list) -> element
 G.data.hash(data) -> number       -- Hash a string or byte_buffer
 ```
 
+### G.save
+
+Persistent key-value store backed by a separate SQLite database in the
+platform save directory. Values are organized by namespace and serialized as
+JSON, so any Lua value that `G.json.encode` can handle (nil, boolean, number,
+string, table) is supported.
+
+```lua
+G.save.set(namespace, key, value)
+G.save.get(namespace, key) -> value | nil
+G.save.has(namespace, key) -> boolean
+G.save.delete(namespace, key)
+G.save.list(namespace) -> { key = value, ... }
+G.save.keys(namespace) -> { key1, key2, ... }
+G.save.clear(namespace)
+G.save.namespaces() -> { ns1, ns2, ... }
+G.save.flush()                                 -- Checkpoint WAL to disk
+```
+
+Example:
+
+```lua
+-- Save player progress
+G.save.set("save", "high_score", 42000)
+G.save.set("settings", "volume", 0.8)
+
+-- Load it back
+local score = G.save.get("save", "high_score")  -- 42000
+local vol   = G.save.get("settings", "volume")  -- 0.8
+```
+
 ### G.log
 
 ```lua
@@ -677,7 +764,8 @@ G.test.assert_true(cond [, msg])
 
 | Type | Description |
 |------|-------------|
-| `vec2`, `vec3`, `vec4` | Floating-point vectors with `dot`, `len2`, `normalized`, `send_as_uniform` |
+| `vec2` | 2D vector with `dot`, `length`, `lerp`, `distance`, `angle`, `rotate`, `reflect`, `project`, etc. |
+| `vec3`, `vec4` | 3D/4D vectors with `dot`, `length`, `lerp`, `normalized`, `unpack`, `send_as_uniform` |
 | `mat2x2`, `mat3x3`, `mat4x4` | Floating-point matrices with `send_as_uniform` |
 | `byte_buffer` | Binary data buffer (supports `#` length and `..` concat) |
 | `physics_handle` | Opaque handle to a Box2D body |
@@ -749,20 +837,26 @@ cmake -G Ninja -B build
 cmake --build build
 ```
 
-With the [devenv](https://devenv.sh/) development environment (recommended):
+### devenv (recommended)
 
-```bash
-game-build          # CMake configure + Ninja build
-game-test           # Build and run tests (GoogleTest, always with sanitizers)
-game-run            # Run the engine with hot-reload
-game-format         # clang-format all source files
-game-tidy           # Run clang-tidy
-game-clean          # Clean build artifacts
-```
+The [devenv](https://devenv.sh/) development environment provides wrapped
+build commands and all required tooling. After entering the dev shell, the
+`game` binary is on `$PATH` from `build/`.
 
-Additional devenv commands: `game-debug` (GDB), `game-profile` (gperftools),
-`game-samply` (CPU sampling profiler), `game-sanitize` (ASan+UBSan build),
-`game-build-win64` (MinGW cross-compilation to Windows).
+| Command | Description |
+|---------|-------------|
+| `game-build` | CMake configure + Ninja build (incremental) |
+| `game-test` | Build and run tests (GoogleTest, always with sanitizers) |
+| `game-run` | Build and run the engine against `assets/` |
+| `game-clean` | Wipe `build/` directory |
+| `game-format` | clang-format all source files |
+| `game-tidy` | Run clang-tidy (findings are errors) |
+| `game-include-cleaner` | Detect unused `#include` directives |
+| `game-debug` | Launch binary under gf2 graphical debugger |
+| `game-sanitize` | Build with AddressSanitizer + UBSan |
+| `game-profile` | Build with Chrome Tracing profiler instrumentation |
+| `game-samply` | CPU sampling profiler (opens Firefox Profiler) |
+| `game-build-win64` | MinGW cross-compilation to Windows |
 
 ### Bundled libraries
 
