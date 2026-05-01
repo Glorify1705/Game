@@ -1,11 +1,19 @@
 ---
-status: in-design
+status: implemented
 tags: [persistence, save, achievements, sqlite, lua-api]
 ---
 
 # Save and Persistence
 
-**Status: Under consideration.**
+**Status: Implemented** (PR #84). Steps 1–4 shipped: platform save directory,
+`Save` C++ module, Lua bindings (`G.save.*`), and JSON serialization via
+yyjson. Debug UI panel included.
+
+**Still pending:**
+- Step 5: CLI `game save` subcommand (dump, get, set, delete, clear, reset)
+- `set_bytes` / `get_bytes` raw binary escape hatch
+- Achievements API (likely Lua-side on top of the KV store)
+- Open questions 1–6 below (resolved where noted)
 
 ## Overview
 

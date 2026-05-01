@@ -1,9 +1,19 @@
 ---
-status: in-design
+status: partially-implemented
 tags: [testing, input]
 ---
 
 # Test Input System
+
+**Status: Phase 1 implemented.** Coroutine-based `G.test.*` API with synthetic
+input injection (`key_down/up`, `mouse_down/up/move/wheel`,
+`controller_down/up/axis`), flow control (`wait_frames`, `wait_seconds`),
+assertions (`assert_true`), and `is_active` query. Activated via `--test` flag.
+
+**Still pending:**
+- Phase 2: Headless mode (`--headless` flag, stub SDL init, no-op renderer/audio)
+- Phase 3: Record/replay (binary input trace format, `start_recording`/`stop_recording`/`replay`)
+- Phase 4: Screenshot diffing (golden-image comparison, visual regression CI)
 
 ## 1. Problem statement
 

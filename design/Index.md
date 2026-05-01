@@ -43,6 +43,7 @@ tags: [index]
 | [Timer and tween system](Timer%20and%20tween%20system.md) | gameplay, lua-api | Timers, tweens, easing functions, cooldowns, and springs |
 | [Vendor all libraries](Vendor%20all%20libraries.md) | build, dependencies | All libraries vendored directly, no git submodules |
 | [Particle system](Particle%20system.md) | renderer, particles, lua-api | CPU particle system with SoA layout, PropertyRamp/ColorRamp, instanced rendering, G.particles Lua API |
+| [Save and persistence](Save%20and%20persistence.md) | persistence, save, lua-api | Namespaced SQLite KV store (`G.save.*`) for save data, settings; platform save dirs, JSON serialization (PR #84) |
 | [Scene and state management](Scene%20and%20state%20management.md) | scenes, state, lua-api, gameplay | G.scene API with switch/push/pop, lifecycle hooks, deferred transitions |
 
 ## In Progress
@@ -63,6 +64,7 @@ tags: [index]
 | [Profiling and tracing](Profiling%20and%20tracing.md) | profiling, performance | Chrome Tracing done; perf and pprof are external devenv tools, not engine integration |
 | [Renderer improvements](Renderer%20improvements.md) | renderer, graphics | Stencil/scissor/blend/primitives done; post-processing pipeline and lighting pending |
 | [Sound hot reload](Sound%20hot%20reload.md) | audio, hot-reload | File change detection works; actual reload is coarse (StopAll on any audio change), per-asset incremental reload pending |
+| [Test input system](Test%20input%20system.md) | testing, input | Phase 1 done: coroutine `G.test.*` API with synthetic input injection, `--test` flag. Headless mode, record/replay, screenshot diffing pending |
 
 ## In Design
 
@@ -73,8 +75,6 @@ tags: [index]
 | [LuaJIT Migration](LuaJIT%20Migration.md) | lua, performance | Migration from Lua 5.1 to LuaJIT with WASM fallback |
 | [Module memory budgets](Module%20memory%20budgets.md) | memory, allocators, architecture | Only batch renderer overflow fix shipped; per-module sub-arenas, watermarks, and budget system not started |
 | [Multiplatform support](Multiplatform%20support.md) | wasm, android, ios, portability | WASM, Android, and iOS support: shader precompiler, touch input, lifecycle events, build toolchains |
-| [Save and persistence](Save%20and%20persistence.md) | persistence, save, achievements, lua-api | Namespaced SQLite KV store for save data, settings, achievements |
-| [Test input system](Test%20input%20system.md) | testing, input | Synthetic input injection for automated testing |
 
 ## Reference
 
@@ -108,12 +108,12 @@ Low effort, high return. Complete in-progress work to close gaps cheaply.
 
 The biggest remaining gaps vs other engines. Required to ship non-trivial games.
 
-| Feature                                             | Rationale                                                                                                                                                                                |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Save and persistence](Save%20and%20persistence.md) | Can't ship any game with progression without this. SQLite KV store, platform save dirs, achievements. Only Carimbo has built-in achievements.                                            |
-| [Test input system](Test%20input%20system.md)       | Automated testing via synthetic input. Raylib and libGDX both support this — strongest cross-engine signal for testability. Pairs with CI.                                               |
-| Math utilities                                      | Lerp, distance, angle, direction, noise. Used in virtually every game script.                                                                                                            |
-| Input action binding                                | Abstract action mapping (buttons to "jump"/"shoot"), rebinding, hold detection. high_impact and Anchor support this.                                                                     |
+| Feature                                             | Rationale                                                                                                                                                                                | Status |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| ~~[Save and persistence](Save%20and%20persistence.md)~~ | ~~SQLite KV store, platform save dirs.~~ | **Done** (PR #84). CLI tooling and `set_bytes`/`get_bytes` pending. |
+| ~~[Test input system](Test%20input%20system.md)~~   | ~~Automated testing via synthetic input.~~ | **Phase 1 done.** Headless mode, record/replay pending. |
+| ~~Math utilities~~                                  | ~~Lerp, distance, angle, direction. Used in virtually every game script.~~ | **Done.** G.math now has lerp, inverse_lerp, remap, smoothstep, sign, round, distance, angle, direction, radians, degrees; vec2 has rotate, reflect, project, perpendicular. |
+| Input action binding                                | Abstract action mapping (buttons to "jump"/"shoot"), rebinding, hold detection. high_impact and Anchor support this.                                                                     | Not started |
 
 ### P2 — Strengthen differentiators
 
