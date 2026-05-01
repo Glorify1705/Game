@@ -241,7 +241,7 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
   float mass = body->GetMass();
   jd.bodyA = ground_;
   jd.bodyB = body;
-  jd.localAnchorA.SetZero();
+  jd.localAnchorA = body->GetPosition();
   jd.localAnchorB = body->GetLocalCenter();
   jd.collideConnected = true;
   const float gravity = 10.0f;
@@ -287,7 +287,7 @@ Physics::Handle Physics::AddCircle(FVec2 position, double radius,
   float mass = body->GetMass();
   jd.bodyA = ground_;
   jd.bodyB = body;
-  jd.localAnchorA.SetZero();
+  jd.localAnchorA = body->GetPosition();
   jd.localAnchorB = body->GetLocalCenter();
   jd.collideConnected = true;
   const float gravity = 10.0f;
