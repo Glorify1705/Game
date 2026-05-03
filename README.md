@@ -13,7 +13,8 @@ and package it for distribution.
   outlines, transform stack, custom GLSL shaders, off-screen canvases,
   blend modes, stencil/scissor clipping, screenshots
 - **Physics** --- Box2D rigid-body dynamics with collision categories,
-  contact callbacks, forces/impulses, damping, gravity scaling, CCD
+  contact callbacks, forces/impulses, damping, gravity scaling, CCD,
+  joints (revolute, distance, weld, prismatic, mouse, wheel)
 - **Collision** --- Lightweight spatial-hash broad-phase (separate from
   Box2D) with circle/AABB shapes, move-and-slide, raycasting, overlap
   queries
@@ -449,6 +450,44 @@ G.physics.set_linear_damping(handle, damping)
 G.physics.set_angular_damping(handle, damping)
 G.physics.set_gravity_scale(handle, scale)
 G.physics.set_bullet(handle, bullet)              -- Continuous collision detection
+
+-- Joints (all coordinates in pixels, angles in radians)
+G.physics.create_revolute_joint(a, b, ax, ay [, opts])     -> joint_handle
+G.physics.create_distance_joint(a, b, ax1, ay1, ax2, ay2 [, opts]) -> joint_handle
+G.physics.create_weld_joint(a, b, ax, ay [, opts])         -> joint_handle
+G.physics.create_prismatic_joint(a, b, ax, ay, dx, dy [, opts]) -> joint_handle
+G.physics.create_mouse_joint(body, tx, ty [, opts])        -> joint_handle
+G.physics.create_wheel_joint(a, b, ax, ay, dx, dy [, opts]) -> joint_handle
+-- opts per joint type:
+--   revolute:   enable_limit, lower_angle, upper_angle, enable_motor,
+--               motor_speed, max_motor_torque, collide_connected
+--   distance:   length, frequency, damping_ratio, collide_connected
+--   weld:       frequency, damping_ratio, collide_connected
+--   prismatic:  enable_limit, lower_translation, upper_translation,
+--               enable_motor, motor_speed, max_motor_force, collide_connected
+--   mouse:      max_force, frequency, damping_ratio
+--   wheel:      enable_motor, motor_speed, max_motor_torque, frequency,
+--               damping_ratio, collide_connected
+
+-- Joint handle methods
+joint:is_valid() -> bool
+joint:get_type() -> string                -- "revolute", "distance", etc.
+joint:destroy()
+joint:get_joint_angle() -> radians        -- revolute only
+joint:get_joint_speed() -> number         -- revolute (rad/s) or prismatic (px/s)
+joint:get_joint_translation() -> pixels   -- prismatic only
+joint:get_current_length() -> pixels      -- distance only
+joint:set_motor_speed(speed)              -- revolute, prismatic, wheel
+joint:enable_motor(bool)                  -- revolute, prismatic, wheel
+joint:enable_limit(bool)                  -- revolute, prismatic
+joint:set_limits(lower, upper)            -- revolute (rad) or prismatic (px)
+joint:set_max_motor_torque(torque)        -- revolute, wheel
+joint:set_max_motor_force(force)          -- prismatic
+joint:set_length(pixels)                  -- distance
+joint:set_target(x, y)                    -- mouse
+joint:set_max_force(force)               -- mouse
+joint:set_frequency(hz)                   -- distance, weld, wheel
+joint:set_damping_ratio(ratio)            -- distance, weld, wheel
 ```
 
 ### G.collision

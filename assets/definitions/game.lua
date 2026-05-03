@@ -644,6 +644,122 @@ function G.physics.set_fixed_rotation(handle, fixed) end
 ---@return boolean fixed true if rotation is locked
 function G.physics.get_fixed_rotation(handle) end
 
+---Creates a revolute (hinge) joint between two bodies at a world-space anchor
+---@param body_a physics_handle first body
+---@param body_b physics_handle second body
+---@param anchor_x number world-space anchor x (pixels)
+---@param anchor_y number world-space anchor y (pixels)
+---@param options? table optional: enable_limit, lower_angle, upper_angle, enable_motor, motor_speed, max_motor_torque, collide_connected
+---@return joint_handle joint the joint handle
+function G.physics.create_revolute_joint(body_a, body_b, anchor_x, anchor_y, options) end
+
+---Creates a distance (spring) joint between two bodies
+---@param body_a physics_handle first body
+---@param body_b physics_handle second body
+---@param ax1 number anchor A x (pixels)
+---@param ay1 number anchor A y (pixels)
+---@param ax2 number anchor B x (pixels)
+---@param ay2 number anchor B y (pixels)
+---@param options? table optional: length, frequency, damping_ratio, collide_connected
+---@return joint_handle joint the joint handle
+function G.physics.create_distance_joint(body_a, body_b, ax1, ay1, ax2, ay2, options) end
+
+---Creates a weld (rigid) joint between two bodies
+---@param body_a physics_handle first body
+---@param body_b physics_handle second body
+---@param anchor_x number world-space anchor x (pixels)
+---@param anchor_y number world-space anchor y (pixels)
+---@param options? table optional: frequency, damping_ratio, collide_connected
+---@return joint_handle joint the joint handle
+function G.physics.create_weld_joint(body_a, body_b, anchor_x, anchor_y, options) end
+
+---Creates a prismatic (slider) joint between two bodies
+---@param body_a physics_handle first body
+---@param body_b physics_handle second body
+---@param anchor_x number world-space anchor x (pixels)
+---@param anchor_y number world-space anchor y (pixels)
+---@param axis_x number slide axis x component
+---@param axis_y number slide axis y component
+---@param options? table optional: enable_limit, lower_translation, upper_translation, enable_motor, motor_speed, max_motor_force, collide_connected
+---@return joint_handle joint the joint handle
+function G.physics.create_prismatic_joint(body_a, body_b, anchor_x, anchor_y, axis_x, axis_y, options) end
+
+---Creates a mouse (drag) joint that pulls a body toward a target point
+---@param body physics_handle the body to drag
+---@param target_x number initial target x (pixels)
+---@param target_y number initial target y (pixels)
+---@param options? table optional: max_force, frequency, damping_ratio
+---@return joint_handle joint the joint handle
+function G.physics.create_mouse_joint(body, target_x, target_y, options) end
+
+---Creates a wheel (vehicle suspension) joint between two bodies
+---@param body_a physics_handle chassis body
+---@param body_b physics_handle wheel body
+---@param anchor_x number world-space anchor x (pixels)
+---@param anchor_y number world-space anchor y (pixels)
+---@param axis_x number suspension axis x component
+---@param axis_y number suspension axis y component
+---@param options? table optional: enable_motor, motor_speed, max_motor_torque, frequency, damping_ratio, collide_connected
+---@return joint_handle joint the joint handle
+function G.physics.create_wheel_joint(body_a, body_b, anchor_x, anchor_y, axis_x, axis_y, options) end
+
+---@class joint_handle
+---Destroys this joint
+function joint_handle:destroy() end
+---Returns true if this joint handle is still valid
+---@return boolean valid whether the joint exists
+function joint_handle:is_valid() end
+---Returns the joint type name
+---@return string type "revolute", "distance", "weld", "prismatic", "mouse", or "wheel"
+function joint_handle:get_type() end
+---Returns the revolute joint angle in radians
+---@return number angle angle in radians
+function joint_handle:get_joint_angle() end
+---Returns the joint speed (revolute: rad/s, prismatic: pixels/s)
+---@return number speed joint speed
+function joint_handle:get_joint_speed() end
+---Returns the prismatic joint translation in pixels
+---@return number translation translation in pixels
+function joint_handle:get_joint_translation() end
+---Returns the current distance joint length in pixels
+---@return number length current length in pixels
+function joint_handle:get_current_length() end
+---Sets the motor speed
+---@param speed number motor speed
+function joint_handle:set_motor_speed(speed) end
+---Enables or disables the joint motor
+---@param enabled boolean whether to enable
+function joint_handle:enable_motor(enabled) end
+---Enables or disables joint limits
+---@param enabled boolean whether to enable
+function joint_handle:enable_limit(enabled) end
+---Sets joint limits (revolute: radians, prismatic: pixels)
+---@param lower number lower limit
+---@param upper number upper limit
+function joint_handle:set_limits(lower, upper) end
+---Sets max motor torque (revolute, wheel)
+---@param torque number max torque
+function joint_handle:set_max_motor_torque(torque) end
+---Sets max motor force (prismatic)
+---@param force number max force
+function joint_handle:set_max_motor_force(force) end
+---Sets the rest length (distance joint, pixels)
+---@param length number rest length in pixels
+function joint_handle:set_length(length) end
+---Sets the mouse joint target position
+---@param x number target x (pixels)
+---@param y number target y (pixels)
+function joint_handle:set_target(x, y) end
+---Sets the max force (mouse joint)
+---@param force number max force
+function joint_handle:set_max_force(force) end
+---Sets the spring frequency in Hz
+---@param hz number frequency in Hz
+function joint_handle:set_frequency(hz) end
+---Sets the damping ratio (0-1)
+---@param ratio number damping ratio
+function joint_handle:set_damping_ratio(ratio) end
+
 ---@class G.random
 G.random = {}
 
