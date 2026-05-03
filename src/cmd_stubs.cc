@@ -28,7 +28,7 @@
 
 namespace G {
 
-int CmdStubs(Slice<const char*> args, Allocator* allocator) {
+int CmdStubs(Slice<const char*> args, Allocator* /*allocator*/) {
   const char* output = "definitions/game.lua";
   for (size_t i = 1; i < args.size(); ++i) {
     if (std::string_view(args[i]) == "--output" && i + 1 < args.size()) {

@@ -245,7 +245,7 @@ bool DebugUI::ConsumeSuppressViewportResize() {
 
 // Menu bar and dispatch.
 
-void DebugUI::DrawMenuBar(const FrameContext& ctx) {
+void DebugUI::DrawMenuBar(const FrameContext& /*ctx*/) {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("Panels")) {
       PanelMenuItem("Performance", kPanelPerformance);

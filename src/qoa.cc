@@ -404,7 +404,7 @@ bool QoaStreamDecoder::Init(ByteSlice data, QoaDesc* desc) {
   return true;
 }
 
-size_t QoaStreamDecoder::DecodeFrame(int16_t* output, size_t max_samples) {
+size_t QoaStreamDecoder::DecodeFrame(int16_t* output, size_t /*max_samples*/) {
   if (pos_ >= data_.size()) return 0;
 
   size_t frame_samples =

@@ -191,7 +191,7 @@ void Sound::Stream::PrepareLoopHead() {
 }
 
 void Sound::Stream::HandleLoopCrossfade(float* output, size_t written,
-                                        size_t total_output) {
+                                        size_t /*total_output*/) {
   if (!loop_head_ready_ || loop_head_len_ == 0) return;
 
   // Determine how many stereo output samples to crossfade.

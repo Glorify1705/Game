@@ -53,37 +53,40 @@ design doc. Sourced from TASKS.md, TODO comments, and codebase audit.
 - [x] Add error handling to `ParseVersionFromString` in `src/config.cc`
 - [x] Return errors gracefully from `LoadSprite`/`LoadSpritesheet` instead of
   CHECK-crashing (uses `ErrorOr<void>`, errors logged via `LoadFn::Load`)
-- [ ] Change `uint8_t*` signatures in `src/packer.cc` to use `Slice` (has
-  TODO at line 307)
+- [x] Change `uint8_t*` signatures in `src/packer.cc` to use `Slice` (TODO
+  removed, already addressed)
 - [x] Remove dead `G2` module in `assets/testgame1.lua` (file removed)
-- [ ] Check arena allocation return values for null in critical paths (e.g.
-  `BatchRenderer` constructor)
+- [x] Check arena allocation return values for null in critical paths:
+  BatchRenderer command buffer, screenshot framebuffer, thread pool
+  worker queue, asset loading, particle pool, image encoding, config
+  loading, file reading, particle instance rendering
 - [ ] Support ANSI escape codes properly in text measurement
   (`src/renderer.cc:1520`, has TODO)
 - [ ] Replace fixed glyph array with hash map for Unicode support
   (`src/renderer.h:593`, has TODO)
 - [x] Decouple stub generation from the Lua class (TODO removed, likely done)
-- [ ] Remove `-Wno-unused-parameter` from CMakeLists.txt and use
-  `[[maybe_unused]]` or parameter comments where needed
+- [x] Remove `-Wno-unused-parameter` from CMakeLists.txt and use
+  parameter comments (`/*name*/`) where needed
 - [x] Fix `object_buffers` array size mismatch in `~BatchRenderer`
   (`src/renderer.cc:320`): changed `std::array<GLuint, 4>` to
   `std::array<GLuint, 3>`
 
 ## Allocator Instrumentation
 
-- [ ] Add Valgrind annotations (`VALGRIND_MALLOCLIKE_BLOCK`,
-  `VALGRIND_FREELIKE_BLOCK`, etc.) to custom allocators in `src/allocators.h`
-  so Valgrind can track arena/pool allocations in debug builds. Gate behind a
-  `GAME_WITH_VALGRIND` compile flag. (CMake already detects
-  `valgrind/memcheck.h` and sets `VALGRIND_INCLUDE_DIR`; annotations just need
-  to be added to the allocator methods.)
+- [x] Add Valgrind annotations (`VALGRIND_MALLOCLIKE_BLOCK`,
+  `VALGRIND_FREELIKE_BLOCK`, `VALGRIND_MAKE_MEM_NOACCESS`,
+  `VALGRIND_MAKE_MEM_UNDEFINED`) to ArenaAllocator and BlockAllocator.
+  Gated behind `__has_include(<valgrind/memcheck.h>)` — no compile flag
+  needed.
 - [x] Add ASan poisoning/unpoisoning (`__asan_poison_memory_region`,
   `__asan_unpoison_memory_region`) to arena and pool allocators so ASan can
   detect use-after-free within arenas and buffer overflows within pool blocks.
   (Implemented in `src/allocators.h` — `ASAN_POISON_MEMORY_REGION` /
   `ASAN_UNPOISON_MEMORY_REGION` macros used in `ArenaAllocator`,
   `PoolAllocator`, and `BlockPool`.)
-- [ ] Consider MSan annotations for uninitialized memory tracking in arenas.
+- [x] Add MSan annotations (`__msan_allocated_memory`) to ArenaAllocator
+  and BlockAllocator so MSan can detect reads of uninitialized arena memory.
+  Gated behind `__has_feature(memory_sanitizer)`.
 
 ## Robustness
 
@@ -112,8 +115,12 @@ design doc. Sourced from TASKS.md, TODO comments, and codebase audit.
   minimal coverage)
 - [ ] Add tests for `mat.h` — all matrix types and operations (1359 lines,
   zero coverage)
-- [ ] Add tests for `bits.h` — `Log2`, `Align`, edge cases for `NextPow2`
-- [ ] Add tests for `stringlib.cc` — linked into test binary but has no tests
-- [ ] Add tests for `color.cc` — color space conversions
+- [x] Add tests for `bits.h` — `Log2`, `Align`, edge cases for `NextPow2`
+  (8 tests in `test_bits.cc`)
+- [x] Add tests for `stringlib.cc` — HasPrefix, HasSuffix, ConsumePrefix,
+  ConsumeSuffix, PrintDouble (14 tests in `test_stringlib.cc`)
+- [x] Add tests for `color.cc` — ColorFromTable lookups, error cases,
+  ToFloat, static constructors (8 tests in `test_color.cc`). Also fixed
+  duplicate color table entries overwriting standard red/green/blue.
 - [ ] Add integration tests for asset database loading
 - [ ] Add integration tests for Lua VM initialization and script loading

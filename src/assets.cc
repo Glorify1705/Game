@@ -105,7 +105,7 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
 }
 
 void DbAssets::LoadProtoDescriptor(std::string_view filename, uint8_t* buffer,
-                                   size_t size, ChecksumType checksum) {
+                                   size_t /*size*/, ChecksumType checksum) {
   SqlStmt stmt(db_,
                "SELECT contents FROM proto_descriptors WHERE name = ?");
   CHECK(stmt.ok(), "Failed to prepare LoadProtoDescriptor query");
@@ -121,8 +121,8 @@ void DbAssets::LoadProtoDescriptor(std::string_view filename, uint8_t* buffer,
   proto_loader_.Load(&desc);
 }
 
-void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* buffer,
-                               size_t size, ChecksumType checksum) {
+void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* /*buffer*/,
+                               size_t /*size*/, ChecksumType checksum) {
   {
     SqlStmt stmt(db_,
                  "SELECT image, width, height FROM spritesheets "
@@ -228,6 +228,7 @@ void DbAssets::Load() {
     std::string_view saved_name = InternedString(name);
     auto* buf =
         reinterpret_cast<uint8_t*>(allocator_->Alloc(size + 1, /*align=*/16));
+    CHECK(buf != nullptr, "Failed to allocate bytes for asset");
     for (const Loader& loader : kLoaders) {
       if (loader.name.empty()) {
         LOG("No loader for asset ", name, " with type ", type);

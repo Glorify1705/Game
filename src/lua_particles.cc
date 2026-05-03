@@ -283,6 +283,7 @@ int EmitterDraw(lua_State* state) {
   // Allocate instance data from the frame allocator (valid until frame end).
   auto* instances = static_cast<ParticleInstanceData*>(frame_alloc->Alloc(
       p.count * sizeof(ParticleInstanceData), alignof(ParticleInstanceData)));
+  CHECK(instances != nullptr, "Failed to allocate particle instance data");
 
   // Build instance data from SoA particle arrays.
   for (uint32_t i = 0; i < p.count; ++i) {

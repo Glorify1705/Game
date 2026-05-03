@@ -72,6 +72,7 @@ void *QoiEncode(const void *data, const QoiDesc *desc, int *out_len,
   }
 
   auto *buffer = allocator->Alloc(MemoryNeededToEncode(desc), /*align=*/4);
+  CHECK(buffer != nullptr, "Failed to allocate image encode buffer");
   auto result = QoiEncode(data, desc, out_len, buffer);
   if (result.is_error()) return nullptr;
   return buffer;
