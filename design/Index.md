@@ -60,7 +60,7 @@ tags: [index]
 | [Audio features](Audio%20features.md) | audio, lua-api | Pitch, looping, panning done; seek/tell, 3D audio, effects pending |
 | [Bug fixes and minor improvements](Bug%20fixes%20and%20minor%20improvements.md) | bugs, code-quality, testing | ASan-confirmed leaks (Box2D alloc mismatch, Canvas __gc, renderbuffer), logic bugs (has_mouse_focus flag), defensive fixes; some code quality done, platform watchers and test coverage pending |
 | [CMake and CTest improvements](CMake%20and%20CTest%20improvements.md) | build, testing, cmake, ctest | Phases 1–2 done (preset fix, ctest, timeouts, labels, parallel, test file split); coverage expansion pending (color.cc, stats.cc, xml.cc, qoa.cc) |
-| [Physics system expansion](Physics%20system%20expansion.md) | physics, lua-api | Phase 1 mostly done (kinematic bodies, material properties, filtering, sensors, raycasting, per-body properties, world config); joints, advanced shapes, debug draw, deferred destruction pending |
+| [Physics system expansion](Physics%20system%20expansion.md) | physics, lua-api | Phases 1-2 done (bodies, properties, filtering, sensors, raycasting, world config, six joint types with handle API, debug draw for bodies and joints); advanced shapes (polygon, edge, chain), deferred destruction pending |
 | [Profiling and tracing](Profiling%20and%20tracing.md) | profiling, performance | Chrome Tracing done; perf and pprof are external devenv tools, not engine integration |
 | [Renderer improvements](Renderer%20improvements.md) | renderer, graphics | Stencil/scissor/blend/primitives done; post-processing pipeline and lighting pending |
 | [Sound hot reload](Sound%20hot%20reload.md) | audio, hot-reload | File change detection works; actual reload is coarse (StopAll on any audio change), per-asset incremental reload pending |
@@ -100,7 +100,7 @@ Low effort, high return. Complete in-progress work to close gaps cheaply.
 
 | Document | Rationale |
 |----------|-----------|
-| [Physics system expansion](Physics%20system%20expansion.md) | Phase 1 (bodies, properties, filtering, sensors, raycasting) is done. Next: joints (Phase 2) — the killer feature that justifies Box2D over the simpler collision system. |
+| [Physics system expansion](Physics%20system%20expansion.md) | Phases 1-2 done (bodies, properties, filtering, sensors, raycasting, joints, debug draw). Next: advanced shapes (polygon, edge, chain) and deferred destruction. |
 | [Bug fixes and minor improvements](Bug%20fixes%20and%20minor%20improvements.md) | Low-hanging fruit: error handling TODOs, platform file watchers, missing tests, allocator instrumentation. |
 | [CMake and CTest improvements](CMake%20and%20CTest%20improvements.md) | Phases 1–2 done, test files split (201 tests across 9 files). Next: expand test coverage to color.cc, stats.cc, xml.cc, qoa.cc. |
 

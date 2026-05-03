@@ -342,12 +342,12 @@ applicable here since we already have Box2D.
 |---|---|---|---|---|---|---|
 | **Body types** | Dynamic, static | All 3 | All 3 | All 3 | 4 specialized | 2 orthogonal enums |
 | **Shapes** | Box, circle | All 5 | Box, sphere, capsule | All via Box2D | 8 types | AABB only |
-| **Joints** | None exposed | 11 | 6 | 10 | 3 | None |
+| **Joints** | 6 (revolute, distance, weld, prismatic, mouse, wheel) | 11 | 6 | 10 | 3 | None |
 | **Material props** | Hardcoded | Per-fixture | Per-component | Per-shape table | Per-body | Per-entity fields |
 | **Collision filter** | None | Category/mask/group | Named groups | Category/mask/group | 32 named layers | Group bitmask |
 | **Callbacks** | Begin only | Begin/end/pre/post | Messages | 3 types | Signals | touch + collide |
 | **Sensors** | No | Yes (fixture) | Yes (trigger) | Yes (isSensor) | Area2D | Via groups |
-| **Debug draw** | No | No | Editor only | Yes, built-in | Yes, built-in | No |
+| **Debug draw** | Yes (ImGui overlay) | No | Editor only | Yes, built-in | Yes, built-in | No |
 | **World queries** | No | AABB query, raycast | No | No | Full suite | Trace (sweep) |
 | **Gravity control** | Hardcoded | World + per-body scale | World | World | World + per-body + areas | World + per-entity |
 | **Velocity access** | No | Full | Limited | Limited | Full | Direct field |
@@ -592,12 +592,17 @@ body:apply_linear_impulse_at(ix, iy, px, py)
 body:destroy()   -- queued, safe to call in callbacks
 ```
 
-### Phase 2: Joints
+### Phase 2: Joints ✅ Implemented (PR #85)
 
-Priority: The primary missing feature. Joints enable the most interesting
-physics gameplay.
+Six joint types implemented with a generational `JointHandle` system, full
+Lua API, and debug draw support (ImGui overlay that filters out internal
+friction joints and renders only user-created joints).
 
-#### Joint creation
+The implemented API uses per-type creation functions rather than the
+originally proposed `physics.new_joint(type, ...)` dispatcher, matching the
+engine's existing pattern of explicit function names.
+
+#### Joint creation (original proposal, see README for actual API)
 
 All joints are created via `physics.new_joint(type, body_a, body_b, params)`.
 The table-based params approach avoids Love2D's problem of 10+ positional
@@ -949,18 +954,17 @@ wrapped in userdata. This is unsafe (dangling pointer after destroy). Replace
 with a generation-indexed handle like the collision system uses. The `Physics`
 class maintains a `FixedArray<BodySlot>` with generation counters.
 
-### Phase 2: Joints
+### Phase 2: Joints ✅ Done (PR #85)
 
-**C++ changes**:
-- Add `JointHandle` with generation counter
-- Add `AddRevoluteJoint`, `AddDistanceJoint`, etc. (one per joint type)
-- Add joint property getters/setters
-- Add `DestroyJoint`
-
-**Lua changes**:
-- Add `physics.new_joint(type, body_a, body_b, params)` dispatcher
-- Add `physics_joint` userdata type with metatable
-- Joint methods on the metatable
+**Implemented** (6 joint types, generational handle, 17 joint methods, debug draw):
+- `JointHandle` with generation counter (max 256 tracked joints)
+- `CreateRevoluteJoint`, `CreateDistanceJoint`, `CreateWeldJoint`,
+  `CreatePrismaticJoint`, `CreateLuaMouseJoint`, `CreateWheelJoint`
+- Joint property getters/setters (motor speed, limits, frequency, etc.)
+- `DestroyJoint` with automatic invalidation on body destroy
+- Debug draw filters friction joints, renders only user joints via ImGui
+- `joint_handle` Lua userdata with metatable (17 methods)
+- LuaLS type stubs in `definitions/game.lua`
 
 ### Phase 3: Callbacks and queries
 
