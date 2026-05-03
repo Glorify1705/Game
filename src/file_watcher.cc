@@ -297,7 +297,7 @@ FileWatcher::FileWatcher(Allocator* allocator) : allocator_(allocator) {
 
 FileWatcher::~FileWatcher() { allocator_->Destroy(platform_); }
 
-void FileWatcher::Watch(const char* directory) {
+void FileWatcher::Watch(const char* /*directory*/) {
   LOG("FileWatcher: macOS backend not implemented, using polling fallback");
   watching_ = true;
   needs_full_rescan_ = true;
