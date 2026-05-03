@@ -71,19 +71,20 @@ design doc. Sourced from TASKS.md, TODO comments, and codebase audit.
 
 ## Allocator Instrumentation
 
-- [ ] Add Valgrind annotations (`VALGRIND_MALLOCLIKE_BLOCK`,
-  `VALGRIND_FREELIKE_BLOCK`, etc.) to custom allocators in `src/allocators.h`
-  so Valgrind can track arena/pool allocations in debug builds. Gate behind a
-  `GAME_WITH_VALGRIND` compile flag. (CMake already detects
-  `valgrind/memcheck.h` and sets `VALGRIND_INCLUDE_DIR`; annotations just need
-  to be added to the allocator methods.)
+- [x] Add Valgrind annotations (`VALGRIND_MALLOCLIKE_BLOCK`,
+  `VALGRIND_FREELIKE_BLOCK`, `VALGRIND_MAKE_MEM_NOACCESS`,
+  `VALGRIND_MAKE_MEM_UNDEFINED`) to ArenaAllocator and BlockAllocator.
+  Gated behind `__has_include(<valgrind/memcheck.h>)` — no compile flag
+  needed.
 - [x] Add ASan poisoning/unpoisoning (`__asan_poison_memory_region`,
   `__asan_unpoison_memory_region`) to arena and pool allocators so ASan can
   detect use-after-free within arenas and buffer overflows within pool blocks.
   (Implemented in `src/allocators.h` — `ASAN_POISON_MEMORY_REGION` /
   `ASAN_UNPOISON_MEMORY_REGION` macros used in `ArenaAllocator`,
   `PoolAllocator`, and `BlockPool`.)
-- [ ] Consider MSan annotations for uninitialized memory tracking in arenas.
+- [x] Add MSan annotations (`__msan_allocated_memory`) to ArenaAllocator
+  and BlockAllocator so MSan can detect reads of uninitialized arena memory.
+  Gated behind `__has_feature(memory_sanitizer)`.
 
 ## Robustness
 
