@@ -959,11 +959,8 @@ struct ColorTable {
     table.Insert("orange", Color{249, 115, 6, 255});
     table.Insert("teal", Color{2, 147, 134, 255});
     table.Insert("lightblue", Color{149, 208, 252, 255});
-    table.Insert("red", Color{229, 0, 0, 255});
     table.Insert("brown", Color{101, 55, 0, 255});
     table.Insert("pink", Color{255, 129, 192, 255});
-    table.Insert("blue", Color{3, 67, 223, 255});
-    table.Insert("green", Color{21, 176, 26, 255});
     table.Insert("purple", Color{126, 30, 156, 255});
   }
 

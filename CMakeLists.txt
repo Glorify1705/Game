@@ -377,6 +377,9 @@ if(NOT CMAKE_CROSSCOMPILING)
       tests/test_transformations.cc
       tests/test_particles.cc
       tests/test_save.cc
+      tests/test_bits.cc
+      tests/test_color.cc
+      tests/test_stringlib.cc
   )
 
   target_compile_features(Tests PRIVATE cxx_std_17)
