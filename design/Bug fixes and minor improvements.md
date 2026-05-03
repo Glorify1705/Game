@@ -53,8 +53,8 @@ design doc. Sourced from TASKS.md, TODO comments, and codebase audit.
 - [x] Add error handling to `ParseVersionFromString` in `src/config.cc`
 - [x] Return errors gracefully from `LoadSprite`/`LoadSpritesheet` instead of
   CHECK-crashing (uses `ErrorOr<void>`, errors logged via `LoadFn::Load`)
-- [ ] Change `uint8_t*` signatures in `src/packer.cc` to use `Slice` (has
-  TODO at line 307)
+- [x] Change `uint8_t*` signatures in `src/packer.cc` to use `Slice` (TODO
+  removed, already addressed)
 - [x] Remove dead `G2` module in `assets/testgame1.lua` (file removed)
 - [ ] Check arena allocation return values for null in critical paths (e.g.
   `BatchRenderer` constructor)
@@ -63,8 +63,8 @@ design doc. Sourced from TASKS.md, TODO comments, and codebase audit.
 - [ ] Replace fixed glyph array with hash map for Unicode support
   (`src/renderer.h:593`, has TODO)
 - [x] Decouple stub generation from the Lua class (TODO removed, likely done)
-- [ ] Remove `-Wno-unused-parameter` from CMakeLists.txt and use
-  `[[maybe_unused]]` or parameter comments where needed
+- [x] Remove `-Wno-unused-parameter` from CMakeLists.txt and use
+  parameter comments (`/*name*/`) where needed
 - [x] Fix `object_buffers` array size mismatch in `~BatchRenderer`
   (`src/renderer.cc:320`): changed `std::array<GLuint, 4>` to
   `std::array<GLuint, 3>`
@@ -112,8 +112,12 @@ design doc. Sourced from TASKS.md, TODO comments, and codebase audit.
   minimal coverage)
 - [ ] Add tests for `mat.h` — all matrix types and operations (1359 lines,
   zero coverage)
-- [ ] Add tests for `bits.h` — `Log2`, `Align`, edge cases for `NextPow2`
-- [ ] Add tests for `stringlib.cc` — linked into test binary but has no tests
-- [ ] Add tests for `color.cc` — color space conversions
+- [x] Add tests for `bits.h` — `Log2`, `Align`, edge cases for `NextPow2`
+  (8 tests in `test_bits.cc`)
+- [x] Add tests for `stringlib.cc` — HasPrefix, HasSuffix, ConsumePrefix,
+  ConsumeSuffix, PrintDouble (14 tests in `test_stringlib.cc`)
+- [x] Add tests for `color.cc` — ColorFromTable lookups, error cases,
+  ToFloat, static constructors (8 tests in `test_color.cc`). Also fixed
+  duplicate color table entries overwriting standard red/green/blue.
 - [ ] Add integration tests for asset database loading
 - [ ] Add integration tests for Lua VM initialization and script loading
