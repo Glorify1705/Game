@@ -142,7 +142,7 @@ class ArenaAllocator : public Allocator {
     }
   }
 
-  void* Alloc(size_t size, size_t align) override ALLOCATOR_NO_ALIAS {
+  void* Alloc(size_t size, size_t /*align*/) override ALLOCATOR_NO_ALIAS {
     // Always align to std::max_align_t.
     size = Align(size, kMaxAlign);
     if (pos_ + size > end_) {

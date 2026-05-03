@@ -299,7 +299,7 @@ bool CheckVec2Table(lua_State* L, int idx, float* xy) {
 }
 
 // Recursively draws a Lua value as ImGui tree nodes.
-void DrawLuaValue(lua_State* L, int depth, int table_ref, int key_idx) {
+void DrawLuaValue(lua_State* L, int depth, int /*table_ref*/, int /*key_idx*/) {
   if (depth > 10) {
     ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "...");
     return;

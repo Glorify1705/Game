@@ -133,7 +133,7 @@ TEST_F(SaveTest, ListKeys) {
   int count = 0;
   auto result = save.List(
       "ns",
-      [](std::string_view key, ByteSlice, void* ud) {
+      [](std::string_view /*key*/, ByteSlice, void* ud) {
         (*static_cast<int*>(ud))++;
       },
       &count);

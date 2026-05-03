@@ -261,7 +261,7 @@ if(VALGRIND_INCLUDE_DIR)
 endif()
 
 target_compile_options(engine PRIVATE
-    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter;-fno-exceptions;-fno-rtti;-Wshadow;-Wformat=2;-Wimplicit-fallthrough>
+    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-fno-exceptions;-fno-rtti;-Wshadow;-Wformat=2;-Wimplicit-fallthrough>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
     $<$<BOOL:${_MSVC_FRONTEND}>:/W3;/EHs-c-;/GR->
 )
@@ -317,7 +317,7 @@ set_target_properties(Game PROPERTIES OUTPUT_NAME "game")
 target_link_libraries(Game PRIVATE engine)
 
 target_compile_options(Game PRIVATE
-    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter;-fno-exceptions;-fno-rtti>
+    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-fno-exceptions;-fno-rtti>
     $<$<AND:${IS_GCC_LIKE},$<CONFIG:Debug>>:-O1;-fno-omit-frame-pointer;-fno-optimize-sibling-calls;-fno-inline>
     $<$<BOOL:${_MSVC_FRONTEND}>:/W3;/EHs-c-;/GR->
 )
@@ -350,7 +350,7 @@ target_include_directories(Server PRIVATE
     "${PROJECT_SOURCE_DIR}/libraries/lua/src")
 target_compile_definitions(Server PRIVATE PB_STATIC_API)
 target_compile_options(Server PRIVATE
-    $<${IS_GCC_LIKE}:-Wall;-Wextra;-Wno-unused-parameter;-fno-exceptions;-fno-rtti>
+    $<${IS_GCC_LIKE}:-Wall;-Wextra;-fno-exceptions;-fno-rtti>
     $<$<CXX_COMPILER_ID:MSVC>:/W4>)
 set_source_files_properties(libraries/lua-protobuf/pb.c PROPERTIES
     COMPILE_OPTIONS "-Wno-error")
@@ -385,7 +385,7 @@ if(NOT CMAKE_CROSSCOMPILING)
   target_compile_features(Tests PRIVATE cxx_std_17)
 
   target_compile_options(Tests PRIVATE
-      $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror;-Wno-unused-parameter>
+      $<${IS_GCC_LIKE}:-Wall;-Wextra;-Werror>
       $<$<BOOL:${_MSVC_FRONTEND}>:/W3>
       $<${IS_GCC_LIKE}:-fsanitize=address,undefined;-fno-sanitize=vptr>
   )

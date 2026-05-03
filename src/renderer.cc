@@ -1122,7 +1122,7 @@ BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
   return result;
 }
 
-Renderer::Renderer(const DbAssets& assets, BatchRenderer* renderer, sqlite3* db,
+Renderer::Renderer(const DbAssets& /*assets*/, BatchRenderer* renderer, sqlite3* db,
                    Allocator* allocator)
     : allocator_(allocator),
       renderer_(renderer),

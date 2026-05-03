@@ -158,7 +158,7 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
   return RunGame(opts, db);
 }
 
-bool PackagedGameExists(const char* argv0) {
+bool PackagedGameExists(const char* /*argv0*/) {
   char exe_dir[1024];
   if (GetExeDir(exe_dir, sizeof(exe_dir)).is_error()) return false;
   CmdBuffer asset_path(exe_dir, "assets.sqlite3");
