@@ -56,8 +56,10 @@ design doc. Sourced from TASKS.md, TODO comments, and codebase audit.
 - [x] Change `uint8_t*` signatures in `src/packer.cc` to use `Slice` (TODO
   removed, already addressed)
 - [x] Remove dead `G2` module in `assets/testgame1.lua` (file removed)
-- [ ] Check arena allocation return values for null in critical paths (e.g.
-  `BatchRenderer` constructor)
+- [x] Check arena allocation return values for null in critical paths:
+  BatchRenderer command buffer, screenshot framebuffer, thread pool
+  worker queue, asset loading, particle pool, image encoding, config
+  loading, file reading, particle instance rendering
 - [ ] Support ANSI escape codes properly in text measurement
   (`src/renderer.cc:1520`, has TODO)
 - [ ] Replace fixed glyph array with hash map for Unicode support
