@@ -99,6 +99,7 @@ ErrorOr<void> LoadConfigFromFile(const char* path, GameConfig* config,
   if (size < 0) return Error::Errno(errno);
   if (fseek(f, 0, SEEK_SET) != 0) return Error::Errno(errno);
   char* contents = static_cast<char*>(allocator->Alloc(size + 1, 1));
+  CHECK(contents != nullptr, "Failed to allocate bytes for config file");
   DEFER([&] { allocator->Dealloc(contents, size + 1); });
   size_t read_bytes = fread(contents, 1, size, f);
   if (read_bytes != static_cast<size_t>(size))

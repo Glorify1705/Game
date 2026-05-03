@@ -40,6 +40,7 @@ ThreadPoolExecutor::ThreadPoolExecutor(Allocator* allocator, size_t num_threads)
       allocator_(allocator) {
   for (size_t i = 0; i < num_threads; ++i) {
     auto* buf = allocator->Alloc(sizeof(WorkerQueue), alignof(WorkerQueue));
+    CHECK(buf != nullptr, "Failed to allocate WorkerQueue");
     auto* q = ::new (buf)
         WorkerQueue{CircularBuffer<Task*>(/*size=*/4096, allocator), {}};
     queues_.Push(q);

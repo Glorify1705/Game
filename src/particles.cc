@@ -48,6 +48,7 @@ void ParticlePool::Init(uint32_t cap, Allocator* allocator) {
   // float arrays of `cap` elements each, followed by one Color array.
   auto* mem = static_cast<uint8_t*>(
       allocator->Alloc(PoolByteSize(cap), alignof(float)));
+  CHECK(mem != nullptr, "Failed to allocate particle pool");
   FloatSlice s = {reinterpret_cast<float*>(mem), cap};
   x = s.Next();
   y = s.Next();

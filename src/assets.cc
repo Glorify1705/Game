@@ -228,6 +228,7 @@ void DbAssets::Load() {
     std::string_view saved_name = InternedString(name);
     auto* buf =
         reinterpret_cast<uint8_t*>(allocator_->Alloc(size + 1, /*align=*/16));
+    CHECK(buf != nullptr, "Failed to allocate bytes for asset");
     for (const Loader& loader : kLoaders) {
       if (loader.name.empty()) {
         LOG("No loader for asset ", name, " with type ", type);

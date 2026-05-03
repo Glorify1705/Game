@@ -153,6 +153,7 @@ ErrorOr<size_t> ReadEntireFile(const char* path, uint8_t** out,
   if (len < 0) return Error::Errno(errno);
   fseek(f, 0, SEEK_SET);
   auto* buf = static_cast<uint8_t*>(allocator->Alloc(len, 1));
+  CHECK(buf != nullptr, "Failed to allocate bytes for file read");
   if (fread(buf, 1, len, f) != static_cast<size_t>(len)) {
     return Error::Errno(errno);
   }

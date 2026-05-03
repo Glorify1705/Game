@@ -211,6 +211,9 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
       viewport_(viewport),
       window_size_(viewport),
       render_scratch_(allocator, Megabytes(64)) {
+  CHECK(command_buffer_ != nullptr,
+        "BatchRenderer: failed to allocate ", kCommandMemory,
+        " byte command buffer");
   TIMER();
   glGetIntegerv(GL_MAX_SAMPLES, &antialiasing_samples_);
   LOG("Using ", antialiasing_samples_, " MSAA samples");
@@ -1102,6 +1105,8 @@ BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
   size_t bytes = viewport.x;
   bytes *= viewport.y * sizeof(Color);
   auto* buffer = allocator->Alloc(bytes, /*align=*/4);
+  CHECK(buffer != nullptr, "TakeScreenshot: failed to allocate ", bytes,
+        " bytes for ", viewport.x, "x", viewport.y, " framebuffer");
   // Read from the resolved (non-MSAA) framebuffer.
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, downsampled_target_));
   glReadPixels(0, 0, viewport.x, viewport.y, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
