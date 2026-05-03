@@ -644,62 +644,104 @@ function G.physics.set_fixed_rotation(handle, fixed) end
 ---@return boolean fixed true if rotation is locked
 function G.physics.get_fixed_rotation(handle) end
 
----Creates a revolute (hinge) joint between two bodies at a world-space anchor
+---Creates a revolute (hinge) joint between two bodies at a world-space anchor.
+---The two bodies can rotate freely around the anchor point. Optionally add
+---angular limits to restrict the rotation range, or a motor to drive rotation.
 ---@param body_a physics_handle first body
 ---@param body_b physics_handle second body
 ---@param anchor_x number world-space anchor x (pixels)
 ---@param anchor_y number world-space anchor y (pixels)
----@param options? table optional: enable_limit, lower_angle, upper_angle, enable_motor, motor_speed, max_motor_torque, collide_connected
+---@param options? table optional fields:
+--- - enable_limit (boolean, default false): constrain rotation to [lower_angle, upper_angle]
+--- - lower_angle (number, default 0): minimum angle in radians (requires enable_limit)
+--- - upper_angle (number, default 0): maximum angle in radians (requires enable_limit)
+--- - enable_motor (boolean, default false): apply torque to reach motor_speed
+--- - motor_speed (number, default 0): target angular velocity in radians/second
+--- - max_motor_torque (number, default 0): maximum torque the motor can apply
+--- - collide_connected (boolean, default false): allow the two bodies to collide with each other
 ---@return joint_handle joint the joint handle
 function G.physics.create_revolute_joint(body_a, body_b, anchor_x, anchor_y, options) end
 
----Creates a distance (spring) joint between two bodies
+---Creates a distance (spring) joint between two bodies. Maintains a target
+---distance between two world-space anchor points. With frequency > 0 the
+---joint acts as a damped spring; with frequency = 0 it is a rigid rod.
 ---@param body_a physics_handle first body
 ---@param body_b physics_handle second body
----@param ax1 number anchor A x (pixels)
----@param ay1 number anchor A y (pixels)
----@param ax2 number anchor B x (pixels)
----@param ay2 number anchor B y (pixels)
----@param options? table optional: length, frequency, damping_ratio, collide_connected
+---@param ax1 number anchor A x (pixels), typically on body_a
+---@param ay1 number anchor A y (pixels), typically on body_a
+---@param ax2 number anchor B x (pixels), typically on body_b
+---@param ay2 number anchor B y (pixels), typically on body_b
+---@param options? table optional fields:
+--- - length (number, default auto): rest length in pixels. If omitted or negative, computed from the initial distance between the two anchors
+--- - frequency (number, default 0): spring frequency in Hz. 0 = rigid constraint. Values 1-5 give soft springs; higher = stiffer
+--- - damping_ratio (number, default 0): damping ratio. 0 = no damping (oscillates forever), 1 = critically damped (no oscillation)
+--- - collide_connected (boolean, default false): allow the two bodies to collide with each other
 ---@return joint_handle joint the joint handle
 function G.physics.create_distance_joint(body_a, body_b, ax1, ay1, ax2, ay2, options) end
 
----Creates a weld (rigid) joint between two bodies
+---Creates a weld (rigid) joint between two bodies. Attempts to hold the
+---bodies at a fixed relative position and angle. With frequency > 0 the
+---weld becomes soft (allows slight flex); with frequency = 0 it is rigid.
 ---@param body_a physics_handle first body
 ---@param body_b physics_handle second body
 ---@param anchor_x number world-space anchor x (pixels)
 ---@param anchor_y number world-space anchor y (pixels)
----@param options? table optional: frequency, damping_ratio, collide_connected
+---@param options? table optional fields:
+--- - frequency (number, default 0): softness frequency in Hz. 0 = perfectly rigid. Higher values allow slight angular flex
+--- - damping_ratio (number, default 0): damping ratio for soft weld. 0 = no damping, 1 = critically damped
+--- - collide_connected (boolean, default false): allow the two bodies to collide with each other
 ---@return joint_handle joint the joint handle
 function G.physics.create_weld_joint(body_a, body_b, anchor_x, anchor_y, options) end
 
----Creates a prismatic (slider) joint between two bodies
----@param body_a physics_handle first body
----@param body_b physics_handle second body
+---Creates a prismatic (slider) joint between two bodies. Constrains body_b
+---to slide along a fixed axis relative to body_a, like a piston or elevator.
+---The axis is a direction vector (will be normalized internally).
+---@param body_a physics_handle first body (typically static)
+---@param body_b physics_handle second body (slides along axis)
 ---@param anchor_x number world-space anchor x (pixels)
 ---@param anchor_y number world-space anchor y (pixels)
----@param axis_x number slide axis x component
----@param axis_y number slide axis y component
----@param options? table optional: enable_limit, lower_translation, upper_translation, enable_motor, motor_speed, max_motor_force, collide_connected
+---@param axis_x number slide axis x component (e.g. 0 for vertical)
+---@param axis_y number slide axis y component (e.g. 1 for vertical)
+---@param options? table optional fields:
+--- - enable_limit (boolean, default false): constrain translation to [lower_translation, upper_translation]
+--- - lower_translation (number, default 0): minimum slide distance in pixels (requires enable_limit)
+--- - upper_translation (number, default 0): maximum slide distance in pixels (requires enable_limit)
+--- - enable_motor (boolean, default false): apply force to reach motor_speed
+--- - motor_speed (number, default 0): target speed in pixels/second along the axis
+--- - max_motor_force (number, default 0): maximum force the motor can apply
+--- - collide_connected (boolean, default false): allow the two bodies to collide with each other
 ---@return joint_handle joint the joint handle
 function G.physics.create_prismatic_joint(body_a, body_b, anchor_x, anchor_y, axis_x, axis_y, options) end
 
----Creates a mouse (drag) joint that pulls a body toward a target point
+---Creates a mouse (drag) joint that pulls a body toward a target point.
+---Internally anchored to the static ground body. Use set_target() each
+---frame to update where the body is dragged toward.
 ---@param body physics_handle the body to drag
 ---@param target_x number initial target x (pixels)
 ---@param target_y number initial target y (pixels)
----@param options? table optional: max_force, frequency, damping_ratio
+---@param options? table optional fields:
+--- - max_force (number, default 1000): maximum force applied to reach the target. Higher = snappier response
+--- - frequency (number, default 5.0): spring frequency in Hz. Controls how quickly the body tracks the target
+--- - damping_ratio (number, default 0.7): damping ratio. 0.7 is a good default; lower = more oscillation, 1 = no overshoot
 ---@return joint_handle joint the joint handle
 function G.physics.create_mouse_joint(body, target_x, target_y, options) end
 
----Creates a wheel (vehicle suspension) joint between two bodies
+---Creates a wheel (vehicle suspension) joint between two bodies. Combines
+---a revolute joint (wheel spin) with a prismatic joint (suspension travel)
+---along the given axis. Typically body_a is the chassis, body_b is the wheel.
 ---@param body_a physics_handle chassis body
 ---@param body_b physics_handle wheel body
----@param anchor_x number world-space anchor x (pixels)
----@param anchor_y number world-space anchor y (pixels)
----@param axis_x number suspension axis x component
----@param axis_y number suspension axis y component
----@param options? table optional: enable_motor, motor_speed, max_motor_torque, frequency, damping_ratio, collide_connected
+---@param anchor_x number world-space anchor x (pixels), typically the wheel center
+---@param anchor_y number world-space anchor y (pixels), typically the wheel center
+---@param axis_x number suspension axis x component (e.g. 0 for vertical suspension)
+---@param axis_y number suspension axis y component (e.g. 1 for vertical suspension)
+---@param options? table optional fields:
+--- - enable_motor (boolean, default false): apply torque to spin the wheel
+--- - motor_speed (number, default 0): target angular velocity in radians/second. Negative = forward for typical setups
+--- - max_motor_torque (number, default 0): maximum torque the motor can apply
+--- - frequency (number, default 2.0): suspension spring frequency in Hz. Higher = stiffer suspension
+--- - damping_ratio (number, default 0.7): suspension damping. 0.7 is a good default; 1 = critically damped
+--- - collide_connected (boolean, default false): allow chassis and wheel to collide
 ---@return joint_handle joint the joint handle
 function G.physics.create_wheel_joint(body_a, body_b, anchor_x, anchor_y, axis_x, axis_y, options) end
 

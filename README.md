@@ -452,22 +452,56 @@ G.physics.set_gravity_scale(handle, scale)
 G.physics.set_bullet(handle, bullet)              -- Continuous collision detection
 
 -- Joints (all coordinates in pixels, angles in radians)
-G.physics.create_revolute_joint(a, b, ax, ay [, opts])     -> joint_handle
+-- All create functions return a joint_handle. Joints are automatically
+-- destroyed when either connected body is destroyed.
+G.physics.create_revolute_joint(a, b, ax, ay [, opts])              -> joint_handle
 G.physics.create_distance_joint(a, b, ax1, ay1, ax2, ay2 [, opts]) -> joint_handle
-G.physics.create_weld_joint(a, b, ax, ay [, opts])         -> joint_handle
-G.physics.create_prismatic_joint(a, b, ax, ay, dx, dy [, opts]) -> joint_handle
-G.physics.create_mouse_joint(body, tx, ty [, opts])        -> joint_handle
-G.physics.create_wheel_joint(a, b, ax, ay, dx, dy [, opts]) -> joint_handle
--- opts per joint type:
---   revolute:   enable_limit, lower_angle, upper_angle, enable_motor,
---               motor_speed, max_motor_torque, collide_connected
---   distance:   length, frequency, damping_ratio, collide_connected
---   weld:       frequency, damping_ratio, collide_connected
---   prismatic:  enable_limit, lower_translation, upper_translation,
---               enable_motor, motor_speed, max_motor_force, collide_connected
---   mouse:      max_force, frequency, damping_ratio
---   wheel:      enable_motor, motor_speed, max_motor_torque, frequency,
---               damping_ratio, collide_connected
+G.physics.create_weld_joint(a, b, ax, ay [, opts])                 -> joint_handle
+G.physics.create_prismatic_joint(a, b, ax, ay, dx, dy [, opts])    -> joint_handle
+G.physics.create_mouse_joint(body, tx, ty [, opts])                 -> joint_handle
+G.physics.create_wheel_joint(a, b, ax, ay, dx, dy [, opts])        -> joint_handle
+
+-- Revolute joint opts (hinge/pin — bodies rotate around anchor):
+--   enable_limit       boolean (false)  constrain to [lower_angle, upper_angle]
+--   lower_angle        number  (0)      min angle in radians
+--   upper_angle        number  (0)      max angle in radians
+--   enable_motor       boolean (false)  apply torque to reach motor_speed
+--   motor_speed        number  (0)      target angular velocity, rad/s
+--   max_motor_torque   number  (0)      max torque the motor can apply
+--   collide_connected  boolean (false)  let the two bodies collide
+
+-- Distance joint opts (spring/rod — maintains distance between anchors):
+--   length             number  (auto)   rest length in px; omit to use initial anchor distance
+--   frequency          number  (0)      spring Hz; 0=rigid rod, 1-5=soft spring
+--   damping_ratio      number  (0)      0=oscillates forever, 1=critically damped
+--   collide_connected  boolean (false)  let the two bodies collide
+
+-- Weld joint opts (rigid lock — holds bodies at fixed relative transform):
+--   frequency          number  (0)      softness Hz; 0=perfectly rigid
+--   damping_ratio      number  (0)      0=no damping, 1=critically damped
+--   collide_connected  boolean (false)  let the two bodies collide
+
+-- Prismatic joint opts (slider/piston — body_b slides along axis):
+--   enable_limit         boolean (false)  constrain to [lower, upper]
+--   lower_translation    number  (0)      min slide distance in px
+--   upper_translation    number  (0)      max slide distance in px
+--   enable_motor         boolean (false)  apply force to reach motor_speed
+--   motor_speed          number  (0)      target speed, px/s along axis
+--   max_motor_force      number  (0)      max force the motor can apply
+--   collide_connected    boolean (false)  let the two bodies collide
+
+-- Mouse joint opts (drag — pulls body toward target; anchored to ground):
+--   max_force          number  (1000)   max force; higher=snappier
+--   frequency          number  (5.0)    spring Hz for tracking
+--   damping_ratio      number  (0.7)    0.7=good default, 1=no overshoot
+
+-- Wheel joint opts (vehicle suspension — revolute + prismatic along axis):
+--   enable_motor       boolean (false)  spin the wheel
+--   motor_speed        number  (0)      target angular velocity, rad/s
+--   max_motor_torque   number  (0)      max torque the motor can apply
+--   frequency          number  (2.0)    suspension spring Hz
+--   damping_ratio      number  (0.7)    suspension damping; 1=critically damped
+--   collide_connected  boolean (false)  let chassis and wheel collide
 
 -- Joint handle methods
 joint:is_valid() -> bool
@@ -485,7 +519,7 @@ joint:set_max_motor_torque(torque)        -- revolute, wheel
 joint:set_max_motor_force(force)          -- prismatic
 joint:set_length(pixels)                  -- distance
 joint:set_target(x, y)                    -- mouse
-joint:set_max_force(force)               -- mouse
+joint:set_max_force(force)                -- mouse
 joint:set_frequency(hz)                   -- distance, weld, wheel
 joint:set_damping_ratio(ratio)            -- distance, weld, wheel
 ```
