@@ -521,7 +521,26 @@ void Physics::DisableDebugDraw() {
 void Physics::DrawDebug(const Camera* camera, FVec2 viewport) {
   if (debug_draw_ == nullptr) return;
   debug_draw_->SetCamera(camera, viewport);
+  // Strip the joint bit so Box2D doesn't draw friction joints (which connect
+  // every dynamic body to the ground and create visual noise). We draw
+  // tracked user joints manually below.
+  uint32 flags = debug_draw_->GetFlags();
+  debug_draw_->SetFlags(flags & ~b2Draw::e_jointBit);
   world_.DebugDraw();
+  debug_draw_->SetFlags(flags);
+  // Draw tracked joints only (skips auto-created friction joints).
+  if ((flags & b2Draw::e_jointBit) != 0) {
+    const b2Color joint_color(0.5f, 0.8f, 0.8f);
+    for (int i = 0; i < kMaxJoints; i++) {
+      b2Joint* j = joint_slots_[i].joint;
+      if (j == nullptr) continue;
+      b2Vec2 a = j->GetAnchorA();
+      b2Vec2 b = j->GetAnchorB();
+      debug_draw_->DrawSegment(a, b, joint_color);
+      debug_draw_->DrawPoint(a, 4.0f, joint_color);
+      debug_draw_->DrawPoint(b, 4.0f, joint_color);
+    }
+  }
 }
 
 JointHandle Physics::AllocJointSlot(b2Joint* joint) {

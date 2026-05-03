@@ -636,7 +636,7 @@ class Renderer {
   void Scale(float x, float y) { ApplyTransform(ScaleXY(x, y)); }
 
   void ApplyTransform(const FMat4x4& mat) {
-    transform_stack_.back() = mat * transform_stack_.back();
+    transform_stack_.back() = transform_stack_.back() * mat;
     renderer_->SetActiveTransform(transform_stack_.back());
   }
 
