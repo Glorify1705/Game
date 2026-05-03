@@ -15,6 +15,7 @@
 #include "logging.h"
 #include "units.h"
 
+// ASan: detect use-after-free and buffer overflows within arenas/pools.
 #if defined(__clang__)
 #if defined(__has_feature) && __has_feature(address_sanitizer)
 #define __SANITIZE_ADDRESS__
@@ -33,6 +34,45 @@ void __asan_unpoison_memory_region(void const volatile* addr, size_t size);
 #else
 #define ASAN_POISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
 #define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
+#endif
+
+// MSan: mark arena/pool allocations as uninitialized so MSan can detect
+// reads of uninitialized memory from custom allocators.
+#if defined(__clang__)
+#if defined(__has_feature) && __has_feature(memory_sanitizer)
+#define INSTRUMENT_FOR_MSAN
+#endif
+#endif
+#ifdef INSTRUMENT_FOR_MSAN
+extern "C" {
+void __msan_allocated_memory(const volatile void* addr, size_t size);
+void __msan_unpoison(const volatile void* addr, size_t size);
+}
+#define MSAN_ALLOCATED_MEMORY(addr, size) \
+  __msan_allocated_memory((addr), (size))
+#define MSAN_UNPOISON(addr, size) __msan_unpoison((addr), (size))
+#else
+#define MSAN_ALLOCATED_MEMORY(addr, size) ((void)(addr), (void)(size))
+#define MSAN_UNPOISON(addr, size) ((void)(addr), (void)(size))
+#endif
+
+// Valgrind: track custom allocator operations so Valgrind can detect leaks
+// and use-after-free within arenas/pools in non-sanitizer builds.
+#if __has_include(<valgrind/memcheck.h>)
+#include <valgrind/memcheck.h>
+#define VALGRIND_MAKE_ALLOC(addr, size) \
+  VALGRIND_MALLOCLIKE_BLOCK((addr), (size), /*rzB=*/0, /*is_zeroed=*/0)
+#define VALGRIND_MAKE_FREE(addr, size) \
+  VALGRIND_FREELIKE_BLOCK((addr), /*rzB=*/0)
+#define VALGRIND_MAKE_NOACCESS(addr, size) \
+  VALGRIND_MAKE_MEM_NOACCESS((addr), (size))
+#define VALGRIND_MAKE_UNDEFINED(addr, size) \
+  VALGRIND_MAKE_MEM_UNDEFINED((addr), (size))
+#else
+#define VALGRIND_MAKE_ALLOC(addr, size) ((void)(addr), (void)(size))
+#define VALGRIND_MAKE_FREE(addr, size) ((void)(addr), (void)(size))
+#define VALGRIND_MAKE_NOACCESS(addr, size) ((void)(addr), (void)(size))
+#define VALGRIND_MAKE_UNDEFINED(addr, size) ((void)(addr), (void)(size))
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -120,6 +160,7 @@ class ArenaAllocator : public Allocator {
  public:
   ArenaAllocator(uint8_t* buffer, size_t size) {
     ASAN_POISON_MEMORY_REGION(buffer, size);
+    VALGRIND_MAKE_NOACCESS(buffer, size);
     auto start = reinterpret_cast<uintptr_t>(buffer);
     pos_ = Align(start, kMaxAlign);
     beginning_ = pos_;
@@ -151,6 +192,9 @@ class ArenaAllocator : public Allocator {
     auto* result = reinterpret_cast<void*>(pos_);
     pos_ += size;
     ASAN_UNPOISON_MEMORY_REGION(result, size);
+    MSAN_ALLOCATED_MEMORY(result, size);
+    VALGRIND_MAKE_ALLOC(result, size);
+    VALGRIND_MAKE_UNDEFINED(result, size);
     return result;
   }
 
@@ -160,17 +204,22 @@ class ArenaAllocator : public Allocator {
     auto p = reinterpret_cast<uintptr_t>(ptr);
     if (p + size == pos_) pos_ = p;
     ASAN_POISON_MEMORY_REGION(ptr, size);
+    VALGRIND_MAKE_FREE(ptr, size);
   }
 
   void* Realloc(void* p, size_t old_size, size_t new_size,
                 size_t align) override {
     auto* res = Alloc(new_size, align);
     std::memcpy(res, p, old_size);
+    Dealloc(p, old_size);
     return res;
   }
 
   void Reset() {
-    ASAN_POISON_MEMORY_REGION(reinterpret_cast<void*>(pos_), end_ - pos_);
+    ASAN_POISON_MEMORY_REGION(reinterpret_cast<void*>(beginning_),
+                              end_ - beginning_);
+    VALGRIND_MAKE_NOACCESS(reinterpret_cast<void*>(beginning_),
+                           end_ - beginning_);
     pos_ = beginning_;
   }
 
@@ -264,6 +313,9 @@ class BlockAllocator {
     Block* result = free_list_;
     free_list_ = free_list_->next;
     ::new (result) T();
+    MSAN_ALLOCATED_MEMORY(result, kBlockSize);
+    VALGRIND_MAKE_ALLOC(result, kBlockSize);
+    VALGRIND_MAKE_UNDEFINED(result, kBlockSize);
     return reinterpret_cast<T*>(result);
   }
 
@@ -272,6 +324,7 @@ class BlockAllocator {
     p->next = free_list_;
     free_list_ = p;
     ASAN_POISON_MEMORY_REGION(ptr, kBlockSize);
+    VALGRIND_MAKE_FREE(ptr, kBlockSize);
   }
 
  private:
