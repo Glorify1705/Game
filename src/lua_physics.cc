@@ -83,6 +83,35 @@ PhysicsShapeOptions ReadShapeOptions(lua_State* state, int index) {
   return opts;
 }
 
+JointHandle* CheckJointHandle(lua_State* state, int index) {
+  return static_cast<JointHandle*>(
+      luaL_checkudata(state, index, "joint_handle"));
+}
+
+void PushJointHandle(lua_State* state, JointHandle handle) {
+  auto* ud =
+      static_cast<JointHandle*>(lua_newuserdata(state, sizeof(JointHandle)));
+  luaL_getmetatable(state, "joint_handle");
+  lua_setmetatable(state, -2);
+  *ud = handle;
+}
+
+const char* JointTypeName(b2Joint* j) {
+  switch (j->GetType()) {
+    case e_revoluteJoint: return "revolute";
+    case e_distanceJoint: return "distance";
+    case e_weldJoint: return "weld";
+    case e_prismaticJoint: return "prismatic";
+    case e_mouseJoint: return "mouse";
+    case e_wheelJoint: return "wheel";
+    case e_frictionJoint: return "friction";
+    case e_motorJoint: return "motor";
+    case e_pulleyJoint: return "pulley";
+    case e_gearJoint: return "gear";
+    default: return "unknown";
+  }
+}
+
 const struct LuaApiFunction kPhysicsLib[] = {
     {"add_box",
      "Adds a dynamic box body to the physics world",
@@ -619,16 +648,427 @@ const struct LuaApiFunction kPhysicsLib[] = {
          lua_rawseti(state, -2, i + 1);
        }
        return 1;
-     }}};
+     }},
+    {"create_revolute_joint",
+     "Creates a revolute (hinge) joint between two bodies",
+     {{"body_a", "first body", "physics_handle"},
+      {"body_b", "second body", "physics_handle"},
+      {"anchor_x", "world-space anchor x (pixels)", "number"},
+      {"anchor_y", "world-space anchor y (pixels)", "number"},
+      {"options?",
+       "optional: enable_limit, lower_angle, upper_angle, enable_motor, "
+       "motor_speed, max_motor_torque, collide_connected",
+       "table"}},
+     {{"joint", "a joint handle", "joint_handle"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* a = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       auto* b = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 2, "physics_handle"));
+       float ax = luaL_checknumber(state, 3);
+       float ay = luaL_checknumber(state, 4);
+       bool enable_limit = false;
+       float lower_angle = 0, upper_angle = 0;
+       bool enable_motor = false;
+       float motor_speed = 0, max_motor_torque = 0;
+       bool collide_connected = false;
+       if (lua_istable(state, 5)) {
+         enable_limit = LuaGetBoolField(state, 5, "enable_limit", false);
+         lower_angle = LuaGetNumberField(state, 5, "lower_angle", 0);
+         upper_angle = LuaGetNumberField(state, 5, "upper_angle", 0);
+         enable_motor = LuaGetBoolField(state, 5, "enable_motor", false);
+         motor_speed = LuaGetNumberField(state, 5, "motor_speed", 0);
+         max_motor_torque =
+             LuaGetNumberField(state, 5, "max_motor_torque", 0);
+         collide_connected =
+             LuaGetBoolField(state, 5, "collide_connected", false);
+       }
+       PushJointHandle(
+           state,
+           physics->CreateRevoluteJoint(
+               *a, *b, FVec(ax, ay), enable_limit, lower_angle, upper_angle,
+               enable_motor, motor_speed, max_motor_torque, collide_connected));
+       return 1;
+     }},
+    {"create_distance_joint",
+     "Creates a distance (spring) joint between two bodies",
+     {{"body_a", "first body", "physics_handle"},
+      {"body_b", "second body", "physics_handle"},
+      {"ax1", "anchor A x (pixels)", "number"},
+      {"ay1", "anchor A y (pixels)", "number"},
+      {"ax2", "anchor B x (pixels)", "number"},
+      {"ay2", "anchor B y (pixels)", "number"},
+      {"options?",
+       "optional: length, frequency, damping_ratio, collide_connected",
+       "table"}},
+     {{"joint", "a joint handle", "joint_handle"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* a = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       auto* b = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 2, "physics_handle"));
+       float ax1 = luaL_checknumber(state, 3);
+       float ay1 = luaL_checknumber(state, 4);
+       float ax2 = luaL_checknumber(state, 5);
+       float ay2 = luaL_checknumber(state, 6);
+       float length = -1, frequency = 0, damping_ratio = 0;
+       bool collide_connected = false;
+       if (lua_istable(state, 7)) {
+         length = LuaGetNumberField(state, 7, "length", -1);
+         frequency = LuaGetNumberField(state, 7, "frequency", 0);
+         damping_ratio = LuaGetNumberField(state, 7, "damping_ratio", 0);
+         collide_connected =
+             LuaGetBoolField(state, 7, "collide_connected", false);
+       }
+       PushJointHandle(state, physics->CreateDistanceJoint(
+                                  *a, *b, FVec(ax1, ay1), FVec(ax2, ay2),
+                                  length, frequency, damping_ratio,
+                                  collide_connected));
+       return 1;
+     }},
+    {"create_weld_joint",
+     "Creates a weld (rigid) joint between two bodies",
+     {{"body_a", "first body", "physics_handle"},
+      {"body_b", "second body", "physics_handle"},
+      {"anchor_x", "world-space anchor x (pixels)", "number"},
+      {"anchor_y", "world-space anchor y (pixels)", "number"},
+      {"options?", "optional: frequency, damping_ratio, collide_connected",
+       "table"}},
+     {{"joint", "a joint handle", "joint_handle"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* a = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       auto* b = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 2, "physics_handle"));
+       float ax = luaL_checknumber(state, 3);
+       float ay = luaL_checknumber(state, 4);
+       float frequency = 0, damping_ratio = 0;
+       bool collide_connected = false;
+       if (lua_istable(state, 5)) {
+         frequency = LuaGetNumberField(state, 5, "frequency", 0);
+         damping_ratio = LuaGetNumberField(state, 5, "damping_ratio", 0);
+         collide_connected =
+             LuaGetBoolField(state, 5, "collide_connected", false);
+       }
+       PushJointHandle(state, physics->CreateWeldJoint(*a, *b, FVec(ax, ay),
+                                                      frequency, damping_ratio,
+                                                      collide_connected));
+       return 1;
+     }},
+    {"create_prismatic_joint",
+     "Creates a prismatic (slider) joint between two bodies",
+     {{"body_a", "first body", "physics_handle"},
+      {"body_b", "second body", "physics_handle"},
+      {"anchor_x", "world-space anchor x (pixels)", "number"},
+      {"anchor_y", "world-space anchor y (pixels)", "number"},
+      {"axis_x", "slide axis x component", "number"},
+      {"axis_y", "slide axis y component", "number"},
+      {"options?",
+       "optional: enable_limit, lower_translation, upper_translation, "
+       "enable_motor, motor_speed, max_motor_force, collide_connected",
+       "table"}},
+     {{"joint", "a joint handle", "joint_handle"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* a = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       auto* b = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 2, "physics_handle"));
+       float ax = luaL_checknumber(state, 3);
+       float ay = luaL_checknumber(state, 4);
+       float axis_x = luaL_checknumber(state, 5);
+       float axis_y = luaL_checknumber(state, 6);
+       bool enable_limit = false;
+       float lower = 0, upper = 0;
+       bool enable_motor = false;
+       float motor_speed = 0, max_motor_force = 0;
+       bool collide_connected = false;
+       if (lua_istable(state, 7)) {
+         enable_limit = LuaGetBoolField(state, 7, "enable_limit", false);
+         lower = LuaGetNumberField(state, 7, "lower_translation", 0);
+         upper = LuaGetNumberField(state, 7, "upper_translation", 0);
+         enable_motor = LuaGetBoolField(state, 7, "enable_motor", false);
+         motor_speed = LuaGetNumberField(state, 7, "motor_speed", 0);
+         max_motor_force =
+             LuaGetNumberField(state, 7, "max_motor_force", 0);
+         collide_connected =
+             LuaGetBoolField(state, 7, "collide_connected", false);
+       }
+       PushJointHandle(
+           state,
+           physics->CreatePrismaticJoint(
+               *a, *b, FVec(ax, ay), FVec(axis_x, axis_y), enable_limit, lower,
+               upper, enable_motor, motor_speed, max_motor_force,
+               collide_connected));
+       return 1;
+     }},
+    {"create_mouse_joint",
+     "Creates a mouse (drag) joint that pulls a body toward a target point",
+     {{"body", "the body to drag", "physics_handle"},
+      {"target_x", "initial target x (pixels)", "number"},
+      {"target_y", "initial target y (pixels)", "number"},
+      {"options?", "optional: max_force, frequency, damping_ratio", "table"}},
+     {{"joint", "a joint handle", "joint_handle"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* body = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       float tx = luaL_checknumber(state, 2);
+       float ty = luaL_checknumber(state, 3);
+       float max_force = 1000, frequency = 5.0f, damping_ratio = 0.7f;
+       if (lua_istable(state, 4)) {
+         max_force = LuaGetNumberField(state, 4, "max_force", max_force);
+         frequency = LuaGetNumberField(state, 4, "frequency", frequency);
+         damping_ratio =
+             LuaGetNumberField(state, 4, "damping_ratio", damping_ratio);
+       }
+       PushJointHandle(state,
+                       physics->CreateLuaMouseJoint(*body, FVec(tx, ty),
+                                                   max_force, frequency,
+                                                   damping_ratio));
+       return 1;
+     }},
+    {"create_wheel_joint",
+     "Creates a wheel (vehicle suspension) joint between two bodies",
+     {{"body_a", "chassis body", "physics_handle"},
+      {"body_b", "wheel body", "physics_handle"},
+      {"anchor_x", "world-space anchor x (pixels)", "number"},
+      {"anchor_y", "world-space anchor y (pixels)", "number"},
+      {"axis_x", "suspension axis x component", "number"},
+      {"axis_y", "suspension axis y component", "number"},
+      {"options?",
+       "optional: enable_motor, motor_speed, max_motor_torque, frequency, "
+       "damping_ratio, collide_connected",
+       "table"}},
+     {{"joint", "a joint handle", "joint_handle"}},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* a = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       auto* b = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 2, "physics_handle"));
+       float ax = luaL_checknumber(state, 3);
+       float ay = luaL_checknumber(state, 4);
+       float axis_x = luaL_checknumber(state, 5);
+       float axis_y = luaL_checknumber(state, 6);
+       bool enable_motor = false;
+       float motor_speed = 0, max_motor_torque = 0;
+       float frequency = 2.0f, damping_ratio = 0.7f;
+       bool collide_connected = false;
+       if (lua_istable(state, 7)) {
+         enable_motor = LuaGetBoolField(state, 7, "enable_motor", false);
+         motor_speed = LuaGetNumberField(state, 7, "motor_speed", 0);
+         max_motor_torque =
+             LuaGetNumberField(state, 7, "max_motor_torque", 0);
+         frequency =
+             LuaGetNumberField(state, 7, "frequency", frequency);
+         damping_ratio =
+             LuaGetNumberField(state, 7, "damping_ratio", damping_ratio);
+         collide_connected =
+             LuaGetBoolField(state, 7, "collide_connected", false);
+       }
+       PushJointHandle(state, physics->CreateWheelJoint(
+                                  *a, *b, FVec(ax, ay), FVec(axis_x, axis_y),
+                                  enable_motor, motor_speed, max_motor_torque,
+                                  frequency, damping_ratio, collide_connected));
+       return 1;
+     }},
+};
+
+constexpr luaL_Reg kJointMethods[] = {
+    {"destroy",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       physics->DestroyJoint(*h);
+       return 0;
+     }},
+    {"is_valid",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       lua_pushboolean(state, physics->ResolveJoint(*h) != nullptr);
+       return 1;
+     }},
+    {"get_type",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       b2Joint* j = physics->ResolveJoint(*h);
+       if (j == nullptr) return luaL_error(state, "invalid joint handle");
+       lua_pushstring(state, JointTypeName(j));
+       return 1;
+     }},
+    {"get_joint_angle",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       lua_pushnumber(state, physics->GetJointAngle(*h));
+       return 1;
+     }},
+    {"get_joint_speed",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       lua_pushnumber(state, physics->GetJointSpeed(*h));
+       return 1;
+     }},
+    {"get_joint_translation",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       lua_pushnumber(state, physics->GetJointTranslation(*h));
+       return 1;
+     }},
+    {"get_current_length",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       lua_pushnumber(state, physics->GetCurrentLength(*h));
+       return 1;
+     }},
+    {"set_motor_speed",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       physics->SetMotorSpeed(*h, luaL_checknumber(state, 2));
+       return 0;
+     }},
+    {"enable_motor",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       physics->EnableMotor(*h, lua_toboolean(state, 2));
+       return 0;
+     }},
+    {"enable_limit",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       physics->EnableLimit(*h, lua_toboolean(state, 2));
+       return 0;
+     }},
+    {"set_limits",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       float lower = luaL_checknumber(state, 2);
+       float upper = luaL_checknumber(state, 3);
+       physics->SetJointLimits(*h, lower, upper);
+       return 0;
+     }},
+    {"set_max_motor_torque",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       physics->SetMaxMotorTorque(*h, luaL_checknumber(state, 2));
+       return 0;
+     }},
+    {"set_max_motor_force",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       physics->SetMaxMotorForce(*h, luaL_checknumber(state, 2));
+       return 0;
+     }},
+    {"set_length",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       physics->SetLength(*h, luaL_checknumber(state, 2));
+       return 0;
+     }},
+    {"set_target",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       float x = luaL_checknumber(state, 2);
+       float y = luaL_checknumber(state, 3);
+       physics->SetTarget(*h, FVec(x, y));
+       return 0;
+     }},
+    {"set_max_force",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       physics->SetMaxForce(*h, luaL_checknumber(state, 2));
+       return 0;
+     }},
+    {"set_frequency",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       physics->SetJointFrequency(*h, luaL_checknumber(state, 2));
+       return 0;
+     }},
+    {"set_damping_ratio",
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* h = CheckJointHandle(state, 1);
+       physics->SetJointDampingRatio(*h, luaL_checknumber(state, 2));
+       return 0;
+     }},
+};
+
+const LuaUserdataMethod kJointMethodDefs[] = {
+    {"destroy", "Destroys this joint", {}, {}},
+    {"is_valid", "Returns true if this joint handle is still valid", {},
+     {{"valid", "whether the joint exists", "boolean"}}},
+    {"get_type", "Returns the joint type name", {},
+     {{"type", "joint type string", "string"}}},
+    {"get_joint_angle", "Returns the revolute joint angle in radians", {},
+     {{"angle", "angle in radians", "number"}}},
+    {"get_joint_speed",
+     "Returns the joint speed (revolute: rad/s, prismatic: pixels/s)", {},
+     {{"speed", "joint speed", "number"}}},
+    {"get_joint_translation",
+     "Returns the prismatic joint translation in pixels", {},
+     {{"translation", "translation in pixels", "number"}}},
+    {"get_current_length",
+     "Returns the current distance joint length in pixels", {},
+     {{"length", "current length in pixels", "number"}}},
+    {"set_motor_speed", "Sets the motor speed",
+     {{"speed", "motor speed", "number"}}, {}},
+    {"enable_motor", "Enables or disables the joint motor",
+     {{"enabled", "whether to enable", "boolean"}}, {}},
+    {"enable_limit", "Enables or disables joint limits",
+     {{"enabled", "whether to enable", "boolean"}}, {}},
+    {"set_limits", "Sets joint limits (revolute: radians, prismatic: pixels)",
+     {{"lower", "lower limit", "number"}, {"upper", "upper limit", "number"}},
+     {}},
+    {"set_max_motor_torque", "Sets max motor torque (revolute, wheel)",
+     {{"torque", "max torque", "number"}}, {}},
+    {"set_max_motor_force", "Sets max motor force (prismatic)",
+     {{"force", "max force", "number"}}, {}},
+    {"set_length", "Sets the rest length (distance joint, pixels)",
+     {{"length", "rest length in pixels", "number"}}, {}},
+    {"set_target", "Sets the mouse joint target position",
+     {{"x", "target x (pixels)", "number"},
+      {"y", "target y (pixels)", "number"}},
+     {}},
+    {"set_max_force", "Sets the max force (mouse joint)",
+     {{"force", "max force", "number"}}, {}},
+    {"set_frequency", "Sets the spring frequency in Hz",
+     {{"hz", "frequency in Hz", "number"}}, {}},
+    {"set_damping_ratio", "Sets the damping ratio (0-1)",
+     {{"ratio", "damping ratio", "number"}}, {}},
+};
 
 }  // namespace
 
 void AddPhysicsLibrary(Lua* lua) {
   lua->LoadMetatable("physics_handle", /*registers=*/nullptr,
                      /*register_count=*/0);
+  LOAD_METATABLE(lua, "joint_handle", kJointMethods);
   lua->AddLibrary("physics", kPhysicsLib);
   lua->RegisterUserdataType({"physics_handle", "physics_handle",
                              "An opaque handle to a physics body"});
+  lua->RegisterUserdataType({"joint_handle", "joint_handle",
+                             "An opaque handle to a physics joint", nullptr, 0,
+                             kJointMethodDefs, std::size(kJointMethodDefs)});
 }
 
 LuaLibraryDef GetPhysicsLibraryDef() {
@@ -638,6 +1078,8 @@ LuaLibraryDef GetPhysicsLibraryDef() {
   static const LuaUserdataType kTypes[] = {
       {"physics_handle", "physics_handle",
        "An opaque handle to a physics body"},
+      {"joint_handle", "joint_handle", "An opaque handle to a physics joint",
+       nullptr, 0, kJointMethodDefs, std::size(kJointMethodDefs)},
   };
   return {kLibs, std::size(kLibs), kTypes, std::size(kTypes)};
 }

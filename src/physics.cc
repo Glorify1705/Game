@@ -2,6 +2,12 @@
 
 #include <algorithm>
 
+#include "box2d/b2_distance_joint.h"
+#include "box2d/b2_mouse_joint.h"
+#include "box2d/b2_prismatic_joint.h"
+#include "box2d/b2_revolute_joint.h"
+#include "box2d/b2_weld_joint.h"
+#include "box2d/b2_wheel_joint.h"
 #include "physics_debug_draw.h"
 
 namespace G {
@@ -96,6 +102,7 @@ Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
       world_dimensions_(pixel_dimensions / pixels_per_meter),
       world_(SetupBox2dAllocator(&box2d_allocator_, allocator)) {
   world_.SetContactListener(this);
+  world_.SetDestructionListener(this);
 }
 
 void Physics::SetCollisionCategories(Slice<std::string_view> names) {
@@ -234,7 +241,7 @@ Physics::Handle Physics::AddBox(FVec2 top_left, FVec2 bottom_right, float angle,
   float mass = body->GetMass();
   jd.bodyA = ground_;
   jd.bodyB = body;
-  jd.localAnchorA.SetZero();
+  jd.localAnchorA = body->GetPosition();
   jd.localAnchorB = body->GetLocalCenter();
   jd.collideConnected = true;
   const float gravity = 10.0f;
@@ -280,7 +287,7 @@ Physics::Handle Physics::AddCircle(FVec2 position, double radius,
   float mass = body->GetMass();
   jd.bodyA = ground_;
   jd.bodyB = body;
-  jd.localAnchorA.SetZero();
+  jd.localAnchorA = body->GetPosition();
   jd.localAnchorB = body->GetLocalCenter();
   jd.collideConnected = true;
   const float gravity = 10.0f;
@@ -514,7 +521,385 @@ void Physics::DisableDebugDraw() {
 void Physics::DrawDebug(const Camera* camera, FVec2 viewport) {
   if (debug_draw_ == nullptr) return;
   debug_draw_->SetCamera(camera, viewport);
+  // Strip the joint bit so Box2D doesn't draw friction joints (which connect
+  // every dynamic body to the ground and create visual noise). We draw
+  // tracked user joints manually below.
+  uint32 flags = debug_draw_->GetFlags();
+  debug_draw_->SetFlags(flags & ~b2Draw::e_jointBit);
   world_.DebugDraw();
+  debug_draw_->SetFlags(flags);
+  // Draw tracked joints only (skips auto-created friction joints).
+  if ((flags & b2Draw::e_jointBit) != 0) {
+    const b2Color joint_color(0.5f, 0.8f, 0.8f);
+    for (int i = 0; i < kMaxJoints; i++) {
+      b2Joint* j = joint_slots_[i].joint;
+      if (j == nullptr) continue;
+      b2Vec2 a = j->GetAnchorA();
+      b2Vec2 b = j->GetAnchorB();
+      debug_draw_->DrawSegment(a, b, joint_color);
+      debug_draw_->DrawPoint(a, 4.0f, joint_color);
+      debug_draw_->DrawPoint(b, 4.0f, joint_color);
+    }
+  }
+}
+
+JointHandle Physics::AllocJointSlot(b2Joint* joint) {
+  for (int i = 0; i < kMaxJoints; i++) {
+    if (joint_slots_[i].joint == nullptr) {
+      joint_slots_[i].joint = joint;
+      // Store index + 1 so that 0 means "untracked" (friction joints).
+      joint->GetUserData().pointer = static_cast<uintptr_t>(i + 1);
+      return JointHandle{static_cast<uint32_t>(i), joint_slots_[i].generation};
+    }
+  }
+  CHECK(false, "Joint slot pool exhausted (max ", kMaxJoints, ")");
+  return {};
+}
+
+b2Joint* Physics::ResolveJoint(JointHandle handle) const {
+  if (handle.index >= static_cast<uint32_t>(kMaxJoints)) return nullptr;
+  const auto& slot = joint_slots_[handle.index];
+  if (slot.generation != handle.generation) return nullptr;
+  return slot.joint;
+}
+
+void Physics::InvalidateJointSlot(b2Joint* joint) {
+  uintptr_t tag = joint->GetUserData().pointer;
+  if (tag == 0) return;  // Untracked joint (auto-created friction joint).
+  uint32_t index = static_cast<uint32_t>(tag - 1);
+  DCHECK(index < static_cast<uint32_t>(kMaxJoints));
+  joint_slots_[index].joint = nullptr;
+  joint_slots_[index].generation++;
+}
+
+void Physics::SayGoodbye(b2Joint* joint) { InvalidateJointSlot(joint); }
+
+void Physics::SayGoodbye(b2Fixture*) {}
+
+void Physics::DestroyJoint(JointHandle handle) {
+  b2Joint* j = ResolveJoint(handle);
+  if (j == nullptr) return;
+  InvalidateJointSlot(j);
+  world_.DestroyJoint(j);
+}
+
+JointHandle Physics::CreateRevoluteJoint(
+    Handle a, Handle b, FVec2 world_anchor, bool enable_limit,
+    float lower_angle, float upper_angle, bool enable_motor, float motor_speed,
+    float max_motor_torque, bool collide_connected) {
+  b2RevoluteJointDef def;
+  def.Initialize(a.handle, b.handle, To(world_anchor));
+  def.enableLimit = enable_limit;
+  def.lowerAngle = lower_angle;
+  def.upperAngle = upper_angle;
+  def.enableMotor = enable_motor;
+  def.motorSpeed = motor_speed;
+  def.maxMotorTorque = max_motor_torque;
+  def.collideConnected = collide_connected;
+  return AllocJointSlot(world_.CreateJoint(&def));
+}
+
+JointHandle Physics::CreateDistanceJoint(
+    Handle a, Handle b, FVec2 world_anchor_a, FVec2 world_anchor_b,
+    float length, float frequency, float damping_ratio,
+    bool collide_connected) {
+  b2DistanceJointDef def;
+  def.Initialize(a.handle, b.handle, To(world_anchor_a), To(world_anchor_b));
+  if (length >= 0) {
+    def.length = length / pixels_per_meter_;
+  }
+  if (frequency > 0) {
+    b2LinearStiffness(def.stiffness, def.damping, frequency, damping_ratio,
+                      a.handle, b.handle);
+  }
+  def.collideConnected = collide_connected;
+  return AllocJointSlot(world_.CreateJoint(&def));
+}
+
+JointHandle Physics::CreateWeldJoint(Handle a, Handle b, FVec2 world_anchor,
+                                     float frequency, float damping_ratio,
+                                     bool collide_connected) {
+  b2WeldJointDef def;
+  def.Initialize(a.handle, b.handle, To(world_anchor));
+  if (frequency > 0) {
+    b2AngularStiffness(def.stiffness, def.damping, frequency, damping_ratio,
+                       a.handle, b.handle);
+  }
+  def.collideConnected = collide_connected;
+  return AllocJointSlot(world_.CreateJoint(&def));
+}
+
+JointHandle Physics::CreatePrismaticJoint(
+    Handle a, Handle b, FVec2 world_anchor, FVec2 axis, bool enable_limit,
+    float lower_translation, float upper_translation, bool enable_motor,
+    float motor_speed, float max_motor_force, bool collide_connected) {
+  b2PrismaticJointDef def;
+  b2Vec2 axis_norm(axis.x, axis.y);
+  axis_norm.Normalize();
+  def.Initialize(a.handle, b.handle, To(world_anchor), axis_norm);
+  def.enableLimit = enable_limit;
+  def.lowerTranslation = lower_translation / pixels_per_meter_;
+  def.upperTranslation = upper_translation / pixels_per_meter_;
+  def.enableMotor = enable_motor;
+  def.motorSpeed = motor_speed / pixels_per_meter_;
+  def.maxMotorForce = max_motor_force;
+  def.collideConnected = collide_connected;
+  return AllocJointSlot(world_.CreateJoint(&def));
+}
+
+JointHandle Physics::CreateLuaMouseJoint(Handle body, FVec2 target,
+                                         float max_force, float frequency,
+                                         float damping_ratio) {
+  CHECK(ground_, "create_ground() must be called before create_mouse_joint()");
+  b2MouseJointDef def;
+  def.bodyA = ground_;
+  def.bodyB = body.handle;
+  def.target = To(target);
+  def.maxForce = max_force;
+  if (frequency > 0) {
+    b2LinearStiffness(def.stiffness, def.damping, frequency, damping_ratio,
+                      ground_, body.handle);
+  }
+  body.handle->SetAwake(true);
+  return AllocJointSlot(world_.CreateJoint(&def));
+}
+
+JointHandle Physics::CreateWheelJoint(
+    Handle a, Handle b, FVec2 world_anchor, FVec2 axis, bool enable_motor,
+    float motor_speed, float max_motor_torque, float frequency,
+    float damping_ratio, bool collide_connected) {
+  b2WheelJointDef def;
+  b2Vec2 axis_norm(axis.x, axis.y);
+  axis_norm.Normalize();
+  def.Initialize(a.handle, b.handle, To(world_anchor), axis_norm);
+  def.enableMotor = enable_motor;
+  def.motorSpeed = motor_speed;
+  def.maxMotorTorque = max_motor_torque;
+  if (frequency > 0) {
+    b2LinearStiffness(def.stiffness, def.damping, frequency, damping_ratio,
+                      a.handle, b.handle);
+  }
+  def.collideConnected = collide_connected;
+  return AllocJointSlot(world_.CreateJoint(&def));
+}
+
+float Physics::GetJointAngle(JointHandle handle) const {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j && j->GetType() == e_revoluteJoint);
+  return static_cast<b2RevoluteJoint*>(j)->GetJointAngle();
+}
+
+float Physics::GetJointSpeed(JointHandle handle) const {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j);
+  if (j->GetType() == e_revoluteJoint) {
+    return static_cast<b2RevoluteJoint*>(j)->GetJointSpeed();
+  }
+  if (j->GetType() == e_prismaticJoint) {
+    return static_cast<b2PrismaticJoint*>(j)->GetJointSpeed() *
+           pixels_per_meter_;
+  }
+  CHECK(false, "GetJointSpeed: unsupported joint type");
+  return 0;
+}
+
+float Physics::GetJointTranslation(JointHandle handle) const {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j && j->GetType() == e_prismaticJoint);
+  return static_cast<b2PrismaticJoint*>(j)->GetJointTranslation() *
+         pixels_per_meter_;
+}
+
+float Physics::GetCurrentLength(JointHandle handle) const {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j && j->GetType() == e_distanceJoint);
+  return static_cast<b2DistanceJoint*>(j)->GetCurrentLength() *
+         pixels_per_meter_;
+}
+
+void Physics::SetMotorSpeed(JointHandle handle, float speed) {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j);
+  switch (j->GetType()) {
+    case e_revoluteJoint:
+      static_cast<b2RevoluteJoint*>(j)->SetMotorSpeed(speed);
+      break;
+    case e_prismaticJoint:
+      static_cast<b2PrismaticJoint*>(j)->SetMotorSpeed(speed /
+                                                       pixels_per_meter_);
+      break;
+    case e_wheelJoint:
+      static_cast<b2WheelJoint*>(j)->SetMotorSpeed(speed);
+      break;
+    default:
+      CHECK(false, "SetMotorSpeed: unsupported joint type");
+  }
+}
+
+void Physics::EnableMotor(JointHandle handle, bool flag) {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j);
+  switch (j->GetType()) {
+    case e_revoluteJoint:
+      static_cast<b2RevoluteJoint*>(j)->EnableMotor(flag);
+      break;
+    case e_prismaticJoint:
+      static_cast<b2PrismaticJoint*>(j)->EnableMotor(flag);
+      break;
+    case e_wheelJoint:
+      static_cast<b2WheelJoint*>(j)->EnableMotor(flag);
+      break;
+    default:
+      CHECK(false, "EnableMotor: unsupported joint type");
+  }
+}
+
+void Physics::EnableLimit(JointHandle handle, bool flag) {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j);
+  switch (j->GetType()) {
+    case e_revoluteJoint:
+      static_cast<b2RevoluteJoint*>(j)->EnableLimit(flag);
+      break;
+    case e_prismaticJoint:
+      static_cast<b2PrismaticJoint*>(j)->EnableLimit(flag);
+      break;
+    default:
+      CHECK(false, "EnableLimit: unsupported joint type");
+  }
+}
+
+void Physics::SetJointLimits(JointHandle handle, float lower, float upper) {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j);
+  switch (j->GetType()) {
+    case e_revoluteJoint:
+      static_cast<b2RevoluteJoint*>(j)->SetLimits(lower, upper);
+      break;
+    case e_prismaticJoint:
+      static_cast<b2PrismaticJoint*>(j)->SetLimits(lower / pixels_per_meter_,
+                                                   upper / pixels_per_meter_);
+      break;
+    default:
+      CHECK(false, "SetJointLimits: unsupported joint type");
+  }
+}
+
+void Physics::SetMaxMotorTorque(JointHandle handle, float torque) {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j);
+  switch (j->GetType()) {
+    case e_revoluteJoint:
+      static_cast<b2RevoluteJoint*>(j)->SetMaxMotorTorque(torque);
+      break;
+    case e_wheelJoint:
+      static_cast<b2WheelJoint*>(j)->SetMaxMotorTorque(torque);
+      break;
+    default:
+      CHECK(false, "SetMaxMotorTorque: unsupported joint type");
+  }
+}
+
+void Physics::SetMaxMotorForce(JointHandle handle, float force) {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j && j->GetType() == e_prismaticJoint);
+  static_cast<b2PrismaticJoint*>(j)->SetMaxMotorForce(force);
+}
+
+void Physics::SetLength(JointHandle handle, float length) {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j && j->GetType() == e_distanceJoint);
+  static_cast<b2DistanceJoint*>(j)->SetLength(length / pixels_per_meter_);
+}
+
+void Physics::SetTarget(JointHandle handle, FVec2 target) {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j && j->GetType() == e_mouseJoint);
+  static_cast<b2MouseJoint*>(j)->SetTarget(To(target));
+}
+
+void Physics::SetMaxForce(JointHandle handle, float force) {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j && j->GetType() == e_mouseJoint);
+  static_cast<b2MouseJoint*>(j)->SetMaxForce(force);
+}
+
+void Physics::SetJointFrequency(JointHandle handle, float hz) {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j);
+  float stiffness = 0;
+  float damping = 0;
+  // Retrieve current damping ratio by computing from current values, then
+  // recompute with new frequency. Simpler: just use the helper with ratio=0.7
+  // as default. But better: set stiffness directly from frequency and mass.
+  b2Body* ba = j->GetBodyA();
+  b2Body* bb = j->GetBodyB();
+  switch (j->GetType()) {
+    case e_distanceJoint: {
+      auto* dj = static_cast<b2DistanceJoint*>(j);
+      b2LinearStiffness(stiffness, damping, hz, /*damping_ratio=*/0.5f, ba, bb);
+      dj->SetStiffness(stiffness);
+      break;
+    }
+    case e_weldJoint: {
+      auto* wj = static_cast<b2WeldJoint*>(j);
+      b2AngularStiffness(stiffness, damping, hz, /*damping_ratio=*/0.5f, ba,
+                         bb);
+      wj->SetStiffness(stiffness);
+      break;
+    }
+    case e_mouseJoint: {
+      auto* mj = static_cast<b2MouseJoint*>(j);
+      b2LinearStiffness(stiffness, damping, hz, /*damping_ratio=*/0.7f, ba, bb);
+      mj->SetStiffness(stiffness);
+      break;
+    }
+    case e_wheelJoint: {
+      auto* wj = static_cast<b2WheelJoint*>(j);
+      b2LinearStiffness(stiffness, damping, hz, /*damping_ratio=*/0.7f, ba, bb);
+      wj->SetStiffness(stiffness);
+      break;
+    }
+    default:
+      CHECK(false, "SetJointFrequency: unsupported joint type");
+  }
+}
+
+void Physics::SetJointDampingRatio(JointHandle handle, float ratio) {
+  b2Joint* j = ResolveJoint(handle);
+  CHECK(j);
+  float stiffness = 0;
+  float damping = 0;
+  b2Body* ba = j->GetBodyA();
+  b2Body* bb = j->GetBodyB();
+  switch (j->GetType()) {
+    case e_distanceJoint: {
+      auto* dj = static_cast<b2DistanceJoint*>(j);
+      b2LinearStiffness(stiffness, damping, /*hz=*/4.0f, ratio, ba, bb);
+      dj->SetDamping(damping);
+      break;
+    }
+    case e_weldJoint: {
+      auto* wj = static_cast<b2WeldJoint*>(j);
+      b2AngularStiffness(stiffness, damping, /*hz=*/4.0f, ratio, ba, bb);
+      wj->SetDamping(damping);
+      break;
+    }
+    case e_mouseJoint: {
+      auto* mj = static_cast<b2MouseJoint*>(j);
+      b2LinearStiffness(stiffness, damping, /*hz=*/5.0f, ratio, ba, bb);
+      mj->SetDamping(damping);
+      break;
+    }
+    case e_wheelJoint: {
+      auto* wj = static_cast<b2WheelJoint*>(j);
+      b2LinearStiffness(stiffness, damping, /*hz=*/4.0f, ratio, ba, bb);
+      wj->SetDamping(damping);
+      break;
+    }
+    default:
+      CHECK(false, "SetJointDampingRatio: unsupported joint type");
+  }
 }
 
 }  // namespace G

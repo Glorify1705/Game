@@ -47,9 +47,29 @@ struct PhysicsShapeOptions {
   uint16_t mask = 0xFFFF;
 };
 
-class Physics final : public b2ContactListener {
+// Tracked joint slot for safe handle invalidation.
+struct JointSlot {
+  // The Box2D joint pointer, or nullptr if the slot is free/invalidated.
+  b2Joint* joint = nullptr;
+  // Bumped on each invalidation so stale handles fail safely.
+  uint32_t generation = 0;
+};
+
+// Opaque handle to a physics joint. Stored in Lua userdata.
+struct JointHandle {
+  // Index into the joint slot array.
+  uint32_t index = 0;
+  // Generation at allocation time; must match slot to be valid.
+  uint32_t generation = 0;
+};
+
+class Physics final : public b2ContactListener,
+                      public b2DestructionListener {
  public:
   inline static constexpr float kPixelsPerMeter = 60;
+  // Maximum number of user-created joints.
+  static constexpr int kMaxJoints = 256;
+
   struct Handle {
     b2Body *handle;
     uintptr_t userdata;
@@ -83,6 +103,11 @@ class Physics final : public b2ContactListener {
 
   void BeginContact(b2Contact *c) override;
   void EndContact(b2Contact *) override;
+
+  // b2DestructionListener: called when Box2D auto-destroys a joint.
+  void SayGoodbye(b2Joint *joint) override;
+  // b2DestructionListener: called when Box2D auto-destroys a fixture.
+  void SayGoodbye(b2Fixture *fixture) override;
 
   Handle AddBox(FVec2 top_left, FVec2 top_right, float angle,
                 uintptr_t userdata, PhysicsShapeOptions options = {});
@@ -208,6 +233,94 @@ class Physics final : public b2ContactListener {
   // Returns true if debug drawing is enabled.
   bool debug_draw_enabled() const { return debug_draw_ != nullptr; }
 
+  // Creates a revolute (hinge) joint. Anchor in pixels, angles in radians.
+  JointHandle CreateRevoluteJoint(Handle a, Handle b, FVec2 world_anchor,
+                                  bool enable_limit, float lower_angle,
+                                  float upper_angle, bool enable_motor,
+                                  float motor_speed, float max_motor_torque,
+                                  bool collide_connected);
+
+  // Creates a distance (spring) joint. Anchors in pixels, length in pixels.
+  // Pass length < 0 to auto-compute from current body positions.
+  JointHandle CreateDistanceJoint(Handle a, Handle b, FVec2 world_anchor_a,
+                                  FVec2 world_anchor_b, float length,
+                                  float frequency, float damping_ratio,
+                                  bool collide_connected);
+
+  // Creates a weld (rigid) joint. Anchor in pixels.
+  JointHandle CreateWeldJoint(Handle a, Handle b, FVec2 world_anchor,
+                              float frequency, float damping_ratio,
+                              bool collide_connected);
+
+  // Creates a prismatic (slider) joint. Anchor in pixels, axis is direction.
+  JointHandle CreatePrismaticJoint(Handle a, Handle b, FVec2 world_anchor,
+                                   FVec2 axis, bool enable_limit,
+                                   float lower_translation,
+                                   float upper_translation, bool enable_motor,
+                                   float motor_speed, float max_motor_force,
+                                   bool collide_connected);
+
+  // Creates a mouse (drag) joint. Target in pixels.
+  JointHandle CreateLuaMouseJoint(Handle body, FVec2 target, float max_force,
+                                  float frequency, float damping_ratio);
+
+  // Creates a wheel (vehicle suspension) joint. Anchor in pixels.
+  JointHandle CreateWheelJoint(Handle a, Handle b, FVec2 world_anchor,
+                               FVec2 axis, bool enable_motor, float motor_speed,
+                               float max_motor_torque, float frequency,
+                               float damping_ratio, bool collide_connected);
+
+  // Destroys a user-created joint.
+  void DestroyJoint(JointHandle handle);
+
+  // Resolves a joint handle to a b2Joint pointer. Returns nullptr if invalid.
+  b2Joint* ResolveJoint(JointHandle handle) const;
+
+  // Returns the joint angle in radians (revolute only).
+  float GetJointAngle(JointHandle handle) const;
+
+  // Returns the joint speed (revolute: rad/s, prismatic: pixels/s).
+  float GetJointSpeed(JointHandle handle) const;
+
+  // Returns the joint translation in pixels (prismatic only).
+  float GetJointTranslation(JointHandle handle) const;
+
+  // Returns the current distance in pixels (distance joint only).
+  float GetCurrentLength(JointHandle handle) const;
+
+  // Sets motor speed (revolute/wheel: rad/s, prismatic: pixels/s).
+  void SetMotorSpeed(JointHandle handle, float speed);
+
+  // Enables or disables the joint motor.
+  void EnableMotor(JointHandle handle, bool flag);
+
+  // Enables or disables joint limits.
+  void EnableLimit(JointHandle handle, bool flag);
+
+  // Sets joint limits (revolute: radians, prismatic: pixels).
+  void SetJointLimits(JointHandle handle, float lower, float upper);
+
+  // Sets max motor torque (revolute, wheel).
+  void SetMaxMotorTorque(JointHandle handle, float torque);
+
+  // Sets max motor force (prismatic).
+  void SetMaxMotorForce(JointHandle handle, float force);
+
+  // Sets the rest length of a distance joint in pixels.
+  void SetLength(JointHandle handle, float length);
+
+  // Sets the mouse joint target in pixels.
+  void SetTarget(JointHandle handle, FVec2 target);
+
+  // Sets the max force of a mouse joint.
+  void SetMaxForce(JointHandle handle, float force);
+
+  // Sets the spring frequency for distance/weld/mouse/wheel joints.
+  void SetJointFrequency(JointHandle handle, float hz);
+
+  // Sets the damping ratio for distance/weld/mouse/wheel joints.
+  void SetJointDampingRatio(JointHandle handle, float ratio);
+
   // Finds the body at a world pixel position. Returns nullptr if none found.
   b2Body* QueryPoint(FVec2 world_pixels);
 
@@ -253,6 +366,16 @@ class Physics final : public b2ContactListener {
   // Interned category names, indexed by bit position.
   std::array<uint32_t, 16> category_handles_ = {};
   int category_count_ = 0;
+
+  // Allocates a slot for a tracked joint. Stores the b2Joint* and writes the
+  // slot index (+1) into the joint's userData so SayGoodbye can find it.
+  JointHandle AllocJointSlot(b2Joint* joint);
+
+  // Clears the slot for a joint (called from SayGoodbye or DestroyJoint).
+  void InvalidateJointSlot(b2Joint* joint);
+
+  // Generation-indexed joint slots for safe handle invalidation.
+  JointSlot joint_slots_[kMaxJoints] = {};
 };
 
 }  // namespace G
