@@ -877,8 +877,10 @@ class DbPacker {
       }
       FixedStringBuffer<kMaxPathLength> zip_real(real, "/", vfs_path);
       if (PHYSFS_mount(zip_real.str(), "/zips", /*append=*/1)) {
-        LOG("Mounted zip: ", zip_real.str());
+        int before = result_.written_files;
         EnumerateRecursive("/zips");
+        int from_zip = result_.written_files - before;
+        LOG("Zip: ", zip_real.str(), " (", from_zip, " assets)");
         PHYSFS_unmount(zip_real.str());
       } else {
         LOG("Failed to mount zip ", zip_real.str(), ": ",
