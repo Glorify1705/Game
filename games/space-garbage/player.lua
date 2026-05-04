@@ -156,7 +156,7 @@ end
 
 function Player:on_collision(other)
 	if self.invincible or self.dying then return end
-	if other and other.category == "powerup" then return end
+	if other and other.is_powerup and other:is_powerup() then return end
 	if self.cooldown.v < 1e-8 then
 		G.sound.play_effect("bump.wav")
 		self.health = self.health - COLLISION_DAMAGE
