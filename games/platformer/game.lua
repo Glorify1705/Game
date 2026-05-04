@@ -47,7 +47,7 @@ local FRICTION = 8
 local dead = false
 
 local map
-local map_w, map_h = 50, 20
+local map_w, map_h = 42, 20
 local tile_size = 18
 
 function M:init()
