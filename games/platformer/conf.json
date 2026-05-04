@@ -1,0 +1,14 @@
+{
+  "width": 800,
+  "height": 600,
+  "msaa_samples": 1,
+  "title": "Platformer",
+  "borderless": false,
+  "fullscreen": false,
+  "centered": true,
+  "resizable": true,
+  "enable_joystick": false,
+  "org_name": "GameEngineTests",
+  "app_name": "Platformer",
+  "version": "0.1"
+}
