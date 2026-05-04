@@ -322,6 +322,11 @@ void Physics::Rotate(Handle handle, float angle) {
   body->SetTransform(body->GetPosition(), body->GetAngle() + angle);
 }
 
+void Physics::SetAngle(Handle handle, float angle) {
+  auto* body = handle.handle;
+  body->SetTransform(body->GetPosition(), angle);
+}
+
 void Physics::ApplyTorque(Handle handle, float torque) {
   auto* body = handle.handle;
   body->ApplyTorque(torque, /*wake=*/true);
@@ -331,6 +336,12 @@ void Physics::ApplyForce(Handle handle, FVec2 v) {
   auto* body = handle.handle;
   body->ApplyForce(body->GetWorldVector(b2Vec2(v.x, v.y)),
                    body->GetWorldCenter(),
+                   /*wake=*/true);
+}
+
+void Physics::ApplyForceWorld(Handle handle, FVec2 force) {
+  auto* body = handle.handle;
+  body->ApplyForce(b2Vec2(force.x, force.y), body->GetWorldCenter(),
                    /*wake=*/true);
 }
 

@@ -123,9 +123,15 @@ class Physics final : public b2ContactListener,
 
   void Rotate(Handle handle, float angle);
 
+  // Sets the absolute rotation angle of a body.
+  void SetAngle(Handle handle, float angle);
+
   void ApplyTorque(Handle handle, float torque);
 
   void ApplyForce(Handle handle, FVec2 v);
+
+  // Applies a force in world coordinates (not body-local).
+  void ApplyForceWorld(Handle handle, FVec2 force);
 
   FVec2 GetPosition(Handle handle) const;
 

@@ -441,9 +441,15 @@ G.physics.angular_velocity(handle) -> omega
 G.physics.set_angular_velocity(handle, omega)
 
 -- Forces and impulses
-G.physics.apply_force(handle, x, y)              -- Body-local coordinates
-G.physics.apply_linear_impulse(handle, x, y)     -- World coordinates
+G.physics.apply_force(handle, x, y)              -- BODY-LOCAL coordinates
+G.physics.apply_force_world(handle, x, y)        -- WORLD coordinates
+G.physics.apply_linear_impulse(handle, x, y)     -- WORLD coordinates
 G.physics.apply_torque(handle, torque)
+
+-- Semantic helpers
+G.physics.set_angle(handle, angle)               -- Set absolute rotation
+G.physics.move_toward(handle, tx, ty, speed)     -- Chase a point at speed px/s
+G.physics.look_at(handle, tx, ty)                -- Face toward a point
 
 -- Body tuning
 G.physics.set_linear_damping(handle, damping)
@@ -652,6 +658,12 @@ G.json.decode(string) -> value
 ### G.math
 
 ```lua
+-- Direction constants (Y-down screen space)
+G.math.UP                                      -- v2(0, -1)
+G.math.DOWN                                    -- v2(0, 1)
+G.math.LEFT                                    -- v2(-1, 0)
+G.math.RIGHT                                   -- v2(1, 0)
+
 -- Scalar utilities
 G.math.clamp(x, low, high) -> number
 G.math.lerp(a, b, t) -> number

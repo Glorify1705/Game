@@ -1,6 +1,41 @@
 ---@meta
 -- Auto-generated LuaLS stubs from LuaApiFunction metadata.
 -- Do not edit manually.
+--
+-- COORDINATE SYSTEM:
+--   Origin: top-left corner of the screen
+--   X axis: left (0) to right (width), positive = right
+--   Y axis: top (0) to bottom (height), positive = DOWN
+--   Angles: radians. 0 = right. Positive = clockwise (screen space).
+--   Colors: G.graphics.set_color() uses 0-255 RGBA integers.
+--           G.graphics.clear() uses 0-1 RGBA floats.
+--           Particle color ramps use 0-1 RGBA floats.
+--   Physics: all positions in pixels. Internally scaled by
+--            pixels_per_meter (default 60). Density is mass per
+--            (pixels_per_meter)^2 area.
+--
+-- MOVEMENT GUIDE (choose the right function):
+--   Instant teleport:      G.physics.set_position(h, x, y)
+--   Smooth direct control: G.physics.set_linear_velocity(h, vx, vy)
+--   Chase a target:        G.physics.move_toward(h, tx, ty, speed)
+--   Face a target:         G.physics.look_at(h, tx, ty)
+--   Gradual acceleration:  G.physics.apply_force(h, fx, fy)       -- BODY-LOCAL
+--   World-space force:     G.physics.apply_force_world(h, fx, fy) -- WORLD
+--   Instant kick:          G.physics.apply_linear_impulse(h, ix, iy) -- WORLD
+--   For projectiles: set_linear_velocity at spawn time
+--   For explosions:  apply_linear_impulse on nearby bodies
+--
+-- DIRECTION CONSTANTS (use these instead of raw numbers):
+--   G.math.UP    = v2(0, -1)   -- toward top of screen
+--   G.math.DOWN  = v2(0, 1)    -- toward bottom of screen
+--   G.math.LEFT  = v2(-1, 0)
+--   G.math.RIGHT = v2(1, 0)
+--
+-- EXAMPLE: Enemy chasing player
+--   local px, py = G.physics.position(player)
+--   local ex, ey = G.physics.position(enemy)
+--   G.physics.move_toward(enemy, px, py, 100) -- chase at 100 px/s
+--   G.physics.look_at(enemy, px, py)          -- face the player
 
 ---@class G
 ---@field data G.data
@@ -439,6 +474,10 @@ function G.input.is_controller_button_released(button) end
 function G.input.get_controller_axis(axis) end
 
 ---@class G.math
+---@field UP vec2 Direction toward top of screen: v2(0, -1)
+---@field DOWN vec2 Direction toward bottom of screen: v2(0, 1)
+---@field LEFT vec2 Direction toward left of screen: v2(-1, 0)
+---@field RIGHT vec2 Direction toward right of screen: v2(1, 0)
 G.math = {}
 
 ---Clamps a value between a minimum and maximum
@@ -570,22 +609,56 @@ function G.physics.set_position(handle, x, y) end
 ---@return number angle the angle in radians
 function G.physics.angle(handle) end
 
----Sets the rotation angle of a physics body
+---Adds a rotation delta to a physics body (relative, not absolute)
 ---@param handle physics_handle the physics handle
----@param angle number the angle in radians
+---@param angle number angle delta in radians to add to current rotation
 function G.physics.rotate(handle, angle) end
 
----Applies a linear impulse to a physics body
+---Sets the absolute rotation angle of a physics body
 ---@param handle physics_handle the physics handle
----@param x number impulse x component
----@param y number impulse y component
+---@param angle number angle in radians (0=right, positive=clockwise in screen space)
+function G.physics.set_angle(handle, angle) end
+
+---Sets velocity to move a body toward a target point at a given speed.
+---Computes the direction from the body's current position to (target_x, target_y)
+---and sets linear velocity accordingly. Stops the body if already at the target.
+---@param handle physics_handle the physics handle
+---@param target_x number target x position in pixels
+---@param target_y number target y position in pixels
+---@param speed number movement speed in pixels/second
+function G.physics.move_toward(handle, target_x, target_y, speed) end
+
+---Sets a body's angle to face toward a target point.
+---Computes atan2 from the body's position to (target_x, target_y) and sets the
+---body's angle so that "right" (angle=0) points toward the target.
+---@param handle physics_handle the physics handle
+---@param target_x number target x position in pixels
+---@param target_y number target y position in pixels
+function G.physics.look_at(handle, target_x, target_y) end
+
+---Applies a linear impulse to a physics body.
+---@note WORLD coordinates: (1,0) is always screen-right regardless of body rotation.
+---Use for explosions, knockback, or any instant directional kick.
+---@param handle physics_handle the physics handle
+---@param x number impulse x component (world space, pixels)
+---@param y number impulse y component (world space, pixels)
 function G.physics.apply_linear_impulse(handle, x, y) end
 
----Applies a continuous force to a physics body
+---Applies a continuous force to a physics body.
+---@note BODY-LOCAL coordinates: (1,0) is "forward" relative to the body's current rotation.
+---If the body is rotated 90 degrees, (1,0) pushes in the direction the body faces,
+---not screen-right. For world-space forces, use apply_force_world instead.
 ---@param handle physics_handle the physics handle
----@param x number force x component
----@param y number force y component
+---@param x number force x component (body-local)
+---@param y number force y component (body-local)
 function G.physics.apply_force(handle, x, y) end
+
+---Applies a continuous force in world coordinates (not body-local).
+---(1,0) always pushes screen-right regardless of body rotation.
+---@param handle physics_handle the physics handle
+---@param x number force x component (world space)
+---@param y number force y component (world space)
+function G.physics.apply_force_world(handle, x, y) end
 
 ---Applies a torque to a physics body
 ---@param handle physics_handle the physics handle
