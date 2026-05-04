@@ -1,5 +1,7 @@
 #include "lua_collision.h"
 
+#include <cmath>
+
 #include "collision.h"
 #include "collision_world.h"
 
@@ -344,6 +346,46 @@ int CollisionWorldMoveAndCollide(lua_State* state) {
   return 3;
 }
 
+int CollisionWorldMoveToward(lua_State* state) {
+  auto* world = CheckWorld(state, 1);
+  ColliderHandle handle = CheckHandle(state, 2);
+  const float tx = luaL_checknumber(state, 3);
+  const float ty = luaL_checknumber(state, 4);
+  const float speed = luaL_checknumber(state, 5);
+  const float dt = luaL_checknumber(state, 6);
+  if (!world->IsValid(handle)) {
+    LUA_ERROR(state, "Invalid collision handle");
+  }
+
+  FVec2 pos = world->GetPosition(handle);
+  const float dx = tx - pos.x;
+  const float dy = ty - pos.y;
+  const float dist = std::sqrt(dx * dx + dy * dy);
+
+  float vx, vy;
+  if (dist < 0.001f) {
+    vx = 0;
+    vy = 0;
+  } else {
+    const float s = speed * dt / dist;
+    // Don't overshoot the target.
+    const float clamped = s > 1.0f ? 1.0f : s;
+    vx = dx * clamped;
+    vy = dy * clamped;
+  }
+
+  CollisionWorld::MoveResult result =
+      world->MoveAndCollide(handle, FVec(vx, vy));
+  lua_pushnumber(state, result.position.x);
+  lua_pushnumber(state, result.position.y);
+  if (result.contact_count > 0) {
+    PushContact(state, result.contacts[0]);
+  } else {
+    lua_pushnil(state);
+  }
+  return 3;
+}
+
 int CollisionWorldGetOverlaps(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
@@ -610,6 +652,7 @@ constexpr luaL_Reg kCollisionWorldMethods[] = {
     {"get_userdata", CollisionWorldGetUserdata},
     {"move_and_slide", CollisionWorldMoveAndSlide},
     {"move_and_collide", CollisionWorldMoveAndCollide},
+    {"move_toward", CollisionWorldMoveToward},
     {"get_overlaps", CollisionWorldGetOverlaps},
     {"raycast", CollisionWorldRaycast},
     {"raycast_all", CollisionWorldRaycastAll},
@@ -715,6 +758,16 @@ const LuaUserdataMethod kWorldMethods[] = {
      {{"handle", "Collider handle", "collision_handle"},
       {"vx", "X velocity", "number"},
       {"vy", "Y velocity", "number"}},
+     {{"x", "Final x position", "number"},
+      {"y", "Final y position", "number"},
+      {"contact", "Contact info or nil", "table?"}}},
+    {"move_toward",
+     "Moves a collider toward a target position with collision",
+     {{"handle", "Collider handle", "collision_handle"},
+      {"target_x", "Target x position", "number"},
+      {"target_y", "Target y position", "number"},
+      {"speed", "Movement speed in pixels per second", "number"},
+      {"dt", "Delta time in seconds", "number"}},
      {{"x", "Final x position", "number"},
       {"y", "Final y position", "number"},
       {"contact", "Contact info or nil", "table?"}}},

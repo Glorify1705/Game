@@ -786,6 +786,20 @@ void AddMathLibrary(Lua* lua) {
   LOAD_METATABLE(lua, "fmat4x4", kM4x4Methods);
   lua->AddLibrary("math", kMathLib);
 
+  // Set direction constants on the math table.
+  lua_State* L = lua->state();
+  lua_getglobal(L, "G");
+  lua_getfield(L, -1, "math");
+  NewUserdata<FVec2>(L, 0, -1);
+  lua_setfield(L, -2, "UP");
+  NewUserdata<FVec2>(L, 0, 1);
+  lua_setfield(L, -2, "DOWN");
+  NewUserdata<FVec2>(L, -1, 0);
+  lua_setfield(L, -2, "LEFT");
+  NewUserdata<FVec2>(L, 1, 0);
+  lua_setfield(L, -2, "RIGHT");
+  lua_pop(L, 2);
+
   // Vec2 gets the shared methods plus vec2-specific methods.
   lua->RegisterUserdataType({"fvec2", "vec2", "A 2D floating-point vector",
                              nullptr, 0, kVec2ExtraMethods,

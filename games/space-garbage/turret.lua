@@ -4,11 +4,11 @@ local steer = require("steer")
 
 local Turret = Entity:extend()
 
-local ORBIT_FORCE = 120
+local ORBIT_FORCE = 40
 local DAMPING = 1.5
 local SEPARATE_FORCE = 50
 local SEPARATE_DIST = 80
-local MAX_HEALTH = 4
+local MAX_HEALTH = 12
 local SPAWN_TIME = 1.5
 local FLASH_DURATION = 0.1
 local BLINK_RATE = 0.08
@@ -103,13 +103,13 @@ function Turret:make_states()
 						s.world_w, s.world_h
 					)
 					s.physics:apply_world_force(fx + sfx, fy + sfy)
-					-- Rotate to face player.
+					-- Snap to face player (turrets rotate fast).
 					local target_angle = math.atan2(dx, -dy)
 					local current = s.physics:angle()
 					local rd = target_angle - current
 					if rd > math.pi then rd = rd - 2 * math.pi end
 					if rd < -math.pi then rd = rd + 2 * math.pi end
-					s.physics:rotate(rd * 0.3)
+					s.physics:rotate(rd * 0.8)
 				end
 				-- Fire cooldown.
 				s.fire_timer = s.fire_timer - dt
@@ -142,9 +142,11 @@ function Turret:make_states()
 						local predict = dist / 400
 						local tx = ev.x + dx + pvx * predict
 						local ty = ev.y + dy + pvy * predict
-						local angle = math.atan2(tx - ev.x, -(ty - ev.y))
-						local nose_x = ev.x + math.sin(angle) * 40
-						local nose_y = ev.y - math.cos(angle) * 40
+						-- Use turret's facing angle to place the nose.
+						local facing = s.physics:angle()
+						local nose_x = ev.x + math.sin(facing) * 40
+						local nose_y = ev.y - math.cos(facing) * 40
+						-- Fire toward predicted target from the nose.
 						local fire_angle = math.atan2(tx - nose_x, -(ty - nose_y))
 						s.spawn_bullet_fn(nose_x, nose_y, fire_angle)
 						G.sound.play_effect("laser.wav")

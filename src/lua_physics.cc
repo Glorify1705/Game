@@ -1,5 +1,6 @@
 #include "lua_physics.h"
 
+#include <cmath>
 #include <string_view>
 
 #include "physics.h"
@@ -875,6 +876,76 @@ const struct LuaApiFunction kPhysicsLib[] = {
                                   enable_motor, motor_speed, max_motor_torque,
                                   frequency, damping_ratio, collide_connected));
        return 1;
+     }},
+    {"set_angle",
+     "Sets the absolute rotation angle of a physics body",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"angle", "angle in radians (0=right, increases counter-clockwise)",
+       "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       physics->SetAngle(*handle, luaL_checknumber(state, 2));
+       return 0;
+     }},
+    {"move_toward",
+     "Sets velocity to move a body toward a target point at a given speed",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"target_x", "target x position in pixels", "number"},
+      {"target_y", "target y position in pixels", "number"},
+      {"speed", "movement speed in pixels/second", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float tx = luaL_checknumber(state, 2);
+       const float ty = luaL_checknumber(state, 3);
+       const float speed = luaL_checknumber(state, 4);
+       const FVec2 pos = physics->GetPosition(*handle);
+       const float dx = tx - pos.x;
+       const float dy = ty - pos.y;
+       const float dist = std::sqrt(dx * dx + dy * dy);
+       if (dist < 0.001f) {
+         physics->SetLinearVelocity(*handle, FVec(0, 0));
+       } else {
+         const float scale = speed / dist;
+         physics->SetLinearVelocity(*handle, FVec(dx * scale, dy * scale));
+       }
+       return 0;
+     }},
+    {"look_at",
+     "Sets a body's angle to face toward a target point",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"target_x", "target x position in pixels", "number"},
+      {"target_y", "target y position in pixels", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float tx = luaL_checknumber(state, 2);
+       const float ty = luaL_checknumber(state, 3);
+       const FVec2 pos = physics->GetPosition(*handle);
+       physics->SetAngle(*handle, std::atan2(ty - pos.y, tx - pos.x));
+       return 0;
+     }},
+    {"apply_force_world",
+     "Applies a continuous force in world coordinates (not body-local)",
+     {{"handle", "the physics handle", "physics_handle"},
+      {"x", "force x component (world space)", "number"},
+      {"y", "force y component (world space)", "number"}},
+     {},
+     [](lua_State* state) {
+       auto* physics = Registry<Physics>::Retrieve(state);
+       auto* handle = static_cast<Physics::Handle*>(
+           luaL_checkudata(state, 1, "physics_handle"));
+       const float x = luaL_checknumber(state, 2);
+       const float y = luaL_checknumber(state, 3);
+       physics->ApplyForceWorld(*handle, FVec(x, y));
+       return 0;
      }},
 };
 
