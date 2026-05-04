@@ -83,7 +83,8 @@ ErrorOr<void> Tilemap::LoadTmx(std::string_view xml_data,
         // Strip Tiled flip flags (top 3 bits).
         gid &= 0x0FFFFFFF;
         // Convert Tiled GID to our 1-based tile ID.
-        int tile_id = (gid >= tileset_gid_offset) ? gid - tileset_gid_offset + 1 : 0;
+        // gid_offset = firstgid - 1, so gid - offset = 1 for the first tile.
+        int tile_id = (gid > tileset_gid_offset) ? gid - tileset_gid_offset : 0;
         tilemap->SetTile(name, x, y, tile_id);
         ++x;
         if (x >= lw) { x = 0; ++y; }
