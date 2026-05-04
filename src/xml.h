@@ -17,6 +17,7 @@ struct XmlAttribute {
 
 struct XmlElement {
   std::string_view tag;
+  std::string_view text;  // Text content between open and close tags.
   XmlAttribute* first_attribute = nullptr;
   XmlElement* first_child = nullptr;
   XmlElement* next_sibling = nullptr;
@@ -26,6 +27,9 @@ struct XmlElement {
 
   // Look up an integer attribute. Returns 0 if missing or non-numeric.
   int AttrInt(std::string_view name) const;
+
+  // Look up a float attribute. Returns 0 if missing or non-numeric.
+  float AttrFloat(std::string_view name) const;
 
   // Iterate children with a given tag name, calling fn(const XmlElement&) for
   // each match.

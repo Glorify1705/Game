@@ -1,6 +1,9 @@
 #include "lua_tilemap.h"
 
+#include <cstring>
+
 #include "camera.h"
+#include "physfs.h"
 #include "renderer.h"
 #include "tilemap.h"
 
@@ -209,6 +212,25 @@ int TilemapSetVisible(lua_State* state) {
   return 0;
 }
 
+int TilemapSetCollision(lua_State* state) {
+  auto* tilemap = CheckTilemap(state, 1);
+  std::string_view name = GetLuaString(state, 2);
+  bool collision = lua_toboolean(state, 3);
+  TilemapLayer* layer = tilemap->FindLayer(name);
+  if (!layer) {
+    LUA_ERROR(state, "tilemap: layer not found");
+  }
+  layer->collision = collision;
+  return 0;
+}
+
+int TilemapSetTileset(lua_State* state) {
+  auto* tilemap = CheckTilemap(state, 1);
+  std::string_view name = GetLuaString(state, 2);
+  tilemap->SetTileset(name);
+  return 0;
+}
+
 int TilemapDimensions(lua_State* state) {
   auto* tilemap = CheckTilemap(state, 1);
   lua_pushinteger(state, tilemap->tile_width());
@@ -249,11 +271,50 @@ constexpr luaL_Reg kTilemapMethods[] = {
     {"move", TilemapMove},
     {"set_parallax", TilemapSetParallax},
     {"set_visible", TilemapSetVisible},
+    {"set_tileset", TilemapSetTileset},
+    {"set_collision", TilemapSetCollision},
     {"dimensions", TilemapDimensions},
     {"layer_count", TilemapLayerCount},
     {"__gc", TilemapGc},
     {"__tostring", TilemapToString},
 };
+
+int TilemapLoadTmx(lua_State* state) {
+  const char* filename = luaL_checkstring(state, 1);
+  int gid_offset = luaL_checkinteger(state, 2);
+
+  auto* allocator = Registry<Lua>::Retrieve(state)->allocator();
+
+  // Read the TMX file via PhysFS (from the project directory).
+  PathBuffer vfs_path("/assets/", filename);
+  PHYSFS_File* f = PHYSFS_openRead(vfs_path.str());
+  if (!f) {
+    return luaL_error(state, "tilemap: could not open '%s': %s", filename,
+                      PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+  }
+  PHYSFS_sint64 len = PHYSFS_fileLength(f);
+  ArenaAllocator scratch(allocator, len + 1);
+  char* buf = static_cast<char*>(scratch.Alloc(len + 1, /*align=*/1));
+  PHYSFS_readBytes(f, buf, len);
+  PHYSFS_close(f);
+  buf[len] = '\0';
+  std::string_view xml_data(buf, len);
+
+  // Allocate userdata first, then have LoadTmx populate it.
+  auto* tilemap =
+      static_cast<Tilemap*>(lua_newuserdata(state, sizeof(Tilemap)));
+  new (tilemap) Tilemap(1, 1, allocator);  // Temporary, overwritten by LoadTmx.
+
+  auto result = Tilemap::LoadTmx(xml_data, gid_offset, allocator, tilemap);
+  if (result.is_error()) {
+    tilemap->~Tilemap();
+    return luaL_error(state, "tilemap: %s", result.error().message());
+  }
+
+  luaL_getmetatable(state, "tilemap");
+  lua_setmetatable(state, -2);
+  return 1;
+}
 
 const LuaApiFunction kTilemapLib[] = {
     {"new",
@@ -263,6 +324,14 @@ const LuaApiFunction kTilemapLib[] = {
        "table"}},
      {{"tilemap", "The new tilemap", "tilemap"}},
      TilemapNew},
+    {"load_tmx",
+     "Loads a tilemap from a Tiled TMX file",
+     {{"filename", "TMX asset filename", "string"},
+      {"gid_offset",
+       "Tiled GID offset for the tile tileset (firstgid value minus 1)",
+       "integer"}},
+     {{"tilemap", "The loaded tilemap", "tilemap"}},
+     TilemapLoadTmx},
 };
 
 const LuaUserdataMethod kTilemapMethodDefs[] = {

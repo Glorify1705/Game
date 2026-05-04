@@ -1,10 +1,12 @@
 #include "tilemap.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 
 #include "camera.h"
 #include "renderer.h"
+#include "xml.h"
 
 namespace G {
 namespace {
@@ -25,6 +27,71 @@ Tilemap::Tilemap(int tile_width, int tile_height, Allocator* allocator)
       allocator_(allocator) {
   tileset_name_[0] = '\0';
   std::memset(layers_, 0, sizeof(layers_));
+}
+
+ErrorOr<void> Tilemap::LoadTmx(std::string_view xml_data,
+                               int tileset_gid_offset,
+                               Allocator* allocator,
+                               Tilemap* tilemap) {
+  ArenaAllocator scratch(allocator, Kilobytes(64));
+  XmlElement* root = TRY(ParseXml(xml_data, &scratch));
+  if (root->tag != "map") {
+    return Error::Message("TMX: expected <map> root element");
+  }
+
+  int map_w = root->AttrInt("width");
+  int map_h = root->AttrInt("height");
+  int tw = root->AttrInt("tilewidth");
+  int th = root->AttrInt("tileheight");
+  if (map_w <= 0 || map_h <= 0 || tw <= 0 || th <= 0) {
+    return Error::Message("TMX: invalid map dimensions");
+  }
+
+  // Re-initialize the tilemap with correct dimensions.
+  tilemap->~Tilemap();
+  new (tilemap) Tilemap(tw, th, allocator);
+
+  root->ForEachChild("layer", [&](const XmlElement& layer_elem) {
+    std::string_view name = layer_elem.Attr("name");
+    int lw = layer_elem.AttrInt("width");
+    int lh = layer_elem.AttrInt("height");
+    if (lw <= 0) lw = map_w;
+    if (lh <= 0) lh = map_h;
+
+    int index = tilemap->AddLayer(name, lw, lh, /*collision=*/false);
+    if (index < 0) return;
+
+    // Parse CSV tile data from <data encoding="csv"> text content.
+    layer_elem.ForEachChild("data", [&](const XmlElement& data_elem) {
+      std::string_view csv = data_elem.text;
+      int x = 0, y = 0;
+      size_t pos = 0;
+      while (pos < csv.size() && y < lh) {
+        // Skip whitespace and commas.
+        while (pos < csv.size() &&
+               (csv[pos] == ',' || csv[pos] == ' ' || csv[pos] == '\n' ||
+                csv[pos] == '\r' || csv[pos] == '\t')) {
+          ++pos;
+        }
+        if (pos >= csv.size()) break;
+        // Parse integer.
+        int gid = 0;
+        while (pos < csv.size() && csv[pos] >= '0' && csv[pos] <= '9') {
+          gid = gid * 10 + (csv[pos] - '0');
+          ++pos;
+        }
+        // Strip Tiled flip flags (top 3 bits).
+        gid &= 0x0FFFFFFF;
+        // Convert Tiled GID to our 1-based tile ID.
+        int tile_id = (gid >= tileset_gid_offset) ? gid - tileset_gid_offset + 1 : 0;
+        tilemap->SetTile(name, x, y, tile_id);
+        ++x;
+        if (x >= lw) { x = 0; ++y; }
+      }
+    });
+  });
+
+  return {};
 }
 
 Tilemap::~Tilemap() {

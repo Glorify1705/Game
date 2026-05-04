@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include "allocators.h"
+#include "error.h"
 #include "vec.h"
 
 namespace G {
@@ -44,8 +45,17 @@ class Tilemap {
  public:
   static constexpr int kMaxLayers = 16;
 
-  // Creates a tilemap with the given tile dimensions and allocator.
+  // Creates an empty tilemap with the given tile dimensions.
   Tilemap(int tile_width, int tile_height, Allocator* allocator);
+
+  // Loads a tilemap from TMX (Tiled XML) data into an existing Tilemap.
+  // The tileset_gid_offset is subtracted from each tile GID to convert Tiled
+  // GIDs to 1-based tile IDs. The output tilemap is destructed and
+  // reconstructed in-place.
+  static ErrorOr<void> LoadTmx(std::string_view xml_data,
+                                int tileset_gid_offset,
+                                Allocator* allocator,
+                                Tilemap* out);
 
   // Destroys the tilemap and frees all layer tile arrays.
   ~Tilemap();

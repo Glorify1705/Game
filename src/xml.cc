@@ -62,6 +62,10 @@ class Tokenizer {
 
   void Advance(size_t n) { pos_ = std::min(pos_ + n, input_.size()); }
 
+  std::string_view Substr(size_t start, size_t len) const {
+    return input_.substr(start, len);
+  }
+
  private:
   std::string_view input_;
   size_t pos_ = 0;
@@ -90,10 +94,17 @@ ErrorOr<XmlAttribute*> ParseAttributes(Tokenizer* tok, Allocator* allocator) {
   return head;
 }
 
-ErrorOr<XmlElement*> ParseChildren(Tokenizer* tok, Allocator* allocator,
-                                   std::string_view parent_tag) {
+struct ParseChildrenResult {
+  XmlElement* children;
+  std::string_view text;
+};
+
+ErrorOr<ParseChildrenResult> ParseChildren(Tokenizer* tok,
+                                           Allocator* allocator,
+                                           std::string_view parent_tag) {
   XmlElement* head = nullptr;
   XmlElement** tail = &head;
+  std::string_view text;
   while (true) {
     tok->SkipWhitespace();
     if (tok->Done()) return Error::Message("Unexpected end of input");
@@ -113,11 +124,15 @@ ErrorOr<XmlElement*> ParseChildren(Tokenizer* tok, Allocator* allocator,
       *tail = child;
       tail = &child->next_sibling;
     } else {
-      // Skip text content.
+      // Capture text content (first text run wins).
+      size_t start = tok->pos();
       tok->SkipUntil('<');
+      if (text.empty()) {
+        text = tok->Substr(start, tok->pos() - start);
+      }
     }
   }
-  return head;
+  return ParseChildrenResult{head, text};
 }
 
 ErrorOr<XmlElement*> ParseElement(Tokenizer* tok, Allocator* allocator) {
@@ -137,7 +152,9 @@ ErrorOr<XmlElement*> ParseElement(Tokenizer* tok, Allocator* allocator) {
 
   // Open tag with children.
   if (!tok->Consume('>')) return Error::Message("Expected '>'");
-  element->first_child = TRY(ParseChildren(tok, allocator, element->tag));
+  auto result = TRY(ParseChildren(tok, allocator, element->tag));
+  element->first_child = result.children;
+  element->text = result.text;
   return element;
 }
 
@@ -152,12 +169,39 @@ std::string_view XmlElement::Attr(std::string_view name) const {
 
 int XmlElement::AttrInt(std::string_view name) const {
   std::string_view val = Attr(name);
+  if (val.empty()) return 0;
+  int sign = 1;
+  size_t i = 0;
+  if (val[0] == '-') { sign = -1; i = 1; }
   int result = 0;
-  for (char c : val) {
+  for (; i < val.size(); ++i) {
+    char c = val[i];
     if (c < '0' || c > '9') break;
     result = result * 10 + (c - '0');
   }
-  return result;
+  return result * sign;
+}
+
+float XmlElement::AttrFloat(std::string_view name) const {
+  std::string_view val = Attr(name);
+  if (val.empty()) return 0;
+  // Simple float parse: ['-'] digits ['.' digits]
+  float sign = 1;
+  size_t i = 0;
+  if (val[0] == '-') { sign = -1; i = 1; }
+  float result = 0;
+  for (; i < val.size() && val[i] >= '0' && val[i] <= '9'; ++i) {
+    result = result * 10 + (val[i] - '0');
+  }
+  if (i < val.size() && val[i] == '.') {
+    ++i;
+    float frac = 0.1f;
+    for (; i < val.size() && val[i] >= '0' && val[i] <= '9'; ++i) {
+      result += (val[i] - '0') * frac;
+      frac *= 0.1f;
+    }
+  }
+  return result * sign;
 }
 
 ErrorOr<XmlElement*> ParseXml(std::string_view input, Allocator* allocator) {

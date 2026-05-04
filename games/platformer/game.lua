@@ -9,20 +9,8 @@
 local M = {}
 local W, H
 
--- Tile IDs from the Kenney Pixel Platformer tileset (tilemap_packed.png).
--- Derived from the Tiled example (firstgid=28, so our_id = tiled_gid - 27).
--- Verified by visual inspection of individual tile_NNNN.png files.
-local GRASS_TOP_LEFT   = 18   -- tile_0017.png: green grass top-left corner
-local GRASS_TOP_MID    = 19   -- tile_0018.png: green grass top-middle
-local GRASS_TOP_RIGHT  = 20   -- tile_0019.png: green grass top-right corner
-local GRASS_MID_LEFT   = 38   -- tile_0037.png: dirt with left edge
-local GRASS_MID        = 39   -- tile_0038.png: dirt fill (below grass)
-local GRASS_MID_RIGHT  = 40   -- tile_0039.png: dirt with right edge
-local PLAT_LEFT        = 22   -- tile_0021.png: platform left cap
-local PLAT_MID         = 23   -- tile_0022.png: platform middle
-local PLAT_RIGHT       = 24   -- tile_0023.png: platform right cap
-local GROUND_FILL      = 105  -- tile_0104.png: plain dirt interior
-local COIN             = 152  -- tile_0151.png: gold coin
+-- The TMX file uses Tiled GIDs with firstgid=28 for the tile tileset.
+-- gid_offset = 27 converts to our 1-based tile IDs.
 
 -- Player state.
 local player = {
@@ -52,67 +40,20 @@ local FRICTION = 8
 local dead = false
 
 local map
-local map_w, map_h = 42, 20
 local tile_size = 18
 
 function M:init()
   W, H = G.window.dimensions()
 
-  -- Create tilemap.
-  map = G.tilemap.new({
-    tile_width = tile_size,
-    tile_height = tile_size,
-    tileset = "tilemap_packed.png",
-  })
+  -- Load the level directly from the Tiled TMX file.
+  -- The tile tileset has firstgid=28, so gid_offset = 27.
+  map = G.tilemap.load_tmx("level.tmx", 27)
+  map:set_tileset("tilemap_packed.png")
+  map:set_collision("Tiles", true)  -- First layer is the terrain.
 
-  -- Far background (sky + clouds, slow parallax).
-  map:add_layer("sky", map_w, map_h, { parallax_x = 0.3, parallax_y = 0.5 })
-
-  -- Near background (trees/bushes, medium parallax).
-  map:add_layer("background", map_w, map_h, { parallax_x = 0.7, parallax_y = 0.9 })
-
-  -- Collision layer (full speed, no parallax).
-  map:add_layer("collision", map_w, map_h, { collision = true })
-
-  -- Sky layer is empty -- the clear() color provides the blue sky.
-  -- Only place sparse clouds for parallax effect.
-  -- TODO: verify correct cloud tile IDs from the tileset once we have
-  -- a tile ID picker tool. For now, leave the sky layer empty.
-
-  -- Build the ground with pits on both sides.
-  for x = 0, map_w - 1 do
-    -- Leave gaps: left pit at x=1-3, right pit at x=35-38.
-    local is_pit = (x >= 1 and x <= 3) or (x >= 35 and x <= 38)
-    if not is_pit then
-      map:set_tile("collision", x, map_h - 1, GROUND_FILL)
-      map:set_tile("collision", x, map_h - 2, GRASS_TOP_MID)
-    end
-  end
-
-  -- Helper: place a platform with left/mid/right cap tiles.
-  local function place_platform(x1, x2, y)
-    map:set_tile("collision", x1, y, PLAT_LEFT)
-    for x = x1 + 1, x2 - 1 do
-      map:set_tile("collision", x, y, PLAT_MID)
-    end
-    map:set_tile("collision", x2, y, PLAT_RIGHT)
-  end
-
-  -- Platforms at various heights.
-  place_platform(5, 9, map_h - 5)
-  place_platform(12, 18, map_h - 8)
-  place_platform(20, 24, map_h - 4)
-  place_platform(27, 32, map_h - 6)
-
-  -- Some coins on the platforms (background layer, no collision).
-  map:set_tile("background", 7, map_h - 6, COIN)
-  map:set_tile("background", 15, map_h - 9, COIN)
-  map:set_tile("background", 22, map_h - 5, COIN)
-  map:set_tile("background", 30, map_h - 7, COIN)
-
-  -- Place player above the ground.
-  player.x = 80
-  player.y = (map_h - 3) * tile_size
+  -- Place player near the left side of the level.
+  player.x = 4 * tile_size
+  player.y = 5 * tile_size
 end
 
 function M:update(t, dt)
@@ -124,7 +65,7 @@ function M:update(t, dt)
     if G.input.is_key_pressed("r") then
       -- Respawn.
       player.x = 80
-      player.y = (map_h - 3) * tile_size
+      player.y = 5 * tile_size
       player.vx = 0
       player.vy = 0
       player.on_ground = false
@@ -199,7 +140,8 @@ function M:update(t, dt)
   end
 
   -- Fall off the bottom = death.
-  if player.y > map_h * tile_size + 100 then
+  -- The TMX level is 15 tiles tall.
+  if player.y > 15 * tile_size + 100 then
     dead = true
   end
 end
