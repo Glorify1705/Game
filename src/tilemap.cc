@@ -383,10 +383,13 @@ void Tilemap::DrawLayerImpl(const TilemapLayer& layer, Renderer* renderer,
       int tile_col = (tile_id - 1) % tiles_per_row;
       int tile_row = (tile_id - 1) / tiles_per_row;
 
-      float u0 = (tile_col * tw) / sheet_w;
-      float v0 = (tile_row * th) / sheet_h;
-      float u1 = ((tile_col + 1) * tw) / sheet_w;
-      float v1 = ((tile_row + 1) * th) / sheet_h;
+      // Inset UVs by half a texel to prevent sampling adjacent tile edges.
+      const float half_texel_u = 0.5f / sheet_w;
+      const float half_texel_v = 0.5f / sheet_h;
+      float u0 = (tile_col * tw) / sheet_w + half_texel_u;
+      float v0 = (tile_row * th) / sheet_h + half_texel_v;
+      float u1 = ((tile_col + 1) * tw) / sheet_w - half_texel_u;
+      float v1 = ((tile_row + 1) * th) / sheet_h - half_texel_v;
 
       FVec2 p0(px, py);
       FVec2 p1(px + tw, py + th);
