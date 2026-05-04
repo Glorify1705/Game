@@ -18,6 +18,8 @@ function Bullet:new(x, y, angle, world_w, world_h)
 	self.dead = false
 	self.lifetime = LIFETIME
 	self.travel_angle = angle
+	self.dx = math.sin(angle)
+	self.dy = -math.cos(angle)
 	self.world_w = world_w
 	self.world_h = world_h
 end
@@ -33,8 +35,8 @@ function Bullet:update(dt)
 		self.dead = true
 		return
 	end
-	-- Body-local (0, -1) is "forward" (the direction the sprite faces).
-	self.physics:apply_force(0, -FORCE)
+	-- World-space force in the firing direction.
+	self.physics:apply_world_force(self.dx * FORCE, self.dy * FORCE)
 end
 
 function Bullet:draw()
