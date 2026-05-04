@@ -17,6 +17,21 @@ namespace G {
 
 namespace {
 
+void PrintHelp() {
+  printf("Usage: game run [directory] [options] [-- game-args...]\n");
+  printf("\n");
+  printf("Runs a game project with hot-reload support.\n");
+  printf("\n");
+  printf("Arguments:\n");
+  printf("  directory           Project directory (default: current directory)\n");
+  printf("\n");
+  printf("Options:\n");
+  printf("  --no-hotreload      Disable file watching and hot-reload\n");
+  printf("  --clean             Delete the cached asset database before running\n");
+  printf("  --test              Run in test mode (implies --no-hotreload)\n");
+  printf("  --                  Pass remaining arguments to the game script\n");
+}
+
 void ComputeCacheDir(const char* source_directory, char* out, size_t out_size) {
   const char* abs_path = AbsolutePath(source_directory);
   uint64_t hash = rapidhash(abs_path, strlen(abs_path));
@@ -41,6 +56,10 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
   // Parse arguments: game run [dir] [--flags] [-- game-args...]
   for (size_t i = 1; i < args.size(); ++i) {
     std::string_view arg = args[i];
+    if (arg == "--help" || arg == "-h") {
+      PrintHelp();
+      return 0;
+    }
     if (arg == "--") {
       game_args = {args.data() + i + 1, args.size() - i - 1};
       break;

@@ -180,6 +180,22 @@ ErrorOr<void> ConvertQoaToWav(ByteSlice data, const char* out_path,
   return {};
 }
 
+void PrintHelp() {
+  printf("Usage: game convert <input> [options]\n");
+  printf("\n");
+  printf("Converts images and audio between formats.\n");
+  printf("\n");
+  printf("Image conversions:  png/jpg/bmp/gif/tga -> qoi, qoi -> png\n");
+  printf("Audio conversions:  wav/ogg -> qoa, qoa -> wav\n");
+  printf("\n");
+  printf("Arguments:\n");
+  printf("  input                 Input file path\n");
+  printf("\n");
+  printf("Options:\n");
+  printf("  -o, --output <path>   Output file path (default: input with new extension)\n");
+  printf("  -f, --format <fmt>    Output format (e.g. qoi, png, qoa, wav)\n");
+}
+
 }  // namespace
 
 int CmdConvert(Slice<const char*> args, Allocator* allocator) {
@@ -189,6 +205,10 @@ int CmdConvert(Slice<const char*> args, Allocator* allocator) {
 
   for (size_t i = 1; i < args.size(); ++i) {
     std::string_view arg = args[i];
+    if (arg == "--help" || arg == "-h") {
+      PrintHelp();
+      return 0;
+    }
     if ((arg == "-o" || arg == "--output") && i + 1 < args.size()) {
       output_path = args[++i];
     } else if ((arg == "-f" || arg == "--format") && i + 1 < args.size()) {

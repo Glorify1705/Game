@@ -23,6 +23,17 @@ void ComputeCacheDir(const char* source_directory, char* out, size_t out_size) {
   snprintf(out, out_size, "%s/%s", base_cache, hash_str);
 }
 
+void PrintHelp() {
+  printf("Usage: game clean [directory]\n");
+  printf("\n");
+  printf("Deletes the cached asset database for a game project.\n");
+  printf("The cache is stored in a per-project directory under the\n");
+  printf("user's cache folder.\n");
+  printf("\n");
+  printf("Arguments:\n");
+  printf("  directory             Project directory (default: current directory)\n");
+}
+
 }  // namespace
 
 int CmdClean(Slice<const char*> args, Allocator*) {
@@ -30,6 +41,10 @@ int CmdClean(Slice<const char*> args, Allocator*) {
 
   for (size_t i = 1; i < args.size(); ++i) {
     std::string_view arg = args[i];
+    if (arg == "--help" || arg == "-h") {
+      PrintHelp();
+      return 0;
+    }
     if (arg[0] != '-') {
       source_directory = args[i];
     }

@@ -134,6 +134,23 @@ int BuildSfxArchive(const char* output_dir, const char* binary_name,
   return 0;
 }
 
+void PrintHelp() {
+  printf("Usage: game package [directory] [options]\n");
+  printf("\n");
+  printf("Packages a game project for distribution. Packs all assets into\n");
+  printf("a SQLite database and copies the engine binary alongside it.\n");
+  printf("\n");
+  printf("Arguments:\n");
+  printf("  directory             Project directory (default: current directory)\n");
+  printf("\n");
+  printf("Options:\n");
+  printf("  -o, --output <dir>    Output directory (default: dist)\n");
+  printf("  --name <name>         Override binary name (default: from conf.json)\n");
+  printf("  --engine-binary <path>  Use a specific engine binary instead of self\n");
+  printf("  --strip               Strip debug symbols from the binary\n");
+  printf("  --sfx                 Build a self-extracting archive (requires 7z)\n");
+}
+
 }  // namespace
 
 int CmdPackage(Slice<const char*> args, Allocator* allocator) {
@@ -146,6 +163,10 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
 
   for (size_t i = 1; i < args.size(); ++i) {
     std::string_view arg = args[i];
+    if (arg == "--help" || arg == "-h") {
+      PrintHelp();
+      return 0;
+    }
     if ((arg == "-o" || arg == "--output") && i + 1 < args.size()) {
       output_dir = args[++i];
     } else if (arg == "--name" && i + 1 < args.size()) {
