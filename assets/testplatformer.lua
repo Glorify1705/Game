@@ -26,7 +26,19 @@ local player = {
   vx = 0, vy = 0,
   on_ground = false,
   facing_right = true,
+  walk_timer = 0,
+  walk_frame = 1,
 }
+
+-- Player animation frames (from kenney_platformer-characters.zip).
+local ANIM = {
+  idle = "player_idle.png",
+  jump = "player_jump.png",
+  fall = "player_fall.png",
+  walk = { "player_walk1.png", "player_walk2.png" },
+  duck = "player_duck.png",
+}
+local WALK_FRAME_TIME = 0.15
 
 local GRAVITY = 600
 local JUMP_VEL = -250
@@ -141,6 +153,18 @@ function M:update(t, dt)
 
   player.x = nx
   player.y = ny
+
+  -- Walk animation timer.
+  if player.on_ground and math.abs(player.vx) > 5 then
+    player.walk_timer = player.walk_timer + dt
+    if player.walk_timer >= WALK_FRAME_TIME then
+      player.walk_timer = player.walk_timer - WALK_FRAME_TIME
+      player.walk_frame = player.walk_frame % #ANIM.walk + 1
+    end
+  else
+    player.walk_timer = 0
+    player.walk_frame = 1
+  end
 end
 
 function M:draw()
@@ -158,10 +182,27 @@ function M:draw()
   -- Draw tilemap layers.
   map:draw()
 
-  -- Draw player as a colored rectangle (no character spritesheet integration yet).
-  G.graphics.set_color(80, 200, 80, 255)
-  G.graphics.draw_rect(player.x, player.y, player.x + player.w, player.y + player.h)
-  G.graphics.set_color(255, 255, 255, 255)
+  -- Pick the right animation frame.
+  local sprite
+  if not player.on_ground then
+    sprite = player.vy < 0 and ANIM.jump or ANIM.fall
+  elseif math.abs(player.vx) > 5 then
+    sprite = ANIM.walk[player.walk_frame]
+  else
+    sprite = ANIM.idle
+  end
+
+  -- Draw player sprite centered on the collision box.
+  -- Flip horizontally when facing left by using negative scale.
+  local cx = player.x + player.w / 2
+  local cy = player.y + player.h / 2
+  G.graphics.push()
+  G.graphics.translate(cx, cy)
+  if not player.facing_right then
+    G.graphics.scale(-1, 1)
+  end
+  G.graphics.draw_image(sprite, 0, 0)
+  G.graphics.pop()
 
   G.graphics.pop()
 
