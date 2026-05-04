@@ -10,14 +10,17 @@ local M = {}
 local W, H
 
 -- Tile IDs from the Kenney Pixel Platformer tileset (tilemap_packed.png).
--- The tileset is 20 tiles wide. Row 0 = tiles 1-20, row 1 = 21-40, etc.
--- Tile IDs are 1-based. The tileset is 20 columns wide.
--- tile_id = row * 20 + col + 1  (row and col are 0-based).
-local GROUND_TOP   = 41   -- grass-top (row 2, col 0)
-local GROUND_MID   = 61   -- dirt fill (row 3, col 0)
-local PLATFORM     = 43   -- wooden platform (row 2, col 2)
-local COIN         = 152  -- coin (row 7, col 11)
-local BRICK        = 24   -- brown brick (row 1, col 3)
+-- 20 columns x 9 rows, 18x18px tiles.
+-- tile_id = row * 20 + col + 1  (0-based row/col, 1-based id).
+local GROUND_TOP       = 41   -- grass-top (row 2, col 0)
+local GROUND_TOP_LEFT  = 40   -- grass-top left edge (row 1, col 19)
+local GROUND_TOP_RIGHT = 42   -- grass-top right edge (row 2, col 1)
+local GROUND_MID       = 61   -- dirt fill (row 3, col 0)
+local PLAT_LEFT        = 50   -- platform left cap (row 2, col 9)
+local PLAT_MID         = 51   -- platform middle (row 2, col 10)
+local PLAT_RIGHT       = 52   -- platform right cap (row 2, col 11)
+local COIN             = 152  -- coin (row 7, col 11)
+local BRICK            = 24   -- brown brick (row 1, col 3)
 
 -- Player state.
 local player = {
@@ -41,7 +44,7 @@ local ANIM = {
 
 local WALK_FRAME_TIME = 0.15
 local GRAVITY = 600
-local JUMP_VEL = -250
+local JUMP_VEL = -330
 local MOVE_SPEED = 120
 local FRICTION = 8
 local dead = false
@@ -84,23 +87,24 @@ function M:init()
     end
   end
 
-  -- Platforms.
-  for x = 5, 9 do
-    map:set_tile("collision", x, map_h - 5, PLATFORM)
+  -- Helper: place a platform with left/mid/right cap tiles.
+  local function place_platform(x1, x2, y)
+    map:set_tile("collision", x1, y, PLAT_LEFT)
+    for x = x1 + 1, x2 - 1 do
+      map:set_tile("collision", x, y, PLAT_MID)
+    end
+    map:set_tile("collision", x2, y, PLAT_RIGHT)
   end
-  for x = 12, 18 do
-    map:set_tile("collision", x, map_h - 7, PLATFORM)
-  end
-  for x = 20, 24 do
-    map:set_tile("collision", x, map_h - 4, PLATFORM)
-  end
-  for x = 27, 32 do
-    map:set_tile("collision", x, map_h - 6, BRICK)
-  end
+
+  -- Platforms at various heights.
+  place_platform(5, 9, map_h - 5)
+  place_platform(12, 18, map_h - 8)
+  place_platform(20, 24, map_h - 4)
+  place_platform(27, 32, map_h - 6)
 
   -- Some coins on the platforms (background layer, no collision).
   map:set_tile("background", 7, map_h - 6, COIN)
-  map:set_tile("background", 15, map_h - 8, COIN)
+  map:set_tile("background", 15, map_h - 9, COIN)
   map:set_tile("background", 22, map_h - 5, COIN)
   map:set_tile("background", 30, map_h - 7, COIN)
 
@@ -201,8 +205,8 @@ end
 function M:draw()
   G.graphics.clear(100, 150, 230, 255)
 
-  -- Camera follows player (3x zoom for pixel art).
-  local scale = 3
+  -- Camera follows player (2.5x zoom for pixel art).
+  local scale = 2.5
   local cam_x = player.x + player.w / 2
   local cam_y = player.y + player.h / 2
   G.graphics.push()
