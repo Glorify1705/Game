@@ -572,6 +572,21 @@ class Renderer {
     return true;
   }
 
+  // Sets the active texture to the image with the given name.
+  bool SetImageTexture(std::string_view name) {
+    uint32_t idx;
+    if (!textures_table_.Lookup(name, &idx)) return false;
+    SetTextureDedup(textures_[idx]);
+    return true;
+  }
+
+  // Returns the image asset by name. Returns nullptr if not found.
+  DbAssets::Image* GetImage(std::string_view name) const {
+    DbAssets::Image* result = nullptr;
+    if (!loaded_images_table_.Lookup(name, &result)) return nullptr;
+    return result;
+  }
+
   // Returns the batch renderer texture index for a spritesheet, or -1.
   int GetSpritesheetTextureIndex(std::string_view name) const {
     uint32_t idx;

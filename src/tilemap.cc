@@ -253,15 +253,18 @@ void Tilemap::DrawLayerImpl(const TilemapLayer& layer, Renderer* renderer,
                             BatchRenderer* batch, Camera* camera) const {
   if (tileset_name_[0] == '\0') return;
 
-  // Set the spritesheet texture for the tileset.
-  if (!renderer->SetSpritesheetTexture(tileset_name_)) return;
-
-  // Look up spritesheet dimensions for UV calculation.
+  // Try spritesheet first, then fall back to plain image for the tileset.
+  float sheet_w, sheet_h;
   DbAssets::Spritesheet* sheet = renderer->GetSpritesheet(tileset_name_);
-  if (!sheet) return;
-
-  const float sheet_w = static_cast<float>(sheet->width);
-  const float sheet_h = static_cast<float>(sheet->height);
+  if (sheet && renderer->SetSpritesheetTexture(tileset_name_)) {
+    sheet_w = static_cast<float>(sheet->width);
+    sheet_h = static_cast<float>(sheet->height);
+  } else {
+    DbAssets::Image* img = renderer->GetImage(tileset_name_);
+    if (!img || !renderer->SetImageTexture(tileset_name_)) return;
+    sheet_w = static_cast<float>(img->width);
+    sheet_h = static_cast<float>(img->height);
+  }
   const float tw = static_cast<float>(tile_width_);
   const float th = static_cast<float>(tile_height_);
   const int tiles_per_row = static_cast<int>(sheet_w) / tile_width_;
