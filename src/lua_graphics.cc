@@ -28,11 +28,24 @@ static const LuaApiFunction kGraphicsLib[] = {
        auto* batch = Registry<BatchRenderer>::Retrieve(state);
        const int params = lua_gettop(state);
        if (params >= 4) {
-         float r = luaL_checknumber(state, 1) / 255.0f;
-         float g = luaL_checknumber(state, 2) / 255.0f;
-         float b = luaL_checknumber(state, 3) / 255.0f;
-         float a = luaL_checknumber(state, 4) / 255.0f;
-         batch->ClearWithColor(r, g, b, a);
+         float r = luaL_checknumber(state, 1);
+         float g = luaL_checknumber(state, 2);
+         float b = luaL_checknumber(state, 3);
+         float a = luaL_checknumber(state, 4);
+         static bool warned = false;
+         if (!warned && r <= 1.0f && g <= 1.0f && b <= 1.0f && a <= 1.0f &&
+             (r > 0.0f || g > 0.0f || b > 0.0f)) {
+           warned = true;
+           LOG("clear() takes 0-255 integers, not 0-1 floats. "
+               "Got (", r, ", ", g, ", ", b, ", ", a, "). "
+               "Did you mean clear(",
+               static_cast<int>(r * 255), ", ",
+               static_cast<int>(g * 255), ", ",
+               static_cast<int>(b * 255), ", ",
+               static_cast<int>(a * 255), ")?");
+         }
+         batch->ClearWithColor(r / 255.0f, g / 255.0f, b / 255.0f,
+                               a / 255.0f);
        } else {
          batch->ClearWithColor(0, 0, 0, 0);
        }
