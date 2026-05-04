@@ -4,7 +4,7 @@ local steer = require("steer")
 
 local Enemy = Entity:extend()
 
-local CHASE_FORCE = 200
+local CHASE_FORCE = 130
 local DAMPING = 1.0
 local SEPARATE_FORCE = 60
 local SEPARATE_DIST = 80

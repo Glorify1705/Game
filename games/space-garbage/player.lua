@@ -133,7 +133,7 @@ function Player:update(dt)
 		self.physics:apply_torque(-ANGLE_DELTA)
 	end
 
-	if (G.input.is_key_pressed("space") or G.input.is_mouse_pressed(0)) and self.fire_timer <= 0 then
+	if (G.input.is_key_down("space") or G.input.is_mouse_down(0)) and self.fire_timer <= 0 then
 		self:shoot()
 		self.fire_timer = self.fire_cooldown
 	end
@@ -156,6 +156,7 @@ end
 
 function Player:on_collision(other)
 	if self.invincible or self.dying then return end
+	if other and other.is_powerup and other:is_powerup() then return end
 	if self.cooldown.v < 1e-8 then
 		G.sound.play_effect("bump.wav")
 		self.health = self.health - COLLISION_DAMAGE
