@@ -199,7 +199,7 @@ function M:update(t, dt)
 end
 
 function M:draw()
-  G.graphics.clear(0.4, 0.6, 0.9, 1.0)
+  G.graphics.clear(100, 150, 230, 255)
 
   -- Camera follows player (3x zoom for pixel art).
   local scale = 3

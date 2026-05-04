@@ -8,7 +8,7 @@
 --   Y axis: top (0) to bottom (height), positive = DOWN
 --   Angles: radians. 0 = right. Positive = clockwise (screen space).
 --   Colors: G.graphics.set_color() uses 0-255 RGBA integers.
---           G.graphics.clear() uses 0-1 RGBA floats.
+--           G.graphics.clear() uses 0-255 RGBA integers.
 --           Particle color ramps use 0-1 RGBA floats.
 --   Physics: all positions in pixels. Internally scaled by
 --            pixels_per_meter (default 60). Density is mass per
