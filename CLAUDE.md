@@ -154,3 +154,26 @@ functionality through the `G` global table (`G.graphics`, `G.physics`,
 `G.sound`, `G.input`, etc.). Lua bindings use `luaL_Reg` function arrays and
 userdata with metatables. Newer bindings use `LuaApiFunction` structs with
 type annotations for LSP support.
+
+## Coordinate System and Conventions
+
+When writing Lua game scripts, be aware of these conventions:
+
+- **Y-down**: Screen origin is top-left. `Y=0` is the top, `Y=height` is
+  the bottom. "Moving up" means **decreasing** Y. Use `G.math.UP` (which is
+  `v2(0, -1)`) instead of guessing signs.
+- **Direction constants**: `G.math.UP`, `DOWN`, `LEFT`, `RIGHT` are vec2
+  values in screen space. Use them: `G.math.DOWN * speed` is always correct.
+- **Angles**: Radians everywhere. `0` = right (east). Positive = clockwise
+  in screen space.
+- **Forces**: `G.physics.apply_force(h, fx, fy)` is **body-local** — `(1,0)`
+  pushes in the direction the body faces. Use `apply_force_world` for
+  world-space forces.
+- **Impulses**: `G.physics.apply_linear_impulse` is **world-space**.
+- **Colors**: `G.graphics.set_color()` uses 0-255 integers.
+  `G.graphics.clear()` uses 0-1 floats. Particle color ramps use 0-1 floats.
+- **Semantic helpers**: Prefer `G.physics.move_toward(h, tx, ty, speed)` and
+  `G.physics.look_at(h, tx, ty)` over manual atan2/velocity math when
+  applicable. For collision worlds, use `world:move_toward(h, tx, ty, speed, dt)`.
+- **Physics init order**: Call `G.physics.set_gravity()` before
+  `G.physics.create_ground()`, and both before adding bodies.

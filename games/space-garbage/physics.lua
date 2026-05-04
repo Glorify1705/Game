@@ -34,17 +34,25 @@ function Physics:apply_force(x, y)
 	G.physics.apply_force(self.handle, x, y)
 end
 
--- Apply a force in world coordinates. The engine's apply_force uses body-local
--- coordinates (Box2D GetWorldVector), so we un-rotate by the body's angle first.
+-- Apply a force in world coordinates (not body-local).
 function Physics:apply_world_force(x, y)
-	local a = -G.physics.angle(self.handle)
-	local c = math.cos(a)
-	local s = math.sin(a)
-	G.physics.apply_force(self.handle, c * x - s * y, s * x + c * y)
+	G.physics.apply_force_world(self.handle, x, y)
 end
 
 function Physics:rotate(angle)
 	G.physics.rotate(self.handle, angle)
+end
+
+function Physics:set_angle(angle)
+	G.physics.set_angle(self.handle, angle)
+end
+
+function Physics:move_toward(tx, ty, speed)
+	G.physics.move_toward(self.handle, tx, ty, speed)
+end
+
+function Physics:look_at(tx, ty)
+	G.physics.look_at(self.handle, tx, ty)
 end
 
 function Physics:apply_torque(angle)

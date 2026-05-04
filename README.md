@@ -554,6 +554,7 @@ world:set_filter(handle, category, mask)
 world:get_userdata(handle) -> any
 world:move_and_slide(handle, vx, vy)   -> nx, ny, hits
 world:move_and_collide(handle, vx, vy) -> nx, ny, first_hit?
+world:move_toward(handle, tx, ty, speed, dt) -> nx, ny, first_hit?
 world:get_overlaps(handle) -> hits
 world:raycast(ox, oy, dx, dy, max_dist [, mask]) -> hit?
 ```
