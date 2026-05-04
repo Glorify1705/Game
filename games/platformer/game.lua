@@ -66,10 +66,14 @@ function M:init()
   -- Collision layer.
   map:add_layer("collision", map_w, map_h, { collision = true })
 
-  -- Build the ground: solid floor at the bottom rows.
+  -- Build the ground with pits on both sides.
   for x = 0, map_w - 1 do
-    map:set_tile("collision", x, map_h - 1, GROUND_MID)
-    map:set_tile("collision", x, map_h - 2, GROUND_TOP)
+    -- Leave gaps: left pit at x=1-3, right pit at x=35-38.
+    local is_pit = (x >= 1 and x <= 3) or (x >= 35 and x <= 38)
+    if not is_pit then
+      map:set_tile("collision", x, map_h - 1, GROUND_MID)
+      map:set_tile("collision", x, map_h - 2, GROUND_TOP)
+    end
   end
 
   -- Platforms.
@@ -229,7 +233,9 @@ function M:draw()
   -- HUD.
   G.graphics.set_color(255, 255, 255, 255)
   if dead then
-    G.graphics.print("GAME OVER - Press R to restart", W / 2 - 120, H / 2 - 10)
+    local msg = "GAME OVER - Press R to restart"
+    -- Approximate text width: ~8px per character at default font size.
+    G.graphics.print(msg, (W - #msg * 8) / 2, H / 2 - 10)
   else
     G.graphics.print("Arrows/WASD: move   Space: jump   Q: quit", 10, 10)
   end
