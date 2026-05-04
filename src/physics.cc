@@ -301,6 +301,9 @@ Physics::Handle Physics::AddCircle(FVec2 position, double radius,
 void Physics::SetOrigin(FVec2 origin) { world_.ShiftOrigin(To(origin)); }
 
 void Physics::DestroyHandle(Handle handle) {
+  // Guard against double-destroy (e.g. Lua __gc after Clear() during
+  // hot-reload). Box2D asserts if m_bodyCount is already 0.
+  if (world_.GetBodyCount() == 0) return;
   destroy_callback_(handle.userdata, destroy_userdata_);
   world_.DestroyBody(handle.handle);
 }
