@@ -146,11 +146,14 @@ end
 function M:draw()
   G.graphics.clear(0.4, 0.6, 0.9, 1.0)
 
-  -- Camera follows player.
+  -- Camera follows player (3x zoom for pixel art).
+  local scale = 3
   local cam_x = player.x + player.w / 2
   local cam_y = player.y + player.h / 2
   G.graphics.push()
-  G.graphics.translate(W / 2 - cam_x, H / 2 - cam_y)
+  G.graphics.translate(W / 2, H / 2)
+  G.graphics.scale(scale, scale)
+  G.graphics.translate(-cam_x, -cam_y)
 
   -- Draw tilemap layers.
   map:draw()
