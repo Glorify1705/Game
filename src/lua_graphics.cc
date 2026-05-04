@@ -1012,6 +1012,24 @@ static const LuaApiFunction kGraphicsLib[] = {
        }
        return 0;
      }},
+    {"set_default_filter",
+     "Sets the texture filter mode for newly loaded textures. Use 'nearest' "
+     "for pixel art (crisp pixels) or 'linear' for smooth graphics.",
+     {{"mode", "'nearest' or 'linear'", "string"}},
+     {},
+     [](lua_State* state) {
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       std::string_view mode = GetLuaString(state, 1);
+       if (mode == "nearest") {
+         batch->SetDefaultFilter(GL_NEAREST, GL_NEAREST);
+       } else if (mode == "linear") {
+         batch->SetDefaultFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+       } else {
+         LUA_ERROR(state, "Unknown filter mode '", mode,
+                   "'. Expected 'nearest' or 'linear'");
+       }
+       return 0;
+     }},
     {"new_canvas",
      "Create an off-screen canvas for rendering. Returns a canvas object.",
      {{"width", "Canvas width in pixels", "integer"},

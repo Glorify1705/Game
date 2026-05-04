@@ -57,7 +57,11 @@ Engine::Engine(Slice<const char*> args, sqlite3* db_, DbAssets* db_assets,
       network(allocator),
       frame_allocator(allocator, Megabytes(128)),
       pool(allocator, ThreadPoolExecutor::NumDefaultThreads()),
-      allocator_(allocator) {}
+      allocator_(allocator) {
+  if (config.nearest_filter) {
+    batch_renderer.SetDefaultFilter(GL_NEAREST, GL_NEAREST);
+  }
+}
 
 void Engine::Initialize() {
   TIMER();

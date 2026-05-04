@@ -72,6 +72,13 @@ class BatchRenderer {
 
   size_t LoadTexture(const void* data, size_t width, size_t height);
 
+  // Sets the default texture filter for newly loaded textures.
+  // Use GL_NEAREST for pixel art, GL_LINEAR for smooth graphics.
+  void SetDefaultFilter(GLenum min_filter, GLenum mag_filter) {
+    default_min_filter_ = min_filter;
+    default_mag_filter_ = mag_filter;
+  }
+
   size_t LoadFontTexture(const void* data, size_t width, size_t height);
 
   size_t RegisterTexture(GLuint tex);
@@ -479,6 +486,8 @@ class BatchRenderer {
   GLint antialiasing_samples_;
   IVec2 viewport_;
   IVec2 window_size_;
+  GLenum default_min_filter_ = GL_LINEAR_MIPMAP_LINEAR;
+  GLenum default_mag_filter_ = GL_LINEAR;
 
   // Scratch arena for vertex/index arrays during RenderBatch. Allocated once,
   // reset before each batch submission.

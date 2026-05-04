@@ -23,6 +23,7 @@ struct GameConfig {
   bool enable_opengl_debug = true;
   bool enable_joystick = false;
   bool enable_debug_rendering = true;
+  bool nearest_filter = false;  // Use GL_NEAREST for pixel art.
   char org_name[512] = {0};
   char app_name[512] = {0};
   struct Version {
