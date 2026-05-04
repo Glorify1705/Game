@@ -44,6 +44,7 @@ local GRAVITY = 600
 local JUMP_VEL = -250
 local MOVE_SPEED = 120
 local FRICTION = 8
+local dead = false
 
 local map
 local map_w, map_h = 50, 20
@@ -99,6 +100,19 @@ end
 function M:update(t, dt)
   if G.input.is_key_pressed("q") then
     G.system.quit()
+  end
+
+  if dead then
+    if G.input.is_key_pressed("r") then
+      -- Respawn.
+      player.x = 80
+      player.y = (map_h - 3) * tile_size
+      player.vx = 0
+      player.vy = 0
+      player.on_ground = false
+      dead = false
+    end
+    return
   end
 
   -- Horizontal input.
@@ -165,6 +179,11 @@ function M:update(t, dt)
     player.walk_timer = 0
     player.walk_frame = 1
   end
+
+  -- Fall off the bottom = death.
+  if player.y > map_h * tile_size + 100 then
+    dead = true
+  end
 end
 
 function M:draw()
@@ -192,15 +211,16 @@ function M:draw()
     sprite = ANIM.idle
   end
 
-  -- Draw player sprite centered on the collision box.
-  -- Flip horizontally when facing left by using negative scale.
+  -- Draw player sprite scaled to match tile world.
+  -- Sprites are 80x110px, but the player collision box is 14x16.
+  -- Scale to fit roughly 18px tall (one tile height).
+  local sprite_scale = 18 / 110
   local cx = player.x + player.w / 2
   local cy = player.y + player.h / 2
   G.graphics.push()
   G.graphics.translate(cx, cy)
-  if not player.facing_right then
-    G.graphics.scale(-1, 1)
-  end
+  local sx = player.facing_right and sprite_scale or -sprite_scale
+  G.graphics.scale(sx, sprite_scale)
   G.graphics.draw_sprite(sprite, 0, 0)
   G.graphics.pop()
 
@@ -208,9 +228,11 @@ function M:draw()
 
   -- HUD.
   G.graphics.set_color(255, 255, 255, 255)
-  G.graphics.print("Arrows/WASD: move   Space: jump   Q: quit", 10, 10)
-  G.graphics.print(string.format("pos: %.0f, %.0f  on_ground: %s",
-    player.x, player.y, tostring(player.on_ground)), 10, 30)
+  if dead then
+    G.graphics.print("GAME OVER - Press R to restart", W / 2 - 120, H / 2 - 10)
+  else
+    G.graphics.print("Arrows/WASD: move   Space: jump   Q: quit", 10, 10)
+  end
 end
 
 return M
