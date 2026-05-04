@@ -1,0 +1,330 @@
+#include "tilemap.h"
+
+#include <cmath>
+#include <cstring>
+
+#include "camera.h"
+#include "renderer.h"
+
+namespace G {
+namespace {
+
+// Clamps an integer to the range [lo, hi].
+int Clamp(int v, int lo, int hi) {
+  if (v < lo) return lo;
+  if (v > hi) return hi;
+  return v;
+}
+
+}  // namespace
+
+Tilemap::Tilemap(int tile_width, int tile_height, Allocator* allocator)
+    : tile_width_(tile_width),
+      tile_height_(tile_height),
+      layer_count_(0),
+      allocator_(allocator) {
+  tileset_name_[0] = '\0';
+  std::memset(layers_, 0, sizeof(layers_));
+}
+
+Tilemap::~Tilemap() {
+  for (int i = 0; i < layer_count_; ++i) {
+    if (layers_[i].tiles) {
+      allocator_->Dealloc(layers_[i].tiles,
+                          layers_[i].width * layers_[i].height * sizeof(int));
+      layers_[i].tiles = nullptr;
+    }
+  }
+}
+
+int Tilemap::AddLayer(std::string_view name, int width, int height,
+                      bool collision) {
+  if (layer_count_ >= kMaxLayers) return -1;
+
+  TilemapLayer& layer = layers_[layer_count_];
+  size_t copy_len = name.size() < 63 ? name.size() : 63;
+  std::memcpy(layer.name, name.data(), copy_len);
+  layer.name[copy_len] = '\0';
+
+  size_t tile_count = static_cast<size_t>(width) * height;
+  layer.tiles = static_cast<int*>(
+      allocator_->Alloc(tile_count * sizeof(int), alignof(int)));
+  std::memset(layer.tiles, 0, tile_count * sizeof(int));
+
+  layer.width = width;
+  layer.height = height;
+  layer.parallax_x = 1.0f;
+  layer.parallax_y = 1.0f;
+  layer.visible = true;
+  layer.collision = collision;
+
+  return layer_count_++;
+}
+
+TilemapLayer* Tilemap::FindLayer(std::string_view name) {
+  for (int i = 0; i < layer_count_; ++i) {
+    if (name == layers_[i].name) return &layers_[i];
+  }
+  return nullptr;
+}
+
+const TilemapLayer* Tilemap::FindLayer(std::string_view name) const {
+  for (int i = 0; i < layer_count_; ++i) {
+    if (name == layers_[i].name) return &layers_[i];
+  }
+  return nullptr;
+}
+
+void Tilemap::SetTile(std::string_view layer_name, int x, int y,
+                      int tile_id) {
+  TilemapLayer* layer = FindLayer(layer_name);
+  if (!layer) return;
+  if (x < 0 || x >= layer->width || y < 0 || y >= layer->height) return;
+  layer->tiles[y * layer->width + x] = tile_id;
+}
+
+int Tilemap::GetTile(std::string_view layer_name, int x, int y) const {
+  const TilemapLayer* layer = FindLayer(layer_name);
+  if (!layer) return 0;
+  if (x < 0 || x >= layer->width || y < 0 || y >= layer->height) return 0;
+  return layer->tiles[y * layer->width + x];
+}
+
+void Tilemap::WorldToTile(float wx, float wy, int* tx, int* ty) const {
+  *tx = static_cast<int>(std::floor(wx / tile_width_));
+  *ty = static_cast<int>(std::floor(wy / tile_height_));
+}
+
+void Tilemap::TileToWorld(int tx, int ty, float* wx, float* wy) const {
+  *wx = static_cast<float>(tx * tile_width_);
+  *wy = static_cast<float>(ty * tile_height_);
+}
+
+const TilemapLayer* Tilemap::FindCollisionLayer() const {
+  for (int i = 0; i < layer_count_; ++i) {
+    if (layers_[i].collision) return &layers_[i];
+  }
+  return nullptr;
+}
+
+bool Tilemap::IsSolid(float wx, float wy) const {
+  const TilemapLayer* col = FindCollisionLayer();
+  if (!col) return false;
+  int tx = static_cast<int>(std::floor(wx / tile_width_));
+  int ty = static_cast<int>(std::floor(wy / tile_height_));
+  if (tx < 0 || tx >= col->width || ty < 0 || ty >= col->height) return false;
+  return col->tiles[ty * col->width + tx] != 0;
+}
+
+int Tilemap::TileAt(float wx, float wy) const {
+  const TilemapLayer* col = FindCollisionLayer();
+  if (!col) return 0;
+  int tx = static_cast<int>(std::floor(wx / tile_width_));
+  int ty = static_cast<int>(std::floor(wy / tile_height_));
+  if (tx < 0 || tx >= col->width || ty < 0 || ty >= col->height) return 0;
+  return col->tiles[ty * col->width + tx];
+}
+
+TilemapMoveResult Tilemap::Move(float x, float y, float w, float h, float vx,
+                                float vy) const {
+  TilemapMoveResult result = {};
+  result.x = x;
+  result.y = y;
+
+  const TilemapLayer* col = FindCollisionLayer();
+  if (!col) {
+    result.x = x + vx;
+    result.y = y + vy;
+    return result;
+  }
+
+  const float tw = static_cast<float>(tile_width_);
+  const float th = static_cast<float>(tile_height_);
+
+  // Resolve X axis.
+  float new_x = x + vx;
+  {
+    // Compute the tile range overlapping the AABB at (new_x, y, w, h).
+    int start_col = static_cast<int>(std::floor(new_x / tw));
+    int end_col = static_cast<int>(std::ceil((new_x + w) / tw)) - 1;
+    int start_row = static_cast<int>(std::floor(y / th));
+    int end_row = static_cast<int>(std::ceil((y + h) / th)) - 1;
+
+    start_col = Clamp(start_col, 0, col->width - 1);
+    end_col = Clamp(end_col, 0, col->width - 1);
+    start_row = Clamp(start_row, 0, col->height - 1);
+    end_row = Clamp(end_row, 0, col->height - 1);
+
+    for (int ty = start_row; ty <= end_row; ++ty) {
+      for (int tx = start_col; tx <= end_col; ++tx) {
+        int tile_id = col->tiles[ty * col->width + tx];
+        if (tile_id == 0) continue;
+
+        float tile_left = tx * tw;
+        float tile_right = tile_left + tw;
+
+        // Check AABB overlap.
+        if (new_x < tile_right && new_x + w > tile_left && y < ty * th + th &&
+            y + h > ty * th) {
+          if (vx > 0) {
+            new_x = tile_left - w;
+            result.normal_x = -1.0f;
+          } else if (vx < 0) {
+            new_x = tile_right;
+            result.normal_x = 1.0f;
+          }
+          result.hit_x = true;
+          result.tile_x = tx;
+          result.tile_y = ty;
+          result.tile_id = tile_id;
+        }
+      }
+    }
+  }
+
+  // Resolve Y axis using the corrected X position.
+  float new_y = y + vy;
+  {
+    int start_col = static_cast<int>(std::floor(new_x / tw));
+    int end_col = static_cast<int>(std::ceil((new_x + w) / tw)) - 1;
+    int start_row = static_cast<int>(std::floor(new_y / th));
+    int end_row = static_cast<int>(std::ceil((new_y + h) / th)) - 1;
+
+    start_col = Clamp(start_col, 0, col->width - 1);
+    end_col = Clamp(end_col, 0, col->width - 1);
+    start_row = Clamp(start_row, 0, col->height - 1);
+    end_row = Clamp(end_row, 0, col->height - 1);
+
+    for (int ty = start_row; ty <= end_row; ++ty) {
+      for (int tx = start_col; tx <= end_col; ++tx) {
+        int tile_id = col->tiles[ty * col->width + tx];
+        if (tile_id == 0) continue;
+
+        float tile_top = ty * th;
+        float tile_bottom = tile_top + th;
+
+        if (new_x < tx * tw + tw && new_x + w > tx * tw &&
+            new_y < tile_bottom && new_y + h > tile_top) {
+          if (vy > 0) {
+            new_y = tile_top - h;
+            result.normal_y = -1.0f;
+          } else if (vy < 0) {
+            new_y = tile_bottom;
+            result.normal_y = 1.0f;
+          }
+          result.hit_y = true;
+          result.tile_x = tx;
+          result.tile_y = ty;
+          result.tile_id = tile_id;
+        }
+      }
+    }
+  }
+
+  result.x = new_x;
+  result.y = new_y;
+  return result;
+}
+
+void Tilemap::SetTileset(std::string_view name) {
+  size_t copy_len = name.size() < 255 ? name.size() : 255;
+  std::memcpy(tileset_name_, name.data(), copy_len);
+  tileset_name_[copy_len] = '\0';
+}
+
+void Tilemap::Draw(Renderer* renderer, BatchRenderer* batch,
+                   Camera* camera) const {
+  for (int i = 0; i < layer_count_; ++i) {
+    if (layers_[i].visible) {
+      DrawLayerImpl(layers_[i], renderer, batch, camera);
+    }
+  }
+}
+
+void Tilemap::DrawLayer(std::string_view name, Renderer* renderer,
+                        BatchRenderer* batch, Camera* camera) const {
+  const TilemapLayer* layer = FindLayer(name);
+  if (layer && layer->visible) {
+    DrawLayerImpl(*layer, renderer, batch, camera);
+  }
+}
+
+void Tilemap::DrawLayerImpl(const TilemapLayer& layer, Renderer* renderer,
+                            BatchRenderer* batch, Camera* camera) const {
+  if (tileset_name_[0] == '\0') return;
+
+  // Set the spritesheet texture for the tileset.
+  if (!renderer->SetSpritesheetTexture(tileset_name_)) return;
+
+  // Look up spritesheet dimensions for UV calculation.
+  DbAssets::Spritesheet* sheet = renderer->GetSpritesheet(tileset_name_);
+  if (!sheet) return;
+
+  const float sheet_w = static_cast<float>(sheet->width);
+  const float sheet_h = static_cast<float>(sheet->height);
+  const float tw = static_cast<float>(tile_width_);
+  const float th = static_cast<float>(tile_height_);
+  const int tiles_per_row = static_cast<int>(sheet_w) / tile_width_;
+  if (tiles_per_row == 0) return;
+
+  // Compute the camera's visible world-space area for culling.
+  IVec2 viewport = batch->GetViewport();
+  FVec2 cam_pos = camera->GetPosition();
+  float zoom = camera->GetZoom();
+
+  // Apply parallax offset: the layer scrolls at a fraction of camera movement.
+  float parallax_offset_x = cam_pos.x * (1.0f - layer.parallax_x);
+  float parallax_offset_y = cam_pos.y * (1.0f - layer.parallax_y);
+
+  // The effective camera position for this layer after parallax.
+  float eff_cam_x = cam_pos.x - parallax_offset_x;
+  float eff_cam_y = cam_pos.y - parallax_offset_y;
+
+  // Visible world-space rectangle (camera center +/- half viewport/zoom).
+  float half_vw = (viewport.x / zoom) * 0.5f;
+  float half_vh = (viewport.y / zoom) * 0.5f;
+  float view_left = eff_cam_x - half_vw;
+  float view_top = eff_cam_y - half_vh;
+  float view_right = eff_cam_x + half_vw;
+  float view_bottom = eff_cam_y + half_vh;
+
+  // Convert to tile range with one tile of padding.
+  int start_col = static_cast<int>(std::floor(view_left / tw)) - 1;
+  int end_col = static_cast<int>(std::ceil(view_right / tw)) + 1;
+  int start_row = static_cast<int>(std::floor(view_top / th)) - 1;
+  int end_row = static_cast<int>(std::ceil(view_bottom / th)) + 1;
+
+  start_col = Clamp(start_col, 0, layer.width - 1);
+  end_col = Clamp(end_col, 0, layer.width - 1);
+  start_row = Clamp(start_row, 0, layer.height - 1);
+  end_row = Clamp(end_row, 0, layer.height - 1);
+
+  for (int row = start_row; row <= end_row; ++row) {
+    for (int col = start_col; col <= end_col; ++col) {
+      int tile_id = layer.tiles[row * layer.width + col];
+      if (tile_id <= 0) continue;
+
+      // Tile position in world space, offset by parallax.
+      float px = col * tw + parallax_offset_x;
+      float py = row * th + parallax_offset_y;
+
+      // UV coordinates from tile_id. Tile IDs are 1-based.
+      int tile_col = (tile_id - 1) % tiles_per_row;
+      int tile_row = (tile_id - 1) / tiles_per_row;
+
+      float u0 = (tile_col * tw) / sheet_w;
+      float v0 = (tile_row * th) / sheet_h;
+      float u1 = ((tile_col + 1) * tw) / sheet_w;
+      float v1 = ((tile_row + 1) * th) / sheet_h;
+
+      FVec2 p0(px, py);
+      FVec2 p1(px + tw, py + th);
+      FVec2 q0(u0, v0);
+      FVec2 q1(u1, v1);
+      FVec2 origin(px + tw * 0.5f, py + th * 0.5f);
+      batch->PushQuad(p0, p1, q0, q1, origin, /*angle=*/0.0f);
+    }
+  }
+}
+
+}  // namespace G

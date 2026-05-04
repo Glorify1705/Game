@@ -21,6 +21,7 @@
 #include "lua_save.h"
 #include "lua_scene.h"
 #include "lua_sound.h"
+#include "lua_tilemap.h"
 #include "lua_system.h"
 #include "lua_test.h"
 #include "lua_timer.h"
@@ -108,6 +109,7 @@ void Engine::Initialize() {
   AddSceneLibrary(&lua);
   AddParticlesLibrary(&lua);
   AddSaveLibrary(&lua);
+  AddTilemapLibrary(&lua);
   lua.BuildCompilationCache();
   // Register asset loaders.
   assets->RegisterShaderLoad(

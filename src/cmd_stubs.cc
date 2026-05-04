@@ -21,6 +21,7 @@
 #include "lua_scene.h"
 #include "lua_sound.h"
 #include "lua_stubs.h"
+#include "lua_tilemap.h"
 #include "lua_system.h"
 #include "lua_test.h"
 #include "lua_timer.h"
@@ -57,6 +58,7 @@ int CmdStubs(Slice<const char*> args, Allocator* /*allocator*/) {
       GetTestLibraryDef(),       GetTimerLibraryDef(),
       GetSceneLibraryDef(),      GetParticlesLibraryDef(),
       GetSaveLibraryDef(),
+      GetTilemapLibraryDef(),
   };
 
   WriteLuaLSStubs(output, defs, std::size(defs));

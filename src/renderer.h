@@ -564,6 +564,21 @@ class Renderer {
     return MakeSlice(loaded_spritesheets_);
   }
 
+  // Sets the active texture to the spritesheet with the given name.
+  bool SetSpritesheetTexture(std::string_view name) {
+    uint32_t idx;
+    if (!textures_table_.Lookup(name, &idx)) return false;
+    SetTextureDedup(textures_[idx]);
+    return true;
+  }
+
+  // Returns the batch renderer texture index for a spritesheet, or -1.
+  int GetSpritesheetTextureIndex(std::string_view name) const {
+    uint32_t idx;
+    if (!textures_table_.Lookup(name, &idx)) return -1;
+    return static_cast<int>(textures_[idx]);
+  }
+
   // Returns the previous color.
   Color SetColor(Color color);
 

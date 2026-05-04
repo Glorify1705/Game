@@ -244,8 +244,10 @@ set(ENGINE_SRCS
     src/lua_network.cc
     src/lua_particles.cc
     src/lua_save.cc
+    src/lua_tilemap.cc
     src/particles.cc
     src/save.cc
+    src/tilemap.cc
     src/platform.cc
     $<$<BOOL:${ENABLE_IMGUI}>:src/debug_ui.cc>
     libraries/lua-protobuf/pb.c)
