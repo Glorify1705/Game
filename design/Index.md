@@ -139,7 +139,7 @@ Valuable but not blocking. Build these when a specific game needs them.
 
 | Document                                                      | Rationale                                                                                                        |
 | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Tilemap system                                                | Essential for platformers/RPGs. libGDX has Tiled/TMX import; high_impact has slope collision. No design doc yet. |
+| [Tilemap system](Tilemap%20system.md)                         | Essential for platformers/RPGs. Tiled JSON import, AABB sweep collision, parallax layers. Design doc written.     |
 | Drawing primitives                                            | Ellipses, arcs, rounded rects, polygons, gradients. Raylib is the reference.                                     |
 | [Module memory budgets](Module%20memory%20budgets.md)         | Per-module sub-arenas and watermarks. Only needed before targeting memory-constrained platforms (web, mobile).    |
 | [AI utilities](AI%20utilities.md)                             | Only needed for games with AI agents.                                                                            |
