@@ -13,11 +13,17 @@ local W, H
 -- The tileset is 20 tiles wide. Row 0 = tiles 1-20, row 1 = 21-40, etc.
 local GROUND_TOP   = 41   -- grass-top ground tile (row 2, col 1)
 local GROUND_MID   = 61   -- dirt middle tile (row 3, col 1)
-local GRASS_LEFT   = 40   -- grass top-left corner (row 1, col 20)
-local GRASS_RIGHT  = 42   -- grass top-right (row 2, col 2)
 local PLATFORM     = 43   -- wooden platform tile (row 2, col 3)
 local COIN         = 152  -- coin tile (row 7, col 12)
 local BRICK        = 24   -- brown brick (row 1, col 4)
+-- Background/decoration tiles.
+local SKY          = 1    -- light blue sky (row 0, col 1)
+local CLOUD_LEFT   = 109  -- cloud left piece (row 5, col 9)
+local CLOUD_MID    = 110  -- cloud middle (row 5, col 10)
+local CLOUD_RIGHT  = 111  -- cloud right piece (row 5, col 11)
+local TREE_TRUNK   = 133  -- tree trunk (row 6, col 13)
+local TREE_TOP     = 113  -- tree leaves top (row 5, col 13)
+local BUSH         = 130  -- small bush (row 6, col 10)
 
 -- Player state.
 local player = {
@@ -60,11 +66,40 @@ function M:init()
     tileset = "tilemap_packed.png",
   })
 
-  -- Background layer (decorative, no collision).
-  map:add_layer("background", map_w, map_h)
+  -- Far background (sky + clouds, slow parallax).
+  map:add_layer("sky", map_w, map_h, { parallax_x = 0.3, parallax_y = 0.5 })
 
-  -- Collision layer.
+  -- Near background (trees/bushes, medium parallax).
+  map:add_layer("background", map_w, map_h, { parallax_x = 0.7, parallax_y = 0.9 })
+
+  -- Collision layer (full speed, no parallax).
   map:add_layer("collision", map_w, map_h, { collision = true })
+
+  -- Fill sky layer with blue sky tiles.
+  for y = 0, map_h - 1 do
+    for x = 0, map_w - 1 do
+      map:set_tile("sky", x, y, SKY)
+    end
+  end
+
+  -- Scatter clouds on the sky layer.
+  local clouds = { {3, 4}, {10, 2}, {18, 5}, {26, 3}, {34, 6}, {40, 2} }
+  for _, c in ipairs(clouds) do
+    map:set_tile("sky", c[1], c[2], CLOUD_LEFT)
+    map:set_tile("sky", c[1] + 1, c[2], CLOUD_MID)
+    map:set_tile("sky", c[1] + 2, c[2], CLOUD_RIGHT)
+  end
+
+  -- Place trees and bushes on the near background layer.
+  local trees = { 8, 16, 25, 31, 39 }
+  for _, tx in ipairs(trees) do
+    map:set_tile("background", tx, map_h - 3, TREE_TRUNK)
+    map:set_tile("background", tx, map_h - 4, TREE_TOP)
+  end
+  local bushes = { 6, 11, 14, 22, 28, 37 }
+  for _, bx in ipairs(bushes) do
+    map:set_tile("background", bx, map_h - 3, BUSH)
+  end
 
   -- Build the ground with pits on both sides.
   for x = 0, map_w - 1 do

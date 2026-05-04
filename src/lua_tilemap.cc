@@ -48,9 +48,16 @@ int TilemapAddLayer(lua_State* state) {
   int height = luaL_checkinteger(state, 4);
 
   bool collision = false;
+  float parallax_x = 1.0f, parallax_y = 1.0f;
   if (lua_istable(state, 5)) {
     lua_getfield(state, 5, "collision");
     if (!lua_isnil(state, -1)) collision = lua_toboolean(state, -1);
+    lua_pop(state, 1);
+    lua_getfield(state, 5, "parallax_x");
+    if (lua_isnumber(state, -1)) parallax_x = lua_tonumber(state, -1);
+    lua_pop(state, 1);
+    lua_getfield(state, 5, "parallax_y");
+    if (lua_isnumber(state, -1)) parallax_y = lua_tonumber(state, -1);
     lua_pop(state, 1);
   }
 
@@ -58,6 +65,9 @@ int TilemapAddLayer(lua_State* state) {
   if (index < 0) {
     LUA_ERROR(state, "tilemap: max layers reached");
   }
+  TilemapLayer* layer = tilemap->layer(index);
+  layer->parallax_x = parallax_x;
+  layer->parallax_y = parallax_y;
   lua_pushinteger(state, index + 1);
   return 1;
 }
