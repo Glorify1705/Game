@@ -30,16 +30,16 @@ local player = {
   walk_frame = 1,
 }
 
--- Player animation frames (from kenney_platformer-characters.zip).
+-- Player animation frames (packed via game atlas from kenney characters).
 local ANIM = {
-  idle = "player_idle.png",
-  jump = "player_jump.png",
-  fall = "player_fall.png",
-  walk = { "player_walk1.png", "player_walk2.png" },
-  duck = "player_duck.png",
+  idle = "player_idle",
+  jump = "player_jump",
+  fall = "player_fall",
+  walk = { "player_walk1", "player_walk2" },
+  duck = "player_duck",
 }
-local WALK_FRAME_TIME = 0.15
 
+local WALK_FRAME_TIME = 0.15
 local GRAVITY = 600
 local JUMP_VEL = -250
 local MOVE_SPEED = 120
@@ -201,7 +201,7 @@ function M:draw()
   if not player.facing_right then
     G.graphics.scale(-1, 1)
   end
-  G.graphics.draw_image(sprite, 0, 0)
+  G.graphics.draw_sprite(sprite, 0, 0)
   G.graphics.pop()
 
   G.graphics.pop()
