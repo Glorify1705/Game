@@ -98,6 +98,13 @@ function Bomb:update(dt)
 				if player.on_damage then
 					player:on_damage()
 				end
+				if not player.dying then
+					player.dying = true
+					player.death_timer = 0
+					if player.on_death then
+						player.on_death()
+					end
+				end
 			end
 		end
 		if self.blast_timer >= BLAST_EXPAND_TIME + BLAST_FADE_TIME then
