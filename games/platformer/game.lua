@@ -10,17 +10,19 @@ local M = {}
 local W, H
 
 -- Tile IDs from the Kenney Pixel Platformer tileset (tilemap_packed.png).
--- 20 columns x 9 rows, 18x18px tiles.
--- tile_id = row * 20 + col + 1  (0-based row/col, 1-based id).
-local GROUND_TOP       = 41   -- grass-top (row 2, col 0)
-local GROUND_TOP_LEFT  = 40   -- grass-top left edge (row 1, col 19)
-local GROUND_TOP_RIGHT = 42   -- grass-top right edge (row 2, col 1)
-local GROUND_MID       = 61   -- dirt fill (row 3, col 0)
-local PLAT_LEFT        = 50   -- platform left cap (row 2, col 9)
-local PLAT_MID         = 51   -- platform middle (row 2, col 10)
-local PLAT_RIGHT       = 52   -- platform right cap (row 2, col 11)
-local COIN             = 152  -- coin (row 7, col 11)
-local BRICK            = 24   -- brown brick (row 1, col 3)
+-- Derived from the Tiled example (firstgid=28, so our_id = tiled_gid - 27).
+-- Verified by visual inspection of individual tile_NNNN.png files.
+local GRASS_TOP_LEFT   = 18   -- tile_0017.png: green grass top-left corner
+local GRASS_TOP_MID    = 19   -- tile_0018.png: green grass top-middle
+local GRASS_TOP_RIGHT  = 20   -- tile_0019.png: green grass top-right corner
+local GRASS_MID_LEFT   = 38   -- tile_0037.png: dirt with left edge
+local GRASS_MID        = 39   -- tile_0038.png: dirt fill (below grass)
+local GRASS_MID_RIGHT  = 40   -- tile_0039.png: dirt with right edge
+local PLAT_LEFT        = 22   -- tile_0021.png: platform left cap
+local PLAT_MID         = 23   -- tile_0022.png: platform middle
+local PLAT_RIGHT       = 24   -- tile_0023.png: platform right cap
+local GROUND_FILL      = 105  -- tile_0104.png: plain dirt interior
+local COIN             = 152  -- tile_0151.png: gold coin
 
 -- Player state.
 local player = {
@@ -82,8 +84,8 @@ function M:init()
     -- Leave gaps: left pit at x=1-3, right pit at x=35-38.
     local is_pit = (x >= 1 and x <= 3) or (x >= 35 and x <= 38)
     if not is_pit then
-      map:set_tile("collision", x, map_h - 1, GROUND_MID)
-      map:set_tile("collision", x, map_h - 2, GROUND_TOP)
+      map:set_tile("collision", x, map_h - 1, GROUND_FILL)
+      map:set_tile("collision", x, map_h - 2, GRASS_TOP_MID)
     end
   end
 
