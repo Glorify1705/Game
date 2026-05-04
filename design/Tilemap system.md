@@ -239,8 +239,12 @@ end
 
 ### Tiled format support
 
-The Tiled editor exports `.tmj` (JSON) and `.tmx` (XML). We support `.tmj`
-because we already vendor yyjson and JSON is simpler to parse.
+The Tiled editor exports `.tmj` (JSON) and `.tmx` (XML). We can support
+both: JSON via vendored yyjson, XML via the engine's custom parser
+(`xml.h`). The JSON path is simpler; the XML path requires three small
+additions to the parser.
+
+#### JSON format (.tmj)
 
 A `.tmj` file contains:
 ```json
@@ -273,8 +277,40 @@ A `.tmj` file contains:
 }
 ```
 
-The loader:
-1. Parses the JSON with yyjson
+Tile data is a flat JSON array of integers. No text parsing needed.
+
+#### XML format (.tmx)
+
+TMX stores tile data as text content inside a `<data>` element:
+```xml
+<layer name="collision" width="40" height="30">
+  <data encoding="csv">
+    0,0,1,2,3,1,1,0,
+    1,1,1,1,1,1,1,1,
+  </data>
+</layer>
+```
+
+The engine's custom XML parser (`xml.h`) handles elements, attributes,
+self-closing tags, comments, and `<?xml?>` declarations. Three small
+additions are needed for TMX:
+
+1. **Capture text content** (~10 lines). Currently `xml.cc:117` skips
+   text between tags. Add a `std::string_view text` field to `XmlElement`
+   and capture it. Needed for CSV tile data inside `<data>`.
+
+2. **`AttrFloat()` helper** (~5 lines). TMX uses float attributes for
+   parallax factors (`parallaxx="0.5"`), opacity, etc.
+
+3. **Negative `AttrInt`** (~3 lines). TMX uses negative offsets. Current
+   `AttrInt` only handles unsigned digits.
+
+Total: ~20 lines of additions to `xml.h/cc`. No external library needed.
+
+#### Loader
+
+For either format, the loader:
+1. Parses the file (yyjson for JSON, ParseXml for XML)
 2. Loads the referenced tileset spritesheet (must be in the asset database)
 3. Creates tile layers as flat integer arrays
 4. Extracts object layers as Lua tables (spawn points, trigger zones)
@@ -401,9 +437,9 @@ A simple platformer that exercises the tilemap system:
 
 ## Decisions
 
-1. **JSON over XML for Tiled import.** Both are supported by Tiled. JSON is
-   simpler to parse and we already vendor yyjson. TMX (XML) can be added
-   later if needed.
+1. **Support both TMJ and TMX.** JSON (yyjson) is simpler; XML (custom
+   parser) needs ~20 lines of additions. Supporting both means users don't
+   need to worry about export format. JSON is the default recommendation.
 
 2. **Separate collision grid, not per-visual-tile.** Following high_impact:
    the collision layer is logically separate from visual layers. A decorative
