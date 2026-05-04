@@ -293,8 +293,14 @@ int TilemapLoadTmx(lua_State* state) {
                       PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
   }
   PHYSFS_sint64 len = PHYSFS_fileLength(f);
-  ArenaAllocator scratch(allocator, len + 1);
+  if (len <= 0) {
+    PHYSFS_close(f);
+    return luaL_error(state, "tilemap: '%s' is empty or unreadable", filename);
+  }
+  ArenaAllocator scratch(allocator, static_cast<size_t>(len) + Kilobytes(64));
   char* buf = static_cast<char*>(scratch.Alloc(len + 1, /*align=*/1));
+  CHECK(buf != nullptr, "tilemap: failed to allocate ", len + 1,
+        " bytes for TMX file");
   PHYSFS_readBytes(f, buf, len);
   PHYSFS_close(f);
   buf[len] = '\0';
