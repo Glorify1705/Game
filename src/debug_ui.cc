@@ -17,6 +17,7 @@
 #include "platform.h"
 #include "sqlite_helpers.h"
 #include "string_table.h"
+#include "tilemap.h"
 #include "zone_stats.h"
 
 namespace G {
@@ -200,6 +201,7 @@ void DebugUI::LogMessage(LogLevel level, const char* message) {
 #include "debug_ui_panels.inc.cc"
 #include "debug_ui_performance.inc.cc"
 #include "debug_ui_save.inc.cc"
+#include "debug_ui_tilemap.inc.cc"
 #include "debug_ui_watch.inc.cc"
 #include "debug_ui_zones.inc.cc"
 
@@ -254,6 +256,7 @@ void DebugUI::DrawMenuBar(const FrameContext& /*ctx*/) {
       PanelMenuItem("Physics", kPanelPhysics);
       PanelMenuItem("Network", kPanelNetwork);
       PanelMenuItem("Save Data", kPanelSave);
+      PanelMenuItem("Tilemap", kPanelTilemap);
       PanelMenuItem("Assets", kPanelAssets);
       PanelMenuItem("API Docs", kPanelDocs);
       PanelMenuItem("Watch", kPanelWatch);
@@ -587,6 +590,7 @@ void DebugUI::DrawAll(const FrameContext& ctx) {
   if (PanelOpen(kPanelPhysics)) DrawPhysicsPanel();
   if (PanelOpen(kPanelNetwork)) DrawNetworkPanel();
   if (PanelOpen(kPanelSave)) DrawSavePanel();
+  if (PanelOpen(kPanelTilemap)) DrawTilemapPanel();
   if (PanelOpen(kPanelAssets)) DrawAssetViewer();
   if (PanelOpen(kPanelDocs)) DrawDocsPanel();
   if (PanelOpen(kPanelWatch)) DrawWatchPanel();
@@ -613,6 +617,7 @@ void DebugUI::DrawPanelSelector() {
     PanelMenuItem("Watch", kPanelWatch);
     PanelMenuItem("Hot Zones", kPanelZones);
     PanelMenuItem("Save Data", kPanelSave);
+    PanelMenuItem("Tilemap", kPanelTilemap);
   }
   ImGui::End();
   if (!open) TogglePanel(kPanelSelector);

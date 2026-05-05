@@ -122,6 +122,9 @@ class Tilemap {
   // Returns the layer at the given index (const).
   const TilemapLayer* layer(int index) const { return &layers_[index]; }
 
+  // Active tilemap for debug UI inspection (set by Lua bindings).
+  static inline Tilemap* debug_active_tilemap = nullptr;
+
  private:
   // Draws a single layer with viewport culling.
   void DrawLayerImpl(const TilemapLayer& layer, Renderer* renderer,

@@ -39,6 +39,8 @@ int TilemapNew(lua_State* state) {
   }
   lua_pop(state, 1);
 
+  Tilemap::debug_active_tilemap = tilemap;
+
   luaL_getmetatable(state, "tilemap");
   lua_setmetatable(state, -2);
   return 1;
@@ -316,6 +318,8 @@ int TilemapLoadTmx(lua_State* state) {
     tilemap->~Tilemap();
     return luaL_error(state, "tilemap: %s", result.error().message());
   }
+
+  Tilemap::debug_active_tilemap = tilemap;
 
   luaL_getmetatable(state, "tilemap");
   lua_setmetatable(state, -2);

@@ -192,6 +192,8 @@ class DebugUI {
   void DrawMiniHud(const FrameContext& ctx);
   // Draws the hot zones profiler panel.
   void DrawZonesPanel();
+  // Draws the tilemap debug panel.
+  void DrawTilemapPanel();
   // Draws physics debug overlay and handles click/drag interaction.
   void DrawPhysicsDebug();
   // Evaluates code in the REPL (Lua/Fennel/SQL) and pushes results.
@@ -239,10 +241,11 @@ class DebugUI {
     kPanelZones = 1 << 12,
     kPanelNetwork = 1 << 13,
     kPanelSave = 1 << 14,
+    kPanelTilemap = 1 << 15,
     kPanelAll = kPanelPerformance | kPanelLogConsole | kPanelEntityInspector |
                 kPanelAudio | kPanelMemory | kPanelRenderer | kPanelCamera |
                 kPanelPhysics | kPanelAssets | kPanelDocs | kPanelWatch |
-                kPanelZones | kPanelNetwork | kPanelSave,
+                kPanelZones | kPanelNetwork | kPanelSave | kPanelTilemap,
   };
   // Default panels (also preset index 2).
   static constexpr uint64_t kPanelDefault =
@@ -344,6 +347,9 @@ class DebugUI {
   uint32_t preview_source_ = 0;
   bool has_preview_ = false;
   PathBuffer preview_name_;
+
+  // Tilemap panel state.
+  bool tilemap_grid_visible_ = false;
 
   // Camera drag-to-pan override state.
   bool camera_override_ = false;
