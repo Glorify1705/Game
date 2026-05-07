@@ -229,8 +229,10 @@ set(ENGINE_SRCS
     src/packer.cc
     src/cmd_atlas.cc
     src/cmd_clean.cc
+    src/cmd_completions.cc
     src/cmd_convert.cc
     src/cmd_help.cc
+    src/cli_metadata.cc
     src/cmd_init.cc
     src/cmd_package.cc
     src/cmd_run.cc

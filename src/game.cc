@@ -21,12 +21,12 @@
 #include "profiler.h"
 #include "sdl_init.h"
 #include "stats.h"
-#include "zone_stats.h"
 #include "stringlib.h"
 #include "thread.h"
 #include "units.h"
 #include "vec.h"
 #include "version.h"
+#include "zone_stats.h"
 
 namespace G {
 
@@ -177,7 +177,10 @@ void Game::Run() {
           FVec(static_cast<float>(win_w), static_cast<float>(win_h)),
           FVec(static_cast<float>(vp.x), static_cast<float>(vp.y)));
     }
-    { ZONE("PollEvents"); PollEvents(); }
+    {
+      ZONE("PollEvents");
+      PollEvents();
+    }
     if (opts->test_mode) {
       engine->lua.ResumeTestCoroutine();
     }
@@ -197,9 +200,11 @@ void Game::Run() {
       DispatchNetworkEvents();
     }
     const Time update_start = Now();
-    { ZONE("RunUpdates"); RunUpdates(); }
-    last_breakdown_.update_ms =
-        ElapsedMs(update_start);
+    {
+      ZONE("RunUpdates");
+      RunUpdates();
+    }
+    last_breakdown_.update_ms = ElapsedMs(update_start);
     first_update_done = true;
     engine->batch_renderer.SetFrameTime(static_cast<float>(t));
     {
@@ -210,8 +215,8 @@ void Game::Run() {
     PROFILE_COUNTER("Lua Memory (KB)", engine->lua.MemoryUsage() / 1024.0);
     stats.AddSample(frame_ms);
     debug_ui->AddFrameTimeSample(static_cast<float>(frame_ms));
-    debug_ui->AddLuaMemorySample(
-        static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f);
+    debug_ui->AddLuaMemorySample(static_cast<float>(engine->lua.MemoryUsage()) /
+                                 1024.0f);
     debug_ui->AddBreakdownSample(last_breakdown_);
   }
 }
@@ -248,8 +253,8 @@ void Game::PollEvents() {
       }
       continue;
     }
-    if (event.type == SDL_EVENT_TEXT_INPUT &&
-        event.text.text[0] == '`' && event.text.text[1] == '\0') {
+    if (event.type == SDL_EVENT_TEXT_INPUT && event.text.text[0] == '`' &&
+        event.text.text[1] == '\0') {
       continue;
     }
     // Forward every event to ImGui before the engine processes it.
@@ -274,8 +279,7 @@ void Game::PollEvents() {
     }
     // Skip game input when ImGui wants to capture it.
     if (debug_ui->WantCaptureKeyboard() &&
-        (event.type == SDL_EVENT_KEY_DOWN ||
-         event.type == SDL_EVENT_KEY_UP ||
+        (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP ||
          event.type == SDL_EVENT_TEXT_INPUT)) {
       continue;
     }
@@ -397,8 +401,7 @@ void Game::Render() {
       ZONE("Lua::Draw");
       engine->lua.Draw();
     }
-    last_breakdown_.draw_ms =
-        ElapsedMs(draw_start);
+    last_breakdown_.draw_ms = ElapsedMs(draw_start);
   }
   // Physics debug drawing is handled in RenderDebugUI via ImGui draw list
   // so it renders on top of canvases and post-processing.
@@ -409,13 +412,15 @@ void Game::Render() {
   // Render phase: flush commands and submit to GPU.
   {
     const Time render_start = Now();
-    { ZONE("FlushFrame"); engine->renderer.FlushFrame(); }
+    {
+      ZONE("FlushFrame");
+      engine->renderer.FlushFrame();
+    }
     {
       ZONE("Render");
       engine->batch_renderer.Render();
     }
-    last_breakdown_.render_ms =
-        ElapsedMs(render_start);
+    last_breakdown_.render_ms = ElapsedMs(render_start);
   }
   RenderDebugUI();
   {
@@ -430,8 +435,7 @@ void Game::RenderDebugUI() {
   debug_ui->BeginFrame();
   DebugUI::FrameContext ctx;
   ctx.frame_stats = engine->batch_renderer.GetFrameStats();
-  ctx.lua_memory_kb =
-      static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f;
+  ctx.lua_memory_kb = static_cast<float>(engine->lua.MemoryUsage()) / 1024.0f;
   ctx.lua_memory_bytes = engine->lua.MemoryUsage();
   ctx.cmd_buf_used = engine->batch_renderer.GetCommandBufferUsed();
   ctx.cmd_buf_capacity = engine->batch_renderer.GetCommandBufferCapacity();
@@ -583,8 +587,8 @@ int Main(int argc, const char* argv[]) {
     // Validate the command before doing anything else.
     if (cmd != "init" && cmd != "run" && cmd != "clean" && cmd != "package" &&
         cmd != "stubs" && cmd != "convert" && cmd != "atlas" &&
-        cmd != "version" && cmd != "help" && cmd != "--help" &&
-        cmd != "--version") {
+        cmd != "completions" && cmd != "version" && cmd != "help" &&
+        cmd != "--help" && cmd != "--version") {
       fprintf(stderr, "Error: unknown command '%s'.\n\n", argv[1]);
       return CmdHelp(argv[0], /*subcommand=*/nullptr);
     }
@@ -596,6 +600,7 @@ int Main(int argc, const char* argv[]) {
     if (cmd == "stubs") return CmdStubs(sub, &cli_arena);
     if (cmd == "convert") return CmdConvert(sub, &cli_arena);
     if (cmd == "atlas") return CmdAtlas(sub, &cli_arena);
+    if (cmd == "completions") return CmdCompletions(sub, &cli_arena);
     if (cmd == "version") return CmdVersion(argv[0]);
     if (cmd == "help") return CmdHelp(argv[0], argc > 2 ? argv[2] : nullptr);
     if (cmd == "--help") return CmdHelp(argv[0], /*subcommand=*/nullptr);
