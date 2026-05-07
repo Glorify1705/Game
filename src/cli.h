@@ -37,6 +37,9 @@ int CmdAtlas(Slice<const char*> args, Allocator* allocator);
 // Print engine version.
 int CmdVersion(const char* argv0);
 
+// Generate shell completions or a man page: game completions {bash|zsh|man}
+int CmdCompletions(Slice<const char*> args, Allocator* allocator);
+
 // Print usage information, optionally for a specific subcommand.
 int CmdHelp(const char* argv0, const char* subcommand);
 
