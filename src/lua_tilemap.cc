@@ -375,18 +375,15 @@ const LuaUserdataMethod kTilemapMethodDefs[] = {
      {}},
     {"tile_at",
      "Returns the tile ID at a world position from the collision layer",
-     {{"x", "World x position", "number"},
-      {"y", "World y position", "number"}},
+     {{"x", "World x position", "number"}, {"y", "World y position", "number"}},
      {{"tile_id", "Tile ID or 0", "integer"}}},
     {"is_solid",
      "Returns true if the world position overlaps a solid tile",
-     {{"x", "World x position", "number"},
-      {"y", "World y position", "number"}},
+     {{"x", "World x position", "number"}, {"y", "World y position", "number"}},
      {{"solid", "Whether the tile is solid", "boolean"}}},
     {"world_to_tile",
      "Converts world coordinates to tile coordinates",
-     {{"x", "World x position", "number"},
-      {"y", "World y position", "number"}},
+     {{"x", "World x position", "number"}, {"y", "World y position", "number"}},
      {{"tx", "Tile x coordinate", "integer"},
       {"ty", "Tile y coordinate", "integer"}}},
     {"tile_to_world",
@@ -434,10 +431,6 @@ const LuaUserdataMethod kTilemapMethodDefs[] = {
 void AddTilemapLibrary(Lua* lua) {
   LOAD_METATABLE(lua, "tilemap", kTilemapMethods);
   lua->AddLibrary("tilemap", kTilemapLib);
-  lua->RegisterUserdataType(
-      {"tilemap", "tilemap", "A 2D tilemap with layers and tile collision",
-       nullptr, 0, kTilemapMethodDefs, std::size(kTilemapMethodDefs), nullptr,
-       0});
 }
 
 LuaLibraryDef GetTilemapLibraryDef() {
