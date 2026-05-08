@@ -648,13 +648,13 @@ void DebugUI::DrawTextureZoom() {
       ImVec2 img_pos = ImGui::GetCursorScreenPos();
       ImGui::Image(
           static_cast<ImTextureID>(static_cast<uintptr_t>(zoom_texture_)),
-          ImVec2(w, h), ImVec2(0, 1), ImVec2(1, 0));
+          ImVec2(w, h));
       if (ImGui::IsItemHovered() && zoom_pixels_ != nullptr) {
         ImVec2 mouse = ImGui::GetMousePos();
         float rel_x = (mouse.x - img_pos.x) / zoom_level_;
         float rel_y = (mouse.y - img_pos.y) / zoom_level_;
         int px = static_cast<int>(rel_x);
-        int py = static_cast<int>(zoom_tex_h_ - 1.0f - rel_y);
+        int py = static_cast<int>(rel_y);
         int tw = static_cast<int>(zoom_tex_w_);
         int th = static_cast<int>(zoom_tex_h_);
         if (px >= 0 && px < tw && py >= 0 && py < th) {

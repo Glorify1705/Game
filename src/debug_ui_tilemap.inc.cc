@@ -4,8 +4,7 @@
 void DebugUI::DrawTilemapPanel() {
   ImGui::SetNextWindowPos(ImVec2(420, 30), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(480, 550), ImGuiCond_FirstUseEver);
-  if (!ImGui::Begin("Tilemap", nullptr,
-                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+  if (!ImGui::Begin("Tilemap", nullptr, ImGuiWindowFlags_NoFocusOnAppearing)) {
     ImGui::End();
     return;
   }
@@ -77,10 +76,22 @@ void DebugUI::DrawTilemapPanel() {
     ImVec2 mouse = ImGui::GetIO().MousePos;
     IVec2 vp = engine_->batch_renderer.GetViewport();
     FVec2 viewport(static_cast<float>(vp.x), static_cast<float>(vp.y));
+    IVec2 ws = engine_->batch_renderer.GetWindowSize();
+    FVec2 win(static_cast<float>(ws.x), static_cast<float>(ws.y));
 
-    // Convert mouse screen position to world coordinates.
-    FVec2 world_pos =
-        engine_->camera.ToWorld(FVec2(mouse.x, mouse.y), viewport);
+    // Map mouse from window coordinates to viewport coordinates,
+    // accounting for aspect-correct letterboxing.
+    FVec2 mouse_vp(mouse.x, mouse.y);
+    if (win.x > 0 && viewport.x > 0 && (ws != vp)) {
+      float sx = win.x / viewport.x;
+      float sy = win.y / viewport.y;
+      float s = sx < sy ? sx : sy;
+      FVec2 offset = (win - viewport * s) * 0.5f;
+      mouse_vp = (mouse_vp - offset) / s;
+    }
+
+    // Convert mouse viewport position to world coordinates.
+    FVec2 world_pos = engine_->camera.ToWorld(mouse_vp, viewport);
     int tx, ty;
     tilemap->WorldToTile(world_pos.x, world_pos.y, &tx, &ty);
 
@@ -100,15 +111,15 @@ void DebugUI::DrawTilemapPanel() {
       }
       ImGui::Text("  %s: tile %d", layer->name, tile_id);
 
-      // Show a small tile preview if the tile is non-zero and we have a tileset.
+      // Show a small tile preview if the tile is non-zero and we have a
+      // tileset.
       if (tile_id > 0) {
         std::string_view tileset_name = tilemap->tileset();
         if (!tileset_name.empty()) {
           Renderer* renderer = &engine_->renderer;
           GLuint tex = renderer->GetTextureByName(tileset_name);
           float sheet_w = 0, sheet_h = 0;
-          DbAssets::Spritesheet* sheet =
-              renderer->GetSpritesheet(tileset_name);
+          DbAssets::Spritesheet* sheet = renderer->GetSpritesheet(tileset_name);
           if (sheet != nullptr) {
             sheet_w = static_cast<float>(sheet->width);
             sheet_h = static_cast<float>(sheet->height);
@@ -122,7 +133,8 @@ void DebugUI::DrawTilemapPanel() {
           if (tex != 0 && sheet_w > 0 && sheet_h > 0) {
             float tw = static_cast<float>(tilemap->tile_width());
             float th = static_cast<float>(tilemap->tile_height());
-            int tiles_per_row = static_cast<int>(sheet_w) / tilemap->tile_width();
+            int tiles_per_row =
+                static_cast<int>(sheet_w) / tilemap->tile_width();
             if (tiles_per_row > 0) {
               int tile_col = (tile_id - 1) % tiles_per_row;
               int tile_row = (tile_id - 1) / tiles_per_row;
@@ -135,8 +147,8 @@ void DebugUI::DrawTilemapPanel() {
               ImGui::SameLine();
               ImGui::Image(
                   static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
-                  ImVec2(display_size, display_size), ImVec2(u0, v1),
-                  ImVec2(u1, v0));
+                  ImVec2(display_size, display_size), ImVec2(u0, v0),
+                  ImVec2(u1, v1));
             }
           }
         }
@@ -156,8 +168,20 @@ void DebugUI::DrawTilemapPanel() {
   if (tilemap_grid_visible_) {
     IVec2 vp = engine_->batch_renderer.GetViewport();
     FVec2 viewport(static_cast<float>(vp.x), static_cast<float>(vp.y));
+    IVec2 ws = engine_->batch_renderer.GetWindowSize();
+    FVec2 win(static_cast<float>(ws.x), static_cast<float>(ws.y));
     float tw = static_cast<float>(tilemap->tile_width());
     float th = static_cast<float>(tilemap->tile_height());
+
+    // Viewport-to-window letterbox transform.
+    float lb_scale = 1.0f;
+    FVec2 lb_offset(0, 0);
+    if (win.x > 0 && viewport.x > 0 && (ws != vp)) {
+      float sx = win.x / viewport.x;
+      float sy = win.y / viewport.y;
+      lb_scale = sx < sy ? sx : sy;
+      lb_offset = (win - viewport * lb_scale) * 0.5f;
+    }
 
     // Find visible tile range from camera.
     FVec2 cam_pos = engine_->camera.GetPosition();
@@ -190,20 +214,24 @@ void DebugUI::DrawTilemapPanel() {
     for (int col = start_col; col <= end_col; ++col) {
       FVec2 world_top(col * tw, view_top);
       FVec2 world_bot(col * tw, view_bottom);
-      FVec2 screen_top = engine_->camera.ToScreen(world_top, viewport);
-      FVec2 screen_bot = engine_->camera.ToScreen(world_bot, viewport);
-      dl->AddLine(ImVec2(screen_top.x, screen_top.y),
-                  ImVec2(screen_bot.x, screen_bot.y), grid_color);
+      FVec2 st = engine_->camera.ToScreen(world_top, viewport);
+      FVec2 sb = engine_->camera.ToScreen(world_bot, viewport);
+      dl->AddLine(
+          ImVec2(st.x * lb_scale + lb_offset.x, st.y * lb_scale + lb_offset.y),
+          ImVec2(sb.x * lb_scale + lb_offset.x, sb.y * lb_scale + lb_offset.y),
+          grid_color);
     }
 
     // Horizontal lines.
     for (int row = start_row; row <= end_row; ++row) {
       FVec2 world_left(view_left, row * th);
       FVec2 world_right(view_right, row * th);
-      FVec2 screen_left = engine_->camera.ToScreen(world_left, viewport);
-      FVec2 screen_right = engine_->camera.ToScreen(world_right, viewport);
-      dl->AddLine(ImVec2(screen_left.x, screen_left.y),
-                  ImVec2(screen_right.x, screen_right.y), grid_color);
+      FVec2 sl = engine_->camera.ToScreen(world_left, viewport);
+      FVec2 sr = engine_->camera.ToScreen(world_right, viewport);
+      dl->AddLine(
+          ImVec2(sl.x * lb_scale + lb_offset.x, sl.y * lb_scale + lb_offset.y),
+          ImVec2(sr.x * lb_scale + lb_offset.x, sr.y * lb_scale + lb_offset.y),
+          grid_color);
     }
   }
 
@@ -252,10 +280,8 @@ void DebugUI::DrawTilemapPanel() {
         if (ImGui::BeginChild("TilesetScroll", ImVec2(0, 300), true,
                               ImGuiWindowFlags_HorizontalScrollbar)) {
           ImVec2 img_pos = ImGui::GetCursorScreenPos();
-          // Display tileset image (V-flipped for OpenGL textures).
-          ImGui::Image(
-              static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
-              ImVec2(display_w, display_h), ImVec2(0, 1), ImVec2(1, 0));
+          ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
+                       ImVec2(display_w, display_h));
 
           // Draw grid overlay on the tileset.
           ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -266,14 +292,14 @@ void DebugUI::DrawTilemapPanel() {
           // Vertical lines.
           for (int c = 0; c <= tiles_per_row; ++c) {
             float x = img_pos.x + c * scaled_tw;
-            dl->AddLine(ImVec2(x, img_pos.y),
-                        ImVec2(x, img_pos.y + display_h), line_color);
+            dl->AddLine(ImVec2(x, img_pos.y), ImVec2(x, img_pos.y + display_h),
+                        line_color);
           }
           // Horizontal lines.
           for (int r = 0; r <= tiles_per_col; ++r) {
             float y = img_pos.y + r * scaled_th;
-            dl->AddLine(ImVec2(img_pos.x, y),
-                        ImVec2(img_pos.x + display_w, y), line_color);
+            dl->AddLine(ImVec2(img_pos.x, y), ImVec2(img_pos.x + display_w, y),
+                        line_color);
           }
 
           // Hover: show tile ID tooltip.
@@ -283,8 +309,8 @@ void DebugUI::DrawTilemapPanel() {
             float rel_y = mouse.y - img_pos.y;
             int hover_col = static_cast<int>(rel_x / scaled_tw);
             int hover_row = static_cast<int>(rel_y / scaled_th);
-            if (hover_col >= 0 && hover_col < tiles_per_row &&
-                hover_row >= 0 && hover_row < tiles_per_col) {
+            if (hover_col >= 0 && hover_col < tiles_per_row && hover_row >= 0 &&
+                hover_row < tiles_per_col) {
               int tile_id = hover_row * tiles_per_row + hover_col + 1;
               ImGui::BeginTooltip();
               ImGui::Text("Tile ID: %d", tile_id);
@@ -297,7 +323,7 @@ void DebugUI::DrawTilemapPanel() {
               float v1 = ((hover_row + 1) * th) / sheet_h;
               ImGui::Image(
                   static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
-                  ImVec2(64, 64), ImVec2(u0, v1), ImVec2(u1, v0));
+                  ImVec2(64, 64), ImVec2(u0, v0), ImVec2(u1, v1));
               ImGui::EndTooltip();
             }
           }

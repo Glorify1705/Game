@@ -51,6 +51,9 @@ function M:init()
   map:set_tileset("tilemap_packed.png")
   map:set_collision("Tiles", true)  -- First layer is the terrain.
 
+  -- Set up camera (2.5x zoom for pixel art).
+  G.camera.set_zoom(2.5)
+
   -- Place player near the left side of the level.
   player.x = 4 * tile_size
   player.y = 5 * tile_size
@@ -149,14 +152,12 @@ end
 function M:draw()
   G.graphics.clear(100, 150, 230, 255)
 
-  -- Camera follows player (2.5x zoom for pixel art).
-  local scale = 2.5
+  -- Camera follows player center.
   local cam_x = player.x + player.w / 2
   local cam_y = player.y + player.h / 2
-  G.graphics.push()
-  G.graphics.translate(W / 2, H / 2)
-  G.graphics.scale(scale, scale)
-  G.graphics.translate(-cam_x, -cam_y)
+  G.camera.set(cam_x, cam_y)
+
+  G.camera.attach()
 
   -- Draw tilemap layers.
   map:draw()
@@ -184,9 +185,9 @@ function M:draw()
   G.graphics.draw_sprite(sprite, 0, 0)
   G.graphics.pop()
 
-  G.graphics.pop()
+  G.camera.detach()
 
-  -- HUD.
+  -- HUD (drawn in screen space after camera detach).
   G.graphics.set_color(255, 255, 255, 255)
   if dead then
     local msg = "GAME OVER - Press R to restart"
