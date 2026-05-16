@@ -6,6 +6,7 @@
 #include "bits.h"
 #include "clock.h"
 #include "defer.h"
+#include "gl.h"
 #include "image.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
@@ -211,9 +212,8 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
       viewport_(viewport),
       window_size_(viewport),
       render_scratch_(allocator, Megabytes(64)) {
-  CHECK(command_buffer_ != nullptr,
-        "BatchRenderer: failed to allocate ", kCommandMemory,
-        " byte command buffer");
+  CHECK(command_buffer_ != nullptr, "BatchRenderer: failed to allocate ",
+        kCommandMemory, " byte command buffer");
   TIMER();
   glGetIntegerv(GL_MAX_SAMPLES, &antialiasing_samples_);
   LOG("Using ", antialiasing_samples_, " MSAA samples");
@@ -224,26 +224,28 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
   // Generate the quad for the post pass step.
   OPENGL_CALL(glGenVertexArrays(1, &screen_quad_vao_));
   OPENGL_CALL(glGenBuffers(1, &screen_quad_vbo_));
-  OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
-  std::array<float, 24> screen_quad_vertices = {
-      // Vertex position and Tex coord in Normalized Device Coordinates.
-      -1.0f, 1.0f,  0.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f,
-      1.0f,  -1.0f, 1.0f, 0.0f, -1.0f, 1.0f,  0.0f, 1.0f,
-      1.0f,  -1.0f, 1.0f, 0.0f, 1.0f,  1.0f,  1.0f, 1.0f};
-  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, screen_quad_vbo_));
-  OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER,
-                           screen_quad_vertices.size() * sizeof(float),
-                           screen_quad_vertices.data(), GL_STATIC_DRAW));
-  shaders_->UseProgram("post_pass");
-  const GLint pos_attribute = shaders_->AttributeLocation("input_position");
-  OPENGL_CALL(glEnableVertexAttribArray(pos_attribute));
-  OPENGL_CALL(glVertexAttribPointer(pos_attribute, 2, GL_FLOAT, GL_FALSE,
-                                    4 * sizeof(float), (void*)0));
-  const GLint tex_attribute = shaders_->AttributeLocation("input_tex_coord");
-  OPENGL_CALL(glEnableVertexAttribArray(tex_attribute));
-  OPENGL_CALL(glVertexAttribPointer(tex_attribute, 2, GL_FLOAT, GL_FALSE,
-                                    4 * sizeof(float),
-                                    (void*)(2 * sizeof(float))));
+  {
+    GL::VertexArrayScope vao(screen_quad_vao_);
+    std::array<float, 24> screen_quad_vertices = {
+        // Vertex position and Tex coord in Normalized Device Coordinates.
+        -1.0f, 1.0f,  0.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f,
+        1.0f,  -1.0f, 1.0f, 0.0f, -1.0f, 1.0f,  0.0f, 1.0f,
+        1.0f,  -1.0f, 1.0f, 0.0f, 1.0f,  1.0f,  1.0f, 1.0f};
+    OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, screen_quad_vbo_));
+    OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER,
+                             screen_quad_vertices.size() * sizeof(float),
+                             screen_quad_vertices.data(), GL_STATIC_DRAW));
+    shaders_->UseProgram("post_pass");
+    const GLint pos_attribute = shaders_->AttributeLocation("input_position");
+    OPENGL_CALL(glEnableVertexAttribArray(pos_attribute));
+    OPENGL_CALL(glVertexAttribPointer(pos_attribute, 2, GL_FLOAT, GL_FALSE,
+                                      4 * sizeof(float), (void*)0));
+    const GLint tex_attribute = shaders_->AttributeLocation("input_tex_coord");
+    OPENGL_CALL(glEnableVertexAttribArray(tex_attribute));
+    OPENGL_CALL(glVertexAttribPointer(tex_attribute, 2, GL_FLOAT, GL_FALSE,
+                                      4 * sizeof(float),
+                                      (void*)(2 * sizeof(float))));
+  }
   InitializeParticleResources();
 
   InitializeFramebuffers();
@@ -262,46 +264,50 @@ void BatchRenderer::InitializeFramebuffers() {
   OPENGL_CALL(glGenFramebuffers(1, &downsampled_target_));
   OPENGL_CALL(glGenTextures(1, &render_texture_));
   OPENGL_CALL(glGenTextures(1, &downsampled_texture_));
-  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
-  OPENGL_CALL(glActiveTexture(GL_TEXTURE0));
-  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, render_texture_));
-  OPENGL_CALL(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE,
-                                      antialiasing_samples_, GL_RGBA,
-                                      viewport_.x, viewport_.y, GL_TRUE));
-  OPENGL_CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                     GL_TEXTURE_2D_MULTISAMPLE, render_texture_,
-                                     /*level=*/0));
-  // Attach a multisampled depth/stencil renderbuffer to the MSAA render target
-  // so stencil operations work during the main rendering pass.
-  OPENGL_CALL(glGenRenderbuffers(1, &depth_buffer_));
-  OPENGL_CALL(glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_));
-  OPENGL_CALL(glRenderbufferStorageMultisample(
-      GL_RENDERBUFFER, antialiasing_samples_, GL_DEPTH24_STENCIL8, viewport_.x,
-      viewport_.y));
-  OPENGL_CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER,
-                                        GL_DEPTH_STENCIL_ATTACHMENT,
-                                        GL_RENDERBUFFER, depth_buffer_));
-  CHECK(!glGetError(), "Could generate render texture: ", glGetError());
-  CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
-        "Render target framebuffer incomplete: ",
-        glCheckFramebufferStatus(GL_FRAMEBUFFER));
-  // Create downsampled texture data.
-  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, downsampled_target_));
-  OPENGL_CALL(glActiveTexture(GL_TEXTURE1));
-  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
-  OPENGL_CALL(glTexImage2D(
-      GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport_.x, viewport_.y,
-      /*border=*/0, GL_RGBA, GL_UNSIGNED_BYTE, /*pixels=*/nullptr));
-  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-  OPENGL_CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                     GL_TEXTURE_2D, downsampled_texture_,
-                                     /*level=*/0));
-  CHECK(!glGetError(), "Could generate downsampled texture: ", glGetError());
-  CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
-        "Downsampled target framebuffer incomplete: ",
-        glCheckFramebufferStatus(GL_FRAMEBUFFER));
-  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+  {
+    GL::FramebufferScope fbo(GL_FRAMEBUFFER, render_target_);
+    OPENGL_CALL(glActiveTexture(GL_TEXTURE0));
+    OPENGL_CALL(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, render_texture_));
+    OPENGL_CALL(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE,
+                                        antialiasing_samples_, GL_RGBA,
+                                        viewport_.x, viewport_.y, GL_TRUE));
+    OPENGL_CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                       GL_TEXTURE_2D_MULTISAMPLE,
+                                       render_texture_, /*level=*/0));
+    // Attach a multisampled depth/stencil renderbuffer to the MSAA render
+    // target so stencil operations work during the main rendering pass.
+    OPENGL_CALL(glGenRenderbuffers(1, &depth_buffer_));
+    OPENGL_CALL(glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_));
+    OPENGL_CALL(glRenderbufferStorageMultisample(
+        GL_RENDERBUFFER, antialiasing_samples_, GL_DEPTH24_STENCIL8,
+        viewport_.x, viewport_.y));
+    OPENGL_CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                                          GL_DEPTH_STENCIL_ATTACHMENT,
+                                          GL_RENDERBUFFER, depth_buffer_));
+    CHECK(!glGetError(), "Could generate render texture: ", glGetError());
+    CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
+          "Render target framebuffer incomplete: ",
+          glCheckFramebufferStatus(GL_FRAMEBUFFER));
+  }
+  {
+    GL::FramebufferScope fbo(GL_FRAMEBUFFER, downsampled_target_);
+    OPENGL_CALL(glActiveTexture(GL_TEXTURE1));
+    OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
+    OPENGL_CALL(glTexImage2D(
+        GL_TEXTURE_2D, /*level=*/0, GL_RGBA, viewport_.x, viewport_.y,
+        /*border=*/0, GL_RGBA, GL_UNSIGNED_BYTE, /*pixels=*/nullptr));
+    OPENGL_CALL(
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    OPENGL_CALL(
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+    OPENGL_CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                       GL_TEXTURE_2D, downsampled_texture_,
+                                       /*level=*/0));
+    CHECK(!glGetError(), "Could generate downsampled texture: ", glGetError());
+    CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
+          "Downsampled target framebuffer incomplete: ",
+          glCheckFramebufferStatus(GL_FRAMEBUFFER));
+  }
   glActiveTexture(GL_TEXTURE0);
 }
 
@@ -474,7 +480,7 @@ void BatchRenderer::InitializeParticleResources() {
   OPENGL_CALL(glGenBuffers(1, &particle_quad_vbo_));
   OPENGL_CALL(glGenBuffers(1, &particle_quad_ebo_));
   OPENGL_CALL(glGenBuffers(1, &particle_instance_vbo_));
-  OPENGL_CALL(glBindVertexArray(particle_vao_));
+  GL::VertexArrayScope vao(particle_vao_);
   // Static unit quad: positions [-0.5, 0.5], tex coords [0, 1].
   float quad_verts[] = {
       -0.5f, -0.5f, 0.0f, 0.0f,  // bottom-left
@@ -523,7 +529,6 @@ void BatchRenderer::InitializeParticleResources() {
       5, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(ParticleInstanceData),
       (void*)offsetof(ParticleInstanceData, color)));
   OPENGL_CALL(glVertexAttribDivisor(5, 1));
-  OPENGL_CALL(glBindVertexArray(0));
 }
 
 void BatchRenderer::RenderParticlesBatch(const RenderParticlesCmd& rp,
@@ -558,18 +563,19 @@ void BatchRenderer::RenderParticlesBatch(const RenderParticlesCmd& rp,
   shaders_->SetUniformSilent("projection", Ortho(0, viewport_w, 0, viewport_h));
   shaders_->SetUniformSilent("transform", transform);
   shaders_->SetUniformSilent("global_color", Color::White().ToFloat());
-  // Bind particle VAO and upload instance data.
-  OPENGL_CALL(glBindVertexArray(particle_vao_));
-  OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particle_instance_vbo_));
-  OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER,
-                           rp.count * sizeof(ParticleInstanceData), rp.data,
-                           GL_STREAM_DRAW));
-  // Draw: 6 indices per quad, rp.count instances.
-  OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, particle_quad_ebo_));
-  OPENGL_CALL(glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr,
-                                      rp.count));
-  stats.draw_calls++;
-  // Restore normal rendering state.
+  // Bind particle VAO, draw, and restore normal rendering state.
+  {
+    GL::VertexArrayScope vao(particle_vao_);
+    OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particle_instance_vbo_));
+    OPENGL_CALL(glBufferData(GL_ARRAY_BUFFER,
+                             rp.count * sizeof(ParticleInstanceData), rp.data,
+                             GL_STREAM_DRAW));
+    OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, particle_quad_ebo_));
+    OPENGL_CALL(glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT,
+                                        nullptr, rp.count));
+    stats.draw_calls++;
+  }
+  // Rebind the main VAO and buffers after the particle scope.
   OPENGL_CALL(glBindVertexArray(vao_));
   OPENGL_CALL(glBindBuffer(GL_ARRAY_BUFFER, vbo_));
   OPENGL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_));
@@ -1066,9 +1072,9 @@ void BatchRenderer::Render() {
   shaders_->UseProgram("post_pass");
   glActiveTexture(GL_TEXTURE1);
   shaders_->SetUniformSilent("screen_texture", 1);
-  OPENGL_CALL(glBindVertexArray(screen_quad_vao_));
-  OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, downsampled_texture_));
   {
+    GL::VertexArrayScope vao(screen_quad_vao_);
+    GL::TextureScope tex(GL_TEXTURE_2D, downsampled_texture_);
     // Fit viewport into window preserving aspect ratio (letterbox).
     FVec2 vp(viewport_.x, viewport_.y);
     FVec2 win(window_size_.x, window_size_.y);
@@ -1080,8 +1086,8 @@ void BatchRenderer::Render() {
     OPENGL_CALL(glViewport(
         static_cast<int>(offset.x), static_cast<int>(offset.y),
         static_cast<int>(draw_size.x), static_cast<int>(draw_size.y)));
+    OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   }
-  OPENGL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
   frame_stats_.draw_calls++;
   PROFILE_COUNTER("Draw Calls", frame_stats_.draw_calls);
   PROFILE_COUNTER("Vertices", static_cast<double>(frame_stats_.vertices));
@@ -1108,9 +1114,11 @@ BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
   CHECK(buffer != nullptr, "TakeScreenshot: failed to allocate ", bytes,
         " bytes for ", viewport.x, "x", viewport.y, " framebuffer");
   // Read from the resolved (non-MSAA) framebuffer.
-  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, downsampled_target_));
-  glReadPixels(0, 0, viewport.x, viewport.y, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-  OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+  {
+    GL::FramebufferScope fbo(GL_FRAMEBUFFER, downsampled_target_);
+    glReadPixels(0, 0, viewport.x, viewport.y, GL_RGBA, GL_UNSIGNED_BYTE,
+                 buffer);
+  }
   // Flip the rows.
   ArenaAllocator scratch(allocator, Megabytes(1));
   const size_t row_size = viewport.x * sizeof(Color);
@@ -1127,8 +1135,8 @@ BatchRenderer::Screenshot BatchRenderer::TakeScreenshot(
   return result;
 }
 
-Renderer::Renderer(const DbAssets& /*assets*/, BatchRenderer* renderer, sqlite3* db,
-                   Allocator* allocator)
+Renderer::Renderer(const DbAssets& /*assets*/, BatchRenderer* renderer,
+                   sqlite3* db, Allocator* allocator)
     : allocator_(allocator),
       renderer_(renderer),
       db_(db),
