@@ -26,7 +26,14 @@ class Allocator;
 struct Truncating {};
 inline constexpr Truncating kTruncating;
 
+// Formats a double into buffer using the double-conversion library.
 void PrintDouble(double val, char* buffer, size_t size);
+
+// Parses a double from a string_view. Returns 0.0 on failure.
+double ParseDouble(std::string_view s);
+
+// Parses a float from a string_view. Returns 0.0f on failure.
+float ParseFloat(std::string_view s);
 
 class StringBuffer;
 
@@ -161,8 +168,7 @@ class StringBuffer {
   }
 
   // Appends a printf-style formatted string.
-  PRINTF_FORMAT(2, 3) StringBuffer& AppendF(const char* fmt,
-                                                              ...) {
+  PRINTF_FORMAT(2, 3) StringBuffer& AppendF(const char* fmt, ...) {
     va_list l;
     va_start(l, fmt);
     VAppendF(fmt, l);
@@ -178,8 +184,7 @@ class StringBuffer {
   }
 
   // Clears the buffer and appends a printf-style formatted string.
-  PRINTF_FORMAT(2, 3) StringBuffer& SetF(const char* fmt,
-                                                           ...) {
+  PRINTF_FORMAT(2, 3) StringBuffer& SetF(const char* fmt, ...) {
     pos_ = 0;
     va_list l;
     va_start(l, fmt);

@@ -762,6 +762,26 @@ buf.Append("x=", x, " y=", y);
 buf << "x=" << x << " y=" << y;
 ```
 
+### C Float/Double Parsing
+
+Do not use `atof`, `strtof`, `strtod`, or any C standard library
+float-parsing function. These are locale-dependent and may produce
+different results depending on the system locale (e.g. `","` vs `"."` as
+decimal separator). Use the double-conversion library wrappers from
+`stringlib.h`:
+
+```cpp
+// Good: locale-independent, correct rounding.
+double d = ParseDouble("3.14");
+float f = ParseFloat("2.5");
+
+// Bad: locale-dependent, banned.
+double d = atof("3.14");
+float f = strtof("2.5", nullptr);
+```
+
+Use `PrintDouble` for the reverse direction (double to string).
+
 ### Raw Thread Creation
 
 Do not create threads directly with `std::thread`, `pthread_create`, or

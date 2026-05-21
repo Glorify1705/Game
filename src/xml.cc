@@ -1,5 +1,7 @@
 #include "xml.h"
 
+#include "stringlib.h"
+
 namespace G {
 namespace {
 
@@ -99,8 +101,7 @@ struct ParseChildrenResult {
   std::string_view text;
 };
 
-ErrorOr<ParseChildrenResult> ParseChildren(Tokenizer* tok,
-                                           Allocator* allocator,
+ErrorOr<ParseChildrenResult> ParseChildren(Tokenizer* tok, Allocator* allocator,
                                            std::string_view parent_tag) {
   XmlElement* head = nullptr;
   XmlElement** tail = &head;
@@ -172,7 +173,10 @@ int XmlElement::AttrInt(std::string_view name) const {
   if (val.empty()) return 0;
   int sign = 1;
   size_t i = 0;
-  if (val[0] == '-') { sign = -1; i = 1; }
+  if (val[0] == '-') {
+    sign = -1;
+    i = 1;
+  }
   int result = 0;
   for (; i < val.size(); ++i) {
     char c = val[i];
@@ -183,25 +187,7 @@ int XmlElement::AttrInt(std::string_view name) const {
 }
 
 float XmlElement::AttrFloat(std::string_view name) const {
-  std::string_view val = Attr(name);
-  if (val.empty()) return 0;
-  // Simple float parse: ['-'] digits ['.' digits]
-  float sign = 1;
-  size_t i = 0;
-  if (val[0] == '-') { sign = -1; i = 1; }
-  float result = 0;
-  for (; i < val.size() && val[i] >= '0' && val[i] <= '9'; ++i) {
-    result = result * 10 + (val[i] - '0');
-  }
-  if (i < val.size() && val[i] == '.') {
-    ++i;
-    float frac = 0.1f;
-    for (; i < val.size() && val[i] >= '0' && val[i] <= '9'; ++i) {
-      result += (val[i] - '0') * frac;
-      frac *= 0.1f;
-    }
-  }
-  return result * sign;
+  return ParseFloat(Attr(name));
 }
 
 ErrorOr<XmlElement*> ParseXml(std::string_view input, Allocator* allocator) {
