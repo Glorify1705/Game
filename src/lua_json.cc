@@ -6,6 +6,63 @@
 #include "json_alc.h"
 
 namespace G {
+namespace {
+
+const struct LuaApiFunction kJsonLib[] = {
+    {"decode",
+     "Parse a JSON string into a Lua value",
+     {{"str", "JSON string to parse", "string"}},
+     {{"error", "nil on success, error message on failure", "string"},
+      {"result", "Parsed Lua value on success, nil on failure", "any"}},
+     [](lua_State* state) {
+       size_t len = 0;
+       const char* str = luaL_checklstring(state, 1, &len);
+       auto* arena = Registry<ArenaAllocator>::Retrieve(state);
+       yyjson_read_err err{};
+       yyjson_doc* doc = ReadJson(arena, std::string_view(str, len), &err);
+       if (doc == nullptr) {
+         lua_pushlstring(state, err.msg, err.msg ? strlen(err.msg) : 0);
+         lua_pushnil(state);
+         return 2;
+       }
+       lua_pushnil(state);
+       LuaPushJsonValue(state, yyjson_doc_get_root(doc));
+       return 2;
+     }},
+    {"encode",
+     "Serialize a Lua value to a JSON string",
+     {{"value", "Lua value to serialize", "any"}},
+     {{"error", "nil on success, error message on failure", "string"},
+      {"result", "JSON string on success, nil on failure", "string"}},
+     [](lua_State* state) {
+       auto* arena = Registry<ArenaAllocator>::Retrieve(state);
+       yyjson_alc alc = MakeYyjsonAlc(arena);
+       yyjson_mut_doc* doc =
+           yyjson_mut_doc_new(&alc);  // mutable doc for encode
+       auto result = LuaToJsonValue(state, 1, doc);
+       if (result.is_error()) {
+         auto msg = result.error().message();
+         lua_pushlstring(state, msg.data(), msg.size());
+         lua_pushnil(state);
+         return 2;
+       }
+       yyjson_mut_doc_set_root(doc, result.release_value());
+       yyjson_write_err werr{};
+       size_t json_len = 0;
+       char* json = yyjson_mut_write_opts(doc, YYJSON_WRITE_NOFLAG, &alc,
+                                          &json_len, &werr);
+       if (json == nullptr) {
+         lua_pushlstring(state, werr.msg, werr.msg ? strlen(werr.msg) : 0);
+         lua_pushnil(state);
+         return 2;
+       }
+       lua_pushnil(state);
+       lua_pushlstring(state, json, json_len);
+       return 2;
+     }},
+};
+
+}  // namespace
 
 int LuaPushJsonValue(lua_State* state, yyjson_val* val) {
   switch (yyjson_get_type(val)) {
@@ -120,64 +177,6 @@ ErrorOr<yyjson_mut_val*> LuaToJsonValue(lua_State* state, int index,
   }
   return Error::Message("unsupported Lua type for JSON encoding");
 }
-
-namespace {
-
-const struct LuaApiFunction kJsonLib[] = {
-    {"decode",
-     "Parse a JSON string into a Lua value",
-     {{"str", "JSON string to parse", "string"}},
-     {{"error", "nil on success, error message on failure", "string"},
-      {"result", "Parsed Lua value on success, nil on failure", "any"}},
-     [](lua_State* state) {
-       size_t len = 0;
-       const char* str = luaL_checklstring(state, 1, &len);
-       auto* arena = Registry<ArenaAllocator>::Retrieve(state);
-       yyjson_read_err err{};
-       yyjson_doc* doc = ReadJson(arena, std::string_view(str, len), &err);
-       if (doc == nullptr) {
-         lua_pushlstring(state, err.msg, err.msg ? strlen(err.msg) : 0);
-         lua_pushnil(state);
-         return 2;
-       }
-       lua_pushnil(state);
-       LuaPushJsonValue(state, yyjson_doc_get_root(doc));
-       return 2;
-     }},
-    {"encode",
-     "Serialize a Lua value to a JSON string",
-     {{"value", "Lua value to serialize", "any"}},
-     {{"error", "nil on success, error message on failure", "string"},
-      {"result", "JSON string on success, nil on failure", "string"}},
-     [](lua_State* state) {
-       auto* arena = Registry<ArenaAllocator>::Retrieve(state);
-       yyjson_alc alc = MakeYyjsonAlc(arena);
-       yyjson_mut_doc* doc =
-           yyjson_mut_doc_new(&alc);  // mutable doc for encode
-       auto result = LuaToJsonValue(state, 1, doc);
-       if (result.is_error()) {
-         auto msg = result.error().message();
-         lua_pushlstring(state, msg.data(), msg.size());
-         lua_pushnil(state);
-         return 2;
-       }
-       yyjson_mut_doc_set_root(doc, result.release_value());
-       yyjson_write_err werr{};
-       size_t json_len = 0;
-       char* json = yyjson_mut_write_opts(doc, YYJSON_WRITE_NOFLAG, &alc,
-                                          &json_len, &werr);
-       if (json == nullptr) {
-         lua_pushlstring(state, werr.msg, werr.msg ? strlen(werr.msg) : 0);
-         lua_pushnil(state);
-         return 2;
-       }
-       lua_pushnil(state);
-       lua_pushlstring(state, json, json_len);
-       return 2;
-     }},
-};
-
-}  // namespace
 
 void AddJsonLibrary(Lua* lua) { lua->AddLibrary("json", kJsonLib); }
 

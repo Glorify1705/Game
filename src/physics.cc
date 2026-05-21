@@ -83,6 +83,21 @@ struct AllRaycastCallback : b2RayCastCallback {
   }
 };
 
+// Callback for QueryAABB that finds the first fixture containing a point.
+class PointQueryCallback : public b2QueryCallback {
+ public:
+  b2Vec2 point;
+  b2Fixture* found = nullptr;
+
+  bool ReportFixture(b2Fixture* fixture) override {
+    if (fixture->TestPoint(point)) {
+      found = fixture;
+      return false;
+    }
+    return true;
+  }
+};
+
 }  // namespace
 
 // Sets the Box2D allocator and returns the gravity vector. Called from the
@@ -462,25 +477,6 @@ void Physics::Update(float dt) {
   world_.Step(dt, velocity_iterations_, position_iterations_);
 }
 
-namespace {
-
-// Callback for QueryAABB that finds the first fixture containing a point.
-class PointQueryCallback : public b2QueryCallback {
- public:
-  b2Vec2 point;
-  b2Fixture* found = nullptr;
-
-  bool ReportFixture(b2Fixture* fixture) override {
-    if (fixture->TestPoint(point)) {
-      found = fixture;
-      return false;
-    }
-    return true;
-  }
-};
-
-}  // namespace
-
 b2Body* Physics::QueryPoint(FVec2 world_pixels) {
   b2Vec2 point = To(world_pixels);
   constexpr float kQueryRadius = 0.1f;
@@ -514,9 +510,7 @@ void Physics::UpdateMouseJoint(b2Joint* joint, FVec2 world_pixels) {
   mouse_joint->SetTarget(To(world_pixels));
 }
 
-void Physics::DestroyMouseJoint(b2Joint* joint) {
-  world_.DestroyJoint(joint);
-}
+void Physics::DestroyMouseJoint(b2Joint* joint) { world_.DestroyJoint(joint); }
 
 void Physics::EnableDebugDraw(uint32 flags) {
   if (debug_draw_ == nullptr) {
@@ -597,10 +591,12 @@ void Physics::DestroyJoint(JointHandle handle) {
   world_.DestroyJoint(j);
 }
 
-JointHandle Physics::CreateRevoluteJoint(
-    Handle a, Handle b, FVec2 world_anchor, bool enable_limit,
-    float lower_angle, float upper_angle, bool enable_motor, float motor_speed,
-    float max_motor_torque, bool collide_connected) {
+JointHandle Physics::CreateRevoluteJoint(Handle a, Handle b, FVec2 world_anchor,
+                                         bool enable_limit, float lower_angle,
+                                         float upper_angle, bool enable_motor,
+                                         float motor_speed,
+                                         float max_motor_torque,
+                                         bool collide_connected) {
   b2RevoluteJointDef def;
   def.Initialize(a.handle, b.handle, To(world_anchor));
   def.enableLimit = enable_limit;
@@ -613,10 +609,11 @@ JointHandle Physics::CreateRevoluteJoint(
   return AllocJointSlot(world_.CreateJoint(&def));
 }
 
-JointHandle Physics::CreateDistanceJoint(
-    Handle a, Handle b, FVec2 world_anchor_a, FVec2 world_anchor_b,
-    float length, float frequency, float damping_ratio,
-    bool collide_connected) {
+JointHandle Physics::CreateDistanceJoint(Handle a, Handle b,
+                                         FVec2 world_anchor_a,
+                                         FVec2 world_anchor_b, float length,
+                                         float frequency, float damping_ratio,
+                                         bool collide_connected) {
   b2DistanceJointDef def;
   def.Initialize(a.handle, b.handle, To(world_anchor_a), To(world_anchor_b));
   if (length >= 0) {
@@ -678,10 +675,11 @@ JointHandle Physics::CreateLuaMouseJoint(Handle body, FVec2 target,
   return AllocJointSlot(world_.CreateJoint(&def));
 }
 
-JointHandle Physics::CreateWheelJoint(
-    Handle a, Handle b, FVec2 world_anchor, FVec2 axis, bool enable_motor,
-    float motor_speed, float max_motor_torque, float frequency,
-    float damping_ratio, bool collide_connected) {
+JointHandle Physics::CreateWheelJoint(Handle a, Handle b, FVec2 world_anchor,
+                                      FVec2 axis, bool enable_motor,
+                                      float motor_speed, float max_motor_torque,
+                                      float frequency, float damping_ratio,
+                                      bool collide_connected) {
   b2WheelJointDef def;
   b2Vec2 axis_norm(axis.x, axis.y);
   axis_norm.Normalize();

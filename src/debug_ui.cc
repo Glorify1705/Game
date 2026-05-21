@@ -21,13 +21,6 @@
 
 namespace G {
 
-namespace {
-
-// Shared helpers used by all panel files.
-#include "debug_ui_helpers.inc.cc"
-
-}  // namespace
-
 // Global pointer used by the LogSink callback to route messages to the
 // DebugUI ring buffer. Only one DebugUI instance exists at a time.
 DebugUI* g_debug_ui = nullptr;
@@ -36,6 +29,9 @@ DebugUI* g_debug_ui = nullptr;
 LogSink g_original_sink = nullptr;
 
 namespace {
+
+// Shared helpers used by all panel files.
+#include "debug_ui_helpers.inc.cc"
 
 // Log sink that forwards to both the original sink and the DebugUI buffer.
 void DebugUILogSink(LogLevel level, const char* message) {

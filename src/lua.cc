@@ -180,6 +180,35 @@ void AddBasicLibs(lua_State* state) {
   }
 }
 
+int ForwardIndexToMetatable(lua_State* state) {
+  lua_getmetatable(state, 1);
+  lua_pushvalue(state, 2);
+  lua_gettable(state, -2);
+  if (!lua_iscfunction(state, -1)) {
+    lua_getfield(state, -2, "__name");
+    LUA_ERROR(state, GetLuaString(state, 2), " is not a valid method for ",
+              GetLuaString(state, -1));
+    return 0;
+  }
+  // Remove the metatable, leaving only the found function on top.
+  lua_remove(state, -2);
+  return 1;
+}
+
+std::string_view Trim(std::string_view s) {
+  size_t i = 0, j = s.size() - 1;
+  auto is_whitespace = [&](size_t p) {
+    return s[p] == ' ' || s[p] == '\t' || s[p] == '\n';
+  };
+  while (i < s.size() && is_whitespace(i)) i++;
+  while (j > 0 && is_whitespace(j)) j--;
+  return s.substr(i, j - i);
+}
+
+int PackageLoaderShim(lua_State* state) {
+  return Registry<Lua>::Retrieve(state)->PackageLoader();
+}
+
 }  // namespace
 
 void* Lua::Alloc(void* ptr, size_t osize, size_t nsize) {
@@ -601,25 +630,6 @@ void Lua::FlushCompilationCache() {
   sqlite3_exec(db_, "END TRANSACTION", nullptr, nullptr, nullptr);
 }
 
-namespace {
-
-int ForwardIndexToMetatable(lua_State* state) {
-  lua_getmetatable(state, 1);
-  lua_pushvalue(state, 2);
-  lua_gettable(state, -2);
-  if (!lua_iscfunction(state, -1)) {
-    lua_getfield(state, -2, "__name");
-    LUA_ERROR(state, GetLuaString(state, 2), " is not a valid method for ",
-              GetLuaString(state, -1));
-    return 0;
-  }
-  // Remove the metatable, leaving only the found function on top.
-  lua_remove(state, -2);
-  return 1;
-}
-
-}  // namespace
-
 void Lua::LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
                         size_t register_count) {
   LUA_CHECK_STACK(state_);
@@ -713,20 +723,6 @@ bool Lua::Error(StringBuffer* buffer) {
   buffer->Set(error_);
   return true;
 }
-
-namespace {
-
-std::string_view Trim(std::string_view s) {
-  size_t i = 0, j = s.size() - 1;
-  auto is_whitespace = [&](size_t p) {
-    return s[p] == ' ' || s[p] == '\t' || s[p] == '\n';
-  };
-  while (i < s.size() && is_whitespace(i)) i++;
-  while (j > 0 && is_whitespace(j)) j--;
-  return s.substr(i, j - i);
-}
-
-}  // namespace
 
 void Lua::SetError(std::string_view file, int line, std::string_view error) {
   if (!file.empty()) {
@@ -843,14 +839,6 @@ int Lua::PackageLoader() {
   lua_pop(state_, 2);
   return result;
 }
-
-namespace {
-
-int PackageLoaderShim(lua_State* state) {
-  return Registry<Lua>::Retrieve(state)->PackageLoader();
-}
-
-}  // namespace
 
 void Lua::SetPackagePreload(std::string_view modname) {
   // We use a buffer to ensure that filename is null terminated.

@@ -8,6 +8,7 @@
 #include "logging.h"
 
 namespace G {
+namespace {
 
 constexpr uint8_t kQoiOpIndex = 0x00;  // 00xxxxxx
 constexpr uint8_t kQoiOpDiff = 0x40;   // 01xxxxxx
@@ -30,7 +31,7 @@ union QoiRgba {
     unsigned char r, g, b, a;
   } rgba;
   unsigned int v;
-} qoi_rgba_t;
+};
 
 constexpr int kQoiIndexSize = 64;
 
@@ -54,6 +55,8 @@ static unsigned int QoiRead32(const unsigned char *bytes, int *p) {
   unsigned int d = bytes[(*p)++];
   return a << 24 | b << 16 | c << 8 | d;
 }
+
+}  // namespace
 
 size_t MemoryNeededToEncode(const QoiDesc *desc) {
   return desc->width * desc->height * (desc->channels + 1) + kQoiHeaderSize +

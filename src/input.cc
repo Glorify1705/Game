@@ -6,6 +6,16 @@
 #include "defer.h"
 
 namespace G {
+namespace {
+
+SDL_IOStream* IOStreamFromMemory(ByteSlice data) {
+  SDL_IOStream* io =
+      SDL_IOFromMem(const_cast<uint8_t*>(data.data()), data.size());
+  CHECK(io != nullptr);
+  return io;
+}
+
+}  // namespace
 
 void Keyboard::InitForFrame() {
   if (test_mode_) {
@@ -120,15 +130,6 @@ Controllers::Controllers(Allocator* allocator)
   axis_table_.Insert("ltrigger", SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
   axis_table_.Insert("rtrigger", SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
 }
-
-namespace {
-SDL_IOStream* IOStreamFromMemory(ByteSlice data) {
-  SDL_IOStream* io =
-      SDL_IOFromMem(const_cast<uint8_t*>(data.data()), data.size());
-  CHECK(io != nullptr);
-  return io;
-}
-}  // namespace
 
 void Controllers::Initialize(ByteSlice db) {
   if (db.empty()) {
