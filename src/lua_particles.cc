@@ -424,10 +424,6 @@ const LuaUserdataMethod kEmitterMethodDefs[] = {
 void AddParticlesLibrary(Lua* lua) {
   LOAD_METATABLE(lua, "particle_emitter", kEmitterMethods);
   lua->AddLibrary("particles", kParticlesLib);
-  lua->RegisterUserdataType(
-      {"particle_emitter", "particle_emitter",
-       "A particle emitter that manages a pool of particles", nullptr, 0,
-       kEmitterMethodDefs, std::size(kEmitterMethodDefs), nullptr, 0});
 }
 
 LuaLibraryDef GetParticlesLibraryDef() {

@@ -26,8 +26,7 @@ class LuaStackCheck {
   explicit LuaStackCheck(lua_State* s, const char* file, size_t line)
       : state_(s), file_(file), line_(line) {
     file_ = Basename(file_);
-    start_ = lua_gettop(state_);
-    end_ = start_;
+    end_ = lua_gettop(state_);
   }
 
   ~LuaStackCheck() {
@@ -37,7 +36,6 @@ class LuaStackCheck {
 
  private:
   lua_State* const state_;
-  int start_;
   int end_;
   std::string_view file_;
   size_t line_;
@@ -65,7 +63,7 @@ class Registry {
   }
 
   static T* Retrieve(lua_State* state) {
-    lua_pushlightuserdata(state, (void*)&kKey);
+    lua_pushlightuserdata(state, static_cast<void*>(&kKey));
     lua_gettable(state, LUA_REGISTRYINDEX);
     auto* result = static_cast<T*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
@@ -246,10 +244,6 @@ struct LuaLibraryDef {
   size_t type_count;
 };
 
-// Writes LuaLS stub definitions to |output_path| from the given library defs.
-void WriteLuaLSStubs(const char* output_path, const LuaLibraryDef* defs,
-                     size_t def_count);
-
 class Lua {
  public:
   Lua(Slice<const char*> args, sqlite3* db, DbAssets* assets,
@@ -262,9 +256,6 @@ class Lua {
   }
 
   void LoadLibraries();
-
-  // Generates LuaLS stub file (definitions/game.lua) from registered metadata.
-  void GenerateLuaLSStubs(const char* output_path);
 
   void LoadScript(const DbAssets::Script& script);
 
@@ -335,7 +326,7 @@ class Lua {
 
   // Checks whether there is a permanent error.
   bool Error(StringBuffer* buffer);
-  bool HasError() { return !error_.empty(); }
+  bool HasError() const { return !error_.empty(); }
 
   void ClearError() { error_.Clear(); }
 
@@ -398,7 +389,6 @@ class Lua {
   friend void AddLogLibrary(Lua* lua);
   friend void AddPhysicsLibrary(Lua* lua);
   friend void AddSoundLibrary(Lua* lua);
-  friend void AddBufferLibrary(Lua* lua);
   friend void AddFilesystemLibrary(Lua* lua);
   friend void AddJsonLibrary(Lua* lua);
   friend void AddByteBufferLibrary(Lua* lua);
@@ -427,7 +417,6 @@ class Lua {
                           std::string_view script_contents,
                           int traceback_handler = INT_MAX);
 
-  void LoadAssets();
   void LoadMetatable(const char* metatable_name, const luaL_Reg* registers,
                      size_t register_count);
 
@@ -453,8 +442,6 @@ class Lua {
     AddLibraryWithMetadata(name, Slice<const LuaApiFunction>(funcs, N));
   }
 
-  int StackTop() { return lua_gettop(state_); }
-
   Slice<const char*> args_;
 
   lua_State* state_ = nullptr;
@@ -465,22 +452,6 @@ class Lua {
   Allocator* allocator_;
   sqlite3* db_;
   DbAssets* assets_;
-
-  struct RegisteredLibrary {
-    const char* name;
-    const LuaApiFunction* funcs;
-    size_t count;
-  };
-
-  static constexpr size_t kMaxLibraries = 32;
-  RegisteredLibrary registered_libraries_[kMaxLibraries];
-  size_t registered_library_count_ = 0;
-
-  void RegisterUserdataType(const LuaUserdataType& type);
-
-  static constexpr size_t kMaxUserdataTypes = 16;
-  LuaUserdataType registered_types_[kMaxUserdataTypes];
-  size_t registered_type_count_ = 0;
 
   CmdBuffer error_{kTruncating};
   std::jmp_buf on_error_buf_;

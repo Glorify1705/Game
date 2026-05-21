@@ -193,6 +193,7 @@ set(ENGINE_SRCS
     src/input.cc
     src/logging.cc
     src/lua.cc
+    src/lua_stubs.cc
     src/lua_assets.cc
     src/lua_bytebuffer.cc
     src/lua_camera.cc

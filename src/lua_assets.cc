@@ -98,11 +98,7 @@ const struct LuaApiFunction kAssetsLib[] = {
 
 }  // namespace
 
-void AddAssetsLibrary(Lua* lua) {
-  lua->AddLibrary("assets", kAssetsLib);
-  lua->RegisterUserdataType(
-      {"asset_sprite_ptr", "sprite_asset", "A reference to a sprite asset"});
-}
+void AddAssetsLibrary(Lua* lua) { lua->AddLibrary("assets", kAssetsLib); }
 
 LuaLibraryDef GetAssetsLibraryDef() {
   static const LuaLibraryDef::Library kLibs[] = {

@@ -99,17 +99,28 @@ void PushJointHandle(lua_State* state, JointHandle handle) {
 
 const char* JointTypeName(b2Joint* j) {
   switch (j->GetType()) {
-    case e_revoluteJoint: return "revolute";
-    case e_distanceJoint: return "distance";
-    case e_weldJoint: return "weld";
-    case e_prismaticJoint: return "prismatic";
-    case e_mouseJoint: return "mouse";
-    case e_wheelJoint: return "wheel";
-    case e_frictionJoint: return "friction";
-    case e_motorJoint: return "motor";
-    case e_pulleyJoint: return "pulley";
-    case e_gearJoint: return "gear";
-    default: return "unknown";
+    case e_revoluteJoint:
+      return "revolute";
+    case e_distanceJoint:
+      return "distance";
+    case e_weldJoint:
+      return "weld";
+    case e_prismaticJoint:
+      return "prismatic";
+    case e_mouseJoint:
+      return "mouse";
+    case e_wheelJoint:
+      return "wheel";
+    case e_frictionJoint:
+      return "friction";
+    case e_motorJoint:
+      return "motor";
+    case e_pulleyJoint:
+      return "pulley";
+    case e_gearJoint:
+      return "gear";
+    default:
+      return "unknown";
   }
 }
 
@@ -680,8 +691,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
          upper_angle = LuaGetNumberField(state, 5, "upper_angle", 0);
          enable_motor = LuaGetBoolField(state, 5, "enable_motor", false);
          motor_speed = LuaGetNumberField(state, 5, "motor_speed", 0);
-         max_motor_torque =
-             LuaGetNumberField(state, 5, "max_motor_torque", 0);
+         max_motor_torque = LuaGetNumberField(state, 5, "max_motor_torque", 0);
          collide_connected =
              LuaGetBoolField(state, 5, "collide_connected", false);
        }
@@ -723,10 +733,10 @@ const struct LuaApiFunction kPhysicsLib[] = {
          collide_connected =
              LuaGetBoolField(state, 7, "collide_connected", false);
        }
-       PushJointHandle(state, physics->CreateDistanceJoint(
-                                  *a, *b, FVec(ax1, ay1), FVec(ax2, ay2),
-                                  length, frequency, damping_ratio,
-                                  collide_connected));
+       PushJointHandle(
+           state, physics->CreateDistanceJoint(
+                      *a, *b, FVec(ax1, ay1), FVec(ax2, ay2), length, frequency,
+                      damping_ratio, collide_connected));
        return 1;
      }},
     {"create_weld_joint",
@@ -754,9 +764,9 @@ const struct LuaApiFunction kPhysicsLib[] = {
          collide_connected =
              LuaGetBoolField(state, 5, "collide_connected", false);
        }
-       PushJointHandle(state, physics->CreateWeldJoint(*a, *b, FVec(ax, ay),
-                                                      frequency, damping_ratio,
-                                                      collide_connected));
+       PushJointHandle(
+           state, physics->CreateWeldJoint(*a, *b, FVec(ax, ay), frequency,
+                                           damping_ratio, collide_connected));
        return 1;
      }},
     {"create_prismatic_joint",
@@ -793,17 +803,15 @@ const struct LuaApiFunction kPhysicsLib[] = {
          upper = LuaGetNumberField(state, 7, "upper_translation", 0);
          enable_motor = LuaGetBoolField(state, 7, "enable_motor", false);
          motor_speed = LuaGetNumberField(state, 7, "motor_speed", 0);
-         max_motor_force =
-             LuaGetNumberField(state, 7, "max_motor_force", 0);
+         max_motor_force = LuaGetNumberField(state, 7, "max_motor_force", 0);
          collide_connected =
              LuaGetBoolField(state, 7, "collide_connected", false);
        }
        PushJointHandle(
-           state,
-           physics->CreatePrismaticJoint(
-               *a, *b, FVec(ax, ay), FVec(axis_x, axis_y), enable_limit, lower,
-               upper, enable_motor, motor_speed, max_motor_force,
-               collide_connected));
+           state, physics->CreatePrismaticJoint(
+                      *a, *b, FVec(ax, ay), FVec(axis_x, axis_y), enable_limit,
+                      lower, upper, enable_motor, motor_speed, max_motor_force,
+                      collide_connected));
        return 1;
      }},
     {"create_mouse_joint",
@@ -826,10 +834,9 @@ const struct LuaApiFunction kPhysicsLib[] = {
          damping_ratio =
              LuaGetNumberField(state, 4, "damping_ratio", damping_ratio);
        }
-       PushJointHandle(state,
-                       physics->CreateLuaMouseJoint(*body, FVec(tx, ty),
-                                                   max_force, frequency,
-                                                   damping_ratio));
+       PushJointHandle(
+           state, physics->CreateLuaMouseJoint(*body, FVec(tx, ty), max_force,
+                                               frequency, damping_ratio));
        return 1;
      }},
     {"create_wheel_joint",
@@ -862,10 +869,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
        if (lua_istable(state, 7)) {
          enable_motor = LuaGetBoolField(state, 7, "enable_motor", false);
          motor_speed = LuaGetNumberField(state, 7, "motor_speed", 0);
-         max_motor_torque =
-             LuaGetNumberField(state, 7, "max_motor_torque", 0);
-         frequency =
-             LuaGetNumberField(state, 7, "frequency", frequency);
+         max_motor_torque = LuaGetNumberField(state, 7, "max_motor_torque", 0);
+         frequency = LuaGetNumberField(state, 7, "frequency", frequency);
          damping_ratio =
              LuaGetNumberField(state, 7, "damping_ratio", damping_ratio);
          collide_connected =
@@ -1086,46 +1091,75 @@ constexpr luaL_Reg kJointMethods[] = {
 
 const LuaUserdataMethod kJointMethodDefs[] = {
     {"destroy", "Destroys this joint", {}, {}},
-    {"is_valid", "Returns true if this joint handle is still valid", {},
+    {"is_valid",
+     "Returns true if this joint handle is still valid",
+     {},
      {{"valid", "whether the joint exists", "boolean"}}},
-    {"get_type", "Returns the joint type name", {},
+    {"get_type",
+     "Returns the joint type name",
+     {},
      {{"type", "joint type string", "string"}}},
-    {"get_joint_angle", "Returns the revolute joint angle in radians", {},
+    {"get_joint_angle",
+     "Returns the revolute joint angle in radians",
+     {},
      {{"angle", "angle in radians", "number"}}},
     {"get_joint_speed",
-     "Returns the joint speed (revolute: rad/s, prismatic: pixels/s)", {},
+     "Returns the joint speed (revolute: rad/s, prismatic: pixels/s)",
+     {},
      {{"speed", "joint speed", "number"}}},
     {"get_joint_translation",
-     "Returns the prismatic joint translation in pixels", {},
+     "Returns the prismatic joint translation in pixels",
+     {},
      {{"translation", "translation in pixels", "number"}}},
     {"get_current_length",
-     "Returns the current distance joint length in pixels", {},
+     "Returns the current distance joint length in pixels",
+     {},
      {{"length", "current length in pixels", "number"}}},
-    {"set_motor_speed", "Sets the motor speed",
-     {{"speed", "motor speed", "number"}}, {}},
-    {"enable_motor", "Enables or disables the joint motor",
-     {{"enabled", "whether to enable", "boolean"}}, {}},
-    {"enable_limit", "Enables or disables joint limits",
-     {{"enabled", "whether to enable", "boolean"}}, {}},
-    {"set_limits", "Sets joint limits (revolute: radians, prismatic: pixels)",
+    {"set_motor_speed",
+     "Sets the motor speed",
+     {{"speed", "motor speed", "number"}},
+     {}},
+    {"enable_motor",
+     "Enables or disables the joint motor",
+     {{"enabled", "whether to enable", "boolean"}},
+     {}},
+    {"enable_limit",
+     "Enables or disables joint limits",
+     {{"enabled", "whether to enable", "boolean"}},
+     {}},
+    {"set_limits",
+     "Sets joint limits (revolute: radians, prismatic: pixels)",
      {{"lower", "lower limit", "number"}, {"upper", "upper limit", "number"}},
      {}},
-    {"set_max_motor_torque", "Sets max motor torque (revolute, wheel)",
-     {{"torque", "max torque", "number"}}, {}},
-    {"set_max_motor_force", "Sets max motor force (prismatic)",
-     {{"force", "max force", "number"}}, {}},
-    {"set_length", "Sets the rest length (distance joint, pixels)",
-     {{"length", "rest length in pixels", "number"}}, {}},
-    {"set_target", "Sets the mouse joint target position",
+    {"set_max_motor_torque",
+     "Sets max motor torque (revolute, wheel)",
+     {{"torque", "max torque", "number"}},
+     {}},
+    {"set_max_motor_force",
+     "Sets max motor force (prismatic)",
+     {{"force", "max force", "number"}},
+     {}},
+    {"set_length",
+     "Sets the rest length (distance joint, pixels)",
+     {{"length", "rest length in pixels", "number"}},
+     {}},
+    {"set_target",
+     "Sets the mouse joint target position",
      {{"x", "target x (pixels)", "number"},
       {"y", "target y (pixels)", "number"}},
      {}},
-    {"set_max_force", "Sets the max force (mouse joint)",
-     {{"force", "max force", "number"}}, {}},
-    {"set_frequency", "Sets the spring frequency in Hz",
-     {{"hz", "frequency in Hz", "number"}}, {}},
-    {"set_damping_ratio", "Sets the damping ratio (0-1)",
-     {{"ratio", "damping ratio", "number"}}, {}},
+    {"set_max_force",
+     "Sets the max force (mouse joint)",
+     {{"force", "max force", "number"}},
+     {}},
+    {"set_frequency",
+     "Sets the spring frequency in Hz",
+     {{"hz", "frequency in Hz", "number"}},
+     {}},
+    {"set_damping_ratio",
+     "Sets the damping ratio (0-1)",
+     {{"ratio", "damping ratio", "number"}},
+     {}},
 };
 
 }  // namespace
@@ -1135,11 +1169,6 @@ void AddPhysicsLibrary(Lua* lua) {
                      /*register_count=*/0);
   LOAD_METATABLE(lua, "joint_handle", kJointMethods);
   lua->AddLibrary("physics", kPhysicsLib);
-  lua->RegisterUserdataType({"physics_handle", "physics_handle",
-                             "An opaque handle to a physics body"});
-  lua->RegisterUserdataType({"joint_handle", "joint_handle",
-                             "An opaque handle to a physics joint", nullptr, 0,
-                             kJointMethodDefs, std::size(kJointMethodDefs)});
 }
 
 LuaLibraryDef GetPhysicsLibraryDef() {

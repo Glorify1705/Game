@@ -835,15 +835,6 @@ void AddCollisionLibrary(Lua* lua) {
   LOAD_METATABLE(lua, "collision_handle", kCollisionHandleMethods);
   LOAD_METATABLE(lua, "collision_shape", kCollisionShapeMethods);
   lua->AddLibrary("collision", kCollisionLib);
-  lua->RegisterUserdataType({"collision_world", "collision_world",
-                             "A collision detection world with spatial hashing",
-                             nullptr, 0, kWorldMethods,
-                             std::size(kWorldMethods), nullptr, 0});
-  lua->RegisterUserdataType(
-      {"collision_handle", "collision_handle",
-       "An opaque handle to a collider in a collision world"});
-  lua->RegisterUserdataType({"collision_shape", "collision_shape",
-                             "A collision shape (circle or AABB)"});
 }
 
 LuaLibraryDef GetCollisionLibraryDef() {

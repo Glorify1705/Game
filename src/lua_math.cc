@@ -799,24 +799,6 @@ void AddMathLibrary(Lua* lua) {
   NewUserdata<FVec2>(L, 1, 0);
   lua_setfield(L, -2, "RIGHT");
   lua_pop(L, 2);
-
-  // Vec2 gets the shared methods plus vec2-specific methods.
-  lua->RegisterUserdataType({"fvec2", "vec2", "A 2D floating-point vector",
-                             nullptr, 0, kVec2ExtraMethods,
-                             std::size(kVec2ExtraMethods), kVecOperators,
-                             std::size(kVecOperators)});
-  lua->RegisterUserdataType({"fvec3", "vec3", "A 3D floating-point vector",
-                             nullptr, 0, kVecMethods, std::size(kVecMethods),
-                             kVecOperators, std::size(kVecOperators)});
-  lua->RegisterUserdataType({"fvec4", "vec4", "A 4D floating-point vector",
-                             nullptr, 0, kVecMethods, std::size(kVecMethods),
-                             kVecOperators, std::size(kVecOperators)});
-  lua->RegisterUserdataType({"fmat2x2", "mat2x2", "A 2x2 floating-point matrix",
-                             nullptr, 0, kMatMethods, std::size(kMatMethods)});
-  lua->RegisterUserdataType({"fmat3x3", "mat3x3", "A 3x3 floating-point matrix",
-                             nullptr, 0, kMatMethods, std::size(kMatMethods)});
-  lua->RegisterUserdataType({"fmat4x4", "mat4x4", "A 4x4 floating-point matrix",
-                             nullptr, 0, kMatMethods, std::size(kMatMethods)});
 }
 
 LuaLibraryDef GetMathLibraryDef() {

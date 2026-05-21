@@ -4,7 +4,6 @@
 
 #include "cli.h"
 #include "error.h"
-#include "lua.h"
 #include "lua_assets.h"
 #include "lua_bytebuffer.h"
 #include "lua_camera.h"
@@ -21,6 +20,7 @@
 #include "lua_save.h"
 #include "lua_scene.h"
 #include "lua_sound.h"
+#include "lua_stubs.h"
 #include "lua_system.h"
 #include "lua_test.h"
 #include "lua_timer.h"
