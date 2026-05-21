@@ -15,8 +15,8 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->SetPosition(luaL_checknumber(state, 1),
-                           luaL_checknumber(state, 2));
+       FVec2 pos = CheckVec2(state, 1);
+       camera->SetPosition(pos.x, pos.y);
        return 0;
      }},
     {"get",
@@ -27,8 +27,7 @@ const struct LuaApiFunction kCameraLib[] = {
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
        FVec2 pos = camera->GetPosition();
-       lua_pushnumber(state, pos.x);
-       lua_pushnumber(state, pos.y);
+       PushVec2(state, pos);
        return 2;
      }},
     {"move",
@@ -37,7 +36,8 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->Move(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
+       FVec2 delta = CheckVec2(state, 1);
+       camera->Move(delta.x, delta.y);
        return 0;
      }},
     {"set_zoom",
@@ -84,7 +84,8 @@ const struct LuaApiFunction kCameraLib[] = {
      {},
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
-       camera->Follow(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
+       FVec2 target = CheckVec2(state, 1);
+       camera->Follow(target.x, target.y);
        return 0;
      }},
     {"set_lerp",
@@ -174,11 +175,10 @@ const struct LuaApiFunction kCameraLib[] = {
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       FVec2 screen(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
+       FVec2 screen = CheckVec2(state, 1);
        IVec2 vp = renderer->viewport();
        FVec2 world = camera->ToWorld(screen, FVec2(vp.x, vp.y));
-       lua_pushnumber(state, world.x);
-       lua_pushnumber(state, world.y);
+       PushVec2(state, world);
        return 2;
      }},
     {"to_screen",
@@ -190,11 +190,10 @@ const struct LuaApiFunction kCameraLib[] = {
      [](lua_State* state) {
        auto* camera = Registry<Camera>::Retrieve(state);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       FVec2 world(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
+       FVec2 world = CheckVec2(state, 1);
        IVec2 vp = renderer->viewport();
        FVec2 screen = camera->ToScreen(world, FVec2(vp.x, vp.y));
-       lua_pushnumber(state, screen.x);
-       lua_pushnumber(state, screen.y);
+       PushVec2(state, screen);
        return 2;
      }},
     {"mouse_world",
@@ -209,8 +208,7 @@ const struct LuaApiFunction kCameraLib[] = {
        FVec2 mouse = mouse_input->GetPosition();
        IVec2 vp = renderer->viewport();
        FVec2 world = camera->ToWorld(mouse, FVec2(vp.x, vp.y));
-       lua_pushnumber(state, world.x);
-       lua_pushnumber(state, world.y);
+       PushVec2(state, world);
        return 2;
      }},
     {"attach",

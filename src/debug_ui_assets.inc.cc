@@ -17,11 +17,9 @@ void DebugUI::DrawAssetImagesTab() {
         if (static_cast<float>(img.width) > max_w) {
           scale = max_w / static_cast<float>(img.width);
         }
-        ImGui::Image(
-            static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
-            ImVec2(static_cast<float>(img.width) * scale,
-                   static_cast<float>(img.height) * scale),
-            ImVec2(0, 1), ImVec2(1, 0));
+        ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
+                     ImVec2(static_cast<float>(img.width) * scale,
+                            static_cast<float>(img.height) * scale));
         if (ImGui::SmallButton("Zoom")) {
           zoom_texture_ = tex;
           zoom_tex_w_ = static_cast<float>(img.width);
@@ -55,14 +53,14 @@ void DebugUI::DrawAssetSpritesTab() {
     auto* sheet = renderer->GetSpritesheet(spr.spritesheet);
     if (sheet != nullptr) {
       if (ImGui::TreeNode("##spr", "%.*s (%zux%zu)",
-                          static_cast<int>(spr.name.size()),
-                          spr.name.data(), spr.width, spr.height)) {
+                          static_cast<int>(spr.name.size()), spr.name.data(),
+                          spr.width, spr.height)) {
         GLuint tex = renderer->GetTextureByName(sheet->name);
         if (tex != 0 && sheet->width > 0 && sheet->height > 0) {
-          float u0 = static_cast<float>(spr.x) /
-                     static_cast<float>(sheet->width);
-          float v0 = static_cast<float>(spr.y) /
-                     static_cast<float>(sheet->height);
+          float u0 =
+              static_cast<float>(spr.x) / static_cast<float>(sheet->width);
+          float v0 =
+              static_cast<float>(spr.y) / static_cast<float>(sheet->height);
           float u1 = static_cast<float>(spr.x + spr.width) /
                      static_cast<float>(sheet->width);
           float v1 = static_cast<float>(spr.y + spr.height) /
@@ -74,10 +72,9 @@ void DebugUI::DrawAssetSpritesTab() {
             display_w *= s;
             display_h *= s;
           }
-          ImGui::Image(
-              static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
-              ImVec2(display_w, display_h), ImVec2(u0, v1),
-              ImVec2(u1, v0));
+          ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(tex)),
+                       ImVec2(display_w, display_h), ImVec2(u0, v0),
+                       ImVec2(u1, v1));
         }
         ImGui::Text("Sheet: %.*s  Pos: %zu,%zu",
                     static_cast<int>(spr.spritesheet.size()),
@@ -279,8 +276,8 @@ void DrawCodeEditorTab(Engine* engine, const char* table_name,
 }  // namespace
 
 void DebugUI::DrawAssetScriptsTab() {
-  DrawCodeEditorTab(engine_, "scripts", /*lang=*/nullptr,
-                    asset_filter_, &script_editor_);
+  DrawCodeEditorTab(engine_, "scripts", /*lang=*/nullptr, asset_filter_,
+                    &script_editor_);
 }
 
 void DebugUI::DrawAssetShadersTab() {
@@ -321,18 +318,15 @@ void DebugUI::DrawAssetSqlTab() {
       }
       for (int c = 0; c < sql_results_.col_count; ++c) {
         const char* name = sqlite3_column_name(stmt, c);
-        CopyToBuffer(sql_results_.col_names[c],
-                     SqlResults::kCellSize,
+        CopyToBuffer(sql_results_.col_names[c], SqlResults::kCellSize,
                      name ? name : "?");
       }
       int row = 0;
-      while (sqlite3_step(stmt) == SQLITE_ROW &&
-             row < SqlResults::kMaxRows) {
+      while (sqlite3_step(stmt) == SQLITE_ROW && row < SqlResults::kMaxRows) {
         for (int c = 0; c < sql_results_.col_count; ++c) {
-          const char* val = reinterpret_cast<const char*>(
-              sqlite3_column_text(stmt, c));
-          CopyToBuffer(sql_results_.cells[row][c],
-                       SqlResults::kCellSize,
+          const char* val =
+              reinterpret_cast<const char*>(sqlite3_column_text(stmt, c));
+          CopyToBuffer(sql_results_.cells[row][c], SqlResults::kCellSize,
                        val ? val : "NULL");
         }
         ++row;
@@ -372,15 +366,14 @@ void DebugUI::DrawAssetSqlTab() {
 void DebugUI::DrawAssetViewer() {
   ImGui::SetNextWindowPos(ImVec2(400, 300), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(550, 450), ImGuiCond_FirstUseEver);
-  if (!ImGui::Begin("Assets", nullptr,
-                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+  if (!ImGui::Begin("Assets", nullptr, ImGuiWindowFlags_NoFocusOnAppearing)) {
     ImGui::End();
     return;
   }
 
   ImGui::SetNextItemWidth(-1);
-  ImGui::InputTextWithHint("##asset_filter", "Filter by name...",
-                           asset_filter_, sizeof(asset_filter_));
+  ImGui::InputTextWithHint("##asset_filter", "Filter by name...", asset_filter_,
+                           sizeof(asset_filter_));
   ImGui::Separator();
 
   if (ImGui::BeginTabBar("AssetTabs")) {

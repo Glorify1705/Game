@@ -57,6 +57,8 @@ void LoadConfig(std::string_view json_configuration, GameConfig* config,
       config->enable_joystick = yyjson_get_bool(value);
     } else if (k == "enable_debug_rendering") {
       config->enable_debug_rendering = yyjson_get_bool(value);
+    } else if (k == "nearest_filter") {
+      config->nearest_filter = yyjson_get_bool(value);
     } else if (k == "title") {
       CopyString(YyjsonStrView(value), config->window_title,
                  sizeof(config->window_title));

@@ -8,24 +8,6 @@
 namespace G {
 namespace {
 
-// Reads a numeric field from a Lua table, returning the default if absent.
-float LuaGetNumberField(lua_State* state, int index, const char* field,
-                        float fallback) {
-  lua_getfield(state, index, field);
-  float result = lua_isnumber(state, -1) ? lua_tonumber(state, -1) : fallback;
-  lua_pop(state, 1);
-  return result;
-}
-
-// Reads a boolean field from a Lua table, returning the default if absent.
-bool LuaGetBoolField(lua_State* state, int index, const char* field,
-                     bool fallback) {
-  lua_getfield(state, index, field);
-  bool result = lua_isboolean(state, -1) ? lua_toboolean(state, -1) : fallback;
-  lua_pop(state, 1);
-  return result;
-}
-
 // Reads the body_type string field from a Lua table.
 PhysicsBodyType LuaGetBodyType(lua_State* state, int index) {
   lua_getfield(state, index, "body_type");
@@ -140,10 +122,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
      {{"handle", "a physics handle for the new body", "physics_handle"}},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
-       const float tx = luaL_checknumber(state, 1);
-       const float ty = luaL_checknumber(state, 2);
-       const float bx = luaL_checknumber(state, 3);
-       const float by = luaL_checknumber(state, 4);
+       const FVec2 tl = CheckVec2(state, 1);
+       const FVec2 br = CheckVec2(state, 3);
        const float angle = luaL_checknumber(state, 5);
        PhysicsShapeOptions opts = ReadShapeOptions(state, 7);
        auto* handle = static_cast<Physics::Handle*>(
@@ -151,7 +131,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
        luaL_getmetatable(state, "physics_handle");
        lua_setmetatable(state, -2);
        lua_pushvalue(state, 6);
-       *handle = physics->AddBox(FVec(tx, ty), FVec(bx, by), angle,
+       *handle = physics->AddBox(FVec(tl.x, tl.y), FVec(br.x, br.y), angle,
                                  luaL_ref(state, LUA_REGISTRYINDEX), opts);
        return 1;
      }},
@@ -168,8 +148,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
      {{"handle", "a physics handle for the new body", "physics_handle"}},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
-       const float tx = luaL_checknumber(state, 1);
-       const float ty = luaL_checknumber(state, 2);
+       const FVec2 center = CheckVec2(state, 1);
        const float radius = luaL_checknumber(state, 3);
        PhysicsShapeOptions opts = ReadShapeOptions(state, 5);
        auto* handle = static_cast<Physics::Handle*>(
@@ -177,7 +156,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
        luaL_getmetatable(state, "physics_handle");
        lua_setmetatable(state, -2);
        lua_pushvalue(state, 4);
-       *handle = physics->AddCircle(FVec(tx, ty), radius,
+       *handle = physics->AddCircle(FVec(center.x, center.y), radius,
                                     luaL_ref(state, LUA_REGISTRYINDEX), opts);
        return 1;
      }},
@@ -313,8 +292,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
        const FVec2 pos = physics->GetPosition(*handle);
-       lua_pushnumber(state, pos.x);
-       lua_pushnumber(state, pos.y);
+       PushVec2(state, pos);
        return 2;
      }},
     {"set_position",
@@ -327,9 +305,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
-       const float x = luaL_checknumber(state, 2);
-       const float y = luaL_checknumber(state, 3);
-       physics->SetPosition(*handle, FVec(x, y));
+       const FVec2 pos = CheckVec2(state, 2);
+       physics->SetPosition(*handle, FVec(pos.x, pos.y));
        return 0;
      }},
     {"angle",
@@ -367,9 +344,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
-       const float x = luaL_checknumber(state, 2);
-       const float y = luaL_checknumber(state, 3);
-       physics->ApplyLinearImpulse(*handle, FVec(x, y));
+       const FVec2 impulse = CheckVec2(state, 2);
+       physics->ApplyLinearImpulse(*handle, FVec(impulse.x, impulse.y));
        return 0;
      }},
     {"apply_force",
@@ -382,9 +358,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
-       const float x = luaL_checknumber(state, 2);
-       const float y = luaL_checknumber(state, 3);
-       physics->ApplyForce(*handle, FVec(x, y));
+       const FVec2 force = CheckVec2(state, 2);
+       physics->ApplyForce(*handle, FVec(force.x, force.y));
        return 0;
      }},
     {"apply_torque",
@@ -409,8 +384,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
        const FVec2 v = physics->GetLinearVelocity(*handle);
-       lua_pushnumber(state, v.x);
-       lua_pushnumber(state, v.y);
+       PushVec2(state, v);
        return 2;
      }},
     {"set_linear_velocity",
@@ -423,9 +397,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
-       const float vx = luaL_checknumber(state, 2);
-       const float vy = luaL_checknumber(state, 3);
-       physics->SetLinearVelocity(*handle, FVec(vx, vy));
+       const FVec2 vel = CheckVec2(state, 2);
+       physics->SetLinearVelocity(*handle, FVec(vel.x, vel.y));
        return 0;
      }},
     {"angular_velocity",
@@ -535,9 +508,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
      {},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
-       const float gx = luaL_checknumber(state, 1);
-       const float gy = luaL_checknumber(state, 2);
-       physics->SetWorldGravity(FVec(gx, gy));
+       const FVec2 gravity = CheckVec2(state, 1);
+       physics->SetWorldGravity(FVec(gravity.x, gravity.y));
        return 0;
      }},
     {"gravity",
@@ -548,8 +520,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
        FVec2 g = physics->GetWorldGravity();
-       lua_pushnumber(state, g.x);
-       lua_pushnumber(state, g.y);
+       PushVec2(state, g);
        return 2;
      }},
     {"set_iterations",
@@ -584,16 +555,15 @@ const struct LuaApiFunction kPhysicsLib[] = {
        "table|nil"}},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
-       const float x1 = luaL_checknumber(state, 1);
-       const float y1 = luaL_checknumber(state, 2);
-       const float x2 = luaL_checknumber(state, 3);
-       const float y2 = luaL_checknumber(state, 4);
+       const FVec2 from = CheckVec2(state, 1);
+       const FVec2 to = CheckVec2(state, 3);
        uint16_t mask = 0xFFFF;
        if (lua_gettop(state) >= 5 && lua_isnumber(state, 5)) {
          mask = static_cast<uint16_t>(lua_tointeger(state, 5));
        }
        Physics::RaycastHit hit;
-       if (physics->Raycast(FVec(x1, y1), FVec(x2, y2), mask, &hit)) {
+       if (physics->Raycast(FVec(from.x, from.y), FVec(to.x, to.y), mask,
+                            &hit)) {
          lua_createtable(state, 0, 6);
          auto* handle = static_cast<Physics::Handle*>(
              lua_newuserdata(state, sizeof(Physics::Handle)));
@@ -626,18 +596,16 @@ const struct LuaApiFunction kPhysicsLib[] = {
      {{"hits", "array of hit tables", "table"}},
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
-       const float x1 = luaL_checknumber(state, 1);
-       const float y1 = luaL_checknumber(state, 2);
-       const float x2 = luaL_checknumber(state, 3);
-       const float y2 = luaL_checknumber(state, 4);
+       const FVec2 from = CheckVec2(state, 1);
+       const FVec2 to = CheckVec2(state, 3);
        uint16_t mask = 0xFFFF;
        if (lua_gettop(state) >= 5 && lua_isnumber(state, 5)) {
          mask = static_cast<uint16_t>(lua_tointeger(state, 5));
        }
        constexpr int kMaxHits = 32;
        Physics::RaycastHit hits[kMaxHits];
-       int count = physics->RaycastAll(FVec(x1, y1), FVec(x2, y2), mask, hits,
-                                       kMaxHits);
+       int count = physics->RaycastAll(FVec(from.x, from.y), FVec(to.x, to.y),
+                                       mask, hits, kMaxHits);
        lua_createtable(state, count, 0);
        for (int i = 0; i < count; i++) {
          lua_createtable(state, 0, 6);
@@ -678,8 +646,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
            luaL_checkudata(state, 1, "physics_handle"));
        auto* b = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 2, "physics_handle"));
-       float ax = luaL_checknumber(state, 3);
-       float ay = luaL_checknumber(state, 4);
+       FVec2 anchor = CheckVec2(state, 3);
        bool enable_limit = false;
        float lower_angle = 0, upper_angle = 0;
        bool enable_motor = false;
@@ -695,11 +662,11 @@ const struct LuaApiFunction kPhysicsLib[] = {
          collide_connected =
              LuaGetBoolField(state, 5, "collide_connected", false);
        }
-       PushJointHandle(
-           state,
-           physics->CreateRevoluteJoint(
-               *a, *b, FVec(ax, ay), enable_limit, lower_angle, upper_angle,
-               enable_motor, motor_speed, max_motor_torque, collide_connected));
+       PushJointHandle(state,
+                       physics->CreateRevoluteJoint(
+                           *a, *b, FVec(anchor.x, anchor.y), enable_limit,
+                           lower_angle, upper_angle, enable_motor, motor_speed,
+                           max_motor_torque, collide_connected));
        return 1;
      }},
     {"create_distance_joint",
@@ -720,10 +687,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
            luaL_checkudata(state, 1, "physics_handle"));
        auto* b = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 2, "physics_handle"));
-       float ax1 = luaL_checknumber(state, 3);
-       float ay1 = luaL_checknumber(state, 4);
-       float ax2 = luaL_checknumber(state, 5);
-       float ay2 = luaL_checknumber(state, 6);
+       FVec2 anchor_a = CheckVec2(state, 3);
+       FVec2 anchor_b = CheckVec2(state, 5);
        float length = -1, frequency = 0, damping_ratio = 0;
        bool collide_connected = false;
        if (lua_istable(state, 7)) {
@@ -733,10 +698,10 @@ const struct LuaApiFunction kPhysicsLib[] = {
          collide_connected =
              LuaGetBoolField(state, 7, "collide_connected", false);
        }
-       PushJointHandle(
-           state, physics->CreateDistanceJoint(
-                      *a, *b, FVec(ax1, ay1), FVec(ax2, ay2), length, frequency,
-                      damping_ratio, collide_connected));
+       PushJointHandle(state, physics->CreateDistanceJoint(
+                                  *a, *b, FVec(anchor_a.x, anchor_a.y),
+                                  FVec(anchor_b.x, anchor_b.y), length,
+                                  frequency, damping_ratio, collide_connected));
        return 1;
      }},
     {"create_weld_joint",
@@ -754,8 +719,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
            luaL_checkudata(state, 1, "physics_handle"));
        auto* b = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 2, "physics_handle"));
-       float ax = luaL_checknumber(state, 3);
-       float ay = luaL_checknumber(state, 4);
+       FVec2 anchor = CheckVec2(state, 3);
        float frequency = 0, damping_ratio = 0;
        bool collide_connected = false;
        if (lua_istable(state, 5)) {
@@ -764,9 +728,9 @@ const struct LuaApiFunction kPhysicsLib[] = {
          collide_connected =
              LuaGetBoolField(state, 5, "collide_connected", false);
        }
-       PushJointHandle(
-           state, physics->CreateWeldJoint(*a, *b, FVec(ax, ay), frequency,
-                                           damping_ratio, collide_connected));
+       PushJointHandle(state, physics->CreateWeldJoint(
+                                  *a, *b, FVec(anchor.x, anchor.y), frequency,
+                                  damping_ratio, collide_connected));
        return 1;
      }},
     {"create_prismatic_joint",
@@ -788,10 +752,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
            luaL_checkudata(state, 1, "physics_handle"));
        auto* b = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 2, "physics_handle"));
-       float ax = luaL_checknumber(state, 3);
-       float ay = luaL_checknumber(state, 4);
-       float axis_x = luaL_checknumber(state, 5);
-       float axis_y = luaL_checknumber(state, 6);
+       FVec2 anchor = CheckVec2(state, 3);
+       FVec2 axis = CheckVec2(state, 5);
        bool enable_limit = false;
        float lower = 0, upper = 0;
        bool enable_motor = false;
@@ -809,9 +771,9 @@ const struct LuaApiFunction kPhysicsLib[] = {
        }
        PushJointHandle(
            state, physics->CreatePrismaticJoint(
-                      *a, *b, FVec(ax, ay), FVec(axis_x, axis_y), enable_limit,
-                      lower, upper, enable_motor, motor_speed, max_motor_force,
-                      collide_connected));
+                      *a, *b, FVec(anchor.x, anchor.y), FVec(axis.x, axis.y),
+                      enable_limit, lower, upper, enable_motor, motor_speed,
+                      max_motor_force, collide_connected));
        return 1;
      }},
     {"create_mouse_joint",
@@ -825,8 +787,7 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* body = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
-       float tx = luaL_checknumber(state, 2);
-       float ty = luaL_checknumber(state, 3);
+       FVec2 target = CheckVec2(state, 2);
        float max_force = 1000, frequency = 5.0f, damping_ratio = 0.7f;
        if (lua_istable(state, 4)) {
          max_force = LuaGetNumberField(state, 4, "max_force", max_force);
@@ -834,9 +795,9 @@ const struct LuaApiFunction kPhysicsLib[] = {
          damping_ratio =
              LuaGetNumberField(state, 4, "damping_ratio", damping_ratio);
        }
-       PushJointHandle(
-           state, physics->CreateLuaMouseJoint(*body, FVec(tx, ty), max_force,
-                                               frequency, damping_ratio));
+       PushJointHandle(state, physics->CreateLuaMouseJoint(
+                                  *body, FVec(target.x, target.y), max_force,
+                                  frequency, damping_ratio));
        return 1;
      }},
     {"create_wheel_joint",
@@ -858,10 +819,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
            luaL_checkudata(state, 1, "physics_handle"));
        auto* b = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 2, "physics_handle"));
-       float ax = luaL_checknumber(state, 3);
-       float ay = luaL_checknumber(state, 4);
-       float axis_x = luaL_checknumber(state, 5);
-       float axis_y = luaL_checknumber(state, 6);
+       FVec2 anchor = CheckVec2(state, 3);
+       FVec2 axis = CheckVec2(state, 5);
        bool enable_motor = false;
        float motor_speed = 0, max_motor_torque = 0;
        float frequency = 2.0f, damping_ratio = 0.7f;
@@ -876,10 +835,11 @@ const struct LuaApiFunction kPhysicsLib[] = {
          collide_connected =
              LuaGetBoolField(state, 7, "collide_connected", false);
        }
-       PushJointHandle(state, physics->CreateWheelJoint(
-                                  *a, *b, FVec(ax, ay), FVec(axis_x, axis_y),
-                                  enable_motor, motor_speed, max_motor_torque,
-                                  frequency, damping_ratio, collide_connected));
+       PushJointHandle(
+           state, physics->CreateWheelJoint(
+                      *a, *b, FVec(anchor.x, anchor.y), FVec(axis.x, axis.y),
+                      enable_motor, motor_speed, max_motor_torque, frequency,
+                      damping_ratio, collide_connected));
        return 1;
      }},
     {"set_angle",
@@ -906,12 +866,11 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
-       const float tx = luaL_checknumber(state, 2);
-       const float ty = luaL_checknumber(state, 3);
+       const FVec2 target = CheckVec2(state, 2);
        const float speed = luaL_checknumber(state, 4);
        const FVec2 pos = physics->GetPosition(*handle);
-       const float dx = tx - pos.x;
-       const float dy = ty - pos.y;
+       const float dx = target.x - pos.x;
+       const float dy = target.y - pos.y;
        const float dist = std::sqrt(dx * dx + dy * dy);
        if (dist < 0.001f) {
          physics->SetLinearVelocity(*handle, FVec(0, 0));
@@ -931,10 +890,10 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
-       const float tx = luaL_checknumber(state, 2);
-       const float ty = luaL_checknumber(state, 3);
+       const FVec2 target = CheckVec2(state, 2);
        const FVec2 pos = physics->GetPosition(*handle);
-       physics->SetAngle(*handle, std::atan2(ty - pos.y, tx - pos.x));
+       physics->SetAngle(*handle,
+                         std::atan2(target.y - pos.y, target.x - pos.x));
        return 0;
      }},
     {"apply_force_world",
@@ -947,9 +906,8 @@ const struct LuaApiFunction kPhysicsLib[] = {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* handle = static_cast<Physics::Handle*>(
            luaL_checkudata(state, 1, "physics_handle"));
-       const float x = luaL_checknumber(state, 2);
-       const float y = luaL_checknumber(state, 3);
-       physics->ApplyForceWorld(*handle, FVec(x, y));
+       const FVec2 force = CheckVec2(state, 2);
+       physics->ApplyForceWorld(*handle, FVec(force.x, force.y));
        return 0;
      }},
 };
@@ -1061,9 +1019,8 @@ constexpr luaL_Reg kJointMethods[] = {
      [](lua_State* state) {
        auto* physics = Registry<Physics>::Retrieve(state);
        auto* h = CheckJointHandle(state, 1);
-       float x = luaL_checknumber(state, 2);
-       float y = luaL_checknumber(state, 3);
-       physics->SetTarget(*h, FVec(x, y));
+       FVec2 target = CheckVec2(state, 2);
+       physics->SetTarget(*h, FVec(target.x, target.y));
        return 0;
      }},
     {"set_max_force",

@@ -9,6 +9,47 @@
 #include "templates.h"
 
 namespace G {
+namespace {
+
+void PrintHelp() {
+  printf("Usage: game init [directory]\n");
+  printf("\n");
+  printf("Scaffolds a new game project by creating starter files:\n");
+  printf("  conf.json       Project configuration\n");
+  printf("  main.lua        Entry point (requires game)\n");
+  printf("  game.lua        Game module with init/update/draw\n");
+  printf("  .luarc.json     LuaLS configuration\n");
+  printf("  definitions/    LuaLS type stubs\n");
+  printf("\n");
+  printf("Existing files are never overwritten.\n");
+}
+
+// Write a file only if it doesn't already exist. Returns true if written.
+bool WriteIfMissing(const char* path, const char* contents) {
+  if (FileExists(path)) {
+    LOG("Skipping ", path, " (already exists)");
+    return false;
+  }
+  LOG("Writing ", path);
+  MUST(WriteFile(path, contents));
+  return true;
+}
+
+bool WriteIfMissingF(const char* path, const char* fmt, const char* a1,
+                     const char* a2) {
+  if (FileExists(path)) {
+    LOG("Skipping ", path, " (already exists)");
+    return false;
+  }
+  LOG("Writing ", path);
+  if (WriteFileF(path, fmt, a1, a2).is_error()) {
+    fprintf(stderr, "Error: could not write %s\n", path);
+    return false;
+  }
+  return true;
+}
+
+}  // namespace
 
 // Scaffolds a new game project by creating the directory structure and writing
 // starter files (conf.json, main.lua, game.lua, .luarc.json), then generates
@@ -16,7 +57,12 @@ namespace G {
 int CmdInit(Slice<const char*> args, Allocator* allocator) {
   const char* dir = ".";
   for (size_t i = 1; i < args.size(); ++i) {
-    if (args[i][0] != '-') {
+    std::string_view arg(args[i]);
+    if (arg == "--help" || arg == "-h") {
+      PrintHelp();
+      return 0;
+    }
+    if (arg[0] != '-') {
       dir = args[i];
       break;
     }
@@ -37,38 +83,23 @@ int CmdInit(Slice<const char*> args, Allocator* allocator) {
   // Create directory if needed.
   MUST(MakeDir(dir));
 
-  // Check if project already exists.
-  CmdBuffer conf_path(dir, "/conf.json");
-  if (FileExists(conf_path.str())) {
-    fprintf(stderr,
-            "Error: project already exists in '%s' (conf.json found).\n", dir);
-    return 1;
-  }
-
-  // Write scaffold files.
+  // Write scaffold files, skipping any that already exist.
   FixedStringBuffer<256> name_buf(project_name);
 
-  LOG("Writing ", conf_path.str());
-  if (WriteFileF(conf_path.str(), templates::kConfJson, name_buf.str(),
-                 name_buf.str())
-          .is_error()) {
-    fprintf(stderr, "Error: could not write %s\n", conf_path.str());
-    return 1;
-  }
+  CmdBuffer conf_path(dir, "/conf.json");
+  WriteIfMissingF(conf_path.str(), templates::kConfJson, name_buf.str(),
+                  name_buf.str());
 
   CmdBuffer main_path(dir, "/main.lua");
-  LOG("Writing ", main_path.str());
-  MUST(WriteFile(main_path.str(), templates::kMainLua));
+  WriteIfMissing(main_path.str(), templates::kMainLua);
 
   CmdBuffer game_path(dir, "/game.lua");
-  LOG("Writing ", game_path.str());
-  MUST(WriteFile(game_path.str(), templates::kGameLua));
+  WriteIfMissing(game_path.str(), templates::kGameLua);
 
   CmdBuffer luarc_path(dir, "/.luarc.json");
-  LOG("Writing ", luarc_path.str());
-  MUST(WriteFile(luarc_path.str(), templates::kLuarcJson));
+  WriteIfMissing(luarc_path.str(), templates::kLuarcJson);
 
-  // Create definitions directory and generate stubs.
+  // Create definitions directory and generate stubs (always regenerated).
   CmdBuffer defs_dir(dir, "/definitions");
   MUST(MakeDir(defs_dir.str()));
 

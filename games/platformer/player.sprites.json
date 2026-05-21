@@ -1,0 +1,31 @@
+{
+  "atlas": "player.qoi",
+  "width": 2048,
+  "height": 2048,
+  "sprites": [
+    {"name": "player_climb1", "x": 1, "y": 1, "width": 80, "height": 110},
+    {"name": "player_jump", "x": 83, "y": 1, "width": 80, "height": 110},
+    {"name": "player_hang", "x": 165, "y": 1, "width": 80, "height": 110},
+    {"name": "player_stand", "x": 247, "y": 1, "width": 80, "height": 110},
+    {"name": "player_duck", "x": 329, "y": 1, "width": 80, "height": 110},
+    {"name": "player_back", "x": 411, "y": 1, "width": 80, "height": 110},
+    {"name": "player_action2", "x": 493, "y": 1, "width": 80, "height": 110},
+    {"name": "player_cheer2", "x": 575, "y": 1, "width": 80, "height": 110},
+    {"name": "player_slide", "x": 657, "y": 1, "width": 80, "height": 110},
+    {"name": "player_idle", "x": 739, "y": 1, "width": 80, "height": 110},
+    {"name": "player_hurt", "x": 821, "y": 1, "width": 80, "height": 110},
+    {"name": "player_swim2", "x": 903, "y": 1, "width": 80, "height": 110},
+    {"name": "player_fall", "x": 985, "y": 1, "width": 80, "height": 110},
+    {"name": "player_walk1", "x": 1067, "y": 1, "width": 80, "height": 110},
+    {"name": "player_hold2", "x": 1149, "y": 1, "width": 80, "height": 110},
+    {"name": "player_talk", "x": 1231, "y": 1, "width": 80, "height": 110},
+    {"name": "player_hold1", "x": 1313, "y": 1, "width": 80, "height": 110},
+    {"name": "player_action1", "x": 1395, "y": 1, "width": 80, "height": 110},
+    {"name": "player_skid", "x": 1477, "y": 1, "width": 80, "height": 110},
+    {"name": "player_cheer1", "x": 1559, "y": 1, "width": 80, "height": 110},
+    {"name": "player_climb2", "x": 1641, "y": 1, "width": 80, "height": 110},
+    {"name": "player_kick", "x": 1723, "y": 1, "width": 80, "height": 110},
+    {"name": "player_walk2", "x": 1805, "y": 1, "width": 80, "height": 110},
+    {"name": "player_swim1", "x": 1887, "y": 1, "width": 80, "height": 110}
+  ]
+}

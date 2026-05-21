@@ -21,6 +21,7 @@
 #include "lua_save.h"
 #include "lua_scene.h"
 #include "lua_sound.h"
+#include "lua_tilemap.h"
 #include "lua_system.h"
 #include "lua_test.h"
 #include "lua_timer.h"
@@ -56,7 +57,11 @@ Engine::Engine(Slice<const char*> args, sqlite3* db_, DbAssets* db_assets,
       network(allocator),
       frame_allocator(allocator, Megabytes(128)),
       pool(allocator, ThreadPoolExecutor::NumDefaultThreads()),
-      allocator_(allocator) {}
+      allocator_(allocator) {
+  if (config.nearest_filter) {
+    batch_renderer.SetDefaultFilter(GL_NEAREST, GL_NEAREST);
+  }
+}
 
 void Engine::Initialize() {
   TIMER();
@@ -108,6 +113,7 @@ void Engine::Initialize() {
   AddSceneLibrary(&lua);
   AddParticlesLibrary(&lua);
   AddSaveLibrary(&lua);
+  AddTilemapLibrary(&lua);
   lua.BuildCompilationCache();
   // Register asset loaders.
   assets->RegisterShaderLoad(

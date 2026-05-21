@@ -28,11 +28,24 @@ static const LuaApiFunction kGraphicsLib[] = {
        auto* batch = Registry<BatchRenderer>::Retrieve(state);
        const int params = lua_gettop(state);
        if (params >= 4) {
-         float r = luaL_checknumber(state, 1) / 255.0f;
-         float g = luaL_checknumber(state, 2) / 255.0f;
-         float b = luaL_checknumber(state, 3) / 255.0f;
-         float a = luaL_checknumber(state, 4) / 255.0f;
-         batch->ClearWithColor(r, g, b, a);
+         float r = luaL_checknumber(state, 1);
+         float g = luaL_checknumber(state, 2);
+         float b = luaL_checknumber(state, 3);
+         float a = luaL_checknumber(state, 4);
+         static bool warned = false;
+         if (!warned && r <= 1.0f && g <= 1.0f && b <= 1.0f && a <= 1.0f &&
+             (r > 0.0f || g > 0.0f || b > 0.0f)) {
+           warned = true;
+           LOG("clear() takes 0-255 integers, not 0-1 floats. "
+               "Got (",
+               r, ", ", g, ", ", b, ", ", a,
+               "). "
+               "Did you mean clear(",
+               static_cast<int>(r * 255), ", ", static_cast<int>(g * 255), ", ",
+               static_cast<int>(b * 255), ", ", static_cast<int>(a * 255),
+               ")?");
+         }
+         batch->ClearWithColor(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
        } else {
          batch->ClearWithColor(0, 0, 0, 0);
        }
@@ -100,12 +113,11 @@ static const LuaApiFunction kGraphicsLib[] = {
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
        std::string_view sprite_name = GetLuaString(state, 1);
-       const float x = luaL_checknumber(state, 2);
-       const float y = luaL_checknumber(state, 3);
+       const FVec2 pos = CheckVec2(state, 2);
        float angle = 0;
        if (parameters == 4) angle = luaL_checknumber(state, 4);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       auto result = renderer->DrawSprite(sprite_name, FVec(x, y), angle);
+       auto result = renderer->DrawSprite(sprite_name, pos, angle);
        if (result.is_error()) {
          LUA_ERROR(state, result.error().message());
        }
@@ -127,12 +139,11 @@ static const LuaApiFunction kGraphicsLib[] = {
      [](lua_State* state) {
        const int parameters = lua_gettop(state);
        std::string_view image_name = GetLuaString(state, 1);
-       const float x = luaL_checknumber(state, 2);
-       const float y = luaL_checknumber(state, 3);
+       const FVec2 pos = CheckVec2(state, 2);
        float angle = 0;
        if (parameters == 4) angle = luaL_checknumber(state, 4);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       auto result = renderer->DrawImage(image_name, FVec(x, y), angle);
+       auto result = renderer->DrawImage(image_name, pos, angle);
        if (result.is_error()) {
          LUA_ERROR(state, result.error().message());
        }
@@ -178,13 +189,7 @@ static const LuaApiFunction kGraphicsLib[] = {
          }
          color = color_result.release_value();
        } else {
-         auto clamp = [](float f) -> uint8_t {
-           return std::clamp(f, 0.0f, 255.0f);
-         };
-         color.r = clamp(luaL_checknumber(state, 1));
-         color.g = clamp(luaL_checknumber(state, 2));
-         color.b = clamp(luaL_checknumber(state, 3));
-         color.a = clamp(luaL_checknumber(state, 4));
+         color = CheckColor(state, 1);
        }
        auto* renderer = Registry<Renderer>::Retrieve(state);
        const Color previous = renderer->SetColor(color);
@@ -232,11 +237,10 @@ static const LuaApiFunction kGraphicsLib[] = {
       {"r", "the radius in pixels of the center of the circle", "number"}},
      {},
      [](lua_State* state) {
-       const float x = luaL_checknumber(state, 1);
-       const float y = luaL_checknumber(state, 2);
+       const FVec2 center = CheckVec2(state, 1);
        const float radius = luaL_checknumber(state, 3);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->DrawCircle(FVec(x, y), radius);
+       renderer->DrawCircle(center, radius);
        return 0;
      }},
     {"draw_circle_outline",
@@ -246,11 +250,10 @@ static const LuaApiFunction kGraphicsLib[] = {
       {"r", "the radius in pixels of the circle", "number"}},
      {},
      [](lua_State* state) {
-       const float x = luaL_checknumber(state, 1);
-       const float y = luaL_checknumber(state, 2);
+       const FVec2 center = CheckVec2(state, 1);
        const float radius = luaL_checknumber(state, 3);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->DrawCircleOutline(FVec(x, y), radius);
+       renderer->DrawCircleOutline(center, radius);
        return 0;
      }},
     {"draw_triangle",
@@ -319,12 +322,11 @@ static const LuaApiFunction kGraphicsLib[] = {
       {"ry", "vertical radius in pixels", "number"}},
      {},
      [](lua_State* state) {
-       const float x = luaL_checknumber(state, 1);
-       const float y = luaL_checknumber(state, 2);
+       const FVec2 center = CheckVec2(state, 1);
        const float rx = luaL_checknumber(state, 3);
        const float ry = luaL_checknumber(state, 4);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->DrawEllipse(FVec(x, y), rx, ry);
+       renderer->DrawEllipse(center, rx, ry);
        return 0;
      }},
     {"draw_ellipse_outline",
@@ -335,12 +337,11 @@ static const LuaApiFunction kGraphicsLib[] = {
       {"ry", "vertical radius in pixels", "number"}},
      {},
      [](lua_State* state) {
-       const float x = luaL_checknumber(state, 1);
-       const float y = luaL_checknumber(state, 2);
+       const FVec2 center = CheckVec2(state, 1);
        const float rx = luaL_checknumber(state, 3);
        const float ry = luaL_checknumber(state, 4);
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       renderer->DrawEllipseOutline(FVec(x, y), rx, ry);
+       renderer->DrawEllipseOutline(center, rx, ry);
        return 0;
      }},
     {"draw_rounded_rect",
@@ -397,10 +398,8 @@ static const LuaApiFunction kGraphicsLib[] = {
        "number"}},
      {},
      [](lua_State* state) {
-       const auto p1 =
-           FVec(luaL_checknumber(state, 1), luaL_checknumber(state, 2));
-       const auto p2 =
-           FVec(luaL_checknumber(state, 3), luaL_checknumber(state, 4));
+       const FVec2 p1 = CheckVec2(state, 1);
+       const FVec2 p2 = CheckVec2(state, 3);
        auto* renderer = Registry<Renderer>::Retrieve(state);
        renderer->DrawLine(p1, p2);
        return 0;
@@ -452,16 +451,15 @@ static const LuaApiFunction kGraphicsLib[] = {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        std::string_view font = "debug_font.ttf";
        const uint32_t font_size = 24;
-       const float x = luaL_checknumber(state, 2);
-       const float y = luaL_checknumber(state, 3);
+       const FVec2 pos = CheckVec2(state, 2);
        if (lua_type(state, 1) == LUA_TSTRING) {
          std::string_view text = GetLuaString(state, 1);
-         renderer->DrawString(font, font_size, text, FVec(x, y));
+         renderer->DrawString(font, font_size, text, pos);
        } else if (lua_type(state, 1) == LUA_TUSERDATA) {
          auto* buf = AsUserdata<ByteBuffer>(state, 1);
          std::string_view text(reinterpret_cast<const char*>(buf->contents),
                                buf->size);
-         renderer->DrawString(font, font_size, text, FVec(x, y));
+         renderer->DrawString(font, font_size, text, pos);
        }
        return 0;
      }},
@@ -485,16 +483,15 @@ static const LuaApiFunction kGraphicsLib[] = {
        auto* renderer = Registry<Renderer>::Retrieve(state);
        std::string_view font = GetLuaString(state, 1);
        const uint32_t font_size = luaL_checkinteger(state, 2);
-       const float x = luaL_checknumber(state, 4);
-       const float y = luaL_checknumber(state, 5);
+       const FVec2 pos = CheckVec2(state, 4);
        if (lua_type(state, 3) == LUA_TSTRING) {
          std::string_view text = GetLuaString(state, 3);
-         renderer->DrawString(font, font_size, text, FVec(x, y));
+         renderer->DrawString(font, font_size, text, pos);
        } else if (lua_type(state, 3) == LUA_TUSERDATA) {
          auto* buf = AsUserdata<ByteBuffer>(state, 3);
          std::string_view text(reinterpret_cast<const char*>(buf->contents),
                                buf->size);
-         renderer->DrawString(font, font_size, text, FVec(x, y));
+         renderer->DrawString(font, font_size, text, pos);
        }
        return 0;
      }},
@@ -538,8 +535,7 @@ static const LuaApiFunction kGraphicsLib[] = {
        std::string_view font = GetLuaString(state, 1);
        const uint32_t font_size = luaL_checkinteger(state, 2);
        std::string_view text = GetLuaString(state, 3);
-       const float x = luaL_checknumber(state, 4);
-       const float y = luaL_checknumber(state, 5);
+       const FVec2 pos = CheckVec2(state, 4);
        const float max_width = luaL_checknumber(state, 6);
        auto align = Renderer::TextAlign::kLeft;
        if (lua_gettop(state) >= 7 && lua_isstring(state, 7)) {
@@ -553,7 +549,7 @@ static const LuaApiFunction kGraphicsLib[] = {
                      "'. Expected 'left', 'center', or 'right'");
          }
        }
-       renderer->DrawStringWrapped(font, font_size, text, FVec(x, y), max_width,
+       renderer->DrawStringWrapped(font, font_size, text, pos, max_width,
                                    align);
        return 0;
      }},
@@ -601,8 +597,7 @@ static const LuaApiFunction kGraphicsLib[] = {
          LUA_ERROR(state, "Expected table of colored segments as argument 3");
          return 0;
        }
-       const float x = luaL_checknumber(state, 4);
-       const float y = luaL_checknumber(state, 5);
+       const FVec2 pos = CheckVec2(state, 4);
        float max_width = 0;
        if (lua_gettop(state) >= 6 && lua_isnumber(state, 6)) {
          max_width = luaL_checknumber(state, 6);
@@ -668,8 +663,8 @@ static const LuaApiFunction kGraphicsLib[] = {
          segments[i].text = GetLuaString(state, -1);
          lua_pop(state, 1);
        }
-       renderer->DrawStringColored(font, font_size, segments, num_segments,
-                                   FVec(x, y), max_width, align);
+       renderer->DrawStringColored(font, font_size, segments, num_segments, pos,
+                                   max_width, align);
        return 0;
      }},
     {"set_text_outline",
@@ -683,14 +678,7 @@ static const LuaApiFunction kGraphicsLib[] = {
      {},
      [](lua_State* state) {
        auto* renderer = Registry<Renderer>::Retrieve(state);
-       auto clamp = [](double f) -> uint8_t {
-         return static_cast<uint8_t>(std::clamp(f, 0.0, 255.0));
-       };
-       Color color;
-       color.r = clamp(luaL_checknumber(state, 1));
-       color.g = clamp(luaL_checknumber(state, 2));
-       color.b = clamp(luaL_checknumber(state, 3));
-       color.a = clamp(luaL_checknumber(state, 4));
+       Color color = CheckColor(state, 1);
        float thickness = luaL_checknumber(state, 5);
        renderer->SetTextOutline(color, thickness);
        return 0;
@@ -999,6 +987,24 @@ static const LuaApiFunction kGraphicsLib[] = {
        }
        return 0;
      }},
+    {"set_default_filter",
+     "Sets the texture filter mode for newly loaded textures. Use 'nearest' "
+     "for pixel art (crisp pixels) or 'linear' for smooth graphics.",
+     {{"mode", "'nearest' or 'linear'", "string"}},
+     {},
+     [](lua_State* state) {
+       auto* batch = Registry<BatchRenderer>::Retrieve(state);
+       std::string_view mode = GetLuaString(state, 1);
+       if (mode == "nearest") {
+         batch->SetDefaultFilter(GL_NEAREST, GL_NEAREST);
+       } else if (mode == "linear") {
+         batch->SetDefaultFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+       } else {
+         LUA_ERROR(state, "Unknown filter mode '", mode,
+                   "'. Expected 'nearest' or 'linear'");
+       }
+       return 0;
+     }},
     {"new_canvas",
      "Create an off-screen canvas for rendering. Returns a canvas object.",
      {{"width", "Canvas width in pixels", "integer"},
@@ -1056,8 +1062,7 @@ static const LuaApiFunction kGraphicsLib[] = {
      [](lua_State* state) {
        const int params = lua_gettop(state);
        auto* c = AsUserdata<Canvas>(state, 1);
-       const float x = luaL_checknumber(state, 2);
-       const float y = luaL_checknumber(state, 3);
+       const FVec2 pos = CheckVec2(state, 2);
        float angle = 0;
        if (params >= 4) angle = luaL_checknumber(state, 4);
        float w = static_cast<float>(c->width);
@@ -1069,11 +1074,11 @@ static const LuaApiFunction kGraphicsLib[] = {
        auto* batch = Registry<BatchRenderer>::Retrieve(state);
        batch->SetActiveTexture(c->texture_unit);
        // Y-flip the UVs: canvas textures have bottom-up origin.
-       FVec2 p0 = FVec(x, y);
-       FVec2 p1 = FVec(x + w, y + h);
+       FVec2 p0 = pos;
+       FVec2 p1 = FVec(pos.x + w, pos.y + h);
        FVec2 q0 = FVec(0.f, 1.f);  // top-left UV (flipped)
        FVec2 q1 = FVec(1.f, 0.f);  // bottom-right UV (flipped)
-       FVec2 origin = FVec(x + w / 2.f, y + h / 2.f);
+       FVec2 origin = FVec(pos.x + w / 2.f, pos.y + h / 2.f);
        batch->PushQuad(p0, p1, q0, q1, origin, angle);
        return 0;
      }}};

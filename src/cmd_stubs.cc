@@ -21,6 +21,7 @@
 #include "lua_scene.h"
 #include "lua_sound.h"
 #include "lua_stubs.h"
+#include "lua_tilemap.h"
 #include "lua_system.h"
 #include "lua_test.h"
 #include "lua_timer.h"
@@ -28,10 +29,30 @@
 
 namespace G {
 
+namespace {
+
+void PrintHelp() {
+  printf("Usage: game stubs [options]\n");
+  printf("\n");
+  printf("Generates LuaLS type stubs for the engine's Lua API.\n");
+  printf("The output file provides autocompletion and type checking\n");
+  printf("in editors that support the Lua Language Server.\n");
+  printf("\n");
+  printf("Options:\n");
+  printf("  --output <path>       Output file (default: definitions/game.lua)\n");
+}
+
+}  // namespace
+
 int CmdStubs(Slice<const char*> args, Allocator* /*allocator*/) {
   const char* output = "definitions/game.lua";
   for (size_t i = 1; i < args.size(); ++i) {
-    if (std::string_view(args[i]) == "--output" && i + 1 < args.size()) {
+    std::string_view arg = args[i];
+    if (arg == "--help" || arg == "-h") {
+      PrintHelp();
+      return 0;
+    }
+    if (arg == "--output" && i + 1 < args.size()) {
       output = args[++i];
     }
   }
@@ -57,6 +78,7 @@ int CmdStubs(Slice<const char*> args, Allocator* /*allocator*/) {
       GetTestLibraryDef(),       GetTimerLibraryDef(),
       GetSceneLibraryDef(),      GetParticlesLibraryDef(),
       GetSaveLibraryDef(),
+      GetTilemapLibraryDef(),
   };
 
   WriteLuaLSStubs(output, defs, std::size(defs));

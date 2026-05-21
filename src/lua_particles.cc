@@ -107,16 +107,6 @@ PropertyRamp ReadRampField(lua_State* state, int table_index, const char* name,
   return result;
 }
 
-// Helper to read a float field from a table.
-float ReadFloatField(lua_State* state, int table_index, const char* name,
-                     float default_val) {
-  lua_getfield(state, table_index, name);
-  float result =
-      lua_isnumber(state, -1) ? lua_tonumber(state, -1) : default_val;
-  lua_pop(state, 1);
-  return result;
-}
-
 // Helper to read an integer field from a table.
 int ReadIntField(lua_State* state, int table_index, const char* name,
                  int default_val) {
@@ -133,7 +123,7 @@ int PushNewEmitter(lua_State* state) {
   EmitterDef def;
   int t = 1;
 
-  def.emission_rate = ReadFloatField(state, t, "emission_rate", 0);
+  def.emission_rate = LuaGetNumberField(state, t, "emission_rate", 0);
   def.max_particles = ReadIntField(state, t, "max_particles", 1000);
   def.initial_speed =
       ReadRampField(state, t, "speed", PropertyRamp::Constant(100));
@@ -155,8 +145,8 @@ int PushNewEmitter(lua_State* state) {
   }
   lua_pop(state, 1);
 
-  def.direction = ReadFloatField(state, t, "direction", 0);
-  def.spread = ReadFloatField(state, t, "spread", static_cast<float>(M_PI));
+  def.direction = LuaGetNumberField(state, t, "direction", 0);
+  def.spread = LuaGetNumberField(state, t, "spread", static_cast<float>(M_PI));
 
   // Emission shape.
   lua_getfield(state, t, "shape");
@@ -168,8 +158,8 @@ int PushNewEmitter(lua_State* state) {
       def.shape = EmissionShape::kRect;
   }
   lua_pop(state, 1);
-  def.shape_width = ReadFloatField(state, t, "shape_width", 0);
-  def.shape_height = ReadFloatField(state, t, "shape_height", 0);
+  def.shape_width = LuaGetNumberField(state, t, "shape_width", 0);
+  def.shape_height = LuaGetNumberField(state, t, "shape_height", 0);
 
   // Over-lifetime ramps.
   def.size_over_life =
@@ -198,7 +188,7 @@ int PushNewEmitter(lua_State* state) {
   }
   lua_pop(state, 1);
 
-  def.damping = ReadFloatField(state, t, "damping", 1.0f);
+  def.damping = LuaGetNumberField(state, t, "damping", 1.0f);
 
   // Blend mode.
   lua_getfield(state, t, "blend_mode");

@@ -2,6 +2,7 @@
 
 #include "allocators.h"
 #include "libraries/double-conversion/double-to-string.h"
+#include "libraries/double-conversion/string-to-double.h"
 
 namespace G {
 
@@ -54,6 +55,30 @@ bool ConsumePrefix(std::string_view* str, std::string_view prefix) {
 void PrintDouble(double val, char* buffer, size_t size) {
   double_conversion::StringBuilder db(buffer, size);
   kDoubleToJson.ToFixed(val, 2, &db);
+}
+
+namespace {
+
+const double_conversion::StringToDoubleConverter kStringToDouble(
+    double_conversion::StringToDoubleConverter::ALLOW_TRAILING_JUNK |
+        double_conversion::StringToDoubleConverter::ALLOW_LEADING_SPACES |
+        double_conversion::StringToDoubleConverter::ALLOW_TRAILING_SPACES,
+    /*empty_string_value=*/0.0, /*junk_string_value=*/0.0, "inf", "nan");
+
+}  // namespace
+
+double ParseDouble(std::string_view s) {
+  if (s.empty()) return 0.0;
+  int processed = 0;
+  return kStringToDouble.StringToDouble(s.data(), static_cast<int>(s.size()),
+                                        &processed);
+}
+
+float ParseFloat(std::string_view s) {
+  if (s.empty()) return 0.0f;
+  int processed = 0;
+  return kStringToDouble.StringToFloat(s.data(), static_cast<int>(s.size()),
+                                       &processed);
 }
 
 const char* StrDupZ(Allocator* allocator, std::string_view s) {

@@ -72,6 +72,13 @@ class BatchRenderer {
 
   size_t LoadTexture(const void* data, size_t width, size_t height);
 
+  // Sets the default texture filter for newly loaded textures.
+  // Use GL_NEAREST for pixel art, GL_LINEAR for smooth graphics.
+  void SetDefaultFilter(GLenum min_filter, GLenum mag_filter) {
+    default_min_filter_ = min_filter;
+    default_mag_filter_ = mag_filter;
+  }
+
   size_t LoadFontTexture(const void* data, size_t width, size_t height);
 
   size_t RegisterTexture(GLuint tex);
@@ -479,6 +486,8 @@ class BatchRenderer {
   GLint antialiasing_samples_;
   IVec2 viewport_;
   IVec2 window_size_;
+  GLenum default_min_filter_ = GL_LINEAR_MIPMAP_LINEAR;
+  GLenum default_mag_filter_ = GL_LINEAR;
 
   // Scratch arena for vertex/index arrays during RenderBatch. Allocated once,
   // reset before each batch submission.
@@ -562,6 +571,36 @@ class Renderer {
 
   Slice<DbAssets::Spritesheet> GetSpritesheets() const {
     return MakeSlice(loaded_spritesheets_);
+  }
+
+  // Sets the active texture to the spritesheet with the given name.
+  bool SetSpritesheetTexture(std::string_view name) {
+    uint32_t idx;
+    if (!textures_table_.Lookup(name, &idx)) return false;
+    SetTextureDedup(textures_[idx]);
+    return true;
+  }
+
+  // Sets the active texture to the image with the given name.
+  bool SetImageTexture(std::string_view name) {
+    uint32_t idx;
+    if (!textures_table_.Lookup(name, &idx)) return false;
+    SetTextureDedup(textures_[idx]);
+    return true;
+  }
+
+  // Returns the image asset by name. Returns nullptr if not found.
+  DbAssets::Image* GetImage(std::string_view name) const {
+    DbAssets::Image* result = nullptr;
+    if (!loaded_images_table_.Lookup(name, &result)) return nullptr;
+    return result;
+  }
+
+  // Returns the batch renderer texture index for a spritesheet, or -1.
+  int GetSpritesheetTextureIndex(std::string_view name) const {
+    uint32_t idx;
+    if (!textures_table_.Lookup(name, &idx)) return -1;
+    return static_cast<int>(textures_[idx]);
   }
 
   // Returns the previous color.

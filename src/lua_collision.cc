@@ -54,18 +54,14 @@ int PushCollisionAABB(lua_State* state) {
 
 int CollisionTest(lua_State* state) {
   auto* shape_a = CheckShape(state, 1);
-  float ax = luaL_checknumber(state, 2);
-  float ay = luaL_checknumber(state, 3);
+  FVec2 a = CheckVec2(state, 2);
   auto* shape_b = CheckShape(state, 4);
-  float bx = luaL_checknumber(state, 5);
-  float by = luaL_checknumber(state, 6);
+  FVec2 b = CheckVec2(state, 5);
 
-  CollisionResult cr =
-      TestShapes(*shape_a, FVec(ax, ay), *shape_b, FVec(bx, by));
+  CollisionResult cr = TestShapes(*shape_a, a, *shape_b, b);
   lua_pushboolean(state, cr.hit);
   if (cr.hit) {
-    lua_pushnumber(state, cr.normal.x);
-    lua_pushnumber(state, cr.normal.y);
+    PushVec2(state, cr.normal);
     lua_pushnumber(state, cr.depth);
     return 4;
   }
@@ -88,8 +84,7 @@ int PushCollisionWorld(lua_State* state) {
 int CollisionWorldAdd(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   auto* shape = CheckShape(state, 2);
-  float x = luaL_checknumber(state, 3);
-  float y = luaL_checknumber(state, 4);
+  FVec2 pos = CheckVec2(state, 3);
 
   CollisionFilter filter = {};
   bool is_trigger = false;
@@ -117,7 +112,7 @@ int CollisionWorldAdd(lua_State* state) {
   }
 
   ColliderHandle handle =
-      world->Add(*shape, FVec(x, y), filter, is_trigger, userdata_ref);
+      world->Add(*shape, pos, filter, is_trigger, userdata_ref);
   PushHandle(state, handle);
   return 1;
 }
@@ -144,12 +139,11 @@ int CollisionWorldRemove(lua_State* state) {
 int CollisionWorldSetPosition(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
-  float x = luaL_checknumber(state, 3);
-  float y = luaL_checknumber(state, 4);
+  FVec2 pos = CheckVec2(state, 3);
   if (!world->IsValid(handle)) {
     LUA_ERROR(state, "Invalid collision handle");
   }
-  world->SetPosition(handle, FVec(x, y));
+  world->SetPosition(handle, pos);
   return 0;
 }
 
@@ -159,9 +153,7 @@ int CollisionWorldGetPosition(lua_State* state) {
   if (!world->IsValid(handle)) {
     LUA_ERROR(state, "Invalid collision handle");
   }
-  FVec2 pos = world->GetPosition(handle);
-  lua_pushnumber(state, pos.x);
-  lua_pushnumber(state, pos.y);
+  PushVec2(state, world->GetPosition(handle));
   return 2;
 }
 
@@ -312,15 +304,13 @@ void PushContacts(lua_State* state, const CollisionWorld::Contact* contacts,
 int CollisionWorldMoveAndSlide(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
-  float vx = luaL_checknumber(state, 3);
-  float vy = luaL_checknumber(state, 4);
+  FVec2 velocity = CheckVec2(state, 3);
   if (!world->IsValid(handle)) {
     LUA_ERROR(state, "Invalid collision handle");
   }
 
-  CollisionWorld::MoveResult result = world->MoveAndSlide(handle, FVec(vx, vy));
-  lua_pushnumber(state, result.position.x);
-  lua_pushnumber(state, result.position.y);
+  CollisionWorld::MoveResult result = world->MoveAndSlide(handle, velocity);
+  PushVec2(state, result.position);
   PushContacts(state, result.contacts, result.contact_count);
   return 3;
 }
@@ -328,16 +318,13 @@ int CollisionWorldMoveAndSlide(lua_State* state) {
 int CollisionWorldMoveAndCollide(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
-  float vx = luaL_checknumber(state, 3);
-  float vy = luaL_checknumber(state, 4);
+  FVec2 velocity = CheckVec2(state, 3);
   if (!world->IsValid(handle)) {
     LUA_ERROR(state, "Invalid collision handle");
   }
 
-  CollisionWorld::MoveResult result =
-      world->MoveAndCollide(handle, FVec(vx, vy));
-  lua_pushnumber(state, result.position.x);
-  lua_pushnumber(state, result.position.y);
+  CollisionWorld::MoveResult result = world->MoveAndCollide(handle, velocity);
+  PushVec2(state, result.position);
   if (result.contact_count > 0) {
     PushContact(state, result.contacts[0]);
   } else {
@@ -349,8 +336,7 @@ int CollisionWorldMoveAndCollide(lua_State* state) {
 int CollisionWorldMoveToward(lua_State* state) {
   auto* world = CheckWorld(state, 1);
   ColliderHandle handle = CheckHandle(state, 2);
-  const float tx = luaL_checknumber(state, 3);
-  const float ty = luaL_checknumber(state, 4);
+  FVec2 target = CheckVec2(state, 3);
   const float speed = luaL_checknumber(state, 5);
   const float dt = luaL_checknumber(state, 6);
   if (!world->IsValid(handle)) {
@@ -358,26 +344,22 @@ int CollisionWorldMoveToward(lua_State* state) {
   }
 
   FVec2 pos = world->GetPosition(handle);
-  const float dx = tx - pos.x;
-  const float dy = ty - pos.y;
+  const float dx = target.x - pos.x;
+  const float dy = target.y - pos.y;
   const float dist = std::sqrt(dx * dx + dy * dy);
 
-  float vx, vy;
+  FVec2 velocity;
   if (dist < 0.001f) {
-    vx = 0;
-    vy = 0;
+    velocity = FVec(0, 0);
   } else {
     const float s = speed * dt / dist;
     // Don't overshoot the target.
     const float clamped = s > 1.0f ? 1.0f : s;
-    vx = dx * clamped;
-    vy = dy * clamped;
+    velocity = FVec(dx * clamped, dy * clamped);
   }
 
-  CollisionWorld::MoveResult result =
-      world->MoveAndCollide(handle, FVec(vx, vy));
-  lua_pushnumber(state, result.position.x);
-  lua_pushnumber(state, result.position.y);
+  CollisionWorld::MoveResult result = world->MoveAndCollide(handle, velocity);
+  PushVec2(state, result.position);
   if (result.contact_count > 0) {
     PushContact(state, result.contacts[0]);
   } else {
@@ -414,15 +396,13 @@ int CollisionWorldGetOverlaps(lua_State* state) {
 
 int CollisionWorldRaycast(lua_State* state) {
   auto* world = CheckWorld(state, 1);
-  float ox = luaL_checknumber(state, 2);
-  float oy = luaL_checknumber(state, 3);
-  float dx = luaL_checknumber(state, 4);
-  float dy = luaL_checknumber(state, 5);
+  FVec2 origin = CheckVec2(state, 2);
+  FVec2 dir = CheckVec2(state, 4);
   float max_dist = luaL_checknumber(state, 6);
   uint16_t mask = luaL_optinteger(state, 7, 0xFFFF);
 
   CollisionWorld::RaycastHit hit;
-  if (world->Raycast(FVec(ox, oy), FVec(dx, dy), max_dist, mask, &hit)) {
+  if (world->Raycast(origin, dir, max_dist, mask, &hit)) {
     lua_createtable(state, 0, 6);
     PushHandle(state, hit.handle);
     lua_setfield(state, -2, "handle");
@@ -444,16 +424,13 @@ int CollisionWorldRaycast(lua_State* state) {
 
 int CollisionWorldRaycastAll(lua_State* state) {
   auto* world = CheckWorld(state, 1);
-  float ox = luaL_checknumber(state, 2);
-  float oy = luaL_checknumber(state, 3);
-  float dx = luaL_checknumber(state, 4);
-  float dy = luaL_checknumber(state, 5);
+  FVec2 origin = CheckVec2(state, 2);
+  FVec2 dir = CheckVec2(state, 4);
   float max_dist = luaL_checknumber(state, 6);
   uint16_t mask = luaL_optinteger(state, 7, 0xFFFF);
 
   CollisionWorld::RaycastHit hits[64];
-  uint32_t count =
-      world->RaycastAll(FVec(ox, oy), FVec(dx, dy), max_dist, mask, hits, 64);
+  uint32_t count = world->RaycastAll(origin, dir, max_dist, mask, hits, 64);
 
   lua_createtable(state, count, 0);
   for (uint32_t i = 0; i < count; ++i) {
@@ -477,12 +454,11 @@ int CollisionWorldRaycastAll(lua_State* state) {
 
 int CollisionWorldQueryPoint(lua_State* state) {
   auto* world = CheckWorld(state, 1);
-  float x = luaL_checknumber(state, 2);
-  float y = luaL_checknumber(state, 3);
+  FVec2 point = CheckVec2(state, 2);
   uint16_t mask = luaL_optinteger(state, 4, 0xFFFF);
 
   ColliderHandle results[64];
-  uint32_t count = world->QueryPoint(FVec(x, y), mask, results, 64);
+  uint32_t count = world->QueryPoint(point, mask, results, 64);
 
   lua_createtable(state, count, 0);
   for (uint32_t i = 0; i < count; ++i) {
@@ -494,15 +470,12 @@ int CollisionWorldQueryPoint(lua_State* state) {
 
 int CollisionWorldQueryRect(lua_State* state) {
   auto* world = CheckWorld(state, 1);
-  float x1 = luaL_checknumber(state, 2);
-  float y1 = luaL_checknumber(state, 3);
-  float x2 = luaL_checknumber(state, 4);
-  float y2 = luaL_checknumber(state, 5);
+  FVec2 min = CheckVec2(state, 2);
+  FVec2 max = CheckVec2(state, 4);
   uint16_t mask = luaL_optinteger(state, 6, 0xFFFF);
 
   ColliderHandle results[64];
-  uint32_t count =
-      world->QueryRect(FVec(x1, y1), FVec(x2, y2), mask, results, 64);
+  uint32_t count = world->QueryRect(min, max, mask, results, 64);
 
   lua_createtable(state, count, 0);
   for (uint32_t i = 0; i < count; ++i) {
@@ -514,13 +487,12 @@ int CollisionWorldQueryRect(lua_State* state) {
 
 int CollisionWorldQueryCircle(lua_State* state) {
   auto* world = CheckWorld(state, 1);
-  float cx = luaL_checknumber(state, 2);
-  float cy = luaL_checknumber(state, 3);
+  FVec2 center = CheckVec2(state, 2);
   float radius = luaL_checknumber(state, 4);
   uint16_t mask = luaL_optinteger(state, 5, 0xFFFF);
 
   ColliderHandle results[64];
-  uint32_t count = world->QueryCircle(FVec(cx, cy), radius, mask, results, 64);
+  uint32_t count = world->QueryCircle(center, radius, mask, results, 64);
 
   lua_createtable(state, count, 0);
   for (uint32_t i = 0; i < count; ++i) {

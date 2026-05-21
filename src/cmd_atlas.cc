@@ -299,9 +299,36 @@ ErrorOr<void> WriteAtlasPage(const AtlasArgs& opts, int atlas_index,
   return {};
 }
 
+void PrintHelp() {
+  printf("Usage: game atlas <input-dir> [options]\n");
+  printf("\n");
+  printf("Packs sprite images into a texture atlas. Outputs a QOI atlas\n");
+  printf("image and a .sprites.json metadata file. Sprites that don't fit\n");
+  printf("in a single atlas are split across multiple pages.\n");
+  printf("\n");
+  printf("Arguments:\n");
+  printf("  input-dir             Directory containing sprite images\n");
+  printf("\n");
+  printf("Options:\n");
+  printf("  -o, --output <dir>    Output directory (default: current directory)\n");
+  printf("  --name <name>         Atlas base name (default: atlas)\n");
+  printf("  --size <WxH>          Atlas dimensions (default: 2048x2048)\n");
+  printf("  --padding <px>        Padding between sprites (default: 1)\n");
+  printf("  --extrude <px>        Edge extrusion in pixels (default: 0)\n");
+  printf("  --recursive           Recurse into subdirectories\n");
+}
+
 }  // namespace
 
 int CmdAtlas(Slice<const char*> args, Allocator* allocator) {
+  for (size_t i = 1; i < args.size(); ++i) {
+    std::string_view arg = args[i];
+    if (arg == "--help" || arg == "-h") {
+      PrintHelp();
+      return 0;
+    }
+  }
+
   auto parse_result = ParseAtlasArgs(args);
   if (parse_result.is_error()) return 1;
   AtlasArgs opts = parse_result.value();

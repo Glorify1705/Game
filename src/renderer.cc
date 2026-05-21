@@ -362,18 +362,29 @@ size_t BatchRenderer::LoadTexture(const void* data, size_t width,
                                   size_t height) {
   GLuint tex;
   const size_t index = tex_.size();
+  // Check against the hardware texture unit limit.
+  GLint max_units = 0;
+  glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &max_units);
+  CHECK(static_cast<int>(index) < max_units,
+        "Exceeded maximum texture units (", max_units,
+        "). Loaded ", index, " textures. "
+        "This usually means too many individual images are being loaded. "
+        "Combine small images into spritesheets, or remove unused assets "
+        "(e.g. zip files with many PNGs).");
   OPENGL_CALL(glGenTextures(1, &tex));
   OPENGL_CALL(glActiveTexture(GL_TEXTURE0 + index));
   OPENGL_CALL(glBindTexture(GL_TEXTURE_2D, tex));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                              GL_LINEAR_MIPMAP_LINEAR));
-  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+                              default_min_filter_));
+  OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+                              default_mag_filter_));
   OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
                            GL_UNSIGNED_BYTE, data));
   OPENGL_CALL(glGenerateMipmap(GL_TEXTURE_2D));
-  CHECK(!glGetError(), "Could generate texture: ", glGetError());
+  CHECK(!glGetError(), "Could not generate texture (", width, "x", height,
+        " at index ", index, ")");
   tex_.Push(tex);
   return index;
 }

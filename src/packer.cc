@@ -2,6 +2,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <algorithm>
 #include <atomic>
 
 extern "C" {
@@ -817,8 +818,80 @@ class DbPacker {
     }
   }
 
+  // Recursively enumerate a PhysFS directory, calling HandleFile for each
+  // file found. Files are passed with their basename only (flat naming).
+  void EnumerateRecursive(const char* dir) {
+    PHYSFS_enumerate(dir, [](void* ud, const char* dirname,
+                             const char* filename) {
+      auto* self = static_cast<DbPacker*>(ud);
+      FixedStringBuffer<kMaxPathLength> full(dirname, "/", filename);
+      PHYSFS_Stat stat;
+      if (PHYSFS_stat(full.str(), &stat) &&
+          stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
+        self->EnumerateRecursive(full.str());
+      } else {
+        // Pass the directory as the dirname so HandleFile builds the
+        // correct PhysFS path, but uses basename for the DB key.
+        self->HandleFile(dirname, filename);
+      }
+      return PHYSFS_ENUM_OK;
+    }, this);
+  }
+
+  // Scan for .zip files and mount them so their contents get packed.
+  void MountZipFiles() {
+    // Collect zip paths first (can't mount during enumeration).
+    struct ZipEntry {
+      char path[512];
+      size_t len;
+      std::string_view view() const { return {path, len}; }
+    };
+    DynArray<ZipEntry> zips(allocator_);
+
+    PHYSFS_enumerate("/assets", [](void* ud, const char* dirname,
+                                   const char* filename) {
+      auto* zips = static_cast<DynArray<ZipEntry>*>(ud);
+      if (HasSuffix(filename, ".zip")) {
+        ZipEntry entry;
+        entry.len = std::snprintf(entry.path, sizeof(entry.path),
+                                  "%s/%s", dirname, filename);
+        zips->Push(entry);
+      }
+      return PHYSFS_ENUM_OK;
+    }, &zips);
+
+    // Sort alphabetically for deterministic priority.
+    std::sort(zips.begin(), zips.end(),
+              [](const ZipEntry& a, const ZipEntry& b) {
+                return a.view() < b.view();
+              });
+
+    // Mount each zip, enumerate its contents, then unmount.
+    constexpr std::string_view kPrefix = "/assets/";
+    for (size_t i = 0; i < zips.size(); ++i) {
+      const char* real = PHYSFS_getRealDir(zips[i].path);
+      if (!real) continue;
+      std::string_view vfs_path = zips[i].view();
+      if (HasPrefix(vfs_path, kPrefix)) {
+        vfs_path.remove_prefix(kPrefix.size());
+      }
+      FixedStringBuffer<kMaxPathLength> zip_real(real, "/", vfs_path);
+      if (PHYSFS_mount(zip_real.str(), "/zips", /*append=*/1)) {
+        int before = result_.written_files;
+        EnumerateRecursive("/zips");
+        int from_zip = result_.written_files - before;
+        LOG("Zip: ", zip_real.str(), " (", from_zip, " assets)");
+        PHYSFS_unmount(zip_real.str());
+      } else {
+        LOG("Failed to mount zip ", zip_real.str(), ": ",
+            PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode()));
+      }
+    }
+  }
+
   AssetWriteResult HandleFiles() {
     PHYSFS_enumerate("/assets", WriteFileToDb, this);
+    MountZipFiles();
     ProcessDeferredItems();
     // Ensure we always have the debug font available.
     if (!checksums_.Contains("debug_font.ttf")) {
