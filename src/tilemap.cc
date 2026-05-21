@@ -81,11 +81,13 @@ ErrorOr<void> Tilemap::LoadTmx(std::string_view xml_data,
           gid = gid * 10 + (csv[pos] - '0');
           ++pos;
         }
-        // Strip Tiled flip flags (top 3 bits).
-        gid &= 0x0FFFFFFF;
+        // Extract Tiled flip flags (top 3 bits) before stripping.
+        int flip = gid & kTileFlipMask;
+        gid &= kTileIdMask;
         // Convert Tiled GID to our 1-based tile ID.
         // gid_offset = firstgid - 1, so gid - offset = 1 for the first tile.
         int tile_id = (gid > tileset_gid_offset) ? gid - tileset_gid_offset : 0;
+        tile_id |= flip;
         tilemap->SetTile(name, x, y, tile_id);
         ++x;
         if (x >= lw) {
@@ -271,7 +273,7 @@ int Tilemap::GetTile(std::string_view layer_name, int x, int y) const {
   const TilemapLayer* layer = FindLayer(layer_name);
   if (!layer) return 0;
   if (x < 0 || x >= layer->width || y < 0 || y >= layer->height) return 0;
-  return layer->tiles[y * layer->width + x];
+  return layer->tiles[y * layer->width + x] & kTileIdMask;
 }
 
 void Tilemap::WorldToTile(float wx, float wy, int* tx, int* ty) const {
@@ -297,7 +299,7 @@ bool Tilemap::IsSolid(float wx, float wy) const {
   int tx = static_cast<int>(std::floor(wx / tile_width_));
   int ty = static_cast<int>(std::floor(wy / tile_height_));
   if (tx < 0 || tx >= col->width || ty < 0 || ty >= col->height) return false;
-  return col->tiles[ty * col->width + tx] != 0;
+  return (col->tiles[ty * col->width + tx] & kTileIdMask) != 0;
 }
 
 int Tilemap::TileAt(float wx, float wy) const {
@@ -306,7 +308,7 @@ int Tilemap::TileAt(float wx, float wy) const {
   int tx = static_cast<int>(std::floor(wx / tile_width_));
   int ty = static_cast<int>(std::floor(wy / tile_height_));
   if (tx < 0 || tx >= col->width || ty < 0 || ty >= col->height) return 0;
-  return col->tiles[ty * col->width + tx];
+  return col->tiles[ty * col->width + tx] & kTileIdMask;
 }
 
 TilemapMoveResult Tilemap::Move(float x, float y, float w, float h, float vx,
@@ -341,7 +343,8 @@ TilemapMoveResult Tilemap::Move(float x, float y, float w, float h, float vx,
 
     for (int ty = start_row; ty <= end_row; ++ty) {
       for (int tx = start_col; tx <= end_col; ++tx) {
-        int tile_id = col->tiles[ty * col->width + tx];
+        int raw = col->tiles[ty * col->width + tx];
+        int tile_id = raw & kTileIdMask;
         if (tile_id == 0) continue;
 
         float tile_left = tx * tw;
@@ -381,7 +384,8 @@ TilemapMoveResult Tilemap::Move(float x, float y, float w, float h, float vx,
 
     for (int ty = start_row; ty <= end_row; ++ty) {
       for (int tx = start_col; tx <= end_col; ++tx) {
-        int tile_id = col->tiles[ty * col->width + tx];
+        int raw = col->tiles[ty * col->width + tx];
+        int tile_id = raw & kTileIdMask;
         if (tile_id == 0) continue;
 
         float tile_top = ty * th;
@@ -488,7 +492,8 @@ void Tilemap::DrawLayerImpl(const TilemapLayer& layer, Renderer* renderer,
 
   for (int row = start_row; row <= end_row; ++row) {
     for (int col = start_col; col <= end_col; ++col) {
-      int tile_id = layer.tiles[row * layer.width + col];
+      int raw = layer.tiles[row * layer.width + col];
+      int tile_id = raw & kTileIdMask;
       if (tile_id <= 0) continue;
 
       // Tile position in world space, offset by parallax.
@@ -506,6 +511,29 @@ void Tilemap::DrawLayerImpl(const TilemapLayer& layer, Renderer* renderer,
       float v0 = (tile_row * th) / sheet_h + half_texel_v;
       float u1 = ((tile_col + 1) * tw) / sheet_w - half_texel_u;
       float v1 = ((tile_row + 1) * th) / sheet_h - half_texel_v;
+
+      // Apply flip flags by swapping UV coordinates.
+      if (raw & kTileFlipHorizontal) {
+        float tmp = u0;
+        u0 = u1;
+        u1 = tmp;
+      }
+      if (raw & kTileFlipVertical) {
+        float tmp = v0;
+        v0 = v1;
+        v1 = tmp;
+      }
+      // Diagonal flip (anti-diagonal transpose) is equivalent to a 90° CW
+      // rotation + horizontal flip. We approximate it by swapping both axes.
+      if (raw & kTileFlipDiagonal) {
+        float tmp;
+        tmp = u0;
+        u0 = u1;
+        u1 = tmp;
+        tmp = v0;
+        v0 = v1;
+        v1 = tmp;
+      }
 
       FVec2 p0(px, py);
       FVec2 p1(px + tw, py + th);

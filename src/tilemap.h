@@ -15,6 +15,15 @@ class BatchRenderer;
 class Camera;
 class Renderer;
 
+// Tile flip flags stored in the upper bits of packed tile values.
+// Matches Tiled's encoding: bits 31/30/29 of the GID.
+constexpr int kTileFlipHorizontal = 1 << 31;
+constexpr int kTileFlipVertical = 1 << 30;
+constexpr int kTileFlipDiagonal = 1 << 29;
+constexpr int kTileFlipMask =
+    kTileFlipHorizontal | kTileFlipVertical | kTileFlipDiagonal;
+constexpr int kTileIdMask = ~kTileFlipMask;
+
 // A single layer in a tilemap. Stores a grid of tile IDs (0 = empty).
 struct TilemapLayer {
   char name[64];     // Layer name for lookup.
