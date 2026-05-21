@@ -11,9 +11,12 @@ extern "C" {
 #include "lualib.h"
 }
 
+#include <algorithm>
+
 #include "array.h"
 #include "assets.h"
 #include "clock.h"
+#include "color.h"
 #include "libraries/sqlite3.h"
 #include "mat.h"
 #include "stringlib.h"
@@ -165,6 +168,70 @@ inline void FormatLuaUserdata(lua_State* L, int idx, StringBuffer* buf,
     buf->Append("userdata");
     if (show_ptr) buf->AppendF(": %p", lua_topointer(L, idx));
   }
+}
+
+// Reads an x,y number pair from consecutive stack positions.
+inline FVec2 CheckVec2(lua_State* state, int index) {
+  return FVec(luaL_checknumber(state, index),
+              luaL_checknumber(state, index + 1));
+}
+
+// Reads r,g,b,a (0-255 integers) from consecutive stack positions and clamps.
+inline Color CheckColor(lua_State* state, int index) {
+  auto c = [](float f) -> uint8_t {
+    return static_cast<uint8_t>(std::clamp(f, 0.0f, 255.0f));
+  };
+  return Color{c(luaL_checknumber(state, index)),
+               c(luaL_checknumber(state, index + 1)),
+               c(luaL_checknumber(state, index + 2)),
+               c(luaL_checknumber(state, index + 3))};
+}
+
+// Pushes an FVec2 as two return values.
+inline void PushVec2(lua_State* state, FVec2 v) {
+  lua_pushnumber(state, v.x);
+  lua_pushnumber(state, v.y);
+}
+
+// Pushes a Color as four return values (r, g, b, a).
+inline void PushColor(lua_State* state, Color c) {
+  lua_pushnumber(state, c.r);
+  lua_pushnumber(state, c.g);
+  lua_pushnumber(state, c.b);
+  lua_pushnumber(state, c.a);
+}
+
+// Reads a numeric field from a Lua table, returning the default if absent.
+inline float LuaGetNumberField(lua_State* state, int index, const char* field,
+                               float fallback) {
+  lua_getfield(state, index, field);
+  float result = lua_isnumber(state, -1) ? lua_tonumber(state, -1) : fallback;
+  lua_pop(state, 1);
+  return result;
+}
+
+// Reads a boolean field from a Lua table, returning the default if absent.
+inline bool LuaGetBoolField(lua_State* state, int index, const char* field,
+                            bool fallback) {
+  lua_getfield(state, index, field);
+  bool result = lua_isboolean(state, -1) ? lua_toboolean(state, -1) : fallback;
+  lua_pop(state, 1);
+  return result;
+}
+
+// Reads a string field from a Lua table, returning the default if absent.
+inline std::string_view LuaGetStringField(lua_State* state, int index,
+                                          const char* field,
+                                          std::string_view fallback) {
+  lua_getfield(state, index, field);
+  std::string_view result = fallback;
+  if (lua_isstring(state, -1)) {
+    size_t len;
+    const char* data = lua_tolstring(state, -1, &len);
+    result = std::string_view(data, len);
+  }
+  lua_pop(state, 1);
+  return result;
 }
 
 struct LuaApiFunctionArg {
