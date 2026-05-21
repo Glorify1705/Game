@@ -140,6 +140,10 @@ class Tilemap {
   // Draws all visible layers using the camera for viewport culling.
   void Draw(Renderer* renderer, BatchRenderer* batch, Camera* camera) const;
 
+  // Draws a single tile from the tileset at an arbitrary world position.
+  void DrawTile(int tile_id, float x, float y, Renderer* renderer,
+                BatchRenderer* batch) const;
+
   // Draws a single layer by name.
   void DrawLayer(std::string_view name, Renderer* renderer,
                  BatchRenderer* batch, Camera* camera) const;

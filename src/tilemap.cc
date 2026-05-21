@@ -1,8 +1,8 @@
 #include "tilemap.h"
 
 #include <cmath>
-#include <cstdlib>
 #include <cstring>
+#include <utility>
 
 #include "camera.h"
 #include "renderer.h"
@@ -171,11 +171,7 @@ ErrorOr<void> Tilemap::LoadTmx(std::string_view xml_data,
             }
           } else if (ptype == "float") {
             prop.type = TilemapProperty::kFloat;
-            char float_buf[64];
-            size_t flen = pval.size() < 63 ? pval.size() : 63;
-            std::memcpy(float_buf, pval.data(), flen);
-            float_buf[flen] = '\0';
-            prop.float_value = static_cast<float>(std::atof(float_buf));
+            prop.float_value = prop_elem.AttrFloat("value");
           } else if (ptype == "bool") {
             prop.type = TilemapProperty::kBool;
             prop.bool_value = (pval == "true");
@@ -420,6 +416,44 @@ void Tilemap::SetTileset(std::string_view name) {
   tileset_name_[copy_len] = '\0';
 }
 
+void Tilemap::DrawTile(int tile_id, float x, float y, Renderer* renderer,
+                       BatchRenderer* batch) const {
+  if (tileset_name_[0] == '\0' || tile_id <= 0) return;
+
+  float sheet_w, sheet_h;
+  DbAssets::Spritesheet* sheet = renderer->GetSpritesheet(tileset_name_);
+  if (sheet && renderer->SetSpritesheetTexture(tileset_name_)) {
+    sheet_w = static_cast<float>(sheet->width);
+    sheet_h = static_cast<float>(sheet->height);
+  } else {
+    DbAssets::Image* img = renderer->GetImage(tileset_name_);
+    if (!img || !renderer->SetImageTexture(tileset_name_)) return;
+    sheet_w = static_cast<float>(img->width);
+    sheet_h = static_cast<float>(img->height);
+  }
+  const float tw = static_cast<float>(tile_width_);
+  const float th = static_cast<float>(tile_height_);
+  const int tiles_per_row = static_cast<int>(sheet_w) / tile_width_;
+  if (tiles_per_row == 0) return;
+
+  int tile_col = (tile_id - 1) % tiles_per_row;
+  int tile_row = (tile_id - 1) / tiles_per_row;
+
+  const float half_texel_u = 0.5f / sheet_w;
+  const float half_texel_v = 0.5f / sheet_h;
+  float u0 = (tile_col * tw) / sheet_w + half_texel_u;
+  float v0 = (tile_row * th) / sheet_h + half_texel_v;
+  float u1 = ((tile_col + 1) * tw) / sheet_w - half_texel_u;
+  float v1 = ((tile_row + 1) * th) / sheet_h - half_texel_v;
+
+  FVec2 p0(x, y);
+  FVec2 p1(x + tw, y + th);
+  FVec2 q0(u0, v0);
+  FVec2 q1(u1, v1);
+  FVec2 origin(x + tw * 0.5f, y + th * 0.5f);
+  batch->PushQuad(p0, p1, q0, q1, origin, /*angle=*/0.0f);
+}
+
 void Tilemap::Draw(Renderer* renderer, BatchRenderer* batch,
                    Camera* camera) const {
   for (int i = 0; i < layer_count_; ++i) {
@@ -513,26 +547,13 @@ void Tilemap::DrawLayerImpl(const TilemapLayer& layer, Renderer* renderer,
       float v1 = ((tile_row + 1) * th) / sheet_h - half_texel_v;
 
       // Apply flip flags by swapping UV coordinates.
-      if (raw & kTileFlipHorizontal) {
-        float tmp = u0;
-        u0 = u1;
-        u1 = tmp;
-      }
-      if (raw & kTileFlipVertical) {
-        float tmp = v0;
-        v0 = v1;
-        v1 = tmp;
-      }
+      if (raw & kTileFlipHorizontal) std::swap(u0, u1);
+      if (raw & kTileFlipVertical) std::swap(v0, v1);
       // Diagonal flip (anti-diagonal transpose) is equivalent to a 90° CW
       // rotation + horizontal flip. We approximate it by swapping both axes.
       if (raw & kTileFlipDiagonal) {
-        float tmp;
-        tmp = u0;
-        u0 = u1;
-        u1 = tmp;
-        tmp = v0;
-        v0 = v1;
-        v1 = tmp;
+        std::swap(u0, u1);
+        std::swap(v0, v1);
       }
 
       FVec2 p0(px, py);

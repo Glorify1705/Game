@@ -247,6 +247,17 @@ int TilemapLayerCount(lua_State* state) {
   return 1;
 }
 
+int TilemapDrawTile(lua_State* state) {
+  auto* tilemap = CheckTilemap(state, 1);
+  int tile_id = luaL_checkinteger(state, 2);
+  float x = luaL_checknumber(state, 3);
+  float y = luaL_checknumber(state, 4);
+  auto* renderer = Registry<Renderer>::Retrieve(state);
+  auto* batch = Registry<BatchRenderer>::Retrieve(state);
+  tilemap->DrawTile(tile_id, x, y, renderer, batch);
+  return 0;
+}
+
 int TilemapGetObjects(lua_State* state) {
   auto* tilemap = CheckTilemap(state, 1);
   std::string_view name = GetLuaString(state, 2);
@@ -331,6 +342,7 @@ constexpr luaL_Reg kTilemapMethods[] = {
     {"get_tile", TilemapGetTile},
     {"draw", TilemapDraw},
     {"draw_layer", TilemapDrawLayer},
+    {"draw_tile", TilemapDrawTile},
     {"tile_at", TilemapTileAt},
     {"is_solid", TilemapIsSolid},
     {"world_to_tile", TilemapWorldToTile},
@@ -438,6 +450,12 @@ const LuaUserdataMethod kTilemapMethodDefs[] = {
     {"draw_layer",
      "Draws a single layer by name",
      {{"name", "Layer name", "string"}},
+     {}},
+    {"draw_tile",
+     "Draws a single tile from the tileset at an arbitrary world position",
+     {{"tile_id", "Tile ID (1-based)", "integer"},
+      {"x", "World x position", "number"},
+      {"y", "World y position", "number"}},
      {}},
     {"tile_at",
      "Returns the tile ID at a world position from the collision layer",
