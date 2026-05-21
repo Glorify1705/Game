@@ -64,6 +64,7 @@ in
     sqlite
     sqlitebrowser
     stylua
+    tiled
     p7zip
     valgrind
     wineWowPackages.stable

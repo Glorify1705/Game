@@ -48,7 +48,7 @@ function M:init()
   -- Load the level directly from the Tiled TMX file.
   -- The tile tileset has firstgid=28, so gid_offset = 27.
   map = G.tilemap.load_tmx("level.tmx", 27)
-  map:set_tileset("tilemap_packed.qoi")
+  map:set_tileset("tilemap_packed.png")
   map:set_collision("Tiles", true)  -- First layer is the terrain.
 
   -- Set up camera (2.5x zoom for pixel art).
