@@ -247,6 +247,71 @@ int TilemapLayerCount(lua_State* state) {
   return 1;
 }
 
+int TilemapGetObjects(lua_State* state) {
+  auto* tilemap = CheckTilemap(state, 1);
+  std::string_view name = GetLuaString(state, 2);
+
+  const TilemapObjectGroup* group = tilemap->FindObjectGroup(name);
+  if (!group) {
+    lua_newtable(state);
+    return 1;
+  }
+
+  lua_createtable(state, group->object_count, 0);
+  for (int i = 0; i < group->object_count; ++i) {
+    const TilemapObject& obj = group->objects[i];
+    lua_createtable(state, 0, 7);
+
+    lua_pushinteger(state, obj.id);
+    lua_setfield(state, -2, "id");
+
+    lua_pushstring(state, obj.name);
+    lua_setfield(state, -2, "name");
+
+    lua_pushstring(state, obj.type);
+    lua_setfield(state, -2, "type");
+
+    lua_pushnumber(state, obj.x);
+    lua_setfield(state, -2, "x");
+
+    lua_pushnumber(state, obj.y);
+    lua_setfield(state, -2, "y");
+
+    lua_pushnumber(state, obj.width);
+    lua_setfield(state, -2, "width");
+
+    lua_pushnumber(state, obj.height);
+    lua_setfield(state, -2, "height");
+
+    // Push custom properties as a nested table.
+    if (obj.property_count > 0) {
+      lua_createtable(state, 0, obj.property_count);
+      for (int j = 0; j < obj.property_count; ++j) {
+        const TilemapProperty& prop = obj.properties[j];
+        switch (prop.type) {
+          case TilemapProperty::kString:
+            lua_pushstring(state, prop.string_value);
+            break;
+          case TilemapProperty::kInt:
+            lua_pushinteger(state, prop.int_value);
+            break;
+          case TilemapProperty::kFloat:
+            lua_pushnumber(state, prop.float_value);
+            break;
+          case TilemapProperty::kBool:
+            lua_pushboolean(state, prop.bool_value);
+            break;
+        }
+        lua_setfield(state, -2, prop.name);
+      }
+      lua_setfield(state, -2, "properties");
+    }
+
+    lua_rawseti(state, -2, i + 1);
+  }
+  return 1;
+}
+
 int TilemapGc(lua_State* state) {
   auto* tilemap = CheckTilemap(state, 1);
   tilemap->~Tilemap();
@@ -275,6 +340,7 @@ constexpr luaL_Reg kTilemapMethods[] = {
     {"set_visible", TilemapSetVisible},
     {"set_tileset", TilemapSetTileset},
     {"set_collision", TilemapSetCollision},
+    {"get_objects", TilemapGetObjects},
     {"dimensions", TilemapDimensions},
     {"layer_count", TilemapLayerCount},
     {"__gc", TilemapGc},
@@ -414,6 +480,11 @@ const LuaUserdataMethod kTilemapMethodDefs[] = {
      {{"name", "Layer name", "string"},
       {"visible", "Whether to draw this layer", "boolean"}},
      {}},
+    {"get_objects",
+     "Returns all objects from a named object layer as a table",
+     {{"layer_name", "Object group name", "string"}},
+     {{"objects", "Array of {id, name, type, x, y, width, height, properties?}",
+       "table"}}},
     {"dimensions",
      "Returns tile dimensions and layer count",
      {},

@@ -24,14 +24,15 @@ Tilemap::Tilemap(int tile_width, int tile_height, Allocator* allocator)
     : tile_width_(tile_width),
       tile_height_(tile_height),
       layer_count_(0),
+      object_group_count_(0),
       allocator_(allocator) {
   tileset_name_[0] = '\0';
   std::memset(layers_, 0, sizeof(layers_));
+  std::memset(object_groups_, 0, sizeof(object_groups_));
 }
 
 ErrorOr<void> Tilemap::LoadTmx(std::string_view xml_data,
-                               int tileset_gid_offset,
-                               Allocator* allocator,
+                               int tileset_gid_offset, Allocator* allocator,
                                Tilemap* tilemap) {
   ArenaAllocator scratch(allocator, Kilobytes(64));
   XmlElement* root = TRY(ParseXml(xml_data, &scratch));
@@ -87,12 +88,120 @@ ErrorOr<void> Tilemap::LoadTmx(std::string_view xml_data,
         int tile_id = (gid > tileset_gid_offset) ? gid - tileset_gid_offset : 0;
         tilemap->SetTile(name, x, y, tile_id);
         ++x;
-        if (x >= lw) { x = 0; ++y; }
+        if (x >= lw) {
+          x = 0;
+          ++y;
+        }
       }
     });
   });
 
+  // Parse object groups (<objectgroup> elements).
+  root->ForEachChild("objectgroup", [&](const XmlElement& group_elem) {
+    if (tilemap->object_group_count_ >= kMaxObjectGroups) return;
+    TilemapObjectGroup& group =
+        tilemap->object_groups_[tilemap->object_group_count_];
+
+    std::string_view gname = group_elem.Attr("name");
+    size_t name_len = gname.size() < 63 ? gname.size() : 63;
+    std::memcpy(group.name, gname.data(), name_len);
+    group.name[name_len] = '\0';
+
+    // Count objects first, then allocate.
+    int count = 0;
+    group_elem.ForEachChild("object", [&](const XmlElement&) { ++count; });
+    if (count == 0) {
+      group.objects = nullptr;
+      group.object_count = 0;
+      tilemap->object_group_count_++;
+      return;
+    }
+    if (count > TilemapObjectGroup::kMaxObjects)
+      count = TilemapObjectGroup::kMaxObjects;
+
+    group.objects = static_cast<TilemapObject*>(allocator->Alloc(
+        count * sizeof(TilemapObject), alignof(TilemapObject)));
+    std::memset(group.objects, 0, count * sizeof(TilemapObject));
+    group.object_count = 0;
+
+    group_elem.ForEachChild("object", [&](const XmlElement& obj_elem) {
+      if (group.object_count >= count) return;
+      TilemapObject& obj = group.objects[group.object_count];
+
+      obj.id = obj_elem.AttrInt("id");
+      obj.x = obj_elem.AttrFloat("x");
+      obj.y = obj_elem.AttrFloat("y");
+      obj.width = obj_elem.AttrFloat("width");
+      obj.height = obj_elem.AttrFloat("height");
+
+      std::string_view oname = obj_elem.Attr("name");
+      size_t on = oname.size() < 63 ? oname.size() : 63;
+      std::memcpy(obj.name, oname.data(), on);
+      obj.name[on] = '\0';
+
+      std::string_view otype = obj_elem.Attr("type");
+      if (otype.empty()) otype = obj_elem.Attr("class");
+      size_t ot = otype.size() < 63 ? otype.size() : 63;
+      std::memcpy(obj.type, otype.data(), ot);
+      obj.type[ot] = '\0';
+
+      // Parse custom properties.
+      obj.property_count = 0;
+      obj_elem.ForEachChild("properties", [&](const XmlElement& props_elem) {
+        props_elem.ForEachChild("property", [&](const XmlElement& prop_elem) {
+          if (obj.property_count >= TilemapObject::kMaxProperties) return;
+          TilemapProperty& prop = obj.properties[obj.property_count];
+
+          std::string_view pname = prop_elem.Attr("name");
+          size_t pn = pname.size() < 63 ? pname.size() : 63;
+          std::memcpy(prop.name, pname.data(), pn);
+          prop.name[pn] = '\0';
+
+          std::string_view ptype = prop_elem.Attr("type");
+          std::string_view pval = prop_elem.Attr("value");
+
+          if (ptype == "int") {
+            prop.type = TilemapProperty::kInt;
+            prop.int_value = 0;
+            for (size_t k = 0; k < pval.size(); ++k) {
+              if (pval[k] >= '0' && pval[k] <= '9')
+                prop.int_value = prop.int_value * 10 + (pval[k] - '0');
+            }
+          } else if (ptype == "float") {
+            prop.type = TilemapProperty::kFloat;
+            char float_buf[64];
+            size_t flen = pval.size() < 63 ? pval.size() : 63;
+            std::memcpy(float_buf, pval.data(), flen);
+            float_buf[flen] = '\0';
+            prop.float_value = static_cast<float>(std::atof(float_buf));
+          } else if (ptype == "bool") {
+            prop.type = TilemapProperty::kBool;
+            prop.bool_value = (pval == "true");
+          } else {
+            prop.type = TilemapProperty::kString;
+            size_t sv = pval.size() < 127 ? pval.size() : 127;
+            std::memcpy(prop.string_value, pval.data(), sv);
+            prop.string_value[sv] = '\0';
+          }
+          obj.property_count++;
+        });
+      });
+
+      group.object_count++;
+    });
+
+    tilemap->object_group_count_++;
+  });
+
   return {};
+}
+
+const TilemapObjectGroup* Tilemap::FindObjectGroup(
+    std::string_view name) const {
+  for (int i = 0; i < object_group_count_; ++i) {
+    if (name == object_groups_[i].name) return &object_groups_[i];
+  }
+  return nullptr;
 }
 
 Tilemap::~Tilemap() {
@@ -101,6 +210,14 @@ Tilemap::~Tilemap() {
       allocator_->Dealloc(layers_[i].tiles,
                           layers_[i].width * layers_[i].height * sizeof(int));
       layers_[i].tiles = nullptr;
+    }
+  }
+  for (int i = 0; i < object_group_count_; ++i) {
+    if (object_groups_[i].objects) {
+      allocator_->Dealloc(
+          object_groups_[i].objects,
+          object_groups_[i].object_count * sizeof(TilemapObject));
+      object_groups_[i].objects = nullptr;
     }
   }
 }
@@ -143,8 +260,7 @@ const TilemapLayer* Tilemap::FindLayer(std::string_view name) const {
   return nullptr;
 }
 
-void Tilemap::SetTile(std::string_view layer_name, int x, int y,
-                      int tile_id) {
+void Tilemap::SetTile(std::string_view layer_name, int x, int y, int tile_id) {
   TilemapLayer* layer = FindLayer(layer_name);
   if (!layer) return;
   if (x < 0 || x >= layer->width || y < 0 || y >= layer->height) return;

@@ -17,33 +17,70 @@ class Renderer;
 
 // A single layer in a tilemap. Stores a grid of tile IDs (0 = empty).
 struct TilemapLayer {
-  char name[64];       // Layer name for lookup.
-  int* tiles;          // Flat array of tile IDs (row-major, width * height).
-  int width;           // Width in tiles.
-  int height;          // Height in tiles.
-  float parallax_x;    // Horizontal parallax factor (1.0 = normal scroll).
-  float parallax_y;    // Vertical parallax factor (1.0 = normal scroll).
-  bool visible;        // Whether this layer is drawn.
-  bool collision;      // Whether non-zero tiles are solid.
+  char name[64];     // Layer name for lookup.
+  int* tiles;        // Flat array of tile IDs (row-major, width * height).
+  int width;         // Width in tiles.
+  int height;        // Height in tiles.
+  float parallax_x;  // Horizontal parallax factor (1.0 = normal scroll).
+  float parallax_y;  // Vertical parallax factor (1.0 = normal scroll).
+  bool visible;      // Whether this layer is drawn.
+  bool collision;    // Whether non-zero tiles are solid.
+};
+
+// A property attached to a TMX object. Supports string, int, float, bool.
+struct TilemapProperty {
+  enum Type : uint8_t { kString, kInt, kFloat, kBool };
+  char name[64];
+  Type type;
+  union {
+    char string_value[128];
+    int int_value;
+    float float_value;
+    bool bool_value;
+  };
+};
+
+// An object from a TMX object layer (point, rectangle, etc.).
+struct TilemapObject {
+  static constexpr int kMaxProperties = 16;
+  int id;         // TMX object id.
+  char name[64];  // Object name (may be empty).
+  char type[64];  // Object type/class (may be empty).
+  float x;        // X position in pixels.
+  float y;        // Y position in pixels.
+  float width;    // Width in pixels (0 for points).
+  float height;   // Height in pixels (0 for points).
+  TilemapProperty properties[kMaxProperties];
+  int property_count;
+};
+
+// A group of objects from a TMX objectgroup layer.
+struct TilemapObjectGroup {
+  static constexpr int kMaxObjects = 256;
+  char name[64];
+  TilemapObject* objects;  // Array of objects (allocated).
+  int object_count;
 };
 
 // Result of a tilemap move (AABB sweep against solid tiles).
 struct TilemapMoveResult {
-  float x;          // Final x position after collision resolution.
-  float y;          // Final y position after collision resolution.
-  bool hit_x;       // True if horizontal collision occurred.
-  bool hit_y;       // True if vertical collision occurred.
-  float normal_x;   // Collision normal x component.
-  float normal_y;   // Collision normal y component.
-  int tile_x;       // Tile coordinate of last collision (x).
-  int tile_y;       // Tile coordinate of last collision (y).
-  int tile_id;      // Tile ID of last collision.
+  float x;         // Final x position after collision resolution.
+  float y;         // Final y position after collision resolution.
+  bool hit_x;      // True if horizontal collision occurred.
+  bool hit_y;      // True if vertical collision occurred.
+  float normal_x;  // Collision normal x component.
+  float normal_y;  // Collision normal y component.
+  int tile_x;      // Tile coordinate of last collision (x).
+  int tile_y;      // Tile coordinate of last collision (y).
+  int tile_id;     // Tile ID of last collision.
 };
 
-// A 2D tilemap with multiple layers, tile collision, and camera-aware rendering.
+// A 2D tilemap with multiple layers, tile collision, and camera-aware
+// rendering.
 class Tilemap {
  public:
   static constexpr int kMaxLayers = 16;
+  static constexpr int kMaxObjectGroups = 16;
 
   // Creates an empty tilemap with the given tile dimensions.
   Tilemap(int tile_width, int tile_height, Allocator* allocator);
@@ -53,9 +90,8 @@ class Tilemap {
   // GIDs to 1-based tile IDs. The output tilemap is destructed and
   // reconstructed in-place.
   static ErrorOr<void> LoadTmx(std::string_view xml_data,
-                                int tileset_gid_offset,
-                                Allocator* allocator,
-                                Tilemap* out);
+                               int tileset_gid_offset, Allocator* allocator,
+                               Tilemap* out);
 
   // Destroys the tilemap and frees all layer tile arrays.
   ~Tilemap();
@@ -103,9 +139,7 @@ class Tilemap {
   void SetTileset(std::string_view name);
 
   // Returns the tileset spritesheet name.
-  std::string_view tileset() const {
-    return std::string_view(tileset_name_);
-  }
+  std::string_view tileset() const { return std::string_view(tileset_name_); }
 
   // Returns the tile width in pixels.
   int tile_width() const { return tile_width_; }
@@ -122,6 +156,17 @@ class Tilemap {
   // Returns the layer at the given index (const).
   const TilemapLayer* layer(int index) const { return &layers_[index]; }
 
+  // Finds an object group by name. Returns nullptr if not found.
+  const TilemapObjectGroup* FindObjectGroup(std::string_view name) const;
+
+  // Returns the number of object groups.
+  int object_group_count() const { return object_group_count_; }
+
+  // Returns the object group at the given index.
+  const TilemapObjectGroup* object_group(int index) const {
+    return &object_groups_[index];
+  }
+
   // Active tilemap for debug UI inspection (set by Lua bindings).
   static inline Tilemap* debug_active_tilemap = nullptr;
 
@@ -135,10 +180,12 @@ class Tilemap {
 
   int tile_width_;                   // Tile width in pixels.
   int tile_height_;                  // Tile height in pixels.
-  char tileset_name_[256];           // Spritesheet name for the tileset.
+  char tileset_name_[256];           // Spritesheet name.
   TilemapLayer layers_[kMaxLayers];  // Layer storage.
   int layer_count_;                  // Number of active layers.
-  Allocator* allocator_;             // Allocator for tile arrays.
+  TilemapObjectGroup object_groups_[kMaxObjectGroups];  // Object groups.
+  int object_group_count_;  // Number of object groups.
+  Allocator* allocator_;    // Allocator for arrays.
 };
 
 }  // namespace G
