@@ -42,6 +42,7 @@ vgcore.*
 ignore*
 
 .gdb_history
+.jj/
 .obsidian
 worktrees/
 workbench
