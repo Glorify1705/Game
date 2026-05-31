@@ -18,6 +18,8 @@ and package it for distribution.
 - **Collision** --- Lightweight spatial-hash broad-phase (separate from
   Box2D) with circle/AABB shapes, move-and-slide, raycasting, overlap
   queries
+- **Tilemap** --- Multi-layer tile rendering with Tiled TMX import, AABB
+  sweep collision, parallax scrolling, object layers, viewport culling
 - **Audio** --- QOA streaming for music, decoded PCM for effects, volume,
   pitch, panning, looping, global volume control
 - **Input** --- Keyboard (pressed/down/released), mouse (buttons, position,
@@ -179,6 +181,21 @@ with a JSON metadata file.
 ### `game version`
 
 Print engine version and build date.
+
+### `game completions {bash|zsh|man}`
+
+Generate shell completions or a man page. Output is printed to stdout.
+
+```bash
+# Bash
+game completions bash > ~/.local/share/bash-completion/completions/game
+
+# Zsh
+game completions zsh > ~/.local/share/zsh/site-functions/_game
+
+# Man page
+game completions man | sudo tee /usr/local/share/man/man1/game.1
+```
 
 ### `game help [command]`
 
@@ -559,6 +576,56 @@ world:get_overlaps(handle) -> hits
 world:raycast(ox, oy, dx, dy, max_dist [, mask]) -> hit?
 ```
 
+### G.tilemap
+
+2D tilemap with multi-layer rendering, AABB sweep collision, and Tiled
+(TMX) import. Tiles are rendered with viewport culling and optional
+per-layer parallax.
+
+```lua
+-- Create from code
+local map = G.tilemap.new({
+    tile_width = 16,
+    tile_height = 16,
+    tileset = "tilemap_packed",       -- spritesheet name
+})
+map:add_layer("ground", 40, 23)       -- name, width_in_tiles, height_in_tiles
+map:set_tile("ground", 3, 5, 12)      -- layer, tile_x, tile_y, tile_id
+
+-- Or load from Tiled TMX
+local map = G.tilemap.load_tmx("level.tmx", gid_offset)
+
+-- Rendering
+map:draw()                             -- Draw all visible layers
+map:draw_layer("ground")               -- Draw a single layer
+map:draw_tile(tile_id, x, y)           -- Draw one tile at pixel position
+
+-- Collision (AABB sweep, resolves X then Y)
+local result = map:move(x, y, w, h, vx, vy)
+-- result.x, result.y = resolved position
+-- result.collisions = list of {nx, ny, tile_x, tile_y}
+
+-- Queries
+map:tile_at(px, py) -> tile_id         -- World coords to tile ID
+map:is_solid(px, py) -> boolean        -- Any collision layer has a tile here
+map:world_to_tile(px, py) -> tx, ty
+map:tile_to_world(tx, ty) -> px, py
+
+-- Layer control
+map:set_parallax("bg", 0.5, 0.5)      -- Scroll factor per layer
+map:set_visible("fg", false)
+map:set_collision("ground", true)      -- Mark layer as collidable
+map:set_tileset("other_sheet")
+
+-- Object layers (from TMX)
+local objects = map:get_objects("spawns")
+-- Each object: {name, type, x, y, width, height, properties}
+
+-- Info
+map:dimensions() -> width, height      -- In tiles
+map:layer_count() -> integer
+```
+
 ### G.camera
 
 ```lua
@@ -635,14 +702,15 @@ Easing functions: `linear`, `quad`, `cubic`, `quart`, `quint`, `sine`,
 ENet-based reliable UDP networking.
 
 ```lua
-G.network.create_server(port [, max_clients]) -> boolean
-G.network.create_client() -> boolean
-G.network.connect(host, port) -> boolean
+G.network.create_server(port, max_clients [, channels])
+G.network.create_client([channels])
+G.network.connect(host, port)
 G.network.disconnect()
-G.network.send(peer_id, data [, channel, flag])
-G.network.broadcast(data [, channel, flag])
+G.network.send(peer_id, data [, {channel=0, reliable=true}])
+G.network.broadcast(data [, {channel=0, reliable=true}])
+G.network.is_active() -> boolean
 G.network.peer_count() -> integer
-G.network.is_server() -> boolean
+G.network.connected_peers() -> { peer_id, ... }
 ```
 
 Incoming events are delivered via callbacks on the game module:
@@ -782,6 +850,13 @@ G.random.pick(rng, list) -> element
 
 ```lua
 G.data.hash(data) -> number       -- Hash a string or byte_buffer
+
+-- Protobuf serialization (requires .proto schema loaded as asset)
+G.data.load_schema(name)                       -- Load a .proto schema
+G.data.encode(typename, table) -> string       -- Encode table to binary
+G.data.decode(typename, bytes) -> table        -- Decode binary to table
+G.data.types() -> iterator                     -- Iterate registered message types
+G.data.fields(typename) -> iterator            -- Iterate fields of a message type
 ```
 
 ### G.save
@@ -859,6 +934,7 @@ G.test.assert_true(cond [, msg])
 | `collision_world` | Spatial-hash collision world |
 | `collision_handle` | Handle to a collider inside a `collision_world` |
 | `canvas` | Off-screen render target with `dimensions`, `width`, `height` |
+| `tilemap` | Multi-layer tilemap with rendering, collision, and TMX loading |
 | `rng` | Random number generator state |
 | `sprite_asset` | Reference to a loaded sprite |
 
@@ -877,6 +953,8 @@ database automatically when running or packaging.
 | `.ogg`, `.wav` | Audio |
 | `.ttf` | Fonts |
 | `.vert`, `.frag` | Shaders (GLSL) |
+| `.tmx` | Tiled tilemaps (XML) |
+| `.tsx` | Tiled tilesets (XML) |
 | `.json`, `.txt` | Text files |
 
 ### Spritesheet format
@@ -908,6 +986,9 @@ The `games/` directory contains example projects:
   splitting meteors, three enemy types (chaser, turret, bomber), powerups,
   high scores, CRT shader, parallax starfield. Demonstrates the scene
   system, FSM-based AI, and steering behaviors.
+- **platformer/** --- Tile-based platformer loaded from a Tiled TMX map.
+  Demonstrates the tilemap system with AABB collision, animated player,
+  gravity, and camera following.
 - **flappybird/** --- Classic Flappy Bird clone written in Fennel.
 
 The `assets/` directory contains additional test programs (testdrawing,
@@ -957,11 +1038,11 @@ pcg-random, Dear ImGui.
 ## Project structure
 
 ```
-src/                 C++ engine source (~80 files)
+src/                 C++ engine source
 libraries/           Vendored third-party libraries
 games/               Example game projects
 assets/              Test programs, sprites, shaders, audio
-tests/               GoogleTest suite (201 tests, 9 files)
+tests/               GoogleTest suite (272 tests, 14 files)
 design/              Design documents and architecture notes
 scripts/             Build and development helper scripts
 cmake/               CMake toolchain files (MinGW, osxcross)
@@ -979,9 +1060,10 @@ All engine code lives in `src/` under namespace `G`. Major subsystems:
 | Audio | `sound.cc`, `qoa.cc` | SDL audio callback, QOA codec |
 | Physics | `physics.cc`, `collision.cc`, `collision_world.cc` | Box2D wrapper, spatial hash |
 | Input | `input.cc` | Keyboard, mouse, gamepad |
+| Tilemap | `tilemap.cc` | Multi-layer tilemap with TMX loading, collision |
 | Assets | `assets.cc`, `packer.cc`, `filesystem.cc` | SQLite asset DB, packing pipeline |
-| Lua bindings | `lua_*.cc` (18 files) | `G.*` API exposed to scripts |
-| CLI | `cmd_run.cc`, `cmd_package.cc`, `cmd_init.cc`, `cmd_stubs.cc` | Subcommand implementations |
+| Lua bindings | `lua_*.cc` (23 files) | `G.*` API exposed to scripts |
+| CLI | `cmd_*.cc` (10 files) | Subcommand implementations |
 | Data structures | `vec.h`, `mat.h`, `array.h`, `dictionary.h`, `allocators.h` | Header-only containers |
 | Threading | `executor.cc` | Thread pool with work stealing |
 | Debug | `debug_ui.cc`, `logging.cc`, `stats.cc`, `profiler.cc` | ImGui overlay, tracing |

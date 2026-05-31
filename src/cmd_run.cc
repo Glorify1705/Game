@@ -121,6 +121,7 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
             sqlite3_errmsg(db));
     return 1;
   }
+  sqlite3_busy_timeout(db, /*ms=*/1000);
   InitializeAssetDb(db);
 
   // Build GameOptions and run.
@@ -157,6 +158,7 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
             sqlite3_errmsg(db));
     return 1;
   }
+  sqlite3_busy_timeout(db, /*ms=*/1000);
 
   // Parse game arguments (after --).
   Slice<const char*> game_args;

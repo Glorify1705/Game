@@ -229,6 +229,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
             db_path.str(), sqlite3_errmsg(db));
     return 1;
   }
+  sqlite3_busy_timeout(db, /*ms=*/1000);
   InitializeAssetDb(db);
 
   ArenaAllocator packer_arena(allocator, Megabytes(512));

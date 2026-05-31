@@ -1,5 +1,5 @@
 ---
-status: in-design
+status: implemented
 tags: [tilemap, rendering, collision, lua-api, gameplay]
 ---
 

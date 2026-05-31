@@ -37,6 +37,9 @@ ErrorOr<void> Save::Open(const char* save_dir) {
     return Error::Message("failed to open save database");
   }
 
+  // Retry internally for up to 1 second on SQLITE_BUSY.
+  sqlite3_busy_timeout(db_, /*ms=*/1000);
+
   // Enable WAL mode for crash safety and concurrent reads.
   char* err = nullptr;
   sqlite3_exec(db_, "PRAGMA journal_mode = WAL", nullptr, nullptr, &err);
@@ -62,22 +65,31 @@ ErrorOr<void> Save::Open(const char* save_dir) {
     return Error::Message("failed to create kv table");
   }
 
-  // Prepare cached statements.
-  TRY(
-      Prepare("INSERT OR REPLACE INTO kv (namespace, key, value, updated_at) "
-              "VALUES (?1, ?2, ?3, ?4)",
-              &set_stmt_));
-  TRY(Prepare("SELECT value FROM kv WHERE namespace = ?1 AND key = ?2",
-              &get_stmt_));
-  TRY(Prepare("SELECT 1 FROM kv WHERE namespace = ?1 AND key = ?2 LIMIT 1",
-              &has_stmt_));
-  TRY(Prepare("DELETE FROM kv WHERE namespace = ?1 AND key = ?2",
-              &delete_stmt_));
-  TRY(Prepare("DELETE FROM kv WHERE namespace = ?1", &clear_stmt_));
-  TRY(Prepare("SELECT key, value FROM kv WHERE namespace = ?1 ORDER BY key",
-              &list_stmt_));
-  TRY(Prepare("SELECT DISTINCT namespace FROM kv ORDER BY namespace",
-              &namespaces_stmt_));
+  // Prepare cached statements. Close the database on any failure so we don't
+  // leak the handle and partially-prepared statements.
+  auto prepare_all = [&]() -> ErrorOr<void> {
+    TRY(Prepare(
+        "INSERT OR REPLACE INTO kv (namespace, key, value, updated_at) "
+        "VALUES (?1, ?2, ?3, ?4)",
+        &set_stmt_));
+    TRY(Prepare("SELECT value FROM kv WHERE namespace = ?1 AND key = ?2",
+                &get_stmt_));
+    TRY(Prepare("SELECT 1 FROM kv WHERE namespace = ?1 AND key = ?2 LIMIT 1",
+                &has_stmt_));
+    TRY(Prepare("DELETE FROM kv WHERE namespace = ?1 AND key = ?2",
+                &delete_stmt_));
+    TRY(Prepare("DELETE FROM kv WHERE namespace = ?1", &clear_stmt_));
+    TRY(Prepare("SELECT key, value FROM kv WHERE namespace = ?1 ORDER BY key",
+                &list_stmt_));
+    TRY(Prepare("SELECT DISTINCT namespace FROM kv ORDER BY namespace",
+                &namespaces_stmt_));
+    return {};
+  };
+  auto prepare_result = prepare_all();
+  if (prepare_result.is_error()) {
+    Close();
+    return prepare_result;
+  }
 
   LOG("Save database opened: ", path.str());
   return {};
@@ -143,7 +155,7 @@ ErrorOr<ByteSlice> Save::Get(std::string_view ns, std::string_view key) {
   return MakeByteSlice(fetch_buf_.data(), fetch_buf_.size());
 }
 
-bool Save::Has(std::string_view ns, std::string_view key) {
+ErrorOr<bool> Save::Has(std::string_view ns, std::string_view key) {
   CHECK(db_ != nullptr, "Save database not open");
   sqlite3_reset(has_stmt_);
   sqlite3_clear_bindings(has_stmt_);
@@ -151,7 +163,11 @@ bool Save::Has(std::string_view ns, std::string_view key) {
                     SQLITE_STATIC);
   sqlite3_bind_text(has_stmt_, 2, key.data(), static_cast<int>(key.size()),
                     SQLITE_STATIC);
-  return sqlite3_step(has_stmt_) == SQLITE_ROW;
+  int rc = sqlite3_step(has_stmt_);
+  if (rc == SQLITE_ROW) return true;
+  if (rc == SQLITE_DONE) return false;
+  ELOG("save has failed: ", sqlite3_errmsg(db_));
+  return Error::Message("save has failed");
 }
 
 ErrorOr<void> Save::Delete(std::string_view ns, std::string_view key) {
@@ -200,6 +216,7 @@ ErrorOr<void> Save::List(std::string_view ns, SaveListCallback callback,
     }
     const char* k =
         reinterpret_cast<const char*>(sqlite3_column_text(list_stmt_, 0));
+    if (k == nullptr) continue;
     int k_len = sqlite3_column_bytes(list_stmt_, 0);
     const void* v = sqlite3_column_blob(list_stmt_, 1);
     int v_len = sqlite3_column_bytes(list_stmt_, 1);
@@ -221,6 +238,7 @@ ErrorOr<void> Save::Namespaces(SaveNamespacesCallback callback,
     }
     const char* name =
         reinterpret_cast<const char*>(sqlite3_column_text(namespaces_stmt_, 0));
+    if (name == nullptr) continue;
     int name_len = sqlite3_column_bytes(namespaces_stmt_, 0);
     callback(std::string_view(name, name_len), userdata);
   }

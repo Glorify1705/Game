@@ -52,7 +52,10 @@ class Sound {
   bool SetPitch(Source source, float pitch);
   bool SetPan(Source source, float pan);
 
-  void SetGlobalGain(float gain) { global_gain_ = gain; }
+  void SetGlobalGain(float gain) {
+    LockMutex l(mu_);
+    global_gain_ = gain;
+  }
 
   ErrorOr<void> StartChannel(Source source);
 

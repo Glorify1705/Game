@@ -1563,7 +1563,7 @@ uint8_t* Renderer::BlitGlyphsIntoAtlas(FontInfo& font,
     font.glyphs[cp].y_offset = (float)bitmaps[i].yoff;
     font.glyphs[cp].width = (float)bitmaps[i].w;
     font.glyphs[cp].height = (float)bitmaps[i].h;
-    stbtt_FreeSDF(bitmaps[i].data, 0, 0, nullptr);
+    stbtt_FreeSDF(bitmaps[i].data, bitmaps[i].w, bitmaps[i].h, nullptr);
   }
   return atlas;
 }
@@ -1940,9 +1940,8 @@ void Renderer::DrawStringWrapped(std::string_view font_name, uint32_t size,
   const float line_height = pixel_scale * info->scale *
                             (info->ascent - info->descent + info->line_gap);
 
-  // Estimate max lines: text_length / ~4 chars per word is a generous upper
-  // bound, plus one per newline, plus 1.
-  size_t max_lines = str.size() / 2 + 2;
+  // Upper bound on lines: each character could be a newline producing a line.
+  size_t max_lines = str.size() + 2;
   ArenaAllocator scratch(allocator_, max_lines * sizeof(WrappedLine) + 256);
   FixedArray<WrappedLine> lines(max_lines, &scratch);
   WordWrapLines(*info, pixel_scale, str, max_width, &lines);
@@ -1971,7 +1970,7 @@ int Renderer::TextWrappedHeight(std::string_view font_name, uint32_t size,
   const float line_height = pixel_scale * info->scale *
                             (info->ascent - info->descent + info->line_gap);
 
-  size_t max_lines = str.size() / 2 + 2;
+  size_t max_lines = str.size() + 2;
   ArenaAllocator scratch(allocator_, max_lines * sizeof(WrappedLine) + 256);
   FixedArray<WrappedLine> lines(max_lines, &scratch);
   WordWrapLines(*info, pixel_scale, str, max_width, &lines);
@@ -2074,7 +2073,7 @@ void Renderer::DrawStringColored(std::string_view font_name, uint32_t size,
     }
   } else {
     // Word-wrap the concatenated text, then render lines with color tracking.
-    size_t max_lines = total_len / 2 + 2;
+    size_t max_lines = total_len + 2;
     FixedArray<WrappedLine> lines(max_lines, &scratch);
     WordWrapLines(*info, pixel_scale, concat, max_width, &lines);
 

@@ -75,19 +75,21 @@ ErrorOr<void> Tilemap::LoadTmx(std::string_view xml_data,
           ++pos;
         }
         if (pos >= csv.size()) break;
-        // Parse integer.
-        int gid = 0;
+        // Parse integer as unsigned to avoid overflow on flipped tile GIDs.
+        uint32_t gid = 0;
         while (pos < csv.size() && csv[pos] >= '0' && csv[pos] <= '9') {
-          gid = gid * 10 + (csv[pos] - '0');
+          gid = gid * 10 + static_cast<uint32_t>(csv[pos] - '0');
           ++pos;
         }
         // Extract Tiled flip flags (top 3 bits) before stripping.
-        int flip = gid & kTileFlipMask;
+        uint32_t flip = gid & kTileFlipMask;
         gid &= kTileIdMask;
         // Convert Tiled GID to our 1-based tile ID.
         // gid_offset = firstgid - 1, so gid - offset = 1 for the first tile.
-        int tile_id = (gid > tileset_gid_offset) ? gid - tileset_gid_offset : 0;
-        tile_id |= flip;
+        int tile_id = (gid > static_cast<uint32_t>(tileset_gid_offset))
+                          ? static_cast<int>(gid) - tileset_gid_offset
+                          : 0;
+        tile_id |= static_cast<int>(flip);
         tilemap->SetTile(name, x, y, tile_id);
         ++x;
         if (x >= lw) {
@@ -115,6 +117,7 @@ ErrorOr<void> Tilemap::LoadTmx(std::string_view xml_data,
     if (count == 0) {
       group.objects = nullptr;
       group.object_count = 0;
+      group.allocated_count = 0;
       tilemap->object_group_count_++;
       return;
     }
@@ -125,6 +128,7 @@ ErrorOr<void> Tilemap::LoadTmx(std::string_view xml_data,
         count * sizeof(TilemapObject), alignof(TilemapObject)));
     std::memset(group.objects, 0, count * sizeof(TilemapObject));
     group.object_count = 0;
+    group.allocated_count = count;
 
     group_elem.ForEachChild("object", [&](const XmlElement& obj_elem) {
       if (group.object_count >= count) return;
@@ -165,10 +169,14 @@ ErrorOr<void> Tilemap::LoadTmx(std::string_view xml_data,
           if (ptype == "int") {
             prop.type = TilemapProperty::kInt;
             prop.int_value = 0;
-            for (size_t k = 0; k < pval.size(); ++k) {
+            size_t k = 0;
+            bool negative = k < pval.size() && pval[k] == '-';
+            if (negative) ++k;
+            for (; k < pval.size(); ++k) {
               if (pval[k] >= '0' && pval[k] <= '9')
                 prop.int_value = prop.int_value * 10 + (pval[k] - '0');
             }
+            if (negative) prop.int_value = -prop.int_value;
           } else if (ptype == "float") {
             prop.type = TilemapProperty::kFloat;
             prop.float_value = prop_elem.AttrFloat("value");
@@ -214,7 +222,7 @@ Tilemap::~Tilemap() {
     if (object_groups_[i].objects) {
       allocator_->Dealloc(
           object_groups_[i].objects,
-          object_groups_[i].object_count * sizeof(TilemapObject));
+          object_groups_[i].allocated_count * sizeof(TilemapObject));
       object_groups_[i].objects = nullptr;
     }
   }
@@ -223,6 +231,7 @@ Tilemap::~Tilemap() {
 int Tilemap::AddLayer(std::string_view name, int width, int height,
                       bool collision) {
   if (layer_count_ >= kMaxLayers) return -1;
+  if (width <= 0 || height <= 0) return -1;
 
   TilemapLayer& layer = layers_[layer_count_];
   size_t copy_len = name.size() < 63 ? name.size() : 63;

@@ -17,12 +17,12 @@ class Renderer;
 
 // Tile flip flags stored in the upper bits of packed tile values.
 // Matches Tiled's encoding: bits 31/30/29 of the GID.
-constexpr int kTileFlipHorizontal = 1 << 31;
-constexpr int kTileFlipVertical = 1 << 30;
-constexpr int kTileFlipDiagonal = 1 << 29;
-constexpr int kTileFlipMask =
+constexpr uint32_t kTileFlipHorizontal = 1u << 31;
+constexpr uint32_t kTileFlipVertical = 1u << 30;
+constexpr uint32_t kTileFlipDiagonal = 1u << 29;
+constexpr uint32_t kTileFlipMask =
     kTileFlipHorizontal | kTileFlipVertical | kTileFlipDiagonal;
-constexpr int kTileIdMask = ~kTileFlipMask;
+constexpr uint32_t kTileIdMask = ~kTileFlipMask;
 
 // A single layer in a tilemap. Stores a grid of tile IDs (0 = empty).
 struct TilemapLayer {
@@ -67,8 +67,9 @@ struct TilemapObject {
 struct TilemapObjectGroup {
   static constexpr int kMaxObjects = 256;
   char name[64];
-  TilemapObject* objects;  // Array of objects (allocated).
-  int object_count;
+  TilemapObject* objects;    // Array of objects (allocated).
+  int object_count;          // Number of objects parsed.
+  int allocated_count;       // Number of objects allocated (for dealloc).
 };
 
 // Result of a tilemap move (AABB sweep against solid tiles).
