@@ -94,8 +94,9 @@ design doc. Sourced from TASKS.md, TODO comments, and codebase audit.
   module has `init`/`update`/`draw`
 - [ ] Add nil checks after C++ API calls in Lua scripts (`G.assets.sprite_info`
   in `entity.lua`, `G.sound.add_source` in `testgame1.lua`)
-- [ ] Add `SQLITE_BUSY` retry logic in `src/assets.cc` and `src/config.cc`
-  instead of dying on transient errors
+- [x] Add `SQLITE_BUSY` retry logic — added `sqlite3_busy_timeout(1s)` to all
+  `sqlite3_open` sites (cmd_run.cc, cmd_package.cc, save.cc); changed
+  `Save::Has` from `bool` to `ErrorOr<bool>` to surface transient errors
 
 ## Platform
 

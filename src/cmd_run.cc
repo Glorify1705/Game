@@ -23,11 +23,14 @@ void PrintHelp() {
   printf("Runs a game project with hot-reload support.\n");
   printf("\n");
   printf("Arguments:\n");
-  printf("  directory           Project directory (default: current directory)\n");
+  printf(
+      "  directory           Project directory (default: current directory)\n");
   printf("\n");
   printf("Options:\n");
   printf("  --no-hotreload      Disable file watching and hot-reload\n");
-  printf("  --clean             Delete the cached asset database before running\n");
+  printf(
+      "  --clean             Delete the cached asset database before "
+      "running\n");
   printf("  --test              Run in test mode (implies --no-hotreload)\n");
   printf("  --                  Pass remaining arguments to the game script\n");
 }
@@ -121,6 +124,7 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
             sqlite3_errmsg(db));
     return 1;
   }
+  sqlite3_busy_timeout(db, /*ms=*/1000);
   InitializeAssetDb(db);
 
   // Build GameOptions and run.
@@ -157,6 +161,7 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
             sqlite3_errmsg(db));
     return 1;
   }
+  sqlite3_busy_timeout(db, /*ms=*/1000);
 
   // Parse game arguments (after --).
   Slice<const char*> game_args;

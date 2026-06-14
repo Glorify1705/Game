@@ -85,7 +85,10 @@ int SaveHas(lua_State* state) {
   auto* save = Registry<Save>::Retrieve(state);
   std::string_view ns = GetLuaString(state, 1);
   std::string_view key = GetLuaString(state, 2);
-  lua_pushboolean(state, save->Has(ns, key));
+  auto result = save->Has(ns, key);
+  if (result.is_error())
+    return luaL_error(state, "%s", result.error().message());
+  lua_pushboolean(state, result.value());
   return 1;
 }
 

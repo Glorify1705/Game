@@ -141,14 +141,22 @@ void PrintHelp() {
   printf("a SQLite database and copies the engine binary alongside it.\n");
   printf("\n");
   printf("Arguments:\n");
-  printf("  directory             Project directory (default: current directory)\n");
+  printf(
+      "  directory             Project directory (default: current "
+      "directory)\n");
   printf("\n");
   printf("Options:\n");
   printf("  -o, --output <dir>    Output directory (default: dist)\n");
-  printf("  --name <name>         Override binary name (default: from conf.json)\n");
-  printf("  --engine-binary <path>  Use a specific engine binary instead of self\n");
+  printf(
+      "  --name <name>         Override binary name (default: from "
+      "conf.json)\n");
+  printf(
+      "  --engine-binary <path>  Use a specific engine binary instead of "
+      "self\n");
   printf("  --strip               Strip debug symbols from the binary\n");
-  printf("  --sfx                 Build a self-extracting archive (requires 7z)\n");
+  printf(
+      "  --sfx                 Build a self-extracting archive (requires "
+      "7z)\n");
 }
 
 }  // namespace
@@ -229,6 +237,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
             db_path.str(), sqlite3_errmsg(db));
     return 1;
   }
+  sqlite3_busy_timeout(db, /*ms=*/1000);
   InitializeAssetDb(db);
 
   ArenaAllocator packer_arena(allocator, Megabytes(512));

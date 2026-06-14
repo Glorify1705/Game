@@ -588,6 +588,9 @@ void Physics::DestroyJoint(JointHandle handle) {
   b2Joint* j = ResolveJoint(handle);
   if (j == nullptr) return;
   InvalidateJointSlot(j);
+  // Clear the tag so SayGoodbye (called by Box2D during DestroyJoint) won't
+  // double-invalidate the slot and double-bump the generation counter.
+  j->GetUserData().pointer = 0;
   world_.DestroyJoint(j);
 }
 

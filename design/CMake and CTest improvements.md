@@ -269,6 +269,6 @@ This unblocks `game-tidy` so it can be used for ongoing development.
 ### Phase 3: Expand coverage (ongoing)
 
 7. ~~Add mat.h and transformations.cc tests~~ — DONE (`test_transformations.cc`)
-8. Add color.cc and stats.cc tests
-9. Add xml.cc and qoa.cc tests
+8. ~~Add color.cc and stats.cc tests~~ — DONE (`test_color.cc`, `test_stats.cc`)
+9. ~~Add xml.cc and qoa.cc tests~~ — DONE (`test_xml.cc`, `test_qoa.cc`)
 10. ~~Add test fixtures for allocator setup~~ — DONE (`BaseTest` in `test_fixture.h`)

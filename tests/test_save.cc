@@ -92,11 +92,11 @@ TEST_F(SaveTest, Has) {
   Save save(allocator());
   ASSERT_FALSE(save.Open(dir_).is_error());
 
-  EXPECT_FALSE(save.Has("test", "key1"));
+  EXPECT_FALSE(MUST(save.Has("test", "key1")));
   ASSERT_FALSE(save.Set("test", "key1", MakeByteSlice("x", 1)).is_error());
-  EXPECT_TRUE(save.Has("test", "key1"));
-  EXPECT_FALSE(save.Has("test", "key2"));
-  EXPECT_FALSE(save.Has("other", "key1"));
+  EXPECT_TRUE(MUST(save.Has("test", "key1")));
+  EXPECT_FALSE(MUST(save.Has("test", "key2")));
+  EXPECT_FALSE(MUST(save.Has("other", "key1")));
 }
 
 TEST_F(SaveTest, Delete) {
@@ -104,9 +104,9 @@ TEST_F(SaveTest, Delete) {
   ASSERT_FALSE(save.Open(dir_).is_error());
 
   ASSERT_FALSE(save.Set("test", "key1", MakeByteSlice("x", 1)).is_error());
-  EXPECT_TRUE(save.Has("test", "key1"));
+  EXPECT_TRUE(MUST(save.Has("test", "key1")));
   ASSERT_FALSE(save.Delete("test", "key1").is_error());
-  EXPECT_FALSE(save.Has("test", "key1"));
+  EXPECT_FALSE(MUST(save.Has("test", "key1")));
 }
 
 TEST_F(SaveTest, Clear) {
@@ -118,9 +118,9 @@ TEST_F(SaveTest, Clear) {
   ASSERT_FALSE(save.Set("other", "c", MakeByteSlice("3", 1)).is_error());
 
   ASSERT_FALSE(save.Clear("ns").is_error());
-  EXPECT_FALSE(save.Has("ns", "a"));
-  EXPECT_FALSE(save.Has("ns", "b"));
-  EXPECT_TRUE(save.Has("other", "c"));
+  EXPECT_FALSE(MUST(save.Has("ns", "a")));
+  EXPECT_FALSE(MUST(save.Has("ns", "b")));
+  EXPECT_TRUE(MUST(save.Has("other", "c")));
 }
 
 TEST_F(SaveTest, ListKeys) {
@@ -166,7 +166,7 @@ TEST_F(SaveTest, PersistsAfterReopen) {
   {
     Save save(allocator());
     ASSERT_FALSE(save.Open(dir_).is_error());
-    EXPECT_TRUE(save.Has("test", "persist"));
+    EXPECT_TRUE(MUST(save.Has("test", "persist")));
     auto got = save.Get("test", "persist");
     ASSERT_FALSE(got.is_error());
     ByteSlice data = got.release_value();

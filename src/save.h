@@ -49,7 +49,7 @@ class Save {
   ErrorOr<ByteSlice> Get(std::string_view ns, std::string_view key);
 
   // Returns true if the key exists in the given namespace.
-  bool Has(std::string_view ns, std::string_view key);
+  ErrorOr<bool> Has(std::string_view ns, std::string_view key);
 
   // Deletes a single key from a namespace.
   ErrorOr<void> Delete(std::string_view ns, std::string_view key);

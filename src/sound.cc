@@ -239,12 +239,12 @@ size_t Sound::FindStreamSlot() {
 
 ErrorOr<Sound::Source> Sound::AddSource(std::string_view name,
                                         Ownership ownership) {
+  LockMutex l(mu_);
   DbAssets::Sound sound;
   if (!sounds_.Lookup(name, &sound)) {
     LOG("Unknown sound ", name);
     return Error::Message("unknown sound name");
   }
-  LockMutex l(mu_);
   size_t slot = FindStreamSlot();
   if (slot >= kMaxStreams) {
     LOG("Maximum number of streams exceeded");
