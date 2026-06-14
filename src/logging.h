@@ -116,7 +116,9 @@ inline OpenGLSourceLine* GetOpenGLSourceLine() {
 }
 
 template <typename... T>
-inline void SetOpenGLLine(const char* file, size_t line, T&&... ts) {
+inline void SetOpenGLLine([[maybe_unused]] const char* file,
+                          [[maybe_unused]] size_t line,
+                          [[maybe_unused]] T&&... ts) {
 #ifdef GAME_WITH_ASSERTS
   auto* ptr = GetOpenGLSourceLine();
   std::memcpy(&ptr->file, file, strlen(file) + 1);
@@ -129,7 +131,7 @@ inline void SetOpenGLLine(const char* file, size_t line, T&&... ts) {
 template <typename T>
 [[nodiscard]] T InternalDieIfNull(const char* filename, int line,
                                   const char* expr, T&& t) {
-  if (t == nullptr) {
+  if (t == nullptr) [[unlikely]] {
     Crash(filename, line, expr, " is null");
   }
   return std::forward<T>(t);
@@ -137,8 +139,9 @@ template <typename T>
 
 }  // namespace G
 
-#define CHECK(cond, ...) \
-  if (!(cond)) ::G::Crash(__FILE__, __LINE__, #cond, " ", ##__VA_ARGS__)
+#define CHECK(cond, ...)    \
+  if (!(cond)) [[unlikely]] \
+  ::G::Crash(__FILE__, __LINE__, #cond, " ", ##__VA_ARGS__)
 
 #define DIE(...) ::G::Crash(__FILE__, __LINE__, ##__VA_ARGS__)
 
@@ -169,11 +172,15 @@ template <typename T>
 
 #define DONOTSUBMIT LOG
 
-#ifndef GAME_WITH_ASSERTS
-#define DCHECK(expr, ...) (void)(expr)
-#else
+// DCHECK behaves identically to CHECK in every build, including release. We
+// keep the assertion live in production rather than compiling it out: a
+// violated invariant still crashes with a file/line/message instead of
+// silently corrupting state, which makes production crashes debuggable. The
+// failure branch is marked [[unlikely]] (via CHECK) so a passing check costs
+// essentially nothing on the hot path. Note this only elides the branch, not
+// the condition evaluation, so keep DCHECK conditions cheap and side-effect
+// free.
 #define DCHECK(...) CHECK(__VA_ARGS__)
-#endif
 
 #define OPENGL_CALL(f, ...)                                \
   do {                                                     \
