@@ -28,7 +28,7 @@ class CircularBuffer {
   }
 
   T Pop() {
-    DCHECK(!empty());
+    CHECK(!empty());
     T result = std::move(buffer_[end_]);
     end_ = Inc(end_);
     full_ = false;
@@ -36,32 +36,32 @@ class CircularBuffer {
   }
 
   T& operator[](size_t i) {
-    DCHECK(i < size());
+    CHECK(i < size());
     return buffer_[Inc(end_, i)];
   }
 
   const T& operator[](size_t i) const {
-    DCHECK(i < size());
+    CHECK(i < size());
     return buffer_[Inc(end_, i)];
   }
 
   T& front() {
-    DCHECK(!empty());
+    CHECK(!empty());
     return buffer_[end_];
   }
 
   const T& front() const {
-    DCHECK(!empty());
+    CHECK(!empty());
     return buffer_[end_];
   }
 
   T& back() {
-    DCHECK(!empty());
+    CHECK(!empty());
     return buffer_[Dec(start_)];
   }
 
   const T& back() const {
-    DCHECK(!empty());
+    CHECK(!empty());
     return buffer_[Dec(start_)];
   }
 

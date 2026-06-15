@@ -81,7 +81,7 @@ All engine code lives under `src/` in namespace `G`. Major subsystems:
 - **Explicit allocators** everywhere. No hidden `new`/`malloc`. Allocators are
   passed as parameters (`Allocator*`). Arena allocators for temporary work,
   system allocator wraps mimalloc.
-- **No exceptions, no RTTI.** Error handling uses `CHECK`/`DCHECK` macros and
+- **No exceptions, no RTTI.** Error handling uses the `CHECK` macro and
   `DEFER` for cleanup.
 - **Anonymous namespaces** for file-local functions (not `static`).
 - **No banner comments** (`// --- Section ---`). Use the code structure itself.

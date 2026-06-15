@@ -219,7 +219,7 @@ Naming follows Google style with some refinements observed in this codebase.
 
 ### Macros
 
-- **All macros:** `SCREAMING_SNAKE_CASE` — `CHECK`, `DCHECK`, `DEFER`,
+- **All macros:** `SCREAMING_SNAKE_CASE` — `CHECK`, `DEFER`,
   `ASAN_POISON_MEMORY_REGION`.
 
 ### Type Prefixes for Math Types
@@ -701,7 +701,7 @@ These are banned in this project. No exceptions.
 ### Exceptions
 
 Do not use C++ exceptions. Compile with `-fno-exceptions`. Error handling uses
-`CHECK`, `DCHECK`, and return values. Fatal errors crash immediately — this is
+`CHECK` and return values. Fatal errors crash immediately — this is
 a game, not a server.
 
 ### RTTI
@@ -809,12 +809,22 @@ harder.
 
 ### Fatal Errors — `CHECK` and `DIE`
 
-Use `CHECK(condition, message...)` for invariants that must hold in all builds.
-If the condition fails, the program crashes immediately with file, line, and
-message:
+Use `CHECK(condition, message...)` for invariants that must hold. If the
+condition fails, the program crashes immediately with file, line, and message:
 
 ```cpp
 CHECK(index < size_, "Index ", index, " out of bounds (size ", size_, ")");
+```
+
+`CHECK` stays live in every build, including release — a violated invariant
+crashes with a useful message instead of silently corrupting state. The failure
+branch is marked `[[unlikely]]`, so a passing check costs essentially nothing on
+the hot path. There is no debug-only `DCHECK` variant: because the check is
+always compiled in, keep `CHECK` conditions cheap and side-effect free (the
+`[[unlikely]]` hint elides the branch, not the condition evaluation):
+
+```cpp
+CHECK(elems_ < capacity_, elems_, " vs ", capacity_);
 ```
 
 Use `DIE(message...)` for unconditionally fatal paths:
@@ -822,16 +832,6 @@ Use `DIE(message...)` for unconditionally fatal paths:
 ```cpp
 default:
   DIE("Unknown command type: ", static_cast<int>(type));
-```
-
-### Debug-Only Checks — `DCHECK`
-
-Use `DCHECK(condition, message...)` for invariants that are expensive to check
-or only relevant during development. These compile to nothing when
-`GAME_WITH_ASSERTS` is not defined:
-
-```cpp
-DCHECK(elems_ < capacity_, elems_, " vs ", capacity_);
 ```
 
 ### Null Checks — `NOTNULL`
@@ -1057,7 +1057,7 @@ See [Abseil Tip #147](https://abseil.io/tips/147).
 
 Macros are a necessary evil. Use them for:
 
-- **Assertions and logging** — `CHECK`, `DCHECK`, `LOG`, `DIE`, `NOTNULL`.
+- **Assertions and logging** — `CHECK`, `LOG`, `DIE`, `NOTNULL`.
 - **Scope guards** — `DEFER`.
 - **Platform-specific attributes** — `ALLOCATOR_NO_ALIAS`.
 - **Compile-time feature flags** — `#ifdef GAME_WITH_ASSERTS`.
@@ -1393,7 +1393,9 @@ have unused params). For unused parameters, comment out the name
 ```
 
 The project uses `-O1` even in development for reasonable performance while
-keeping debug info. `GAME_WITH_ASSERTS` enables `DCHECK` macros.
+keeping debug info. `GAME_WITH_ASSERTS` enables verbose trace/debug logging and
+GL source-line tracking. (`CHECK` assertions are always compiled in, regardless
+of `GAME_WITH_ASSERTS`.)
 
 ### Release Builds
 
@@ -1401,7 +1403,7 @@ keeping debug info. `GAME_WITH_ASSERTS` enables `DCHECK` macros.
 -O2 -DNDEBUG
 ```
 
-No sanitizers, no debug checks. `DCHECK` compiles away.
+No sanitizers and no verbose logging, but `CHECK` assertions remain live.
 
 ---
 
@@ -1416,7 +1418,7 @@ No sanitizers, no debug checks. `DCHECK` compiles away.
 | RTTI                      | Allowed (conditionally)    | Banned                           |
 | Smart pointers            | Encouraged                 | Banned                           |
 | String handling           | `std::string`              | `string_view` + interning        |
-| Error handling            | Status/StatusOr            | `CHECK`/`DCHECK`/return values   |
+| Error handling            | Status/StatusOr            | `CHECK`/return values            |
 | Source file extension     | `.cc` (same)               | `.cc`                            |
 | Namespace depth           | Multi-level                | Flat (`G` + `internal_*`)        |
 | Build system              | Bazel                      | CMake                            |

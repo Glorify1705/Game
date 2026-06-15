@@ -27,7 +27,7 @@ void Keyboard::InitForFrame() {
   }
   int size;
   auto* keyboard = SDL_GetKeyboardState(&size);
-  DCHECK(size == kKeyboardTable, " unexpected keyboard table");
+  CHECK(size == kKeyboardTable, " unexpected keyboard table");
   previous_pressed_.reset();
   for (int i = 0; i < size; ++i) {
     previous_pressed_[i] = keyboard[i];
@@ -145,7 +145,7 @@ void Controllers::Initialize(ByteSlice db) {
   int count = 0;
   SDL_JoystickID* ids = SDL_GetGamepads(&count);
   DEFER([ids] { SDL_free(ids); });
-  DCHECK(static_cast<size_t>(count) < controllers_.size());
+  CHECK(static_cast<size_t>(count) < controllers_.size());
   if (count == 0) LOG("Found no joysticks");
   for (int i = 0; i < count; ++i) {
     Controller& controller = controllers_[i];
@@ -174,7 +174,7 @@ void Controllers::InitForFrame() {
 void Controllers::PushEvent(const SDL_Event& event) {
   if (event.type == SDL_EVENT_GAMEPAD_ADDED) {
     const size_t i = event.gdevice.which;
-    DCHECK(i < controllers_.size());
+    CHECK(i < controllers_.size());
     if (!open_controllers_[i]) {
       controllers_[i].ptr = SDL_OpenGamepad(event.gdevice.which);
       CHECK(controllers_[i].ptr, "Could not open joystick ", i, ": ",
@@ -185,7 +185,7 @@ void Controllers::PushEvent(const SDL_Event& event) {
   }
   if (event.type == SDL_EVENT_JOYSTICK_REMOVED) {
     const size_t i = event.jdevice.which;
-    DCHECK(i < controllers_.size());
+    CHECK(i < controllers_.size());
     if (open_controllers_[i] &&
         event.jdevice.which ==
             SDL_GetJoystickID(SDL_GetGamepadJoystick(controllers_[i].ptr))) {
@@ -196,16 +196,16 @@ void Controllers::PushEvent(const SDL_Event& event) {
   }
   if (event.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN) {
     const size_t i = event.jbutton.which;
-    DCHECK(i < controllers_.size());
-    DCHECK(open_controllers_[i]);
-    DCHECK(event.jbutton.button < controllers_[i].pressed.size());
+    CHECK(i < controllers_.size());
+    CHECK(open_controllers_[i]);
+    CHECK(event.jbutton.button < controllers_[i].pressed.size());
     controllers_[i].pressed[event.jbutton.button] = true;
     active_controller_ = i;
   }
   if (event.type == SDL_EVENT_JOYSTICK_BUTTON_UP) {
     const size_t i = event.jbutton.which;
-    DCHECK(i < controllers_.size());
-    DCHECK(event.jbutton.button < controllers_[i].pressed.size());
+    CHECK(i < controllers_.size());
+    CHECK(event.jbutton.button < controllers_[i].pressed.size());
     controllers_[i].pressed[event.jbutton.button] = true;
     active_controller_ = i;
   }

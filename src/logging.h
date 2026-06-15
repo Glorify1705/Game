@@ -139,6 +139,13 @@ template <typename T>
 
 }  // namespace G
 
+// Crashes with a file/line/message if cond is false. Stays live in every
+// build, including release: a violated invariant crashes with a useful
+// message instead of silently corrupting state, which keeps production
+// crashes debuggable. The failure branch is marked [[unlikely]] so a passing
+// check costs essentially nothing on the hot path. This only elides the
+// branch, not the condition evaluation, so keep CHECK conditions cheap and
+// side-effect free.
 #define CHECK(cond, ...)    \
   if (!(cond)) [[unlikely]] \
   ::G::Crash(__FILE__, __LINE__, #cond, " ", ##__VA_ARGS__)
@@ -171,16 +178,6 @@ template <typename T>
   } while (0)
 
 #define DONOTSUBMIT LOG
-
-// DCHECK behaves identically to CHECK in every build, including release. We
-// keep the assertion live in production rather than compiling it out: a
-// violated invariant still crashes with a file/line/message instead of
-// silently corrupting state, which makes production crashes debuggable. The
-// failure branch is marked [[unlikely]] (via CHECK) so a passing check costs
-// essentially nothing on the hot path. Note this only elides the branch, not
-// the condition evaluation, so keep DCHECK conditions cheap and side-effect
-// free.
-#define DCHECK(...) CHECK(__VA_ARGS__)
 
 #define OPENGL_CALL(f, ...)                                \
   do {                                                     \

@@ -54,29 +54,29 @@ class InlinedArray {
   }
 
   void Pop() {
-    DCHECK(size() > 0);
+    CHECK(size() > 0);
     set_size(size() - 1);
   }
 
   void Clear() { set_size(0); }
 
   T& operator[](size_t i) {
-    DCHECK(i < size(), i, " vs ", size());
+    CHECK(i < size(), i, " vs ", size());
     return data()[i];
   }
 
   const T& operator[](size_t i) const {
-    DCHECK(i < size(), i, " vs ", size());
+    CHECK(i < size(), i, " vs ", size());
     return data()[i];
   }
 
   T& back() {
-    DCHECK(size() > 0);
+    CHECK(size() > 0);
     return data()[size() - 1];
   }
 
   const T& back() const {
-    DCHECK(size() > 0);
+    CHECK(size() > 0);
     return data()[size() - 1];
   }
 

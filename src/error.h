@@ -22,7 +22,7 @@ class [[nodiscard]] Error {
 
   constexpr static Error Errno(int code, const char* file = __builtin_FILE(),
                                uint32_t line = __builtin_LINE()) {
-    DCHECK(code != 0);
+    CHECK(code != 0);
     Error e;
     e.code_ = code;
     e.file_ = file;
@@ -90,22 +90,22 @@ class [[nodiscard]] ErrorOr {
   constexpr bool is_error() const { return is_error_; }
 
   constexpr T& value() {
-    DCHECK(!is_error_);
+    CHECK(!is_error_);
     return value_;
   }
 
   constexpr const T& value() const {
-    DCHECK(!is_error_);
+    CHECK(!is_error_);
     return value_;
   }
 
   constexpr E& error() {
-    DCHECK(is_error_);
+    CHECK(is_error_);
     return error_;
   }
 
   constexpr const E& error() const {
-    DCHECK(is_error_);
+    CHECK(is_error_);
     return error_;
   }
 
@@ -148,12 +148,12 @@ class [[nodiscard]] ErrorOr<void, Error> {
   constexpr bool is_error() const { return !error_.ok(); }
 
   constexpr Error& error() {
-    DCHECK(is_error());
+    CHECK(is_error());
     return error_;
   }
 
   constexpr const Error& error() const {
-    DCHECK(is_error());
+    CHECK(is_error());
     return error_;
   }
 

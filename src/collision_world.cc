@@ -180,26 +180,26 @@ CollisionWorld::~CollisionWorld() {
 
 const CollisionWorld::Collider& CollisionWorld::GetCollider(
     ColliderHandle handle) const {
-  DCHECK(handle.index < kMaxColliders);
+  CHECK(handle.index < kMaxColliders);
   const Collider& c = colliders_[handle.index];
-  DCHECK(c.active);
-  DCHECK(c.generation == handle.generation);
+  CHECK(c.active);
+  CHECK(c.generation == handle.generation);
   return c;
 }
 
 CollisionWorld::Collider& CollisionWorld::GetColliderMut(
     ColliderHandle handle) {
-  DCHECK(handle.index < kMaxColliders);
+  CHECK(handle.index < kMaxColliders);
   Collider& c = colliders_[handle.index];
-  DCHECK(c.active);
-  DCHECK(c.generation == handle.generation);
+  CHECK(c.active);
+  CHECK(c.generation == handle.generation);
   return c;
 }
 
 ColliderHandle CollisionWorld::Add(CollisionShape shape, FVec2 position,
                                    CollisionFilter filter, bool is_trigger,
                                    uintptr_t userdata) {
-  DCHECK(first_free_ != UINT32_MAX, "Collision world is full");
+  CHECK(first_free_ != UINT32_MAX, "Collision world is full");
   uint32_t index = first_free_;
   Collider& c = colliders_[index];
   first_free_ = c.next_free;
@@ -217,7 +217,7 @@ ColliderHandle CollisionWorld::Add(CollisionShape shape, FVec2 position,
 }
 
 void CollisionWorld::Remove(ColliderHandle handle) {
-  DCHECK(IsValid(handle));
+  CHECK(IsValid(handle));
   Collider& c = colliders_[handle.index];
   c.active = false;
   c.generation++;  // Invalidate existing handles

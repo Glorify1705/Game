@@ -11,8 +11,6 @@ extern "C" {
 #include <lualib.h>
 }
 
-#include "libraries/lua-protobuf/lua_pb.h"
-
 #include "clock.h"
 #include "debug_font.h"
 #include "defer.h"
@@ -20,6 +18,7 @@ extern "C" {
 #include "image.h"
 #include "json_alc.h"
 #include "libraries/dr_wav.h"
+#include "libraries/lua-protobuf/lua_pb.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
 #include "libraries/stb_vorbis.h"
@@ -155,7 +154,7 @@ void ProcessWorkItems(WorkerContext* ctx) {
         Slice<int16_t> samples(pcm, total_samples);
         FixedArray<uint8_t> encoded =
             QoaEncode(samples, &item.qoa_desc, ctx->output_arena);
-        DCHECK(!encoded.empty(), "Failed to encode ", item.name());
+        CHECK(!encoded.empty(), "Failed to encode ", item.name());
         item.output = encoded.data();
         item.output_size = encoded.size();
         break;
@@ -175,7 +174,7 @@ void ProcessWorkItems(WorkerContext* ctx) {
         Slice<int16_t> samples(pcm, total_samples);
         FixedArray<uint8_t> encoded =
             QoaEncode(samples, &item.qoa_desc, ctx->output_arena);
-        DCHECK(!encoded.empty(), "Failed to encode ", item.name());
+        CHECK(!encoded.empty(), "Failed to encode ", item.name());
         item.output = encoded.data();
         item.output_size = encoded.size();
         break;
@@ -237,11 +236,11 @@ class DbPacker {
 
   AssetInfo InsertPng(std::string_view filename, ByteSlice data) {
     int x, y, channels;
-    auto* contents = stbi_load_from_memory(data.data(), data.size(), &x, &y,
-                                           &channels,
-                                           /*desired_channels=*/0);
-    DCHECK(contents != nullptr, "Could not load ", filename, ": ",
-           stbi_failure_reason());
+    auto* contents =
+        stbi_load_from_memory(data.data(), data.size(), &x, &y, &channels,
+                              /*desired_channels=*/0);
+    CHECK(contents != nullptr, "Could not load ", filename, ": ",
+          stbi_failure_reason());
     DEFER([&] { stbi_image_free(contents); });
     QoiDesc desc;
     desc.width = x;
@@ -250,7 +249,7 @@ class DbPacker {
     desc.colorspace = QoiColorspace::kLinear;
     int out_len;
     auto* qoi_encoded = QoiEncode(contents, &desc, &out_len, allocator_);
-    DCHECK(qoi_encoded != nullptr);
+    CHECK(qoi_encoded != nullptr);
     DEFER([&] { allocator_->Dealloc(qoi_encoded, out_len); });
     SqlStmt stmt(db_, R"(
           INSERT OR REPLACE INTO images (name, width, height, components, contents)
@@ -261,8 +260,8 @@ class DbPacker {
     stmt.BindInt(2, x);
     stmt.BindInt(3, y);
     stmt.BindInt(4, channels);
-    stmt.BindBlob(5, ByteSlice(static_cast<const uint8_t*>(qoi_encoded),
-                               out_len));
+    stmt.BindBlob(5,
+                  ByteSlice(static_cast<const uint8_t*>(qoi_encoded), out_len));
     MUST(stmt.Step());
     return AssetInfo{.size = static_cast<size_t>(out_len)};
   }
@@ -315,7 +314,7 @@ class DbPacker {
 
     Slice<int16_t> samples(pcm, total_samples);
     FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator_);
-    DCHECK(!encoded.empty(), "Failed to encode ", filename, " to QOA");
+    CHECK(!encoded.empty(), "Failed to encode ", filename, " to QOA");
 
     return InsertAudioBlob(filename, ByteSlice(encoded.cdata(), encoded.size()),
                            desc);
@@ -323,8 +322,8 @@ class DbPacker {
 
   AssetInfo InsertOgg(std::string_view filename, ByteSlice data) {
     int error;
-    stb_vorbis* v = stb_vorbis_open_memory(data.data(), data.size(), &error,
-                                            nullptr);
+    stb_vorbis* v =
+        stb_vorbis_open_memory(data.data(), data.size(), &error, nullptr);
     if (v == nullptr) {
       DIE("Failed to open OGG file ", filename, " (error ", error, ")");
     }
@@ -348,7 +347,7 @@ class DbPacker {
 
     Slice<int16_t> samples(pcm, total_samples);
     FixedArray<uint8_t> encoded = QoaEncode(samples, &desc, allocator_);
-    DCHECK(!encoded.empty(), "Failed to encode ", filename, " to QOA");
+    CHECK(!encoded.empty(), "Failed to encode ", filename, " to QOA");
 
     return InsertAudioBlob(filename, ByteSlice(encoded.cdata(), encoded.size()),
                            desc);
@@ -401,9 +400,8 @@ class DbPacker {
       lua_pop(L, 2);  // pop result + protoc module
       return AssetInfo{.size = 0};
     }
-    AssetInfo info = InsertIntoTable(
-        "proto_descriptors", filename,
-        MakeByteSlice(desc, desc_len));
+    AssetInfo info = InsertIntoTable("proto_descriptors", filename,
+                                     MakeByteSlice(desc, desc_len));
     LOG("Compiled proto ", filename, " to ", desc_len, " bytes");
     lua_pop(L, 2);  // pop result + protoc module
     return info;
@@ -732,18 +730,15 @@ class DbPacker {
       AssetInfo info;
       switch (item.type) {
         case WorkItem::kPng:
-          info = InsertPng(item.name(),
-                           ByteSlice(item.input, item.input_size));
+          info = InsertPng(item.name(), ByteSlice(item.input, item.input_size));
           InsertIntoAssetMeta(item.name(), info.size, "image", item.hash);
           break;
         case WorkItem::kOgg:
-          info = InsertOgg(item.name(),
-                           ByteSlice(item.input, item.input_size));
+          info = InsertOgg(item.name(), ByteSlice(item.input, item.input_size));
           InsertIntoAssetMeta(item.name(), info.size, "audio", item.hash);
           break;
         case WorkItem::kWav:
-          info = InsertWav(item.name(),
-                           ByteSlice(item.input, item.input_size));
+          info = InsertWav(item.name(), ByteSlice(item.input, item.input_size));
           InsertIntoAssetMeta(item.name(), info.size, "audio", item.hash);
           break;
       }
@@ -803,12 +798,10 @@ class DbPacker {
     for (size_t i = 0; i < deferred_.size(); i++) {
       WorkItem& item = deferred_[i];
       if (item.type == WorkItem::kPng) {
-        InsertImageBlob(item.name(),
-                        ByteSlice(item.output, item.output_size), item.width,
-                        item.height, item.channels);
+        InsertImageBlob(item.name(), ByteSlice(item.output, item.output_size),
+                        item.width, item.height, item.channels);
       } else {
-        InsertAudioBlob(item.name(),
-                        ByteSlice(item.output, item.output_size),
+        InsertAudioBlob(item.name(), ByteSlice(item.output, item.output_size),
                         item.qoa_desc);
       }
       InsertIntoAssetMeta(item.name(), item.output_size,
@@ -821,21 +814,23 @@ class DbPacker {
   // Recursively enumerate a PhysFS directory, calling HandleFile for each
   // file found. Files are passed with their basename only (flat naming).
   void EnumerateRecursive(const char* dir) {
-    PHYSFS_enumerate(dir, [](void* ud, const char* dirname,
-                             const char* filename) {
-      auto* self = static_cast<DbPacker*>(ud);
-      FixedStringBuffer<kMaxPathLength> full(dirname, "/", filename);
-      PHYSFS_Stat stat;
-      if (PHYSFS_stat(full.str(), &stat) &&
-          stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
-        self->EnumerateRecursive(full.str());
-      } else {
-        // Pass the directory as the dirname so HandleFile builds the
-        // correct PhysFS path, but uses basename for the DB key.
-        self->HandleFile(dirname, filename);
-      }
-      return PHYSFS_ENUM_OK;
-    }, this);
+    PHYSFS_enumerate(
+        dir,
+        [](void* ud, const char* dirname, const char* filename) {
+          auto* self = static_cast<DbPacker*>(ud);
+          FixedStringBuffer<kMaxPathLength> full(dirname, "/", filename);
+          PHYSFS_Stat stat;
+          if (PHYSFS_stat(full.str(), &stat) &&
+              stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
+            self->EnumerateRecursive(full.str());
+          } else {
+            // Pass the directory as the dirname so HandleFile builds the
+            // correct PhysFS path, but uses basename for the DB key.
+            self->HandleFile(dirname, filename);
+          }
+          return PHYSFS_ENUM_OK;
+        },
+        this);
   }
 
   // Scan for .zip files and mount them so their contents get packed.
@@ -848,17 +843,19 @@ class DbPacker {
     };
     DynArray<ZipEntry> zips(allocator_);
 
-    PHYSFS_enumerate("/assets", [](void* ud, const char* dirname,
-                                   const char* filename) {
-      auto* zips = static_cast<DynArray<ZipEntry>*>(ud);
-      if (HasSuffix(filename, ".zip")) {
-        ZipEntry entry;
-        entry.len = std::snprintf(entry.path, sizeof(entry.path),
-                                  "%s/%s", dirname, filename);
-        zips->Push(entry);
-      }
-      return PHYSFS_ENUM_OK;
-    }, &zips);
+    PHYSFS_enumerate(
+        "/assets",
+        [](void* ud, const char* dirname, const char* filename) {
+          auto* zips = static_cast<DynArray<ZipEntry>*>(ud);
+          if (HasSuffix(filename, ".zip")) {
+            ZipEntry entry;
+            entry.len = std::snprintf(entry.path, sizeof(entry.path), "%s/%s",
+                                      dirname, filename);
+            zips->Push(entry);
+          }
+          return PHYSFS_ENUM_OK;
+        },
+        &zips);
 
     // Sort alphabetically for deterministic priority.
     std::sort(zips.begin(), zips.end(),
@@ -930,11 +927,10 @@ class DbPacker {
     lua_pushcfunction(proto_lua_, luaopen_pb);
     lua_setfield(proto_lua_, -2, "pb");
     lua_pop(proto_lua_, 2);
-    if (luaL_loadbuffer(proto_lua_, kProtocLua, kProtocLuaLen,
-                        "@protoc.lua") != 0 ||
+    if (luaL_loadbuffer(proto_lua_, kProtocLua, kProtocLuaLen, "@protoc.lua") !=
+            0 ||
         lua_pcall(proto_lua_, 0, 1, 0) != 0) {
-      LOG("Failed to load embedded protoc.lua: ",
-          lua_tostring(proto_lua_, -1));
+      LOG("Failed to load embedded protoc.lua: ", lua_tostring(proto_lua_, -1));
       lua_close(proto_lua_);
       proto_lua_ = nullptr;
       return nullptr;

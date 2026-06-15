@@ -575,7 +575,7 @@ void Physics::InvalidateJointSlot(b2Joint* joint) {
   uintptr_t tag = joint->GetUserData().pointer;
   if (tag == 0) return;  // Untracked joint (auto-created friction joint).
   uint32_t index = static_cast<uint32_t>(tag - 1);
-  DCHECK(index < static_cast<uint32_t>(kMaxJoints));
+  CHECK(index < static_cast<uint32_t>(kMaxJoints));
   joint_slots_[index].joint = nullptr;
   joint_slots_[index].generation++;
 }

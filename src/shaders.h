@@ -149,7 +149,7 @@ class Shaders {
   }
 
   GLint AttributeLocation(const char* name) const {
-    DCHECK(current_program_, "No program set");
+    CHECK(current_program_, "No program set");
     return glGetAttribLocation(current_program_, name);
   }
 

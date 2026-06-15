@@ -40,13 +40,13 @@ class SegmentedList {
   }
 
   T& operator[](size_t index) {
-    DCHECK(index < size_, index, " vs ", size_);
+    CHECK(index < size_, index, " vs ", size_);
     auto [shelf, offset] = Locate(index);
     return segments_[shelf][offset];
   }
 
   const T& operator[](size_t index) const {
-    DCHECK(index < size_, index, " vs ", size_);
+    CHECK(index < size_, index, " vs ", size_);
     auto [shelf, offset] = Locate(index);
     return segments_[shelf][offset];
   }
@@ -80,31 +80,31 @@ class SegmentedList {
   }
 
   void Pop() {
-    DCHECK(size_ > 0);
+    CHECK(size_ > 0);
     size_--;
   }
 
   void Clear() { size_ = 0; }
 
   T* PtrAt(size_t index) {
-    DCHECK(index < size_, index, " vs ", size_);
+    CHECK(index < size_, index, " vs ", size_);
     auto [shelf, offset] = Locate(index);
     return &segments_[shelf][offset];
   }
 
   const T* PtrAt(size_t index) const {
-    DCHECK(index < size_, index, " vs ", size_);
+    CHECK(index < size_, index, " vs ", size_);
     auto [shelf, offset] = Locate(index);
     return &segments_[shelf][offset];
   }
 
   T& back() {
-    DCHECK(size_ > 0);
+    CHECK(size_ > 0);
     return (*this)[size_ - 1];
   }
 
   const T& back() const {
-    DCHECK(size_ > 0);
+    CHECK(size_ > 0);
     return (*this)[size_ - 1];
   }
 
@@ -165,7 +165,7 @@ class SegmentedList {
 
   void EnsureCapacity() {
     if (size_ < capacity_) return;
-    DCHECK(shelves_allocated_ < kMaxShelves, "too many shelves");
+    CHECK(shelves_allocated_ < kMaxShelves, "too many shelves");
     size_t shelf_size = ShelfSize(shelves_allocated_);
     segments_[shelves_allocated_] = allocator_->NewArray<T>(shelf_size);
     capacity_ += shelf_size;
