@@ -827,12 +827,12 @@ class DbPacker {
     PHYSFS_enumerate(
         "/assets",
         [](void* ud, const char* dirname, const char* filename) {
-          auto* zips = static_cast<DynArray<ZipEntry>*>(ud);
+          auto* found = static_cast<DynArray<ZipEntry>*>(ud);
           if (HasSuffix(filename, ".zip")) {
             ZipEntry entry;
             entry.len = std::snprintf(entry.path, sizeof(entry.path), "%s/%s",
                                       dirname, filename);
-            zips->Push(entry);
+            found->Push(entry);
           }
           return PHYSFS_ENUM_OK;
         },
