@@ -130,6 +130,16 @@ class ThreadPoolExecutor : public Executor {
   std::atomic<size_t> next_queue_{0};
 };
 
+// Number of worker threads for the engine pool: zero on web (wasm builds
+// are single-threaded), the hardware default elsewhere.
+inline size_t PoolThreadCount() {
+#ifdef GAME_WEB
+  return 0;
+#else
+  return ThreadPoolExecutor::NumDefaultThreads();
+#endif
+}
+
 }  // namespace G
 
 #endif  // _GAME_EXECUTOR_H

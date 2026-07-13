@@ -21,10 +21,11 @@
 #include "lua_save.h"
 #include "lua_scene.h"
 #include "lua_sound.h"
-#include "lua_tilemap.h"
 #include "lua_system.h"
 #include "lua_test.h"
+#include "lua_tilemap.h"
 #include "lua_timer.h"
+#include "memory_budgets.h"
 #include "platform.h"
 #include "sdl_init.h"
 #include "units.h"
@@ -49,14 +50,13 @@ Engine::Engine(Slice<const char*> args, sqlite3* db_, DbAssets* db_assets,
       controllers(allocator),
       sound(audio_channels, audio_buffer_samples, allocator),
       renderer(*db_assets, &batch_renderer, db, allocator),
-      lua_allocator(allocator->Alloc(Megabytes(256), kMaxAlign),
-                    Megabytes(256)),
+      lua_allocator(allocator->Alloc(kLuaArenaSize, kMaxAlign), kLuaArenaSize),
       lua(args, db, db_assets, &lua_allocator),
       physics(FVec(config.window_width, config.window_height),
               Physics::kPixelsPerMeter, allocator),
       network(allocator),
-      frame_allocator(allocator, Megabytes(128)),
-      pool(allocator, ThreadPoolExecutor::NumDefaultThreads()),
+      frame_allocator(allocator, kFrameArenaSize),
+      pool(allocator, PoolThreadCount()),
       allocator_(allocator) {
   if (config.nearest_filter) {
     batch_renderer.SetDefaultFilter(GL_NEAREST, GL_NEAREST);

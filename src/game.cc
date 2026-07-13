@@ -18,6 +18,11 @@
 #include "libraries/sqlite3.h"
 #include "libraries/stb_image_write.h"
 #include "logging.h"
+#ifdef GAME_WEB
+#include <emscripten.h>
+#endif
+
+#include "memory_budgets.h"
 #include "packer.h"
 #include "platform.h"
 #include "profiler.h"
@@ -34,7 +39,7 @@
 
 namespace G {
 
-constexpr size_t kEngineMemory = Gigabytes(4);
+constexpr size_t kEngineMemory = kEngineArenaSize;
 
 namespace {
 
@@ -119,6 +124,20 @@ struct Game {
         allocator(allocator_),
         debug_ui(debug_ui_) {}
 
+  // Outcome of a single RunFrame call.
+  enum class FrameResult {
+    kContinue,  // A frame was simulated and rendered.
+    kIdle,      // Not enough time accumulated; nothing was done.
+    kExit,      // The game requested shutdown.
+  };
+
+  // One-time preparation before the first RunFrame.
+  void BeginRun();
+
+  // Runs at most one frame. The caller owns pacing: on desktop Run() sleeps
+  // on kIdle; on web the browser invokes this once per animation frame.
+  FrameResult RunFrame();
+
   // Runs the game loop until quit or Lua stop.
   void Run();
 
@@ -147,24 +166,26 @@ struct Game {
   void DispatchNetworkEvents();
 };
 
-void Game::Run() {
+void Game::BeginRun() {
   SDL_ResumeAudioDevice(sdl->audio_device);
   last_frame = Now();
+}
+
+Game::FrameResult Game::RunFrame() {
   constexpr double kStep = TimeStepInSeconds();
-  while (running) {
-    if (engine->lua.Stopped()) break;
-    if (engine->lua.HasError() && engine->keyboard.IsDown(SDL_SCANCODE_Q)) {
-      engine->lua.Stop();
-      break;
-    }
+  if (!running || engine->lua.Stopped()) return FrameResult::kExit;
+  if (engine->lua.HasError() && engine->keyboard.IsDown(SDL_SCANCODE_Q)) {
+    engine->lua.Stop();
+    return FrameResult::kExit;
+  }
+  {
     HandleHotReload();
     const Time now = Now();
     const double frame_time = ToSeconds(now - last_frame);
     last_frame = now;
     accum += frame_time;
     if (accum < kStep) {
-      SleepMs(1);
-      continue;
+      return FrameResult::kIdle;
     }
     PROFILE_FRAME;
     const Time frame_start = Now();
@@ -222,6 +243,21 @@ void Game::Run() {
     debug_ui->AddLuaMemorySample(static_cast<float>(engine->lua.MemoryUsage()) /
                                  1024.0f);
     debug_ui->AddBreakdownSample(last_breakdown_);
+  }
+  return FrameResult::kContinue;
+}
+
+void Game::Run() {
+  while (true) {
+    switch (RunFrame()) {
+      case FrameResult::kContinue:
+        break;
+      case FrameResult::kIdle:
+        SleepMs(1);
+        break;
+      case FrameResult::kExit:
+        return;
+    }
   }
 }
 
@@ -507,6 +543,170 @@ void InstallPhysfsAllocator() {
 
 }  // namespace
 
+// Everything the running game owns. Heap-allocated from the engine arena:
+// on the web the browser drives frames via emscripten_set_main_loop, which
+// unwinds RunGame's stack without running destructors, so nothing the loop
+// touches may live on it.
+struct GameContext {
+  GameOptions opts;
+  // Owned copies of the path strings GameOptions points at (the caller's
+  // buffers die with its stack frame).
+  char blob_source[kMaxPathLength + 1] = {};
+  char source_directory[kMaxPathLength + 1] = {};
+  sqlite3* db = nullptr;
+  DebugUI debug_ui;
+  BlobStore* blob_store = nullptr;
+  GameConfig config;
+  AudioCallbackContext* audio_ctx = nullptr;
+  SdlContext sdl;
+  Engine* engine = nullptr;
+  HotReloadManager* hot_reload = nullptr;
+  Game* loop = nullptr;
+};
+
+// Initializes every subsystem up to (but not including) the main loop.
+GameContext* SetupGame(const GameOptions& opts, sqlite3* db,
+                       ArenaAllocator* allocator) {
+  TIMER("Setup");
+  InitializeLogging();
+
+  auto* ctx = allocator->New<GameContext>();
+  ctx->opts = opts;
+  ctx->db = db;
+  if (opts.blob_source != nullptr) {
+    snprintf(ctx->blob_source, sizeof(ctx->blob_source), "%s",
+             opts.blob_source);
+    ctx->opts.blob_source = ctx->blob_source;
+  }
+  if (opts.source_directory != nullptr) {
+    snprintf(ctx->source_directory, sizeof(ctx->source_directory), "%s",
+             opts.source_directory);
+    ctx->opts.source_directory = ctx->source_directory;
+  }
+
+  // Start capturing log messages into the debug UI ring buffer before any
+  // LOG calls so that no startup messages are lost.
+  ctx->debug_ui.StartLogCapture(allocator);
+
+  for (size_t i = 0; i < opts.all_args.size(); ++i) {
+    LOG("args[", i, "]: ", opts.all_args[i]);
+  }
+  LOG("Program name = game, source = ",
+      opts.source_directory ? opts.source_directory : "(packaged)");
+  InstallPhysfsAllocator();
+  PHYSFS_CHECK(PHYSFS_init("game"), "Could not initialize PhysFS");
+  CHECK(ctx->opts.blob_source != nullptr, "No blob source configured");
+  // In dev mode the blob store writes into the same directory that is
+  // mounted below, so it must be created before the mount.
+  if (ctx->opts.source_directory != nullptr) {
+    ctx->blob_store = allocator->New<BlobStore>(
+        MUST(BlobStore::Create(ctx->opts.blob_source)));
+  }
+  PHYSFS_CHECK(
+      PHYSFS_mount(ctx->opts.blob_source, kBlobMountPoint, /*append=*/0),
+      "Could not mount blob source ", ctx->opts.blob_source);
+  DbAssets* db_assets;
+  {
+    TIMER("Getting assets");
+    if (ctx->opts.source_directory != nullptr) {
+      InlineExecutor inline_executor;
+      MUST(WriteAssetsToDb(ctx->opts.source_directory, db, ctx->blob_store,
+                           allocator, &inline_executor));
+      SweepUnreferencedBlobs(db, ctx->blob_store, allocator);
+    }
+    db_assets = allocator->New<DbAssets>(db, allocator);
+  }
+  {
+    TIMER("Loading config");
+    LoadConfigFromDatabase(db, &ctx->config, allocator);
+  }
+  LOG("Using engine version ", GAME_VERSION_STR);
+  LOG("Game requested engine version ", ctx->config.version.major, ".",
+      ctx->config.version.minor);
+  CHECK(ctx->config.version.major == GAME_VERSION_MAJOR,
+        "Unsupported major version requested");
+  CHECK(ctx->config.version.minor <= GAME_VERSION_MINOR,
+        "Unsupported minor engine version requested");
+
+  // Audio callback context must be allocated before SDL init (which
+  // starts the audio thread) and must outlive the audio stream.
+  ctx->audio_ctx = allocator->New<AudioCallbackContext>();
+  {
+    TIMER("SDL3 initialization");
+    ctx->sdl = InitializeSdl(ctx->config, StaticAudioCallback, ctx->audio_ctx);
+  }
+  PrintSystemInformation();
+
+  // Engine initialization.
+  {
+    TIMER("Game Initialization");
+    ctx->engine = allocator->New<Engine>(
+        ctx->opts.args, db, db_assets, ctx->config,
+        /*audio_channels=*/2,
+        /*audio_buffer_samples=*/8192, ctx->sdl.window, allocator);
+    ctx->audio_ctx->sound = &ctx->engine->sound;
+    if (ctx->opts.test_mode) {
+      ctx->engine->keyboard.SetTestMode(true);
+      ctx->engine->mouse.SetTestMode(true);
+      ctx->engine->controllers.SetTestMode(true);
+    }
+    ctx->engine->Initialize();
+    ctx->engine->lua.Init();
+    if (ctx->opts.test_mode) {
+      ctx->engine->lua.StartTestCoroutine();
+    }
+  }
+
+  // Start the thread pool and hot-reload watcher.
+  ctx->engine->pool.Start();
+  ctx->hot_reload = allocator->New<HotReloadManager>(
+      ctx->opts.source_directory, db, ctx->blob_store, &ctx->engine->pool,
+      allocator);
+  ctx->hot_reload->Start();
+
+  // Main loop.
+  ctx->debug_ui.Init(ctx->sdl.window, ctx->sdl.gl_context);
+  ctx->debug_ui.SetEngine(ctx->engine);
+  ctx->debug_ui.SetEngineArena(allocator);
+  ctx->debug_ui.SetBlobStore(ctx->blob_store);
+  ctx->debug_ui.SetWindowCentered(ctx->config.centered);
+  ctx->loop =
+      allocator->New<Game>(ctx->engine, &ctx->config, &ctx->opts, &ctx->sdl,
+                           ctx->hot_reload, allocator, &ctx->debug_ui);
+  return ctx;
+}
+
+// Shuts every subsystem down and returns the process exit code. Never runs
+// on web: the browser tab closing is the teardown.
+int TeardownGame(GameContext* ctx, ArenaAllocator* allocator) {
+  ctx->debug_ui.Shutdown();
+  // Tear down in reverse order: hot-reload watcher, thread pool, audio
+  // stream (before Engine, which owns the Sound mutex), then Engine.
+  int exit_code = ctx->opts.test_mode ? ctx->engine->lua.TestExitCode() : 0;
+  ctx->hot_reload->Stop();
+  ctx->engine->pool.Shutdown();
+  SDL_DestroyAudioStream(ctx->sdl.audio_stream);
+  ctx->sdl.audio_stream = nullptr;
+  allocator->Destroy(ctx->engine);
+  PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
+  ShutdownSdl(&ctx->sdl);
+  LOG("Statistics (in ms): ", ctx->loop->stats);
+  sqlite3_close(ctx->db);
+  LOG("SQLite heap high-water: ",
+      sqlite3_memory_highwater(/*resetFlag=*/0) / 1024, " KB");
+  return exit_code;
+}
+
+#ifdef GAME_WEB
+// Per-animation-frame callback driven by the browser.
+void WebFrame(void* arg) {
+  auto* ctx = static_cast<GameContext*>(arg);
+  if (ctx->loop->RunFrame() == Game::FrameResult::kExit) {
+    emscripten_cancel_main_loop();
+  }
+}
+#endif
+
 int RunGame(const GameOptions& opts, sqlite3* db) {
   // Heap-allocated and never freed: the MimallocAllocator inside Engine
   // registers an arena via mi_manage_os_memory_ex with no unregister API,
@@ -518,135 +718,42 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
     return new ArenaAllocator(buf, kEngineMemory);
   }();
 
-  // Setup.
-  TIMER("Setup");
-  InitializeLogging();
-
-  // Start capturing log messages into the debug UI ring buffer before any
-  // LOG calls so that no startup messages are lost.
-  DebugUI debug_ui;
-  debug_ui.StartLogCapture(allocator);
-
-  for (size_t i = 0; i < opts.all_args.size(); ++i) {
-    LOG("args[", i, "]: ", opts.all_args[i]);
-  }
-  LOG("Program name = game, source = ",
-      opts.source_directory ? opts.source_directory : "(packaged)");
-  InstallPhysfsAllocator();
-  PHYSFS_CHECK(PHYSFS_init("game"), "Could not initialize PhysFS");
-  CHECK(opts.blob_source != nullptr, "No blob source configured");
-  // In dev mode the blob store writes into the same directory that is
-  // mounted below, so it must be created before the mount.
-  BlobStore* blob_store = nullptr;
-  if (opts.source_directory != nullptr) {
-    blob_store =
-        allocator->New<BlobStore>(MUST(BlobStore::Create(opts.blob_source)));
-  }
-  PHYSFS_CHECK(PHYSFS_mount(opts.blob_source, kBlobMountPoint, /*append=*/0),
-               "Could not mount blob source ", opts.blob_source);
-  DbAssets* db_assets;
-  {
-    TIMER("Getting assets");
-    if (opts.source_directory != nullptr) {
-      InlineExecutor inline_executor;
-      MUST(WriteAssetsToDb(opts.source_directory, db, blob_store, allocator,
-                           &inline_executor));
-      SweepUnreferencedBlobs(db, blob_store, allocator);
-    }
-    db_assets = allocator->New<DbAssets>(db, allocator);
-  }
-  GameConfig config;
-  {
-    TIMER("Loading config");
-    LoadConfigFromDatabase(db, &config, allocator);
-  }
-  LOG("Using engine version ", GAME_VERSION_STR);
-  LOG("Game requested engine version ", config.version.major, ".",
-      config.version.minor);
-  CHECK(config.version.major == GAME_VERSION_MAJOR,
-        "Unsupported major version requested");
-  CHECK(config.version.minor <= GAME_VERSION_MINOR,
-        "Unsupported minor engine version requested");
-
-  // Audio callback context must be allocated before SDL init (which
-  // starts the audio thread) and must outlive the audio stream.
-  auto* audio_ctx = allocator->New<AudioCallbackContext>();
-  SdlContext sdl;
-  {
-    TIMER("SDL3 initialization");
-    sdl = InitializeSdl(config, StaticAudioCallback, audio_ctx);
-  }
-  PrintSystemInformation();
-
-  // Engine initialization.
-  Engine* e;
-  {
-    TIMER("Game Initialization");
-    e = allocator->New<Engine>(opts.args, db, db_assets, config,
-                               /*audio_channels=*/2,
-                               /*audio_buffer_samples=*/8192, sdl.window,
-                               allocator);
-    audio_ctx->sound = &e->sound;
-    if (opts.test_mode) {
-      e->keyboard.SetTestMode(true);
-      e->mouse.SetTestMode(true);
-      e->controllers.SetTestMode(true);
-    }
-    e->Initialize();
-    e->lua.Init();
-    if (opts.test_mode) {
-      e->lua.StartTestCoroutine();
-    }
-  }
-
-  // Start the thread pool and hot-reload watcher.
-  e->pool.Start();
-  HotReloadManager hot_reload(opts.source_directory, db, blob_store, &e->pool,
-                              allocator);
-  hot_reload.Start();
-
-  // Main loop.
-  debug_ui.Init(sdl.window, sdl.gl_context);
-  debug_ui.SetEngine(e);
-  debug_ui.SetEngineArena(allocator);
-  debug_ui.SetBlobStore(blob_store);
-  debug_ui.SetWindowCentered(config.centered);
-  Game loop{e, &config, &opts, &sdl, &hot_reload, allocator, &debug_ui};
-  loop.Run();
-  debug_ui.Shutdown();
-
-  // Tear down in reverse order: hot-reload watcher, thread pool, audio
-  // stream (before Engine, which owns the Sound mutex), then Engine.
-  int exit_code = opts.test_mode ? e->lua.TestExitCode() : 0;
-  hot_reload.Stop();
-  e->pool.Shutdown();
-  SDL_DestroyAudioStream(sdl.audio_stream);
-  sdl.audio_stream = nullptr;
-  allocator->Destroy(e);
-  PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
-  ShutdownSdl(&sdl);
-  LOG("Statistics (in ms): ", loop.stats);
-  sqlite3_close(db);
-  LOG("SQLite heap high-water: ",
-      sqlite3_memory_highwater(/*resetFlag=*/0) / 1024, " KB");
-  return exit_code;
+  GameContext* ctx = SetupGame(opts, db, allocator);
+  ctx->loop->BeginRun();
+#ifdef GAME_WEB
+  // Never returns: the browser paces frames via requestAnimationFrame and
+  // this call unwinds the current stack (skipping destructors, which is why
+  // everything lives in the heap-allocated GameContext).
+  emscripten_set_main_loop_arg(WebFrame, ctx, /*fps=*/0,
+                               /*simulate_infinite_loop=*/true);
+  return 0;
+#else
+  ctx->loop->Run();
+  return TeardownGame(ctx, allocator);
+#endif
 }
 
 int Main(int argc, const char* argv[]) {
   InstallSignalHandlers();
   // Route all SDL allocations into a fixed heap before any SDL call so the
   // process never grows the system heap through SDL at runtime.
-  InitThirdPartyHeap(Megabytes(64));
+  InitThirdPartyHeap(kThirdPartyHeapSize);
   CHECK(SDL_SetMemoryFunctions(ThirdPartyMalloc, ThirdPartyCalloc,
                                ThirdPartyRealloc, ThirdPartyFree),
         "Failed to install SDL memory functions: ", SDL_GetError());
   // Top-level arena for CLI subcommand memory.
   // Sized to comfortably hold the packer's 512MB sub-arena plus the
   // config arena and other CLI scratch state.
-  auto* cli_buf = static_cast<uint8_t*>(malloc(Gigabytes(1)));
-  ArenaAllocator cli_arena(cli_buf, Gigabytes(1));
+  auto* cli_buf = static_cast<uint8_t*>(malloc(kCliArenaSize));
+  ArenaAllocator cli_arena(cli_buf, kCliArenaSize);
   DEFER([cli_buf] { free(cli_buf); });
 
+#ifdef GAME_WEB
+  // The web binary IS the packaged game; there is no CLI. Note the DEFER
+  // above never runs: emscripten_set_main_loop unwinds without destructors,
+  // which is required anyway since the SQLite heap lives in the CLI arena.
+  return CmdRunPackaged({argv, (size_t)argc}, &cli_arena);
+#else
   if (argc >= 2) {
     std::string_view cmd = argv[1];
     // Validate the command before doing anything else.
@@ -676,6 +783,7 @@ int Main(int argc, const char* argv[]) {
     return CmdRunPackaged({argv, (size_t)argc}, &cli_arena);
   }
   return CmdHelp(argv[0], /*subcommand=*/nullptr);
+#endif  // GAME_WEB
 }
 
 }  // namespace G

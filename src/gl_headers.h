@@ -7,8 +7,11 @@
 // headers directly, which map onto WebGL2 — glad's loader only covers
 // desktop GL and ES 2.0, so it cannot provide the ES 3.0 entry points.
 #ifdef GAME_WEB
-#include <GLES2/gl2ext.h>
 #include <GLES3/gl3.h>
+
+// Must come after gl3.h: the extension header uses the base GL types.
+#include <GLES2/gl2ext.h>
+
 #ifndef GLAPIENTRY
 #define GLAPIENTRY
 #endif

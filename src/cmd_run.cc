@@ -7,6 +7,7 @@
 #include "game.h"
 #include "libraries/sqlite3.h"
 #include "logging.h"
+#include "memory_budgets.h"
 #include "packer.h"
 #include "platform.h"
 #include "sqlite_helpers.h"
@@ -16,11 +17,6 @@
 namespace G {
 
 namespace {
-
-// Size of the process-global SQLite memsys5 heap. Shared by the asset
-// metadata database, the Lua compilation cache, and the save database (WAL
-// mode), so it is sized with headroom over observed peaks.
-constexpr size_t kSqliteHeapSize = Megabytes(32);
 
 void PrintHelp() {
   printf("Usage: game run [directory] [options] [-- game-args...]\n");

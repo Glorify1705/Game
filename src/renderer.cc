@@ -11,6 +11,7 @@
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
 #include "libraries/stb_rect_pack.h"
+#include "memory_budgets.h"
 #include "profiler.h"
 #include "sqlite_helpers.h"
 #include "transformations.h"
@@ -55,7 +56,7 @@ constexpr uint64_t kSDFCacheVersion = 1;
 
 }  // namespace
 
-constexpr size_t kCommandMemory = Megabytes(64);
+constexpr size_t kCommandMemory = kRenderCommandMemory;
 
 size_t BatchRenderer::GetCommandBufferCapacity() const {
   return kCommandMemory;
@@ -221,7 +222,7 @@ BatchRenderer::BatchRenderer(IVec2 viewport, Shaders* shaders,
       shaders_(shaders),
       viewport_(viewport),
       window_size_(viewport),
-      render_scratch_(allocator, Megabytes(64)) {
+      render_scratch_(allocator, kRenderScratchSize) {
   CHECK(command_buffer_ != nullptr, "BatchRenderer: failed to allocate ",
         kCommandMemory, " byte command buffer");
   TIMER();

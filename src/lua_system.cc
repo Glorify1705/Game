@@ -150,7 +150,13 @@ const struct LuaApiFunction kClockLib[] = {
      {{"ms", "the number of milliseconds to sleep", "number"}},
      {},
      [](lua_State* state) {
+#ifdef GAME_WEB
+       // Blocking the browser main thread would freeze the page.
+       WLOG("G.system.sleep_ms is a no-op on web");
+       luaL_checknumber(state, 1);
+#else
        SleepMs(luaL_checknumber(state, 1));
+#endif
        return 0;
      }},
     {"gamedelta",

@@ -80,6 +80,9 @@ void ThreadPoolExecutor::Shutdown() {
 }
 
 void ThreadPoolExecutor::Submit(Task* task) {
+  // With no workers there is nothing to run the task, and the long-running
+  // tasks submitted here (the hot-reload watcher) would hang if run inline.
+  CHECK(num_threads_ > 0, "Submit requires worker threads");
   task->state.store(TaskState::kPending, std::memory_order_relaxed);
   size_t idx =
       next_queue_.fetch_add(1, std::memory_order_relaxed) % num_threads_;
