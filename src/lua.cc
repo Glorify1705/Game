@@ -229,7 +229,7 @@ Lua::Lua(Slice<const char*> args, sqlite3* db, DbAssets* assets,
       db_(db),
       assets_(assets),
       scripts_by_name_(allocator),
-      scripts_(1 << 16, allocator),
+      scripts_(allocator),
       compilation_cache_(allocator) {}
 
 void Lua::Crash() {

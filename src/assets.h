@@ -12,6 +12,7 @@
 #include "error.h"
 #include "libraries/sqlite3.h"
 #include "logging.h"
+#include "segmented_list.h"
 
 namespace G {
 
@@ -112,7 +113,7 @@ class DbAssets {
       : db_(db),
         allocator_(allocator),
         checksums_map_(allocator),
-        checksums_(1 << 20, allocator),
+        checksums_(allocator),
         text_files_(256, allocator),
         text_files_table_(allocator) {}
 
@@ -214,7 +215,9 @@ class DbAssets {
   };
 
   Dictionary<Checksum*> checksums_map_;
-  FixedArray<Checksum> checksums_;
+  // Grows one entry per (re)loaded asset. Segmented so the pointers held by
+  // checksums_map_ stay stable as it grows.
+  SegmentedList<Checksum> checksums_;
 
   LoadFn<DbAssets::Shader> shader_loader_;
   LoadFn<DbAssets::Script> script_loader_;

@@ -19,6 +19,7 @@ extern "C" {
 #include "color.h"
 #include "libraries/sqlite3.h"
 #include "mat.h"
+#include "segmented_list.h"
 #include "stringlib.h"
 #include "vec.h"
 
@@ -538,7 +539,9 @@ class Lua {
   };
 
   Dictionary<Script*> scripts_by_name_;
-  FixedArray<Script> scripts_;
+  // Grows one entry per loaded script. Segmented so the pointers held by
+  // scripts_by_name_ stay stable as it grows.
+  SegmentedList<Script> scripts_;
   Dictionary<CachedScript> compilation_cache_;
 
   double t_ = 0;
