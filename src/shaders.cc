@@ -6,7 +6,6 @@ namespace G {
 namespace {
 
 constexpr std::string_view kPrePassVertexShader = R"(
-    #version 410 core
 
     layout (location = 0) in vec3 input_position;
     layout (location = 1) in vec2 input_tex_coord;
@@ -48,7 +47,6 @@ constexpr std::string_view kPrePassVertexShader = R"(
   )";
 
 constexpr std::string_view kPrePassFragmentShader = R"(
-    #version 410 core
     out vec4 frag_color;
 
     in vec2 tex_coord;
@@ -64,7 +62,6 @@ constexpr std::string_view kPrePassFragmentShader = R"(
   )";
 
 constexpr std::string_view kParticleVertexShader = R"(
-    #version 410 core
 
     // Per-vertex: static unit quad.
     layout (location = 0) in vec2 input_position;
@@ -100,7 +97,6 @@ constexpr std::string_view kParticleVertexShader = R"(
   )";
 
 constexpr std::string_view kPostPassVertexShader = R"(
-  #version 410 core
   layout (location = 0) in vec2 input_position;
   layout (location = 1) in vec2 input_tex_coord;
 
@@ -114,7 +110,6 @@ constexpr std::string_view kPostPassVertexShader = R"(
   )";
 
 constexpr std::string_view kPostPassFragmentShader = R"(
-  #version 410 core
   out vec4 frag_color;
 
   in vec2 tex_coord;
@@ -146,7 +141,6 @@ constexpr std::string_view kPostPassFragmentShader = R"(
 //                don't vanish — compensates for the gradient averaging away
 //                narrow features
 constexpr std::string_view kSDFFragmentShader = R"(
-    #version 410 core
     out vec4 frag_color;
 
     in vec2 tex_coord;
@@ -187,8 +181,18 @@ constexpr std::string_view kSDFFragmentShader = R"(
     }
   )";
 
+// GLSL version prelude prepended to every shader at compile time. Desktop
+// targets OpenGL 4.1 core; the web target compiles the same sources as
+// GLSL ES 3.00 for WebGL2, which additionally requires a default float
+// precision in fragment shaders.
+#ifdef GAME_WEB
+constexpr std::string_view kShaderPrelude =
+    "#version 300 es\nprecision highp float;\n";
+#else
+constexpr std::string_view kShaderPrelude = "#version 410 core\n";
+#endif
+
 constexpr std::string_view kFragmentShaderPreamble = R"(
-  #version 410 core
 
   out vec4 frag_color;
 
@@ -271,10 +275,10 @@ ErrorOr<void> Shaders::Compile(DbAssets::ShaderType type, std::string_view name,
                                  : GL_FRAGMENT_SHADER;
   const GLuint shader = glCreateShader(shader_type);
   CHECK(shader != 0, "Could not compile shader ", name);
-  const char* code = glsl.data();
-  size_t size = glsl.size();
-  OPENGL_CALL(
-      glShaderSource(shader, 1, &code, reinterpret_cast<const GLint*>(&size)));
+  const char* sources[] = {kShaderPrelude.data(), glsl.data()};
+  const GLint sizes[] = {static_cast<GLint>(kShaderPrelude.size()),
+                         static_cast<GLint>(glsl.size())};
+  OPENGL_CALL(glShaderSource(shader, 2, sources, sizes));
   OPENGL_CALL(glCompileShader(shader), "Compiling shader ", name, ": ", glsl);
   int success;
   glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
@@ -336,7 +340,10 @@ ErrorOr<void> Shaders::Link(std::string_view name,
   CHECK(shader_program != 0, "Could not link shaders into ", name);
   OPENGL_CALL(glAttachShader(shader_program, vertex));
   OPENGL_CALL(glAttachShader(shader_program, fragment));
+#ifndef GAME_WEB
+  // Not present in GLES3: the single `out vec4` defaults to location 0.
   glBindFragDataLocation(shader_program, 0, "frag_color");
+#endif
   glLinkProgram(shader_program);
   int success;
   OPENGL_CALL(glGetProgramiv(shader_program, GL_LINK_STATUS, &success));

@@ -3,8 +3,6 @@
 #define _GAME_DEBUG_UI_H
 
 #include <SDL3/SDL.h>
-#include <TextEditor.h>
-#include <imgui.h>
 
 #include "allocators.h"
 #include "blob_store.h"
@@ -14,6 +12,9 @@
 #include "renderer.h"
 
 #ifdef GAME_WITH_IMGUI
+
+#include <TextEditor.h>
+#include <imgui.h>
 
 namespace G {
 
@@ -400,10 +401,24 @@ class DebugUI {
   bool WantCaptureKeyboard() const { return false; }
   void AddFrameTimeSample(float) {}
   void AddLuaMemorySample(float) {}
-  struct FrameBreakdown {};
+  // Mirrors the real FrameBreakdown/FrameContext layout so callers can fill
+  // them unconditionally; the stub simply ignores the data.
+  struct FrameBreakdown {
+    float update_ms = 0;
+    float draw_ms = 0;
+    float render_ms = 0;
+    float debug_ui_ms = 0;
+  };
   void AddBreakdownSample(const FrameBreakdown&) {}
   void LogMessage(LogLevel, const char*) {}
-  struct FrameContext {};
+  struct FrameContext {
+    FrameStats frame_stats;
+    float lua_memory_kb;
+    size_t lua_memory_bytes;
+    size_t cmd_buf_used;
+    size_t cmd_buf_capacity;
+    FrameBreakdown breakdown;
+  };
   void DrawAll(const FrameContext&) {}
   bool ConsumeScreenshotRequest() { return false; }
   bool ConsumeHotReloadRequest() { return false; }

@@ -2,7 +2,7 @@
 #ifndef _GAME_GL_H
 #define _GAME_GL_H
 
-#include "libraries/glad.h"
+#include "gl_headers.h"
 #include "logging.h"
 #include "stringlib.h"
 
@@ -20,7 +20,7 @@ class ScopeBase {
 
  protected:
   ScopeBase(const char* label, const char* file, int line) {
-#ifdef GAME_WITH_ASSERTS
+#if defined(GAME_WITH_ASSERTS) && !defined(GAME_WEB)
     SetOpenGLLine(file, line);
     SmallBuffer buf;
     buf.Append(label, " [", TrimPath(file), ":", line, "]");
@@ -33,7 +33,7 @@ class ScopeBase {
   }
 
   ~ScopeBase() {
-#ifdef GAME_WITH_ASSERTS
+#if defined(GAME_WITH_ASSERTS) && !defined(GAME_WEB)
     glPopDebugGroup();
 #endif
   }

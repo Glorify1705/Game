@@ -8,7 +8,9 @@
 #include "box2d/b2_revolute_joint.h"
 #include "box2d/b2_weld_joint.h"
 #include "box2d/b2_wheel_joint.h"
+#ifdef GAME_WITH_IMGUI
 #include "physics_debug_draw.h"
+#endif
 
 namespace G {
 namespace {
@@ -513,6 +515,7 @@ void Physics::UpdateMouseJoint(b2Joint* joint, FVec2 world_pixels) {
 
 void Physics::DestroyMouseJoint(b2Joint* joint) { world_.DestroyJoint(joint); }
 
+#ifdef GAME_WITH_IMGUI
 void Physics::EnableDebugDraw(uint32 flags) {
   if (debug_draw_ == nullptr) {
     debug_draw_ = allocator_->New<PhysicsDebugDraw>(pixels_per_meter_);
@@ -551,6 +554,18 @@ void Physics::DrawDebug(const Camera* camera, FVec2 viewport) {
     }
   }
 }
+
+#else
+// Physics debug drawing renders through the ImGui overlay, which is not
+// compiled into this build.
+void Physics::EnableDebugDraw(uint32 /*flags*/) {
+  LOG("Physics debug draw is unavailable without the debug UI");
+}
+
+void Physics::DisableDebugDraw() {}
+
+void Physics::DrawDebug(const Camera* /*camera*/, FVec2 /*viewport*/) {}
+#endif  // GAME_WITH_IMGUI
 
 JointHandle Physics::AllocJointSlot(b2Joint* joint) {
   for (int i = 0; i < kMaxJoints; i++) {

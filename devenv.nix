@@ -57,6 +57,7 @@ in
     lua51Packages.lua
     mesa
     ninja
+    emscripten
     patchelf
     python3
     renderdoc
@@ -95,6 +96,8 @@ in
     export CXX="${pkgs.clang}/bin/clang++";
     export CMAKE_PREFIX_PATH="${pkgs.elfutils.dev}:${pkgs.elfutils.out}:$CMAKE_PREFIX_PATH";
     export PATH="$DEVENV_ROOT/build:$PATH";
+    # Emscripten's system-library cache; the nix store copy is read-only.
+    export EM_CACHE="$DEVENV_ROOT/.emscripten-cache";
   '';
 
   # Each script is a thin wrapper that execs the corresponding file under
@@ -114,6 +117,7 @@ in
   scripts."game-sanitize".exec         = ''exec "$DEVENV_ROOT/scripts/game-sanitize.sh" "$@"'';
   scripts."game-samply".exec           = ''exec "$DEVENV_ROOT/scripts/game-samply.sh" "$@"'';
   scripts."game-build-win64".exec      = ''exec "$DEVENV_ROOT/scripts/game-build-win64.sh" "$@"'';
+  scripts."game-build-web".exec        = ''exec "$DEVENV_ROOT/scripts/game-build-web.sh" "$@"'';
 
   git-hooks.hooks = {
     clang-format = {

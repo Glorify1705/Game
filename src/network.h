@@ -5,7 +5,16 @@
 #include "allocators.h"
 #include "array.h"
 #include "error.h"
+
+#ifdef GAME_WEB
+// Browsers provide no raw UDP sockets, so networking is unsupported on web
+// and enet is not compiled in. Forward declarations keep the class layout
+// identical; the web implementation in network.cc never dereferences them.
+typedef struct _ENetHost ENetHost;
+typedef struct _ENetPacket ENetPacket;
+#else
 #include "libraries/enet.h"
+#endif
 
 namespace G {
 
@@ -79,8 +88,9 @@ class Network {
 
  private:
   ENetHost* host_ = nullptr;
-  Allocator* allocator_;
-  bool initialized_ = false;
+  // Unused by the web stub implementation, which keeps the layout intact.
+  [[maybe_unused]] Allocator* allocator_;
+  [[maybe_unused]] bool initialized_ = false;
 
   // Per-frame event buffer.
   static constexpr size_t kMaxEventsPerFrame = 256;
@@ -88,8 +98,8 @@ class Network {
   size_t event_count_ = 0;
 
   // Packets received during Poll() that need freeing after dispatch.
-  ENetPacket* received_packets_[kMaxEventsPerFrame] = {};
-  size_t received_packet_count_ = 0;
+  [[maybe_unused]] ENetPacket* received_packets_[kMaxEventsPerFrame] = {};
+  [[maybe_unused]] size_t received_packet_count_ = 0;
 };
 
 }  // namespace G

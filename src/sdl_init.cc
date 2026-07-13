@@ -6,7 +6,7 @@
 
 #include "clock.h"
 #include "config.h"
-#include "libraries/glad.h"
+#include "gl_headers.h"
 #include "logging.h"
 #include "version.h"
 
@@ -61,6 +61,7 @@ void LogToSDL(LogLevel level, const char* message) {
   }
 }
 
+#ifndef GAME_WEB
 void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
                                       GLuint /*id*/, GLenum severity,
                                       GLsizei /*length*/, const GLchar* message,
@@ -72,9 +73,20 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
         ". Context = ", l->buffer);
   }
 }
+#endif  // !GAME_WEB
 
 SDL_Window* CreateWindow(const GameConfig& config) {
   TIMER("Initializing basic attributes");
+#ifdef GAME_WEB
+  // OpenGL ES 3.0 maps onto WebGL2 in the browser.
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3),
+        "Could not set major version", SDL_GetError());
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0),
+        "Could not set minor version", SDL_GetError());
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+                            SDL_GL_CONTEXT_PROFILE_ES),
+        "Could not set ES profile", SDL_GetError());
+#else
   CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4),
         "Could not set major version", SDL_GetError());
   CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1),
@@ -82,6 +94,7 @@ SDL_Window* CreateWindow(const GameConfig& config) {
   CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
                             SDL_GL_CONTEXT_PROFILE_CORE),
         "Could not set Core profile", SDL_GetError());
+#endif
   CHECK(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1),
         "Could not set double buffering version", SDL_GetError());
 #ifdef GAME_WITH_ASSERTS
@@ -139,6 +152,14 @@ SDL_GLContext CreateOpenglContext(const GameConfig& config,
         " failed to set accelerated visual: ", SDL_GetError());
   auto context = SDL_GL_CreateContext(window);
   CHECK(context != nullptr, "Could not load OpenGL context: ", SDL_GetError());
+#ifdef GAME_WEB
+  // Emscripten links the GLES3 entry points directly; there is no loader.
+  // The browser paces frames via requestAnimationFrame, so a failed swap
+  // interval is only a warning.
+  if (config.vsync_mode != 0 && !SDL_GL_SetSwapInterval(config.vsync_mode)) {
+    LOG("Could not set VSync mode ", config.vsync_mode, ": ", SDL_GetError());
+  }
+#else
   CHECK(gladLoadGLLoader([](const char* name) -> void* {
           return (void*)SDL_GL_GetProcAddress(name);
         }),
@@ -158,6 +179,7 @@ SDL_GLContext CreateOpenglContext(const GameConfig& config,
   } else {
     LOG("OpenGL Debug Callback Support is disabled");
   }
+#endif
   return context;
 }
 
@@ -180,10 +202,12 @@ SdlContext InitializeSdl(const GameConfig& config,
   SDL_SetAppMetadata(config.app_name[0] != '\0' ? config.app_name : "game",
                      GAME_VERSION_STR,
                      config.org_name[0] != '\0' ? config.org_name : nullptr);
+#ifndef GAME_WEB
   // Use EGL instead of GLX. EGL is the modern, platform-agnostic path and
   // works on X11, Wayland, and future targets. GLX is X11-only legacy and
   // breaks under ASan.
   SDL_SetHint(SDL_HINT_VIDEO_FORCE_EGL, "1");
+#endif
   CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_EVENTS),
         "Could not initialize SDL: ", SDL_GetError());
   if (config.enable_joystick) {
@@ -237,7 +261,9 @@ void PrintSystemInformation() {
   LOG("Compiled with ", COMPILER, " version ", COMPILER_VERSION);
   LOG("Using SDL ", SDL_GetVersion());
   LOG("Using OpenGL Version: ", glGetString(GL_VERSION));
+#ifndef GAME_WEB
   LOG("Using GLAD Version: ", GLVersion.major, ".", GLVersion.minor);
+#endif
   LOG("Using ", LUA_VERSION);
   LOG("Using Box2D ", b2_version.major, ".", b2_version.minor, ".",
       b2_version.revision);

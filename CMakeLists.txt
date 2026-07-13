@@ -63,6 +63,10 @@ set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(libraries/box2d EXCLUDE_FROM_ALL SYSTEM)
 
 add_subdirectory(libraries/lua EXCLUDE_FROM_ALL SYSTEM)
+# Wasm has no dynamic linking; the engine links physfs-static anyway.
+if(EMSCRIPTEN)
+  set(PHYSFS_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+endif()
 add_subdirectory(libraries/physfs EXCLUDE_FROM_ALL SYSTEM)
 
 set(MI_OVERRIDE OFF CACHE BOOL "" FORCE)
@@ -79,7 +83,7 @@ set(PHYSFS_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
 set(PHYSFS_BUILD_TEST OFF CACHE BOOL "" FORCE)
 set(PHYSFS_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 
-if(NOT WIN32)
+if(NOT WIN32 AND NOT EMSCRIPTEN)
   find_package(OpenGL REQUIRED)
 endif()
 
@@ -118,7 +122,17 @@ configure_file(src/version.h.in version.h)
 
 # Vendored single-file libraries. Compiled as a static library so they are
 # only rebuilt when their own sources change, not on every engine edit.
+# On the web target: glad is replaced by Emscripten's GLES3 headers,
+# backward (stack traces) has no wasm support, and enet needs raw UDP
+# sockets that browsers do not provide.
+if(NOT EMSCRIPTEN)
+  set(VENDORED_NATIVE_SRCS
+      libraries/glad.cc
+      libraries/backward.cc
+      libraries/enet.cc)
+endif()
 add_library(vendored STATIC
+    ${VENDORED_NATIVE_SRCS}
     libraries/double-conversion/bignum.cc
     libraries/double-conversion/bignum-dtoa.cc
     libraries/double-conversion/cached-powers.cc
@@ -128,16 +142,13 @@ add_library(vendored STATIC
     libraries/double-conversion/string-to-double.cc
     libraries/double-conversion/strtod.cc
     libraries/dr_wav.cc
-    libraries/glad.cc
     libraries/sqlite3.c
     libraries/stb_rect_pack.cc
     libraries/stb_truetype.cc
     libraries/stb_image_write.cc
     libraries/stb_image_all.cc
     libraries/stb_vorbis.cc
-    libraries/yyjson.c
-    libraries/backward.cc
-    libraries/enet.cc)
+    libraries/yyjson.c)
 
 target_include_directories(vendored PUBLIC "${PROJECT_SOURCE_DIR}")
 target_compile_features(vendored PRIVATE cxx_std_17)
@@ -226,7 +237,6 @@ set(ENGINE_SRCS
     src/timer.cc
     src/executor.cc
     src/zone_stats.cc
-    src/physics_debug_draw.cc
     src/transformations.cc
     src/xml.cc
     src/zip_writer.cc
@@ -253,6 +263,7 @@ set(ENGINE_SRCS
     src/tilemap.cc
     src/platform.cc
     $<$<BOOL:${ENABLE_IMGUI}>:src/debug_ui.cc>
+    $<$<BOOL:${ENABLE_IMGUI}>:src/physics_debug_draw.cc>
     libraries/lua-protobuf/pb.c)
 
 add_library(engine STATIC ${ENGINE_SRCS} "${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h")
@@ -284,6 +295,7 @@ endif()
 target_compile_definitions(engine PUBLIC
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:GAME_WITH_ASSERTS>
     $<$<BOOL:${WIN32}>:NOMINMAX;WIN32_LEAN_AND_MEAN;_USE_MATH_DEFINES>
+    $<$<BOOL:${EMSCRIPTEN}>:GAME_WEB>
 )
 
 if(LIBDW_FOUND)
@@ -314,7 +326,7 @@ target_link_libraries(engine PUBLIC
     lua
     mimalloc-static
     $<$<BOOL:${WIN32}>:opengl32>
-    $<$<NOT:$<BOOL:${WIN32}>>:OpenGL::GL>
+    $<$<AND:$<NOT:$<BOOL:${WIN32}>>,$<NOT:$<BOOL:${EMSCRIPTEN}>>>:OpenGL::GL>
     $<$<BOOL:${LIBDW_FOUND}>:${LIBDW_LIBRARY}>
     $<$<BOOL:${WIN32}>:dbghelp>
     $<$<BOOL:${WIN32}>:ws2_32;winmm>)
@@ -347,7 +359,34 @@ if(WIN32)
     VERBATIM)
 endif()
 
-# Dedicated headless server — Lua + ENet + protobuf, no SDL/GL.
+if(EMSCRIPTEN)
+  # The web engine is a generic artifact: game.js + game.wasm, loaded by the
+  # index.html shell that `game package --target web` emits. Assets are
+  # fetched into MEMFS by the shell at startup, so nothing is linked in.
+  set_target_properties(Game PROPERTIES OUTPUT_NAME "game" SUFFIX ".js")
+  target_link_options(Game PRIVATE
+      "-sMIN_WEBGL_VERSION=2"
+      "-sMAX_WEBGL_VERSION=2"
+      # Fixed memory: the engine is memory-deterministic; growth is disabled
+      # so exhaustion fails loudly instead of quietly growing the heap.
+      "-sINITIAL_MEMORY=536870912"
+      "-sALLOW_MEMORY_GROWTH=0"
+      "-sSTACK_SIZE=2097152"
+      "-sENVIRONMENT=web"
+      "-sEXIT_RUNTIME=0"
+      # The shell's preRun uses the FS API to preload assets and mount IDBFS.
+      "-sFORCE_FILESYSTEM=1"
+      "-lidbfs.js"
+      "-sEXPORTED_RUNTIME_METHODS=FS,addRunDependency,removeRunDependency"
+      # Lua error handling unwinds with setjmp/longjmp.
+      "-sSUPPORT_LONGJMP=emscripten"
+      # mimalloc's wasm backend sources its OS pages from emmalloc.
+      "-sMALLOC=emmalloc")
+endif()
+
+# Dedicated headless server — Lua + ENet + protobuf, no SDL/GL. Not built on
+# the web target (ENet needs raw UDP sockets).
+if(NOT EMSCRIPTEN)
 add_executable(Server src/server.cc libraries/enet.cc libraries/lua-protobuf/pb.c
     "${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h")
 set_target_properties(Server PROPERTIES OUTPUT_NAME "server")
@@ -366,6 +405,7 @@ target_link_libraries(Server PRIVATE
     lua
     physfs-static
     $<$<BOOL:${WIN32}>:ws2_32;winmm>)
+endif()
 
 # Tests link the engine library directly instead of recompiling sources.
 if(NOT CMAKE_CROSSCOMPILING)

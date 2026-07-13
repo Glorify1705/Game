@@ -16,7 +16,7 @@ namespace G {
 
 // Set the OS-level name for the calling thread (visible in
 // debuggers/profilers).
-inline void SetCurrentThreadName(const char* name) {
+inline void SetCurrentThreadName([[maybe_unused]] const char* name) {
 #if defined(__linux__)
   pthread_setname_np(pthread_self(), name);
 #elif defined(__APPLE__)

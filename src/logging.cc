@@ -2,7 +2,7 @@
 
 #include <cstdio>
 
-#ifdef GAME_WITH_ASSERTS
+#if defined(GAME_WITH_ASSERTS) && !defined(GAME_WEB)
 #include "libraries/backward.h"
 #endif
 
@@ -52,7 +52,7 @@ void SetLogSink(LogSink sink) { g_LogSink = sink; }
 
 void SetCrashHandler(CrashHandler handler) { g_CrashHandler = handler; }
 
-#ifdef GAME_WITH_ASSERTS
+#if defined(GAME_WITH_ASSERTS) && !defined(GAME_WEB)
 void PrintStackTrace(backward::StackTrace& st) {
   backward::TraceResolver resolver;
   resolver.load_stacktrace(st);
@@ -70,7 +70,7 @@ void PrintStackTrace(backward::StackTrace& st) {
 #endif
 
 [[noreturn]] void Crash(const char* message) {
-#ifdef GAME_WITH_ASSERTS
+#if defined(GAME_WITH_ASSERTS) && !defined(GAME_WEB)
   backward::StackTrace st;
   st.load_here(32);
   PrintStackTrace(st);
@@ -80,7 +80,7 @@ void PrintStackTrace(backward::StackTrace& st) {
 }
 
 void InstallSignalHandlers() {
-#if defined(GAME_WITH_ASSERTS) && !defined(_WIN32)
+#if defined(GAME_WITH_ASSERTS) && !defined(_WIN32) && !defined(GAME_WEB)
   const int signals[] = {SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSEGV};
   for (int sig : signals) {
     struct sigaction action;
@@ -97,8 +97,7 @@ void InstallSignalHandlers() {
 #elif defined(REG_EIP)
       error_addr = reinterpret_cast<void*>(uctx->uc_mcontext.gregs[REG_EIP]);
 #elif defined(__APPLE__) && defined(__aarch64__)
-      error_addr = reinterpret_cast<void*>(
-          uctx->uc_mcontext->__ss.__pc);
+      error_addr = reinterpret_cast<void*>(uctx->uc_mcontext->__ss.__pc);
 #elif defined(__aarch64__)
       error_addr = reinterpret_cast<void*>(uctx->uc_mcontext.pc);
 #endif
@@ -116,7 +115,7 @@ void InstallSignalHandlers() {
 #endif
 }
 
-#ifdef GAME_WITH_ASSERTS
+#if defined(GAME_WITH_ASSERTS) && !defined(GAME_WEB)
 void SetChannelLevel(LogChannel channel, LogLevel level) {
   g_channel_levels[static_cast<size_t>(channel)] = level;
 }

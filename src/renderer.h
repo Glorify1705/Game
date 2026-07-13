@@ -484,6 +484,9 @@ class BatchRenderer {
       particle_instance_vbo_;
   GLuint render_target_, downsampled_target_, render_texture_,
       downsampled_texture_, depth_buffer_;
+  // Web only: multisampled color renderbuffer standing in for
+  // render_texture_ (GLES3 has no multisample textures).
+  GLuint render_color_rb_ = 0;
   GLint antialiasing_samples_;
   IVec2 viewport_;
   IVec2 window_size_;

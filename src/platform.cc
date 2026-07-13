@@ -204,7 +204,13 @@ ErrorOr<void> MakeExecutable([[maybe_unused]] const char* path) {
 }
 
 ErrorOr<void> GetExePath(char* out, size_t out_size) {
-#ifdef _WIN32
+#ifdef GAME_WEB
+  // The web build has no real executable path. The HTML shell preloads the
+  // packaged asset files into /game/, so pretending the binary lives there
+  // makes the packaged-mode lookup (exe_dir + "assets.sqlite3") find them.
+  snprintf(out, out_size, "/game/game");
+  return {};
+#elif defined(_WIN32)
   DWORD len = GetModuleFileNameA(nullptr, out, (DWORD)out_size);
   if (len == 0 || len >= (DWORD)out_size) {
     return Error::Message("GetModuleFileNameA failed");
@@ -287,6 +293,11 @@ void ComputeCacheDir(const char* source_directory, char* out, size_t out_size) {
 }
 
 void GetUserSaveDir(const char* app_name, char* out, size_t out_size) {
+#ifdef GAME_WEB
+  // Mounted as IDBFS by the HTML shell; contents persist to IndexedDB.
+  snprintf(out, out_size, "/save/%s", app_name);
+  return;
+#endif
   PathBuffer buf;
 #ifdef _WIN32
   const char* app_data = getenv("APPDATA");

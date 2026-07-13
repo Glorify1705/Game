@@ -315,6 +315,29 @@ void FileWatcher::Stop() {
   watching_ = false;
 }
 
+#elif defined(GAME_WEB)
+
+// Web builds only run packaged games; nothing ever watches for changes.
+
+struct FileWatcher::PlatformData {};
+
+FileWatcher::FileWatcher(Allocator* allocator) : allocator_(allocator) {
+  platform_ = allocator_->New<PlatformData>();
+}
+
+FileWatcher::~FileWatcher() { allocator_->Destroy(platform_); }
+
+void FileWatcher::Watch(const char* /*directory*/) {
+  LOG("FileWatcher: not supported on web");
+}
+
+void FileWatcher::CheckForEvents() {}
+
+void FileWatcher::Stop() {
+  stopped_ = true;
+  watching_ = false;
+}
+
 #else
 #error "Unsupported platform for FileWatcher"
 #endif

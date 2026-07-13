@@ -47,3 +47,5 @@ ignore*
 worktrees/
 workbench
 toolchains/
+build-web/
+.emscripten-cache/

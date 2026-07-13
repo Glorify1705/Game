@@ -276,6 +276,18 @@ void BatchRenderer::InitializeFramebuffers() {
   OPENGL_CALL(glGenTextures(1, &downsampled_texture_));
   {
     GL::FramebufferScope fbo(GL_FRAMEBUFFER, render_target_);
+#ifdef GAME_WEB
+    // GLES3/WebGL2 has no multisample textures; use a multisampled color
+    // renderbuffer instead. The target is only ever resolved via
+    // glBlitFramebuffer, never sampled, so the two are interchangeable.
+    OPENGL_CALL(glGenRenderbuffers(1, &render_color_rb_));
+    OPENGL_CALL(glBindRenderbuffer(GL_RENDERBUFFER, render_color_rb_));
+    OPENGL_CALL(
+        glRenderbufferStorageMultisample(GL_RENDERBUFFER, antialiasing_samples_,
+                                         GL_RGBA8, viewport_.x, viewport_.y));
+    OPENGL_CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                          GL_RENDERBUFFER, render_color_rb_));
+#else
     OPENGL_CALL(glActiveTexture(GL_TEXTURE0));
     OPENGL_CALL(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, render_texture_));
     OPENGL_CALL(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE,
@@ -284,6 +296,7 @@ void BatchRenderer::InitializeFramebuffers() {
     OPENGL_CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                        GL_TEXTURE_2D_MULTISAMPLE,
                                        render_texture_, /*level=*/0));
+#endif
     // Attach a multisampled depth/stencil renderbuffer to the MSAA render
     // target so stencil operations work during the main rendering pass.
     OPENGL_CALL(glGenRenderbuffers(1, &depth_buffer_));
@@ -329,6 +342,10 @@ void BatchRenderer::SetViewport(IVec2 viewport) {
   std::array<GLuint, 2> frame_buffers = {render_target_, downsampled_target_};
   OPENGL_CALL(glDeleteFramebuffers(frame_buffers.size(), frame_buffers.data()));
   OPENGL_CALL(glDeleteRenderbuffers(1, &depth_buffer_));
+  if (render_color_rb_ != 0) {
+    OPENGL_CALL(glDeleteRenderbuffers(1, &render_color_rb_));
+    render_color_rb_ = 0;
+  }
   std::array<GLuint, 2> render_target_textures = {render_texture_,
                                                   downsampled_texture_};
   OPENGL_CALL(glDeleteTextures(render_target_textures.size(),
@@ -358,6 +375,9 @@ BatchRenderer::~BatchRenderer() {
   std::array<GLuint, 2> frame_buffers = {render_target_, downsampled_target_};
   OPENGL_CALL(glDeleteFramebuffers(frame_buffers.size(), frame_buffers.data()));
   OPENGL_CALL(glDeleteRenderbuffers(1, &depth_buffer_));
+  if (render_color_rb_ != 0) {
+    OPENGL_CALL(glDeleteRenderbuffers(1, &render_color_rb_));
+  }
   std::array<GLuint, 3> vaos = {vao_, screen_quad_vao_, particle_vao_};
   OPENGL_CALL(glDeleteVertexArrays(vaos.size(), vaos.data()));
   std::array<GLuint, 2> render_target_textures = {render_texture_,
@@ -477,7 +497,11 @@ void Canvas::Destroy() {
 }
 
 void BatchRenderer::SetupGLState() {
+#ifndef GAME_WEB
+  // Nonexistent in GLES3: multisampling is implied by the multisampled
+  // renderbuffer, and line smoothing is unsupported.
   OPENGL_CALL(glEnable(GL_MULTISAMPLE));
+#endif
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
   OPENGL_CALL(glEnable(GL_BLEND));
@@ -486,7 +510,9 @@ void BatchRenderer::SetupGLState() {
   OPENGL_CALL(glDisable(GL_DEPTH_TEST));
   OPENGL_CALL(glDisable(GL_STENCIL_TEST));
   OPENGL_CALL(glStencilMask(0x00));
+#ifndef GAME_WEB
   OPENGL_CALL(glEnable(GL_LINE_SMOOTH));
+#endif
   if (needs_clear_) {
     OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
     OPENGL_CALL(glStencilMask(0xFF));

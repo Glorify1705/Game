@@ -15,10 +15,12 @@ inline constexpr size_t NextPow2(size_t n) {
 }
 
 inline constexpr size_t Log2(size_t b) {
+  // The clz builtins operate on 64-bit values regardless of the width of
+  // size_t, so the bit count must match (size_t is 32-bit on wasm).
 #if defined(__GNUC__) || defined(__clang__)
-  return 8 * sizeof(size_t) - __builtin_clzll(b);
+  return 8 * sizeof(unsigned long long) - __builtin_clzll(b);
 #else
-  return 8 * sizeof(size_t) - __lzcnt64(b);
+  return 8 * sizeof(unsigned long long) - __lzcnt64(b);
 #endif
 }
 

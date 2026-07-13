@@ -151,7 +151,9 @@ class SegmentedList {
  private:
   // log2(P). Used to divide by P via right shift.
   static constexpr size_t kShift = Log2(P) - 1;
-  static constexpr size_t kMaxShelves = 32;
+  // A shelf's size is P << (shelf - 1); past this many shelves the shift
+  // would exceed the width of size_t (32-bit on wasm).
+  static constexpr size_t kMaxShelves = sizeof(size_t) == 8 ? 32 : 28;
 
   static constexpr size_t ShelfSize(size_t shelf) {
     return (shelf == 0) ? P : P << (shelf - 1);

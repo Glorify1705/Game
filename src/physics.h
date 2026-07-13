@@ -344,7 +344,8 @@ class Physics final : public b2ContactListener, public b2DestructionListener {
   static void DefaultContact(uintptr_t, uintptr_t, void *) {}
 
   b2Allocator box2d_allocator_;
-  Allocator *allocator_;
+  // Unused when the ImGui debug draw is compiled out.
+  [[maybe_unused]] Allocator *allocator_;
 
   FVec2 From(b2Vec2 v) const;
   b2Vec2 To(FVec2 v) const;

@@ -102,6 +102,20 @@
         "CMAKE_BUILD_TYPE": "Release",
         "ENABLE_IMGUI": "OFF"
       }
+    },
+    {
+      "name": "web",
+      "displayName": "Web (Emscripten)",
+      "description": "Release WebAssembly build via Emscripten targeting WebGL2",
+      "generator": "Ninja",
+      "binaryDir": "build-web",
+      "toolchainFile": "${sourceDir}/cmake/emscripten-wasm32.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ENABLE_IMGUI": "OFF",
+        "ENABLE_PROFILING": "OFF",
+        "ENABLE_CLANG_TIDY": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -155,6 +169,13 @@
     {
       "name": "macos-x86_64",
       "configurePreset": "macos-x86_64"
+    },
+    {
+      "name": "web",
+      "configurePreset": "web",
+      "targets": [
+        "Game"
+      ]
     }
   ],
   "testPresets": [

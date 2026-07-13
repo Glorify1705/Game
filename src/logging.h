@@ -116,7 +116,9 @@ inline OpenGLSourceLine* GetOpenGLSourceLine() {
 }
 
 template <typename... T>
-inline void SetOpenGLLine(const char* file, size_t line, T&&... ts) {
+inline void SetOpenGLLine([[maybe_unused]] const char* file,
+                          [[maybe_unused]] size_t line,
+                          [[maybe_unused]] T&&... ts) {
 #ifdef GAME_WITH_ASSERTS
   auto* ptr = GetOpenGLSourceLine();
   std::memcpy(&ptr->file, file, strlen(file) + 1);
