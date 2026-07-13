@@ -509,6 +509,7 @@ typedef char stbtt__check_size16[sizeof(stbtt_int16) == 2 ? 1 : -1];
 typedef struct {
   void *(*Alloc)(void *ctx, int size, int align);
   void (*Free)(void *ctx, void *ptr, int size);
+  void *user;
 } StbttAllocator;
 
 #ifdef STBTT_STATIC
@@ -520,6 +521,11 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Installs the allocator used for all stb_truetype allocations, with `user`
+// passed as ctx to every call. Defaults to malloc/free. The installed
+// allocator must outlive any use of the library.
+STBTT_DEF void stbtt_SetAllocator(StbttAllocator allocator);
 
 // private structure
 typedef struct {
@@ -1693,9 +1699,9 @@ STBTT_DEF int stbtt_FindGlyphIndex(const stbtt_fontinfo *info,
 
       offset = ttUSHORT(data + index_map + 14 + segcount * 6 + 2 + 2 * item);
       if (offset == 0)
-        return (stbtt_uint16)(
-            unicode_codepoint +
-            ttSHORT(data + index_map + 14 + segcount * 4 + 2 + 2 * item));
+        return (stbtt_uint16)(unicode_codepoint +
+                              ttSHORT(data + index_map + 14 + segcount * 4 + 2 +
+                                      2 * item));
 
       return ttUSHORT(data + offset + (unicode_codepoint - start) * 2 +
                       index_map + 14 + segcount * 6 + 2 + 2 * item);
@@ -2091,8 +2097,7 @@ typedef struct {
   int num_vertices;
 } stbtt__csctx;
 
-#define STBTT__CSCTX_INIT(bounds) \
-  { bounds, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, 0 }
+#define STBTT__CSCTX_INIT(bounds) {bounds, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, 0}
 
 static void stbtt__track_vertex(stbtt__csctx *c, stbtt_int32 x, stbtt_int32 y) {
   if (x > c->max_x || !c->started) c->max_x = x;
@@ -5179,7 +5184,7 @@ static stbtt_int32 stbtt__CompareUTF8toUTF16_bigendian_prefix(
       if (s1[i++] != 0xf0 + (c >> 18)) return -1;
       if (s1[i++] != 0x80 + ((c >> 12) & 0x3f)) return -1;
       if (s1[i++] != 0x80 + ((c >> 6) & 0x3f)) return -1;
-      if (s1[i++] != 0x80 + ((c)&0x3f)) return -1;
+      if (s1[i++] != 0x80 + ((c) & 0x3f)) return -1;
       s2 += 2;  // plus another 2 below
       len2 -= 2;
     } else if (ch >= 0xdc00 && ch < 0xe000) {
@@ -5188,7 +5193,7 @@ static stbtt_int32 stbtt__CompareUTF8toUTF16_bigendian_prefix(
       if (i + 2 >= len1) return -1;
       if (s1[i++] != 0xe0 + (ch >> 12)) return -1;
       if (s1[i++] != 0x80 + ((ch >> 6) & 0x3f)) return -1;
-      if (s1[i++] != 0x80 + ((ch)&0x3f)) return -1;
+      if (s1[i++] != 0x80 + ((ch) & 0x3f)) return -1;
     }
     s2 += 2;
     len2 -= 2;

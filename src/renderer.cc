@@ -19,6 +19,16 @@
 namespace G {
 namespace {
 
+// Adapters routing stb_truetype allocations (SDF glyph bitmaps, glyph
+// shapes) through the engine allocator passed as ctx.
+void* StbttEngineAlloc(void* ctx, int size, int align) {
+  return static_cast<Allocator*>(ctx)->Alloc(size, align);
+}
+
+void StbttEngineFree(void* ctx, void* ptr, int size) {
+  static_cast<Allocator*>(ctx)->Dealloc(ptr, size);
+}
+
 // Reference height for SDF rasterization. Higher values capture more glyph
 // detail (fine serifs, tight curves) but produce a larger atlas. 80px gives
 // good quality from ~8px to 300px+ rendering sizes.
@@ -365,9 +375,9 @@ size_t BatchRenderer::LoadTexture(const void* data, size_t width,
   // Check against the hardware texture unit limit.
   GLint max_units = 0;
   glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &max_units);
-  CHECK(static_cast<int>(index) < max_units,
-        "Exceeded maximum texture units (", max_units,
-        "). Loaded ", index, " textures. "
+  CHECK(static_cast<int>(index) < max_units, "Exceeded maximum texture units (",
+        max_units, "). Loaded ", index,
+        " textures. "
         "This usually means too many individual images are being loaded. "
         "Combine small images into spritesheets, or remove unused assets "
         "(e.g. zip files with many PNGs).");
@@ -1161,7 +1171,10 @@ Renderer::Renderer(const DbAssets& /*assets*/, BatchRenderer* renderer,
       loaded_images_table_(allocator),
       loaded_images_(1 << 10, allocator),
       font_table_(allocator),
-      fonts_(512, allocator) {}
+      fonts_(512, allocator) {
+  stbtt_SetAllocator(
+      StbttAllocator{StbttEngineAlloc, StbttEngineFree, allocator});
+}
 
 void Renderer::ClearForFrame() {
   renderer_->Clear();
