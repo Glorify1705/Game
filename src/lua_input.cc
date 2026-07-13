@@ -1,5 +1,6 @@
 #include "lua_input.h"
 
+#include "actions.h"
 #include "input.h"
 
 namespace G {
@@ -148,6 +149,118 @@ const struct LuaApiFunction kInputLib[] = {
        lua_pushnumber(
            state, controllers->AxisPositions(controllers->StrToAxisOrTrigger(c),
                                              controllers->active_controller()));
+       return 1;
+     }},
+    {"bind",
+     "Binds an action name to one or more input sources, replacing any "
+     "previous bindings. Sources: \"key:<name>\", "
+     "\"mouse:<left|middle|right|0|1|2>\", \"gamepad:<button>\", and "
+     "\"touch\" (any finger)",
+     {{"action", "the action name", "string"},
+      {"bindings", "array of binding strings", "string[]"}},
+     {},
+     [](lua_State* state) {
+       std::string_view action = GetLuaString(state, 1);
+       luaL_checktype(state, 2, LUA_TTABLE);
+       std::string_view bindings[Actions::kMaxBindingsPerAction];
+       const size_t count = lua_objlen(state, 2);
+       if (count == 0) {
+         return luaL_error(state, "action '%s' needs at least one binding",
+                           action.data());
+       }
+       if (count > Actions::kMaxBindingsPerAction) {
+         return luaL_error(state, "too many bindings for action '%s' (max %d)",
+                           action.data(),
+                           static_cast<int>(Actions::kMaxBindingsPerAction));
+       }
+       for (size_t i = 0; i < count; ++i) {
+         lua_rawgeti(state, 2, static_cast<int>(i + 1));
+         size_t len;
+         const char* str = luaL_checklstring(state, -1, &len);
+         bindings[i] = std::string_view(str, len);
+         lua_pop(state, 1);
+       }
+       auto* actions = Registry<Actions>::Retrieve(state);
+       auto result = actions->Bind(
+           action, Slice<const std::string_view>(bindings, count));
+       if (result.is_error()) {
+         return luaL_error(state, "bind '%s': %s", action.data(),
+                           result.error().message().data());
+       }
+       return 0;
+     }},
+    {"get_bindings",
+     "Returns the binding strings for an action, exactly as passed to "
+     "bind; an empty table if the action is unbound",
+     {{"action", "the action name", "string"}},
+     {{"bindings", "array of binding strings", "table"}},
+     [](lua_State* state) {
+       std::string_view action = GetLuaString(state, 1);
+       auto* actions = Registry<Actions>::Retrieve(state);
+       std::string_view out[Actions::kMaxBindingsPerAction];
+       const size_t count =
+           actions->GetBindings(action, out, Actions::kMaxBindingsPerAction);
+       lua_createtable(state, static_cast<int>(count), 0);
+       for (size_t i = 0; i < count; ++i) {
+         lua_pushlstring(state, out[i].data(), out[i].size());
+         lua_rawseti(state, -2, static_cast<int>(i + 1));
+       }
+       return 1;
+     }},
+    {"is_action_down",
+     "Returns true while any binding of the action is down. The action "
+     "must have been bound",
+     {{"action", "the action name", "string"}},
+     {{"down", "whether the action is down", "boolean"}},
+     [](lua_State* state) {
+       std::string_view action = GetLuaString(state, 1);
+       auto* actions = Registry<Actions>::Retrieve(state);
+       if (!actions->Has(action)) {
+         return luaL_error(state, "unknown action '%s'", action.data());
+       }
+       lua_pushboolean(state, actions->IsDown(action));
+       return 1;
+     }},
+    {"is_action_pressed",
+     "Returns true the frame the action transitions to down. The action "
+     "must have been bound",
+     {{"action", "the action name", "string"}},
+     {{"pressed", "whether the action was pressed this frame", "boolean"}},
+     [](lua_State* state) {
+       std::string_view action = GetLuaString(state, 1);
+       auto* actions = Registry<Actions>::Retrieve(state);
+       if (!actions->Has(action)) {
+         return luaL_error(state, "unknown action '%s'", action.data());
+       }
+       lua_pushboolean(state, actions->IsPressed(action));
+       return 1;
+     }},
+    {"is_action_released",
+     "Returns true the frame the action transitions to up. The action "
+     "must have been bound",
+     {{"action", "the action name", "string"}},
+     {{"released", "whether the action was released this frame", "boolean"}},
+     [](lua_State* state) {
+       std::string_view action = GetLuaString(state, 1);
+       auto* actions = Registry<Actions>::Retrieve(state);
+       if (!actions->Has(action)) {
+         return luaL_error(state, "unknown action '%s'", action.data());
+       }
+       lua_pushboolean(state, actions->IsReleased(action));
+       return 1;
+     }},
+    {"action_time",
+     "Returns the seconds the action has been continuously held, or 0 "
+     "when it is not down. The action must have been bound",
+     {{"action", "the action name", "string"}},
+     {{"seconds", "hold duration in seconds", "number"}},
+     [](lua_State* state) {
+       std::string_view action = GetLuaString(state, 1);
+       auto* actions = Registry<Actions>::Retrieve(state);
+       if (!actions->Has(action)) {
+         return luaL_error(state, "unknown action '%s'", action.data());
+       }
+       lua_pushnumber(state, actions->DownTime(action));
        return 1;
      }},
     {"touch_count",

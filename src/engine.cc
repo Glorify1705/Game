@@ -48,6 +48,7 @@ Engine::Engine(Slice<const char*> args, sqlite3* db_, DbAssets* db_assets,
       batch_renderer(GetWindowViewport(sdl_window), &shaders, allocator),
       keyboard(allocator),
       controllers(allocator),
+      actions(&keyboard, &mouse, &controllers, &touch, allocator),
       sound(audio_channels, audio_buffer_samples, allocator),
       renderer(*db_assets, &batch_renderer, db, allocator),
       lua_allocator(allocator->Alloc(kLuaArenaSize, kMaxAlign), kLuaArenaSize),
@@ -82,6 +83,7 @@ void Engine::Initialize() {
   lua.Register(&mouse);
   lua.Register(&controllers);
   lua.Register(&touch);
+  lua.Register(&actions);
   lua.Register(&shaders);
   lua.Register(&sound);
   lua.Register(&filesystem);

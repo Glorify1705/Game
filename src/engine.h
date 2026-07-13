@@ -4,6 +4,7 @@
 
 #include <SDL3/SDL.h>
 
+#include "actions.h"
 #include "allocators.h"
 #include "assets.h"
 #include "camera.h"
@@ -65,6 +66,7 @@ struct Engine {
   Mouse mouse;
   Controllers controllers;
   Touch touch;
+  Actions actions;
   Sound sound;
   Renderer renderer;
   Camera camera;

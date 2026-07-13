@@ -211,6 +211,7 @@ endif()
 # Engine static library. All engine code except main().
 set(ENGINE_SRCS
     ${ENGINE_PLATFORM_SRCS}
+    src/actions.cc
     src/assets.cc
     src/blob_store.cc
     src/camera.cc
@@ -458,6 +459,7 @@ if(NOT CMAKE_CROSSCOMPILING)
       tests/test_blob_store.cc
       tests/test_packer.cc
       tests/test_touch.cc
+      tests/test_actions.cc
   )
 
   target_compile_features(Tests PRIVATE cxx_std_17)

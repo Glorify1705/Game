@@ -209,6 +209,9 @@ Game::FrameResult Game::RunFrame() {
     if (opts->test_mode) {
       engine->lua.ResumeTestCoroutine();
     }
+    // After event polling and test injection so action edges agree with
+    // raw device queries made in the same frame.
+    engine->actions.Update();
     // Pause simulation while the window lacks keyboard focus. Rendering and
     // event polling continue so the window redraws and focus events are
     // still picked up. Test mode drives its own update cadence and is
