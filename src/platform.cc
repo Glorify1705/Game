@@ -332,14 +332,14 @@ void GetUserSaveDir(const char* app_name, char* out, size_t out_size) {
 #ifdef GAME_WEB
 namespace {
 // Set when save data changed since the last IndexedDB flush.
-bool idb_dirty = false;
-double last_idb_sync_ms = 0;
+bool g_idb_dirty = false;
+double g_last_idb_sync_ms = 0;
 }  // namespace
 
-void RequestIdbSync() { idb_dirty = true; }
+void RequestIdbSync() { g_idb_dirty = true; }
 
 void SyncIdbNow() {
-  idb_dirty = false;
+  g_idb_dirty = false;
   // Asynchronous persist of the IDBFS mount; errors only mean the data
   // stays in memory (e.g. private browsing), which the shell logs.
   EM_ASM({
@@ -351,12 +351,12 @@ void SyncIdbNow() {
 }
 
 void MaybeSyncIdb() {
-  if (!idb_dirty) return;
+  if (!g_idb_dirty) return;
   const double now = emscripten_get_now();
   // Debounce so bursts of writes (e.g. saving every frame) become one
   // IndexedDB transaction every half second.
-  if (now - last_idb_sync_ms < 500.0) return;
-  last_idb_sync_ms = now;
+  if (now - g_last_idb_sync_ms < 500.0) return;
+  g_last_idb_sync_ms = now;
   SyncIdbNow();
 }
 #endif
