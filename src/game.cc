@@ -18,10 +18,6 @@
 #include "libraries/sqlite3.h"
 #include "libraries/stb_image_write.h"
 #include "logging.h"
-#ifdef GAME_WEB
-#include <emscripten.h>
-#endif
-
 #include "memory_budgets.h"
 #include "packer.h"
 #include "platform.h"
@@ -35,6 +31,7 @@
 #include "units.h"
 #include "vec.h"
 #include "version.h"
+#include "web_platform.h"
 #include "zone_stats.h"
 
 namespace G {
@@ -709,7 +706,7 @@ void WebFrame(void* arg) {
   auto* ctx = static_cast<GameContext*>(arg);
   if (ctx->loop->RunFrame() == Game::FrameResult::kExit) {
     SyncIdbNow();
-    emscripten_cancel_main_loop();
+    CancelBrowserMainLoop();
   }
 }
 #endif
@@ -731,9 +728,7 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   // Never returns: the browser paces frames via requestAnimationFrame and
   // this call unwinds the current stack (skipping destructors, which is why
   // everything lives in the heap-allocated GameContext).
-  emscripten_set_main_loop_arg(WebFrame, ctx, /*fps=*/0,
-                               /*simulate_infinite_loop=*/true);
-  return 0;
+  RunBrowserMainLoop(WebFrame, ctx);
 #else
   ctx->loop->Run();
   return TeardownGame(ctx, allocator);

@@ -6,8 +6,25 @@
 #include "logging.h"
 #include "platform.h"
 #include "stringlib.h"
+#include "web_platform.h"
 
 namespace G {
+
+namespace {
+
+// WAL needs shared-memory files and locking that Emscripten's FS does not
+// implement faithfully; durability on web comes from the explicit IndexedDB
+// sync (RequestIdbSync), not fsync. Desktop keeps WAL for crash safety and
+// concurrent reads.
+#ifdef GAME_WEB
+constexpr const char* kJournalModePragma = "PRAGMA journal_mode = MEMORY";
+constexpr const char* kSynchronousPragma = "PRAGMA synchronous = OFF";
+#else
+constexpr const char* kJournalModePragma = "PRAGMA journal_mode = WAL";
+constexpr const char* kSynchronousPragma = "PRAGMA synchronous = NORMAL";
+#endif
+
+}  // namespace
 
 Save::Save(Allocator* allocator) : fetch_buf_(allocator) {}
 
@@ -41,21 +58,10 @@ ErrorOr<void> Save::Open(const char* save_dir) {
   sqlite3_busy_timeout(db_, /*ms=*/1000);
 
   char* err = nullptr;
-#ifdef GAME_WEB
-  // WAL needs shared-memory files and locking that Emscripten's FS does
-  // not implement faithfully. Durability on web comes from the explicit
-  // IndexedDB sync (RequestIdbSync), not from fsync.
-  sqlite3_exec(db_, "PRAGMA journal_mode = MEMORY", nullptr, nullptr, &err);
+  sqlite3_exec(db_, kJournalModePragma, nullptr, nullptr, &err);
   if (err != nullptr) sqlite3_free(err);
-  sqlite3_exec(db_, "PRAGMA synchronous = OFF", nullptr, nullptr, &err);
+  sqlite3_exec(db_, kSynchronousPragma, nullptr, nullptr, &err);
   if (err != nullptr) sqlite3_free(err);
-#else
-  // Enable WAL mode for crash safety and concurrent reads.
-  sqlite3_exec(db_, "PRAGMA journal_mode = WAL", nullptr, nullptr, &err);
-  if (err != nullptr) sqlite3_free(err);
-  sqlite3_exec(db_, "PRAGMA synchronous = NORMAL", nullptr, nullptr, &err);
-  if (err != nullptr) sqlite3_free(err);
-#endif
 
   // Create the KV table if it doesn't exist.
   rc = sqlite3_exec(db_,

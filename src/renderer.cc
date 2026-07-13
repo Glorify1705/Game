@@ -506,6 +506,7 @@ void BatchRenderer::SetupGLState() {
   // Nonexistent in GLES3: multisampling is implied by the multisampled
   // renderbuffer, and line smoothing is unsupported.
   OPENGL_CALL(glEnable(GL_MULTISAMPLE));
+  OPENGL_CALL(glEnable(GL_LINE_SMOOTH));
 #endif
   OPENGL_CALL(glViewport(0, 0, viewport_.x, viewport_.y));
   OPENGL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, render_target_));
@@ -515,9 +516,6 @@ void BatchRenderer::SetupGLState() {
   OPENGL_CALL(glDisable(GL_DEPTH_TEST));
   OPENGL_CALL(glDisable(GL_STENCIL_TEST));
   OPENGL_CALL(glStencilMask(0x00));
-#ifndef GAME_WEB
-  OPENGL_CALL(glEnable(GL_LINE_SMOOTH));
-#endif
   if (needs_clear_) {
     OPENGL_CALL(glClearColor(0.f, 0.f, 0.f, 0.f));
     OPENGL_CALL(glStencilMask(0xFF));

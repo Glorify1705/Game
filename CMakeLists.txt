@@ -197,8 +197,20 @@ add_custom_command(
     DEPENDS "${PROJECT_SOURCE_DIR}/scripts/web/shell.html"
     COMMENT "Embedding web shell.html")
 
+# Sources that differ per platform: the web target replaces ENet networking
+# with a stub and adds the Emscripten bridge (the only TU including
+# <emscripten.h>).
+if(EMSCRIPTEN)
+  set(ENGINE_PLATFORM_SRCS
+      src/network_web.cc
+      src/web_platform.cc)
+else()
+  set(ENGINE_PLATFORM_SRCS src/network.cc)
+endif()
+
 # Engine static library. All engine code except main().
 set(ENGINE_SRCS
+    ${ENGINE_PLATFORM_SRCS}
     src/assets.cc
     src/blob_store.cc
     src/camera.cc
@@ -263,7 +275,6 @@ set(ENGINE_SRCS
     src/cmd_run.cc
     src/cmd_stubs.cc
     src/cmd_version.cc
-    src/network.cc
     src/lua_data.cc
     src/lua_network.cc
     src/lua_particles.cc

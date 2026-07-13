@@ -1,9 +1,5 @@
 #include "platform.h"
 
-#ifdef GAME_WEB
-#include <emscripten.h>
-#endif
-
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -328,38 +324,6 @@ void GetUserSaveDir(const char* app_name, char* out, size_t out_size) {
   std::memcpy(out, buf.str(), len);
   out[len] = '\0';
 }
-
-#ifdef GAME_WEB
-namespace {
-// Set when save data changed since the last IndexedDB flush.
-bool g_idb_dirty = false;
-double g_last_idb_sync_ms = 0;
-}  // namespace
-
-void RequestIdbSync() { g_idb_dirty = true; }
-
-void SyncIdbNow() {
-  g_idb_dirty = false;
-  // Asynchronous persist of the IDBFS mount; errors only mean the data
-  // stays in memory (e.g. private browsing), which the shell logs.
-  EM_ASM({
-    Module.FS.syncfs(
-        false, function(err) {
-          if (err) console.warn('Save sync failed:', err);
-        });
-  });
-}
-
-void MaybeSyncIdb() {
-  if (!g_idb_dirty) return;
-  const double now = emscripten_get_now();
-  // Debounce so bursts of writes (e.g. saving every frame) become one
-  // IndexedDB transaction every half second.
-  if (now - g_last_idb_sync_ms < 500.0) return;
-  g_last_idb_sync_ms = now;
-  SyncIdbNow();
-}
-#endif
 
 #ifdef _WIN32
 const char* const kExeExtension = ".exe";

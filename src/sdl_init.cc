@@ -75,26 +75,30 @@ void GLAPIENTRY OpenglMessageCallback(GLenum /*source*/, GLenum type,
 }
 #endif  // !GAME_WEB
 
+// OpenGL context requested per platform: desktop core, ES 3.0 on the web
+// (which maps onto WebGL2 in the browser).
+struct GlContextConfig {
+  int major;
+  int minor;
+  SDL_GLProfile profile;
+  const char* name;
+};
+#ifdef GAME_WEB
+constexpr GlContextConfig kGlContext = {3, 0, SDL_GL_CONTEXT_PROFILE_ES,
+                                        "ES 3.0"};
+#else
+constexpr GlContextConfig kGlContext = {4, 1, SDL_GL_CONTEXT_PROFILE_CORE,
+                                        "Core 4.1"};
+#endif
+
 SDL_Window* CreateWindow(const GameConfig& config) {
   TIMER("Initializing basic attributes");
-#ifdef GAME_WEB
-  // OpenGL ES 3.0 maps onto WebGL2 in the browser.
-  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3),
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, kGlContext.major),
         "Could not set major version", SDL_GetError());
-  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0),
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, kGlContext.minor),
         "Could not set minor version", SDL_GetError());
-  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                            SDL_GL_CONTEXT_PROFILE_ES),
-        "Could not set ES profile", SDL_GetError());
-#else
-  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4),
-        "Could not set major version", SDL_GetError());
-  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1),
-        "Could not set minor version", SDL_GetError());
-  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                            SDL_GL_CONTEXT_PROFILE_CORE),
-        "Could not set Core profile", SDL_GetError());
-#endif
+  CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, kGlContext.profile),
+        "Could not set GL profile ", kGlContext.name, ": ", SDL_GetError());
   CHECK(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1),
         "Could not set double buffering version", SDL_GetError());
 #ifdef GAME_WITH_ASSERTS
