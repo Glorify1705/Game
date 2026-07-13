@@ -113,7 +113,8 @@ b2Vec2 SetupBox2dAllocator(b2Allocator* alloc, Allocator* engine_alloc) {
 
 Physics::Physics(FVec2 pixel_dimensions, float pixels_per_meter,
                  Allocator* allocator)
-    : pixels_per_meter_(pixels_per_meter),
+    : allocator_(allocator),
+      pixels_per_meter_(pixels_per_meter),
       world_dimensions_(pixel_dimensions / pixels_per_meter),
       world_(SetupBox2dAllocator(&box2d_allocator_, allocator)) {
   world_.SetContactListener(this);
@@ -514,7 +515,7 @@ void Physics::DestroyMouseJoint(b2Joint* joint) { world_.DestroyJoint(joint); }
 
 void Physics::EnableDebugDraw(uint32 flags) {
   if (debug_draw_ == nullptr) {
-    debug_draw_ = new PhysicsDebugDraw(pixels_per_meter_);
+    debug_draw_ = allocator_->New<PhysicsDebugDraw>(pixels_per_meter_);
   }
   debug_draw_->SetFlags(flags);
   world_.SetDebugDraw(debug_draw_);
@@ -522,7 +523,7 @@ void Physics::EnableDebugDraw(uint32 flags) {
 
 void Physics::DisableDebugDraw() {
   world_.SetDebugDraw(nullptr);
-  delete debug_draw_;
+  allocator_->Destroy(debug_draw_);
   debug_draw_ = nullptr;
 }
 
