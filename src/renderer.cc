@@ -433,9 +433,13 @@ size_t BatchRenderer::LoadFontTexture(const void* data, size_t width,
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+#ifndef GAME_WEB
+  // Texture swizzling is in GLES 3.0 but was removed from WebGL2. The SDF
+  // text shader only samples .r, so the web build does not need it.
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED));
   OPENGL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED));
+#endif
   OPENGL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED,
                            GL_UNSIGNED_BYTE, data));
   CHECK(!glGetError(), "Could generate texture: ", glGetError());

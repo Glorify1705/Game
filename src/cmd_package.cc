@@ -73,7 +73,16 @@ ErrorOr<void> BuildAssetZip(sqlite3* db, const char* blob_dir,
 
   ZipWriter zip(scratch);
   TRY(zip.Open(zip_path));
-  ArenaAllocator blob_scratch(scratch, Megabytes(256));
+  // Size the read buffer from the largest blob rather than a fixed budget:
+  // after a full repack the packer arena may not have hundreds of MB left.
+  int64_t max_blob_size = 0;
+  {
+    SqlStmt stmt(db, "SELECT COALESCE(MAX(size), 0) FROM asset_metadata");
+    if (!stmt.ok()) return Error::Message("failed to query max blob size");
+    if (TRY(stmt.Step())) max_blob_size = stmt.ColumnInt64(0);
+  }
+  ArenaAllocator blob_scratch(
+      scratch, static_cast<size_t>(max_blob_size) + Kilobytes(64));
   for (size_t i = 0; i < hashes.size(); ++i) {
     char name[17];
     FormatBlobName(hashes[i], name);

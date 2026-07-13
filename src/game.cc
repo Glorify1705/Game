@@ -262,7 +262,7 @@ void Game::Run() {
 }
 
 void Game::HandleHotReload() {
-  if (!hot_reload->PendingChanges()) return;
+  if (hot_reload == nullptr || !hot_reload->PendingChanges()) return;
   ZONE("HotReload");
   TIMER("Hotload requested");
   auto changes = hot_reload->ConsumePendingChanges();
@@ -657,12 +657,16 @@ GameContext* SetupGame(const GameOptions& opts, sqlite3* db,
     }
   }
 
-  // Start the thread pool and hot-reload watcher.
+  // Start the thread pool and, in dev mode only, the hot-reload watcher.
+  // Packaged games never watch files, and the manager reserves a 128 MB
+  // repacking arena that packaged builds should not pay for.
   ctx->engine->pool.Start();
-  ctx->hot_reload = allocator->New<HotReloadManager>(
-      ctx->opts.source_directory, db, ctx->blob_store, &ctx->engine->pool,
-      allocator);
-  ctx->hot_reload->Start();
+  if (ctx->opts.source_directory != nullptr) {
+    ctx->hot_reload = allocator->New<HotReloadManager>(
+        ctx->opts.source_directory, db, ctx->blob_store, &ctx->engine->pool,
+        allocator);
+    ctx->hot_reload->Start();
+  }
 
   // Main loop.
   ctx->debug_ui.Init(ctx->sdl.window, ctx->sdl.gl_context);
@@ -683,7 +687,7 @@ int TeardownGame(GameContext* ctx, ArenaAllocator* allocator) {
   // Tear down in reverse order: hot-reload watcher, thread pool, audio
   // stream (before Engine, which owns the Sound mutex), then Engine.
   int exit_code = ctx->opts.test_mode ? ctx->engine->lua.TestExitCode() : 0;
-  ctx->hot_reload->Stop();
+  if (ctx->hot_reload != nullptr) ctx->hot_reload->Stop();
   ctx->engine->pool.Shutdown();
   SDL_DestroyAudioStream(ctx->sdl.audio_stream);
   ctx->sdl.audio_stream = nullptr;

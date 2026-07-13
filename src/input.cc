@@ -139,8 +139,11 @@ void Controllers::Initialize(ByteSlice db) {
     LOG("Using custom controllers database");
   }
   SDL_IOStream* io = IOStreamFromMemory(db);
-  CHECK(SDL_AddGamepadMappingsFromIO(io, /*closeio=*/true) > 0,
-        "Could not add Joystick database: ", SDL_GetError());
+  // The mapping database has no entries for some platforms (the browser
+  // handles gamepad mapping itself on web), so zero matches is not fatal.
+  if (SDL_AddGamepadMappingsFromIO(io, /*closeio=*/true) <= 0) {
+    LOG("No gamepad mappings loaded for this platform: ", SDL_GetError());
+  }
   // Open controllers.
   int count = 0;
   SDL_JoystickID* ids = SDL_GetGamepads(&count);
