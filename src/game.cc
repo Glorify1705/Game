@@ -484,6 +484,27 @@ void SweepUnreferencedBlobs(sqlite3* db, BlobStore* blobs, Allocator* scratch) {
   if (removed > 0) LOG("Swept ", removed, " unreferenced blob(s)");
 }
 
+// Adapters routing PhysFS allocations (file handles, mount metadata, zip
+// directories) into the fixed third-party heap. PhysFS is used from both
+// the main thread and the hot-reload watcher thread; the heap is
+// thread-safe.
+void* PhysfsMalloc(PHYSFS_uint64 size) {
+  return ThirdPartyMalloc(static_cast<size_t>(size));
+}
+
+void* PhysfsRealloc(void* ptr, PHYSFS_uint64 size) {
+  return ThirdPartyRealloc(ptr, static_cast<size_t>(size));
+}
+
+void InstallPhysfsAllocator() {
+  static PHYSFS_Allocator physfs_allocator = {
+      /*Init=*/nullptr, /*Deinit=*/nullptr, PhysfsMalloc,
+      PhysfsRealloc,    ThirdPartyFree,
+  };
+  PHYSFS_CHECK(PHYSFS_setAllocator(&physfs_allocator),
+               "Could not install PhysFS allocator");
+}
+
 }  // namespace
 
 int RunGame(const GameOptions& opts, sqlite3* db) {
@@ -511,6 +532,7 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   }
   LOG("Program name = game, source = ",
       opts.source_directory ? opts.source_directory : "(packaged)");
+  InstallPhysfsAllocator();
   PHYSFS_CHECK(PHYSFS_init("game"), "Could not initialize PhysFS");
   CHECK(opts.blob_source != nullptr, "No blob source configured");
   // In dev mode the blob store writes into the same directory that is
