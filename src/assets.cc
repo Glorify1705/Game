@@ -3,21 +3,32 @@
 #include <cstring>
 #include <string_view>
 
+#include "blob_store.h"
 #include "clock.h"
 #include "sqlite_helpers.h"
+#include "stringlib.h"
 #include "units.h"
 
 namespace G {
 
-void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
-                          size_t size, ChecksumType checksum) {
-  SqlStmt stmt(db_, "SELECT contents FROM scripts WHERE name = ?");
-  CHECK(stmt.ok(), "Failed to prepare LoadScript query");
-  stmt.BindText(1, filename);
-  CHECK(MUST(stmt.Step()), "No script ", filename);
-  auto contents = stmt.ColumnText(0);
-  std::memcpy(buffer, contents.data(), size);
+namespace {
+
+// Reads the blob into buffer and NUL-terminates it, crashing with the asset
+// name on failure. Asset blobs referenced by the metadata table must exist.
+void ReadBlobOrDie(std::string_view name, uint64_t blob_hash, uint8_t* buffer,
+                   size_t size) {
+  auto result = ReadBlob(blob_hash, buffer, size);
+  CHECK(!result.is_error(), "Failed to read blob for asset ", name, ": ",
+        result.error().message());
   buffer[size] = '\0';
+}
+
+}  // namespace
+
+void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
+                          size_t size, ChecksumType checksum,
+                          uint64_t blob_hash) {
+  ReadBlobOrDie(filename, blob_hash, buffer, size);
   Script script;
   script.name = filename;
   script.contents = buffer;
@@ -27,14 +38,8 @@ void DbAssets::LoadScript(std::string_view filename, uint8_t* buffer,
 }
 
 void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer, size_t size,
-                        ChecksumType checksum) {
-  SqlStmt stmt(db_, "SELECT contents FROM fonts WHERE name = ?");
-  CHECK(stmt.ok(), "Failed to prepare LoadFont query");
-  stmt.BindText(1, filename);
-  CHECK(MUST(stmt.Step()), "No font ", filename);
-  auto contents = stmt.ColumnText(0);
-  std::memcpy(buffer, contents.data(), size);
-  buffer[size] = '\0';
+                        ChecksumType checksum, uint64_t blob_hash) {
+  ReadBlobOrDie(filename, blob_hash, buffer, size);
   Font font;
   font.name = filename;
   font.contents = buffer;
@@ -44,57 +49,43 @@ void DbAssets::LoadFont(std::string_view filename, uint8_t* buffer, size_t size,
 }
 
 void DbAssets::LoadAudio(std::string_view filename, uint8_t* buffer,
-                         size_t size, ChecksumType checksum) {
+                         size_t size, ChecksumType checksum,
+                         uint64_t blob_hash) {
   SqlStmt stmt(db_,
-               "SELECT contents, channels, samplerate, samples "
+               "SELECT channels, samplerate, samples "
                "FROM audios WHERE name = ?");
   CHECK(stmt.ok(), "Failed to prepare LoadAudio query");
   stmt.BindText(1, filename);
   CHECK(MUST(stmt.Step()), "No audio ", filename);
-  // Copy blob data into buffer immediately; the sqlite3 pointer is only valid
-  // until the statement is finalized.
-  ByteSlice blob = stmt.ColumnBlob(0);
-  std::memmove(buffer, blob.data(), blob.size());
+  ReadBlobOrDie(filename, blob_hash, buffer, size);
   Sound sound;
   sound.name = filename;
   sound.contents = buffer;
   sound.size = size;
-  sound.channels = stmt.ColumnInt(1);
-  sound.samplerate = stmt.ColumnInt(2);
-  sound.samples = stmt.ColumnInt(3);
+  sound.channels = stmt.ColumnInt(0);
+  sound.samplerate = stmt.ColumnInt(1);
+  sound.samples = stmt.ColumnInt(2);
   sound.checksum = checksum;
   sound_loader_.Load(&sound);
 }
 
 void DbAssets::LoadShader(std::string_view filename, uint8_t* buffer,
-                          size_t size, ChecksumType checksum) {
-  SqlStmt stmt(db_,
-               "SELECT contents, shader_type FROM shaders WHERE name = ?");
-  CHECK(stmt.ok(), "Failed to prepare LoadShader query");
-  stmt.BindText(1, filename);
-  CHECK(MUST(stmt.Step()), "No shader ", filename);
-  auto contents = stmt.ColumnText(0);
-  auto type = stmt.ColumnText(1);
-  std::memcpy(buffer, contents.data(), size);
-  buffer[size] = '\0';
+                          size_t size, ChecksumType checksum,
+                          uint64_t blob_hash) {
+  ReadBlobOrDie(filename, blob_hash, buffer, size);
   Shader shader;
   shader.name = filename;
   shader.contents = buffer;
   shader.size = size;
-  shader.type = type == "vertex" ? ShaderType::kVertex : ShaderType::kFragment;
+  shader.type = HasSuffix(filename, ".vert") ? ShaderType::kVertex
+                                             : ShaderType::kFragment;
   shader.checksum = checksum;
   shader_loader_.Load(&shader);
 }
 
 void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
-                        ChecksumType checksum) {
-  SqlStmt stmt(db_, "SELECT contents FROM text_files WHERE name = ?");
-  CHECK(stmt.ok(), "Failed to prepare LoadText query");
-  stmt.BindText(1, filename);
-  CHECK(MUST(stmt.Step()), "No text file ", filename);
-  auto contents = stmt.ColumnText(0);
-  std::memcpy(buffer, contents.data(), size);
-  buffer[size] = '\0';
+                        ChecksumType checksum, uint64_t blob_hash) {
+  ReadBlobOrDie(filename, blob_hash, buffer, size);
   TextFile file;
   file.name = filename;
   file.contents = buffer;
@@ -105,24 +96,25 @@ void DbAssets::LoadText(std::string_view filename, uint8_t* buffer, size_t size,
 }
 
 void DbAssets::LoadProtoDescriptor(std::string_view filename, uint8_t* buffer,
-                                   size_t /*size*/, ChecksumType checksum) {
-  SqlStmt stmt(db_,
-               "SELECT contents FROM proto_descriptors WHERE name = ?");
-  CHECK(stmt.ok(), "Failed to prepare LoadProtoDescriptor query");
-  stmt.BindText(1, filename);
-  CHECK(MUST(stmt.Step()), "No proto descriptor ", filename);
-  ByteSlice blob = stmt.ColumnBlob(0);
-  std::memcpy(buffer, blob.data(), blob.size());
+                                   size_t size, ChecksumType checksum,
+                                   uint64_t blob_hash) {
+  // Protos that failed to compile are recorded with no blob; skip them.
+  if (blob_hash == 0) {
+    LOG("Skipping proto descriptor ", filename, " with no compiled blob");
+    return;
+  }
+  ReadBlobOrDie(filename, blob_hash, buffer, size);
   ProtoDescriptor desc;
   desc.name = filename;
   desc.contents = buffer;
-  desc.size = blob.size();
+  desc.size = size;
   desc.checksum = checksum;
   proto_loader_.Load(&desc);
 }
 
 void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* /*buffer*/,
-                               size_t /*size*/, ChecksumType checksum) {
+                               size_t /*size*/, ChecksumType checksum,
+                               uint64_t /*blob_hash*/) {
   {
     SqlStmt stmt(db_,
                  "SELECT image, width, height FROM spritesheets "
@@ -159,21 +151,17 @@ void DbAssets::LoadSpritesheet(std::string_view filename, uint8_t* /*buffer*/,
 }
 
 void DbAssets::LoadImage(std::string_view filename, uint8_t* buffer,
-                         size_t size, ChecksumType checksum) {
-  SqlStmt stmt(db_,
-               "SELECT contents, width, height FROM images WHERE name = ?");
+                         size_t size, ChecksumType checksum,
+                         uint64_t blob_hash) {
+  SqlStmt stmt(db_, "SELECT width, height FROM images WHERE name = ?");
   CHECK(stmt.ok(), "Failed to prepare LoadImage query");
   stmt.BindText(1, filename);
   CHECK(MUST(stmt.Step()), "No image ", filename);
-  // Copy blob data into buffer immediately; the sqlite3 pointer is only valid
-  // until the statement is finalized.
-  ByteSlice blob = stmt.ColumnBlob(0);
-  std::memmove(buffer, blob.data(), blob.size());
-  buffer[size] = '\0';
+  ReadBlobOrDie(filename, blob_hash, buffer, size);
   Image image;
   image.name = filename;
-  image.width = stmt.ColumnInt(1);
-  image.height = stmt.ColumnInt(2);
+  image.width = stmt.ColumnInt(0);
+  image.height = stmt.ColumnInt(1);
   image.contents = buffer;
   image.size = size;
   image.checksum = checksum;
@@ -196,7 +184,8 @@ DbAssets::ChecksumType DbAssets::GetChecksum(std::string_view asset) {
 void DbAssets::Load() {
   struct Loader {
     std::string_view name;
-    void (DbAssets::*load)(std::string_view, uint8_t*, size_t, ChecksumType);
+    void (DbAssets::*load)(std::string_view, uint8_t*, size_t, ChecksumType,
+                           uint64_t);
   };
   static constexpr Loader kLoaders[] = {
       {.name = "script", .load = &DbAssets::LoadScript},
@@ -210,7 +199,7 @@ void DbAssets::Load() {
       {.name = std::string_view(), .load = nullptr},
   };
   SqlStmt stmt(db_,
-               "SELECT name, type, size, hash FROM "
+               "SELECT name, type, size, hash, blob_hash FROM "
                "asset_metadata ORDER BY processing_order, type");
   CHECK(stmt.ok(), "Failed to prepare asset_metadata query");
   while (MUST(stmt.Step())) {
@@ -225,6 +214,7 @@ void DbAssets::Load() {
     TIMER("Loading asset ", name);
     auto type = stmt.ColumnText(1);
     const size_t size = stmt.ColumnInt64(2);
+    const uint64_t blob_hash = static_cast<uint64_t>(stmt.ColumnInt64(4));
     std::string_view saved_name = InternedString(name);
     auto* buf =
         reinterpret_cast<uint8_t*>(allocator_->Alloc(size + 1, /*align=*/16));
@@ -240,7 +230,7 @@ void DbAssets::Load() {
         LOG("While loading ", name, ": unimplemented asset type ", type);
         break;
       }
-      (this->*method)(saved_name, buf, size, db_checksum);
+      (this->*method)(saved_name, buf, size, db_checksum, blob_hash);
       Checksum c;
       c.asset = saved_name;
       std::memcpy(&c.checksum, &db_checksum, sizeof(db_checksum));

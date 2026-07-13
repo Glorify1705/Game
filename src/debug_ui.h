@@ -7,6 +7,7 @@
 #include <imgui.h>
 
 #include "allocators.h"
+#include "blob_store.h"
 #include "circular_buffer.h"
 #include "engine.h"
 #include "logging.h"
@@ -39,6 +40,11 @@ class DebugUI {
 
   // Sets the engine arena allocator for the memory panel (not owned by Engine).
   void SetEngineArena(ArenaAllocator* arena) { engine_arena_ = arena; }
+
+  // Sets the blob store used to save edits from the code editor tabs. Only
+  // available in dev mode; when null (packaged mode) the editors are
+  // read-only.
+  void SetBlobStore(BlobStore* blobs) { blob_store_ = blobs; }
 
   // Sets whether the window should re-center after resize.
   void SetWindowCentered(bool centered) { window_centered_ = centered; }
@@ -219,6 +225,7 @@ class DebugUI {
   Allocator* allocator_ = nullptr;
   Engine* engine_ = nullptr;
   ArenaAllocator* engine_arena_ = nullptr;
+  BlobStore* blob_store_ = nullptr;
   SDL_Window* window_ = nullptr;
   CircularBuffer<float>* frame_times_ = nullptr;
   CircularBuffer<float>* lua_memory_samples_ = nullptr;
@@ -379,6 +386,7 @@ class DebugUI {
   void Shutdown() {}
   void SetEngine(Engine*) {}
   void SetEngineArena(ArenaAllocator*) {}
+  void SetBlobStore(BlobStore*) {}
   void SetWindowCentered(bool) {}
   void ProcessEvent(const SDL_Event*) {}
   void BeginFrame() {}

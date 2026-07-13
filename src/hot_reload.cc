@@ -82,10 +82,11 @@ void LogChanges(const FileWatcher::ChangedFiles& changes) {
 }  // namespace
 
 HotReloadManager::HotReloadManager(const char* source_directory, sqlite3* db,
-                                   ThreadPoolExecutor* pool,
+                                   BlobStore* blobs, ThreadPoolExecutor* pool,
                                    Allocator* allocator)
     : source_directory_(source_directory),
       db_(db),
+      blobs_(blobs),
       pool_(pool),
       hotload_allocator_(allocator, kHotReloadMemory),
       watcher_(allocator) {
@@ -142,8 +143,8 @@ void HotReloadManager::CheckChangedFiles() {
     LogChanges(changes);
 
     hotload_allocator_.Reset();
-    auto result =
-        WriteAssetsToDb(source_directory_, db_, &hotload_allocator_, pool_);
+    auto result = WriteAssetsToDb(source_directory_, db_, blobs_,
+                                  &hotload_allocator_, pool_);
     if (result.is_error()) {
       LOG("[hotload] WriteAssetsToDb failed: ", result.error().message());
       SleepMs(50);

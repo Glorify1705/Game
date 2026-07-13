@@ -5,11 +5,11 @@
 #include "cli.h"
 #include "error.h"
 #include "game.h"
-#include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
 #include "logging.h"
 #include "packer.h"
 #include "platform.h"
+#include "sqlite_helpers.h"
 #include "stringlib.h"
 #include "units.h"
 
@@ -23,25 +23,16 @@ void PrintHelp() {
   printf("Runs a game project with hot-reload support.\n");
   printf("\n");
   printf("Arguments:\n");
-  printf("  directory           Project directory (default: current directory)\n");
+  printf(
+      "  directory           Project directory (default: current directory)\n");
   printf("\n");
   printf("Options:\n");
   printf("  --no-hotreload      Disable file watching and hot-reload\n");
-  printf("  --clean             Delete the cached asset database before running\n");
+  printf(
+      "  --clean             Delete the cached asset database before "
+      "running\n");
   printf("  --test              Run in test mode (implies --no-hotreload)\n");
   printf("  --                  Pass remaining arguments to the game script\n");
-}
-
-void ComputeCacheDir(const char* source_directory, char* out, size_t out_size) {
-  const char* abs_path = AbsolutePath(source_directory);
-  uint64_t hash = rapidhash(abs_path, strlen(abs_path));
-
-  char hash_str[17];
-  snprintf(hash_str, sizeof(hash_str), "%016llx", (unsigned long long)hash);
-
-  char base_cache[1024];
-  GetUserCacheDir("game", base_cache, sizeof(base_cache));
-  snprintf(out, out_size, "%s/%s", base_cache, hash_str);
 }
 
 }  // namespace
@@ -93,15 +84,17 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
     return 1;
   }
 
-  // Compute cache directory and database path.
+  // Compute cache directory, database path, and blob directory.
   char cache_dir[1024];
   ComputeCacheDir(source_directory, cache_dir, sizeof(cache_dir));
   LOG("Cache directory: ", cache_dir);
   MUST(MakeDirs(cache_dir));
 
   CmdBuffer db_path(cache_dir, "/assets.sqlite3");
+  CmdBuffer blobs_dir(cache_dir, "/blobs");
 
-  // Handle --clean: delete the cached database.
+  // Handle --clean: delete the cached database. Blobs left behind become
+  // unreferenced after the fresh pack and are removed by the startup sweep.
   if (clean) {
     LOG("Deleting cached database: ", db_path.str());
     remove(db_path.str());
@@ -127,6 +120,7 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
   // Build GameOptions and run.
   GameOptions opts;
   opts.source_directory = source_directory;
+  opts.blob_source = blobs_dir.str();
   opts.hotreload = hotreload;
   opts.test_mode = test_mode;
   opts.args = game_args;
@@ -144,6 +138,15 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
   }
 
   CmdBuffer db_path(exe_dir, "assets.sqlite3");
+  CmdBuffer zip_path(exe_dir, "assets.zip");
+
+  if (!FileExists(zip_path.str())) {
+    fprintf(stderr,
+            "Error: no asset archive found at '%s'.\n"
+            "Re-run 'game package' to produce it.\n",
+            zip_path.str());
+    return 1;
+  }
 
   // Configure SQLite memory.
   ArenaAllocator sqlite_arena(allocator, Megabytes(16));
@@ -160,6 +163,19 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
   }
   sqlite3_busy_timeout(db, /*ms=*/1000);
 
+  // Refuse to run against a database packaged by an incompatible engine.
+  {
+    SqlStmt stmt(db, "PRAGMA user_version");
+    if (!stmt.ok() || !MUST(stmt.Step()) ||
+        stmt.ColumnInt(0) != kAssetDbSchemaVersion) {
+      fprintf(stderr,
+              "Error: '%s' was created by an incompatible engine version.\n"
+              "Re-run 'game package' to regenerate it.\n",
+              db_path.str());
+      return 1;
+    }
+  }
+
   // Parse game arguments (after --).
   Slice<const char*> game_args;
   for (size_t i = 1; i < args.size(); ++i) {
@@ -172,6 +188,7 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
 
   GameOptions opts;
   opts.source_directory = nullptr;
+  opts.blob_source = zip_path.str();
   opts.hotreload = false;
   opts.args = game_args;
   opts.all_args = args;

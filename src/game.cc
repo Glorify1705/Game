@@ -2,11 +2,13 @@
 
 #include <SDL3/SDL.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <string_view>
 
 #include "allocators.h"
 #include "assets.h"
+#include "blob_store.h"
 #include "cli.h"
 #include "clock.h"
 #include "config.h"
@@ -20,6 +22,7 @@
 #include "platform.h"
 #include "profiler.h"
 #include "sdl_init.h"
+#include "sqlite_helpers.h"
 #include "stats.h"
 #include "stringlib.h"
 #include "thread.h"
@@ -462,6 +465,25 @@ void Game::RenderDebugUI() {
   }
 }
 
+// Deletes dev-cache blobs no longer referenced by any asset_metadata row.
+// Runs once at startup, before the hot-reload watcher starts, so a sweep can
+// never delete a blob out from under an in-flight assets Load().
+void SweepUnreferencedBlobs(sqlite3* db, BlobStore* blobs,
+                            Allocator* allocator) {
+  DynArray<uint64_t> referenced(allocator);
+  SqlStmt stmt(
+      db, "SELECT DISTINCT blob_hash FROM asset_metadata WHERE blob_hash != 0");
+  CHECK(stmt.ok(), "Failed to prepare blob sweep query");
+  while (MUST(stmt.Step())) {
+    referenced.Push(static_cast<uint64_t>(stmt.ColumnInt64(0)));
+  }
+  // Sort in unsigned order; SQL ORDER BY would compare as signed int64.
+  std::sort(referenced.begin(), referenced.end());
+  const size_t removed = blobs->SweepUnreferenced(
+      Slice<const uint64_t>(referenced.cdata(), referenced.size()));
+  if (removed > 0) LOG("Swept ", removed, " unreferenced blob(s)");
+}
+
 }  // namespace
 
 int RunGame(const GameOptions& opts, sqlite3* db) {
@@ -490,13 +512,24 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   LOG("Program name = game, source = ",
       opts.source_directory ? opts.source_directory : "(packaged)");
   PHYSFS_CHECK(PHYSFS_init("game"), "Could not initialize PhysFS");
+  CHECK(opts.blob_source != nullptr, "No blob source configured");
+  // In dev mode the blob store writes into the same directory that is
+  // mounted below, so it must be created before the mount.
+  BlobStore* blob_store = nullptr;
+  if (opts.source_directory != nullptr) {
+    blob_store =
+        allocator->New<BlobStore>(MUST(BlobStore::Create(opts.blob_source)));
+  }
+  PHYSFS_CHECK(PHYSFS_mount(opts.blob_source, kBlobMountPoint, /*append=*/0),
+               "Could not mount blob source ", opts.blob_source);
   DbAssets* db_assets;
   {
     TIMER("Getting assets");
     if (opts.source_directory != nullptr) {
       InlineExecutor inline_executor;
-      MUST(WriteAssetsToDb(opts.source_directory, db, allocator,
+      MUST(WriteAssetsToDb(opts.source_directory, db, blob_store, allocator,
                            &inline_executor));
+      SweepUnreferencedBlobs(db, blob_store, allocator);
     }
     db_assets = allocator->New<DbAssets>(db, allocator);
   }
@@ -546,13 +579,15 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
 
   // Start the thread pool and hot-reload watcher.
   e->pool.Start();
-  HotReloadManager hot_reload(opts.source_directory, db, &e->pool, allocator);
+  HotReloadManager hot_reload(opts.source_directory, db, blob_store, &e->pool,
+                              allocator);
   hot_reload.Start();
 
   // Main loop.
   debug_ui.Init(sdl.window, sdl.gl_context);
   debug_ui.SetEngine(e);
   debug_ui.SetEngineArena(allocator);
+  debug_ui.SetBlobStore(blob_store);
   debug_ui.SetWindowCentered(config.centered);
   Game loop{e, &config, &opts, &sdl, &hot_reload, allocator, &debug_ui};
   loop.Run();

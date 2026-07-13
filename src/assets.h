@@ -189,21 +189,21 @@ class DbAssets {
   };
 
   void LoadScript(std::string_view name, uint8_t* buffer, size_t size,
-                  ChecksumType checksum);
+                  ChecksumType checksum, uint64_t blob_hash);
   void LoadImage(std::string_view name, uint8_t* buffer, size_t size,
-                 ChecksumType checksum);
+                 ChecksumType checksum, uint64_t blob_hash);
   void LoadAudio(std::string_view name, uint8_t* buffer, size_t size,
-                 ChecksumType checksum);
+                 ChecksumType checksum, uint64_t blob_hash);
   void LoadText(std::string_view name, uint8_t* buffer, size_t size,
-                ChecksumType checksum);
+                ChecksumType checksum, uint64_t blob_hash);
   void LoadShader(std::string_view name, uint8_t* buffer, size_t size,
-                  ChecksumType checksum);
+                  ChecksumType checksum, uint64_t blob_hash);
   void LoadFont(std::string_view name, uint8_t* buffer, size_t size,
-                ChecksumType checksum);
+                ChecksumType checksum, uint64_t blob_hash);
   void LoadSpritesheet(std::string_view name, uint8_t* buffer, size_t size,
-                       ChecksumType checksum);
+                       ChecksumType checksum, uint64_t blob_hash);
   void LoadProtoDescriptor(std::string_view name, uint8_t* buffer, size_t size,
-                           ChecksumType checksum);
+                           ChecksumType checksum, uint64_t blob_hash);
 
   sqlite3* db_;
   Allocator* allocator_;

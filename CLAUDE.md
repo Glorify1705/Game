@@ -60,7 +60,9 @@ All engine code lives under `src/` in namespace `G`. Major subsystems:
 - **Tilemap**: `tilemap.cc` (multi-layer tilemap, TMX loading, AABB sweep
   collision)
 - **Input**: `input.cc`
-- **Assets**: `assets.cc` (SQLite3 asset DB), `packer.cc` (asset pipeline),
+- **Assets**: `assets.cc` (metadata DB + asset loading), `packer.cc` (asset
+  pipeline), `blob_store.cc` (content-addressed blob storage: loose files in
+  dev, `assets.zip` when packaged), `zip_writer.cc` (STORE-only zip writer),
   `filesystem.cc`
 - **Lua bindings**: `lua_*.cc` files (23 files) expose the `G.*` API to
   scripts. The canonical signatures live in `definitions/game.lua`

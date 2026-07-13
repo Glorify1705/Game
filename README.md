@@ -154,7 +154,10 @@ Run a project in development mode.
 | `--test` | Run in test mode (enables `G.test` API) |
 | `--` | Everything after this is forwarded to `G.system.cli_arguments()` |
 
-Assets are cached in `~/.cache/game/<project-hash>/assets.sqlite3`.
+Asset metadata is cached in `~/.cache/game/<project-hash>/assets.sqlite3`;
+asset contents live next to it in `blobs/`, as content-addressed files named
+by hash. `game package` bundles the same blobs into an `assets.zip` next to
+the binary.
 
 ### `game package [directory] [options]`
 

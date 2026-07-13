@@ -178,6 +178,7 @@ add_custom_command(
 # Engine static library. All engine code except main().
 set(ENGINE_SRCS
     src/assets.cc
+    src/blob_store.cc
     src/camera.cc
     src/clock.cc
     src/collision.cc
@@ -227,6 +228,7 @@ set(ENGINE_SRCS
     src/physics_debug_draw.cc
     src/transformations.cc
     src/xml.cc
+    src/zip_writer.cc
     src/packer.cc
     src/cmd_atlas.cc
     src/cmd_clean.cc
@@ -388,6 +390,9 @@ if(NOT CMAKE_CROSSCOMPILING)
       tests/test_stats.cc
       tests/test_xml.cc
       tests/test_qoa.cc
+      tests/test_zip_writer.cc
+      tests/test_blob_store.cc
+      tests/test_packer.cc
   )
 
   target_compile_features(Tests PRIVATE cxx_std_17)
