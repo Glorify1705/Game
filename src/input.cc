@@ -209,7 +209,7 @@ void Controllers::PushEvent(const SDL_Event& event) {
     const size_t i = event.jbutton.which;
     DCHECK(i < controllers_.size());
     DCHECK(event.jbutton.button < controllers_[i].pressed.size());
-    controllers_[i].pressed[event.jbutton.button] = true;
+    controllers_[i].pressed[event.jbutton.button] = false;
     active_controller_ = i;
   }
 }

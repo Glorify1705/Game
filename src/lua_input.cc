@@ -5,14 +5,14 @@
 namespace G {
 namespace {
 
-// Maps a mouse button argument to a number. Accepts a number directly or
-// a string name: "left" (1), "middle"/"mid" (2), "right" (3).
+// Maps a mouse button argument to a Mouse button index. Accepts a number
+// directly or a string name: "left" (0), "middle"/"mid" (1), "right" (2).
 int CheckMouseButton(lua_State* state, int index) {
   if (lua_isnumber(state, index)) return lua_tointeger(state, index);
   std::string_view name = GetLuaString(state, index);
-  if (name == "left") return 1;
-  if (name == "middle" || name == "mid") return 2;
-  if (name == "right") return 3;
+  if (name == "left") return 0;
+  if (name == "middle" || name == "mid") return 1;
+  if (name == "right") return 2;
   return luaL_error(state, "unknown mouse button: %s", name.data());
 }
 
