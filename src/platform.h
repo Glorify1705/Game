@@ -71,6 +71,11 @@ ErrorOr<void> GetExeDir(char* out, size_t out_size);
 ErrorOr<void> GetCwd(char* out, size_t out_size);
 void GetUserCacheDir(const char* app_name, char* out, size_t out_size);
 
+// Writes the per-project cache directory for a game source directory:
+// <user cache dir>/game/<hex hash of the absolute source path>. Shared by
+// `game run` and `game package` so packing reuses the dev cache.
+void ComputeCacheDir(const char* source_directory, char* out, size_t out_size);
+
 // Writes the platform-specific persistent save directory for the given app.
 // Linux: $XDG_DATA_HOME/<app>/ or ~/.local/share/<app>/
 // Windows: %APPDATA%/<app>

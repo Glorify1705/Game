@@ -1,7 +1,10 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <string_view>
 
+#include "array.h"
+#include "blob_store.h"
 #include "cli.h"
 #include "config.h"
 #include "defer.h"
@@ -12,8 +15,10 @@
 #include "logging.h"
 #include "packer.h"
 #include "platform.h"
+#include "sqlite_helpers.h"
 #include "stringlib.h"
 #include "units.h"
+#include "zip_writer.h"
 
 namespace G {
 
@@ -45,6 +50,43 @@ void CopyRuntimeDlls(const char* src_binary, const char* output_dir) {
       MUST(CopyFile(dll_src.str(), dll_dst.str()));
     }
   }
+}
+
+// Writes every blob referenced by asset_metadata into a deterministic
+// assets.zip: entries are named by their 16-hex-char content hash and added
+// in ascending hash order, so packaging identical assets twice produces
+// byte-identical archives.
+ErrorOr<void> BuildAssetZip(sqlite3* db, const char* blob_dir,
+                            const char* zip_path, Allocator* scratch) {
+  DynArray<uint64_t> hashes(scratch);
+  {
+    SqlStmt stmt(db,
+                 "SELECT DISTINCT blob_hash FROM asset_metadata "
+                 "WHERE blob_hash != 0");
+    if (!stmt.ok()) return Error::Message("failed to query blob hashes");
+    while (TRY(stmt.Step())) {
+      hashes.Push(static_cast<uint64_t>(stmt.ColumnInt64(0)));
+    }
+  }
+  // Sort in unsigned order; SQL ORDER BY would compare as signed int64.
+  std::sort(hashes.begin(), hashes.end());
+
+  ZipWriter zip(scratch);
+  TRY(zip.Open(zip_path));
+  ArenaAllocator blob_scratch(scratch, Megabytes(256));
+  for (size_t i = 0; i < hashes.size(); ++i) {
+    char name[17];
+    FormatBlobName(hashes[i], name);
+    PathBuffer blob_path(blob_dir, "/", name);
+    blob_scratch.Reset();
+    uint8_t* contents = nullptr;
+    const size_t size =
+        TRY(ReadEntireFile(blob_path.str(), &contents, &blob_scratch));
+    TRY(zip.AddEntry(name, ByteSlice(contents, size)));
+  }
+  TRY(zip.Finish());
+  LOG("Wrote ", hashes.size(), " blob(s) to ", zip_path);
+  return {};
 }
 
 // Appends the contents of src_path to an open file handle.
@@ -137,18 +179,27 @@ int BuildSfxArchive(const char* output_dir, const char* binary_name,
 void PrintHelp() {
   printf("Usage: game package [directory] [options]\n");
   printf("\n");
-  printf("Packages a game project for distribution. Packs all assets into\n");
-  printf("a SQLite database and copies the engine binary alongside it.\n");
+  printf("Packages a game project for distribution. Asset metadata goes\n");
+  printf("into a SQLite database, asset contents into a content-addressed\n");
+  printf("assets.zip, and the engine binary is copied alongside them.\n");
   printf("\n");
   printf("Arguments:\n");
-  printf("  directory             Project directory (default: current directory)\n");
+  printf(
+      "  directory             Project directory (default: current "
+      "directory)\n");
   printf("\n");
   printf("Options:\n");
   printf("  -o, --output <dir>    Output directory (default: dist)\n");
-  printf("  --name <name>         Override binary name (default: from conf.json)\n");
-  printf("  --engine-binary <path>  Use a specific engine binary instead of self\n");
+  printf(
+      "  --name <name>         Override binary name (default: from "
+      "conf.json)\n");
+  printf(
+      "  --engine-binary <path>  Use a specific engine binary instead of "
+      "self\n");
   printf("  --strip               Strip debug symbols from the binary\n");
-  printf("  --sfx                 Build a self-extracting archive (requires 7z)\n");
+  printf(
+      "  --sfx                 Build a self-extracting archive (requires "
+      "7z)\n");
 }
 
 }  // namespace
@@ -232,13 +283,23 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   sqlite3_busy_timeout(db, /*ms=*/1000);
   InitializeAssetDb(db);
 
+  // Blobs are packed into the same per-project cache that `game run` uses,
+  // then zipped, so packaging after a dev session rewrites almost nothing.
+  char cache_dir[1024];
+  ComputeCacheDir(source_directory, cache_dir, sizeof(cache_dir));
+  CmdBuffer blobs_dir(cache_dir, "/blobs");
+  BlobStore blobs = MUST(BlobStore::Create(blobs_dir.str()));
+
   ArenaAllocator packer_arena(allocator, Megabytes(512));
   LOG("Packing assets from ", source_directory);
   ThreadPoolExecutor executor(&packer_arena,
                               ThreadPoolExecutor::NumDefaultThreads());
   executor.Start();
-  MUST(WriteAssetsToDb(source_directory, db, &packer_arena, &executor));
+  MUST(WriteAssetsToDb(source_directory, db, &blobs, &packer_arena, &executor));
   executor.Shutdown();
+
+  CmdBuffer zip_path(output_dir, "/assets.zip");
+  MUST(BuildAssetZip(db, blobs.directory(), zip_path.str(), &packer_arena));
   sqlite3_close(db);
 
   // Copy the engine binary.
@@ -298,6 +359,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   printf("Packaged game to '%s':\n", output_dir);
   printf("  %s\n", binary_path.str());
   printf("  %s\n", db_path.str());
+  printf("  %s\n", zip_path.str());
   printf("\nRun with: %s\n", binary_path.str());
   return 0;
 }

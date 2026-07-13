@@ -2,11 +2,13 @@
 
 #include <cerrno>
 
+#include "blob_store.h"
 #include "clock.h"
+#include "defer.h"
 #include "json_alc.h"
-#include "sqlite_helpers.h"
 #include "libraries/yyjson.h"
 #include "logging.h"
+#include "sqlite_helpers.h"
 
 namespace G {
 namespace {
@@ -80,15 +82,26 @@ void LoadConfigFromDatabase(sqlite3* db, GameConfig* config,
                             Allocator* allocator) {
   LOG("Reading configuration from database");
   SqlStmt stmt(db,
-               "SELECT contents FROM text_files WHERE name = 'conf.json'");
+               "SELECT size, blob_hash FROM asset_metadata "
+               "WHERE name = 'conf.json'");
   CHECK(stmt.ok(), "Failed to prepare config query");
   auto row = MUST(stmt.Step());
   if (!row) {
     LOG("No conf.json file for configuration in database, skipping");
     return;
   }
-  auto contents = stmt.ColumnText(0);
-  LoadConfig(contents.data(), config, allocator);
+  const size_t size = stmt.ColumnInt64(0);
+  const uint64_t blob_hash = static_cast<uint64_t>(stmt.ColumnInt64(1));
+  auto* contents =
+      static_cast<uint8_t*>(allocator->Alloc(size + 1, /*align=*/1));
+  CHECK(contents != nullptr, "Failed to allocate bytes for config file");
+  DEFER([&] { allocator->Dealloc(contents, size + 1); });
+  auto result = ReadBlob(blob_hash, contents, size);
+  CHECK(!result.is_error(),
+        "Failed to read conf.json blob: ", result.error().message());
+  contents[size] = '\0';
+  LoadConfig(std::string_view(reinterpret_cast<char*>(contents), size), config,
+             allocator);
 }
 
 ErrorOr<void> LoadConfigFromFile(const char* path, GameConfig* config,

@@ -10,6 +10,9 @@ namespace G {
 struct GameOptions {
   // Path to the game project directory, or nullptr for packaged mode.
   const char* source_directory = nullptr;
+  // Native path of the blob source mounted read-only for asset loading: the
+  // loose blob directory in dev mode, assets.zip in packaged mode.
+  const char* blob_source = nullptr;
   // Whether to watch source files and hot-reload on changes.
   bool hotreload = true;
   // Run the game's _Game:test_inputs() coroutine instead of taking real input.

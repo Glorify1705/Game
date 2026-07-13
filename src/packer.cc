@@ -11,8 +11,6 @@ extern "C" {
 #include <lualib.h>
 }
 
-#include "libraries/lua-protobuf/lua_pb.h"
-
 #include "clock.h"
 #include "debug_font.h"
 #include "defer.h"
@@ -20,6 +18,7 @@ extern "C" {
 #include "image.h"
 #include "json_alc.h"
 #include "libraries/dr_wav.h"
+#include "libraries/lua-protobuf/lua_pb.h"
 #include "libraries/rapidhash.h"
 #include "libraries/sqlite3.h"
 #include "libraries/stb_vorbis.h"
@@ -187,59 +186,50 @@ void ProcessWorkItems(WorkerContext* ctx) {
 class DbPacker {
  public:
   struct AssetInfo {
-    size_t size;
+    size_t size = 0;
+    uint64_t blob_hash = 0;
   };
 
-  DbPacker(sqlite3* db, Allocator* allocator, Executor* executor)
+  DbPacker(sqlite3* db, BlobStore* blobs, Allocator* allocator,
+           Executor* executor)
       : db_(db),
+        blobs_(blobs),
         allocator_(allocator),
         executor_(executor),
         scratch_(allocator, Megabytes(64)),
         checksums_(allocator),
         deferred_(allocator) {}
 
-  AssetInfo InsertIntoTable(std::string_view table, std::string_view filename,
-                            ByteSlice data) {
-    FixedStringBuffer<256> sql("INSERT OR REPLACE INTO ", table,
-                               " (name, contents) VALUES (?, ?);");
-    SqlStmt stmt(db_, sql.view());
-    CHECK(stmt.ok(), "Failed to prepare statement ", sql.view());
-    stmt.BindText(1, filename);
-    stmt.BindBlob(2, data);
-    MUST(stmt.Step());
-    return AssetInfo{.size = data.size()};
+  // Writes the asset contents into the blob store. The blob file is renamed
+  // into place before the metadata row referencing it commits, so any reader
+  // that observes a blob_hash can read the blob.
+  AssetInfo PutBlob(std::string_view filename, ByteSlice data) {
+    auto result = blobs_->Put(data);
+    CHECK(!result.is_error(), "Failed to store blob for ", filename, ": ",
+          result.error().message());
+    return AssetInfo{.size = data.size(), .blob_hash = result.release_value()};
   }
 
   AssetInfo InsertScript(std::string_view filename, ByteSlice data) {
-    return InsertIntoTable("scripts", filename, data);
+    return PutBlob(filename, data);
   }
 
   AssetInfo InsertFont(std::string_view filename, ByteSlice data) {
-    return InsertIntoTable("fonts", filename, data);
+    return PutBlob(filename, data);
   }
 
   AssetInfo InsertQoi(std::string_view filename, ByteSlice data) {
     QoiDesc desc;
     QoiDecode(data.data(), data.size(), &desc, /*channels=*/4, allocator_);
-    SqlStmt stmt(db_, R"(
-          INSERT OR REPLACE INTO images (name, width, height, components, contents)
-          VALUES (?, ?, ?, ?, ?);
-      )");
-    CHECK(stmt.ok(), "Failed to prepare image insert statement");
-    stmt.BindText(1, filename);
-    stmt.BindInt(2, desc.width);
-    stmt.BindInt(3, desc.height);
-    stmt.BindInt(4, desc.channels);
-    stmt.BindBlob(5, data);
-    MUST(stmt.Step());
-    return AssetInfo{.size = data.size()};
+    return InsertImageBlob(filename, data, desc.width, desc.height,
+                           desc.channels);
   }
 
   AssetInfo InsertPng(std::string_view filename, ByteSlice data) {
     int x, y, channels;
-    auto* contents = stbi_load_from_memory(data.data(), data.size(), &x, &y,
-                                           &channels,
-                                           /*desired_channels=*/0);
+    auto* contents =
+        stbi_load_from_memory(data.data(), data.size(), &x, &y, &channels,
+                              /*desired_channels=*/0);
     DCHECK(contents != nullptr, "Could not load ", filename, ": ",
            stbi_failure_reason());
     DEFER([&] { stbi_image_free(contents); });
@@ -252,35 +242,24 @@ class DbPacker {
     auto* qoi_encoded = QoiEncode(contents, &desc, &out_len, allocator_);
     DCHECK(qoi_encoded != nullptr);
     DEFER([&] { allocator_->Dealloc(qoi_encoded, out_len); });
-    SqlStmt stmt(db_, R"(
-          INSERT OR REPLACE INTO images (name, width, height, components, contents)
-          VALUES (?, ?, ?, ?, ?);
-      )");
-    CHECK(stmt.ok(), "Failed to prepare image insert statement");
-    stmt.BindText(1, filename);
-    stmt.BindInt(2, x);
-    stmt.BindInt(3, y);
-    stmt.BindInt(4, channels);
-    stmt.BindBlob(5, ByteSlice(static_cast<const uint8_t*>(qoi_encoded),
-                               out_len));
-    MUST(stmt.Step());
-    return AssetInfo{.size = static_cast<size_t>(out_len)};
+    return InsertImageBlob(
+        filename, ByteSlice(static_cast<const uint8_t*>(qoi_encoded), out_len),
+        x, y, channels);
   }
 
   AssetInfo InsertImageBlob(std::string_view filename, ByteSlice data,
                             int width, int height, int channels) {
     SqlStmt stmt(db_, R"(
-      INSERT OR REPLACE INTO images (name, width, height, components, contents)
-      VALUES (?, ?, ?, ?, ?);
+      INSERT OR REPLACE INTO images (name, width, height, components)
+      VALUES (?, ?, ?, ?);
     )");
     CHECK(stmt.ok(), "Failed to prepare image insert statement");
     stmt.BindText(1, filename);
     stmt.BindInt(2, width);
     stmt.BindInt(3, height);
     stmt.BindInt(4, channels);
-    stmt.BindBlob(5, data);
     MUST(stmt.Step());
-    return AssetInfo{.size = data.size()};
+    return PutBlob(filename, data);
   }
 
   AssetInfo InsertQoa(std::string_view filename, ByteSlice data) {
@@ -323,8 +302,8 @@ class DbPacker {
 
   AssetInfo InsertOgg(std::string_view filename, ByteSlice data) {
     int error;
-    stb_vorbis* v = stb_vorbis_open_memory(data.data(), data.size(), &error,
-                                            nullptr);
+    stb_vorbis* v =
+        stb_vorbis_open_memory(data.data(), data.size(), &error, nullptr);
     if (v == nullptr) {
       DIE("Failed to open OGG file ", filename, " (error ", error, ")");
     }
@@ -357,21 +336,20 @@ class DbPacker {
   AssetInfo InsertAudioBlob(std::string_view filename, ByteSlice data,
                             const QoaDesc& desc) {
     SqlStmt stmt(db_, R"(
-          INSERT OR REPLACE INTO audios (name, channels, samplerate, samples, contents)
-          VALUES (?, ?, ?, ?, ?);
+          INSERT OR REPLACE INTO audios (name, channels, samplerate, samples)
+          VALUES (?, ?, ?, ?);
       )");
     CHECK(stmt.ok(), "Failed to prepare audio insert statement");
     stmt.BindText(1, filename);
     stmt.BindInt(2, desc.channels);
     stmt.BindInt(3, desc.samplerate);
     stmt.BindInt(4, desc.samples);
-    stmt.BindBlob(5, data);
     MUST(stmt.Step());
-    return AssetInfo{.size = data.size()};
+    return PutBlob(filename, data);
   }
 
   AssetInfo InsertTextFile(std::string_view filename, ByteSlice data) {
-    return InsertIntoTable("text_files", filename, data);
+    return PutBlob(filename, data);
   }
 
   // Compiles a .proto file to a binary FileDescriptorSet and stores it in the
@@ -401,9 +379,7 @@ class DbPacker {
       lua_pop(L, 2);  // pop result + protoc module
       return AssetInfo{.size = 0};
     }
-    AssetInfo info = InsertIntoTable(
-        "proto_descriptors", filename,
-        MakeByteSlice(desc, desc_len));
+    AssetInfo info = PutBlob(filename, MakeByteSlice(desc, desc_len));
     LOG("Compiled proto ", filename, " to ", desc_len, " bytes");
     lua_pop(L, 2);  // pop result + protoc module
     return info;
@@ -541,16 +517,10 @@ class DbPacker {
     return {};
   }
 
+  // Shader type is not stored: the loader derives it from the .vert/.frag
+  // suffix of the asset name.
   AssetInfo InsertShader(std::string_view filename, ByteSlice data) {
-    SqlStmt stmt(db_,
-                 "INSERT OR REPLACE INTO shaders"
-                 " (name, contents, shader_type) VALUES (?, ?, ?);");
-    CHECK(stmt.ok(), "Failed to prepare shader insert statement");
-    stmt.BindText(1, filename);
-    stmt.BindBlob(2, data);
-    stmt.BindText(3, HasSuffix(filename, "vert") ? "vertex" : "fragment");
-    MUST(stmt.Step());
-    return AssetInfo{.size = data.size()};
+    return PutBlob(filename, data);
   }
 
   int GetOrderForType(std::string_view type) {
@@ -567,16 +537,19 @@ class DbPacker {
   }
 
   void InsertIntoAssetMeta(std::string_view filename, size_t size,
-                           std::string_view type, DbAssets::ChecksumType hash) {
+                           std::string_view type, DbAssets::ChecksumType hash,
+                           uint64_t blob_hash) {
     SqlStmt stmt(db_,
                  "INSERT OR REPLACE INTO asset_metadata (name, size, type, "
-                 "hash, processing_order) VALUES (?, ?, ?, ?, ?);");
+                 "hash, blob_hash, processing_order) VALUES (?, ?, ?, ?, ?, "
+                 "?);");
     CHECK(stmt.ok(), "Failed to prepare asset_metadata insert statement");
     stmt.BindText(1, filename);
     stmt.BindInt(2, size);
     stmt.BindText(3, type);
     stmt.BindInt64(4, hash);
-    stmt.BindInt64(5, GetOrderForType(type));
+    stmt.BindInt64(5, blob_hash);
+    stmt.BindInt64(6, GetOrderForType(type));
     MUST(stmt.Step());
   }
 
@@ -694,7 +667,7 @@ class DbPacker {
         TIMER("Processing file ", fname);
         return (this->*method)(fname, ByteSlice(buffer, bytes));
       }();
-      InsertIntoAssetMeta(fname, info.size, handler.type, hash);
+      InsertIntoAssetMeta(fname, info.size, handler.type, hash, info.blob_hash);
       result_.written_files++;
       handled = true;
       break;
@@ -732,19 +705,19 @@ class DbPacker {
       AssetInfo info;
       switch (item.type) {
         case WorkItem::kPng:
-          info = InsertPng(item.name(),
-                           ByteSlice(item.input, item.input_size));
-          InsertIntoAssetMeta(item.name(), info.size, "image", item.hash);
+          info = InsertPng(item.name(), ByteSlice(item.input, item.input_size));
+          InsertIntoAssetMeta(item.name(), info.size, "image", item.hash,
+                              info.blob_hash);
           break;
         case WorkItem::kOgg:
-          info = InsertOgg(item.name(),
-                           ByteSlice(item.input, item.input_size));
-          InsertIntoAssetMeta(item.name(), info.size, "audio", item.hash);
+          info = InsertOgg(item.name(), ByteSlice(item.input, item.input_size));
+          InsertIntoAssetMeta(item.name(), info.size, "audio", item.hash,
+                              info.blob_hash);
           break;
         case WorkItem::kWav:
-          info = InsertWav(item.name(),
-                           ByteSlice(item.input, item.input_size));
-          InsertIntoAssetMeta(item.name(), info.size, "audio", item.hash);
+          info = InsertWav(item.name(), ByteSlice(item.input, item.input_size));
+          InsertIntoAssetMeta(item.name(), info.size, "audio", item.hash,
+                              info.blob_hash);
           break;
       }
       result_.written_files++;
@@ -802,18 +775,19 @@ class DbPacker {
 
     for (size_t i = 0; i < deferred_.size(); i++) {
       WorkItem& item = deferred_[i];
+      AssetInfo info;
       if (item.type == WorkItem::kPng) {
-        InsertImageBlob(item.name(),
-                        ByteSlice(item.output, item.output_size), item.width,
-                        item.height, item.channels);
+        info = InsertImageBlob(item.name(),
+                               ByteSlice(item.output, item.output_size),
+                               item.width, item.height, item.channels);
       } else {
-        InsertAudioBlob(item.name(),
-                        ByteSlice(item.output, item.output_size),
-                        item.qoa_desc);
+        info = InsertAudioBlob(item.name(),
+                               ByteSlice(item.output, item.output_size),
+                               item.qoa_desc);
       }
       InsertIntoAssetMeta(item.name(), item.output_size,
                           item.type == WorkItem::kPng ? "image" : "audio",
-                          item.hash);
+                          item.hash, info.blob_hash);
       result_.written_files++;
     }
   }
@@ -821,21 +795,23 @@ class DbPacker {
   // Recursively enumerate a PhysFS directory, calling HandleFile for each
   // file found. Files are passed with their basename only (flat naming).
   void EnumerateRecursive(const char* dir) {
-    PHYSFS_enumerate(dir, [](void* ud, const char* dirname,
-                             const char* filename) {
-      auto* self = static_cast<DbPacker*>(ud);
-      FixedStringBuffer<kMaxPathLength> full(dirname, "/", filename);
-      PHYSFS_Stat stat;
-      if (PHYSFS_stat(full.str(), &stat) &&
-          stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
-        self->EnumerateRecursive(full.str());
-      } else {
-        // Pass the directory as the dirname so HandleFile builds the
-        // correct PhysFS path, but uses basename for the DB key.
-        self->HandleFile(dirname, filename);
-      }
-      return PHYSFS_ENUM_OK;
-    }, this);
+    PHYSFS_enumerate(
+        dir,
+        [](void* ud, const char* dirname, const char* filename) {
+          auto* self = static_cast<DbPacker*>(ud);
+          FixedStringBuffer<kMaxPathLength> full(dirname, "/", filename);
+          PHYSFS_Stat stat;
+          if (PHYSFS_stat(full.str(), &stat) &&
+              stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
+            self->EnumerateRecursive(full.str());
+          } else {
+            // Pass the directory as the dirname so HandleFile builds the
+            // correct PhysFS path, but uses basename for the DB key.
+            self->HandleFile(dirname, filename);
+          }
+          return PHYSFS_ENUM_OK;
+        },
+        this);
   }
 
   // Scan for .zip files and mount them so their contents get packed.
@@ -848,17 +824,19 @@ class DbPacker {
     };
     DynArray<ZipEntry> zips(allocator_);
 
-    PHYSFS_enumerate("/assets", [](void* ud, const char* dirname,
-                                   const char* filename) {
-      auto* zips = static_cast<DynArray<ZipEntry>*>(ud);
-      if (HasSuffix(filename, ".zip")) {
-        ZipEntry entry;
-        entry.len = std::snprintf(entry.path, sizeof(entry.path),
-                                  "%s/%s", dirname, filename);
-        zips->Push(entry);
-      }
-      return PHYSFS_ENUM_OK;
-    }, &zips);
+    PHYSFS_enumerate(
+        "/assets",
+        [](void* ud, const char* dirname, const char* filename) {
+          auto* found = static_cast<DynArray<ZipEntry>*>(ud);
+          if (HasSuffix(filename, ".zip")) {
+            ZipEntry entry;
+            entry.len = std::snprintf(entry.path, sizeof(entry.path), "%s/%s",
+                                      dirname, filename);
+            found->Push(entry);
+          }
+          return PHYSFS_ENUM_OK;
+        },
+        &zips);
 
     // Sort alphabetically for deterministic priority.
     std::sort(zips.begin(), zips.end(),
@@ -895,11 +873,12 @@ class DbPacker {
     ProcessDeferredItems();
     // Ensure we always have the debug font available.
     if (!checksums_.Contains("debug_font.ttf")) {
-      InsertFont("debug_font.ttf",
-                 ByteSlice(kProggyCleanFont, kProggyCleanFontLength));
+      const AssetInfo info =
+          InsertFont("debug_font.ttf",
+                     ByteSlice(kProggyCleanFont, kProggyCleanFontLength));
       const auto hash = rapidhash(kProggyCleanFont, kProggyCleanFontLength);
       InsertIntoAssetMeta("debug_font.ttf", kProggyCleanFontLength, "font",
-                          hash);
+                          hash, info.blob_hash);
     }
     // Handle missing dimensions from TextureAtlas.
     {
@@ -917,6 +896,7 @@ class DbPacker {
 
  private:
   sqlite3* db_ = nullptr;
+  BlobStore* blobs_ = nullptr;
   Allocator* allocator_ = nullptr;
   Executor* executor_ = nullptr;
   // Returns the Lua state used for proto compilation, creating it on first use.
@@ -930,11 +910,10 @@ class DbPacker {
     lua_pushcfunction(proto_lua_, luaopen_pb);
     lua_setfield(proto_lua_, -2, "pb");
     lua_pop(proto_lua_, 2);
-    if (luaL_loadbuffer(proto_lua_, kProtocLua, kProtocLuaLen,
-                        "@protoc.lua") != 0 ||
+    if (luaL_loadbuffer(proto_lua_, kProtocLua, kProtocLuaLen, "@protoc.lua") !=
+            0 ||
         lua_pcall(proto_lua_, 0, 1, 0) != 0) {
-      LOG("Failed to load embedded protoc.lua: ",
-          lua_tostring(proto_lua_, -1));
+      LOG("Failed to load embedded protoc.lua: ", lua_tostring(proto_lua_, -1));
       lua_close(proto_lua_);
       proto_lua_ = nullptr;
       return nullptr;
@@ -954,15 +933,9 @@ class DbPacker {
 
 }  // namespace
 
-ErrorOr<DbAssets*> ReadAssetsFromDb(sqlite3* db, Allocator* allocator,
-                                    Allocator* asset_allocator) {
-  auto* result = allocator->New<DbAssets>(db, asset_allocator);
-  result->Load();
-  return result;
-}
-
 ErrorOr<AssetWriteResult> WriteAssetsToDb(const char* source_directory,
-                                          sqlite3* db, Allocator* allocator,
+                                          sqlite3* db, BlobStore* blobs,
+                                          Allocator* allocator,
                                           Executor* executor) {
   if (!PHYSFS_mount(source_directory, "/assets", 1)) {
     LOG("Failed to mount directory ", source_directory, ": ",
@@ -970,13 +943,35 @@ ErrorOr<AssetWriteResult> WriteAssetsToDb(const char* source_directory,
     return Error::Message("failed to mount asset directory");
   }
   SqlTransaction txn(db);
-  DbPacker packer(db, allocator, executor);
+  DbPacker packer(db, blobs, allocator, executor);
   packer.LoadChecksums();
   auto result = packer.HandleFiles();
   return result;
 }
 
 void InitializeAssetDb(sqlite3* db) {
+  int version = 0;
+  {
+    SqlStmt stmt(db, "PRAGMA user_version");
+    CHECK(stmt.ok(), "Failed to query asset DB schema version");
+    if (MUST(stmt.Step())) version = stmt.ColumnInt(0);
+  }
+  if (version != kAssetDbSchemaVersion) {
+    LOG("Asset DB schema mismatch (found ", version, ", want ",
+        kAssetDbSchemaVersion, "); rebuilding");
+    // Drop every current and legacy asset table so the schema below
+    // recreates them from scratch. A fresh database has none of these, so
+    // the drops are no-ops.
+    constexpr const char* kAssetTables[] = {
+        "images",         "spritesheets",      "sprites",
+        "audios",         "scripts",           "shaders",
+        "fonts",          "text_files",        "proto_descriptors",
+        "asset_metadata", "compilation_cache", "sdf_cache"};
+    for (const char* table : kAssetTables) {
+      SqlBuffer sql("DROP TABLE IF EXISTS ", table, ";");
+      MUST(SqlExec(db, sql.str()));
+    }
+  }
   LOG("Reloading schema");
   char* err;
   CHECK(sqlite3_exec(db, kSqlSchema, nullptr, nullptr, &err) == SQLITE_OK,

@@ -6,6 +6,7 @@
 
 #include "allocators.h"
 #include "defer.h"
+#include "libraries/rapidhash.h"
 #include "stringlib.h"
 
 #ifdef _WIN32
@@ -270,6 +271,19 @@ void GetUserCacheDir(const char* app_name, char* out, size_t out_size) {
     snprintf(out, out_size, "%s/.cache/%s", home, app_name);
   }
 #endif
+}
+
+void ComputeCacheDir(const char* source_directory, char* out, size_t out_size) {
+  const char* abs_path = AbsolutePath(source_directory);
+  const uint64_t hash = rapidhash(abs_path, strlen(abs_path));
+
+  char hash_str[17];
+  snprintf(hash_str, sizeof(hash_str), "%016llx",
+           static_cast<unsigned long long>(hash));
+
+  char base_cache[1024];
+  GetUserCacheDir("game", base_cache, sizeof(base_cache));
+  snprintf(out, out_size, "%s/%s", base_cache, hash_str);
 }
 
 void GetUserSaveDir(const char* app_name, char* out, size_t out_size) {

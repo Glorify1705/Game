@@ -3,7 +3,6 @@
 #include <string_view>
 
 #include "cli.h"
-#include "libraries/rapidhash.h"
 #include "platform.h"
 #include "stringlib.h"
 
@@ -11,16 +10,22 @@ namespace G {
 
 namespace {
 
-void ComputeCacheDir(const char* source_directory, char* out, size_t out_size) {
-  const char* abs_path = AbsolutePath(source_directory);
-  uint64_t hash = rapidhash(abs_path, strlen(abs_path));
-
-  char hash_str[17];
-  snprintf(hash_str, sizeof(hash_str), "%016llx", (unsigned long long)hash);
-
-  char base_cache[1024];
-  GetUserCacheDir("game", base_cache, sizeof(base_cache));
-  snprintf(out, out_size, "%s/%s", base_cache, hash_str);
+// Deletes every file in the blob cache directory, then the directory itself.
+void RemoveBlobsDir(const char* blobs_dir) {
+  if (!DirectoryExists(blobs_dir)) return;
+  auto result = IterateDirectory(
+      blobs_dir,
+      [](const DirEntry& entry, void* ud) {
+        CmdBuffer path(static_cast<const char*>(ud), "/", entry.name);
+        remove(path.str());
+      },
+      const_cast<char*>(blobs_dir));
+  if (result.is_error()) {
+    fprintf(stderr, "Warning: could not enumerate '%s'\n", blobs_dir);
+    return;
+  }
+  remove(blobs_dir);
+  printf("Deleted %s\n", blobs_dir);
 }
 
 void PrintHelp() {
@@ -31,7 +36,9 @@ void PrintHelp() {
   printf("user's cache folder.\n");
   printf("\n");
   printf("Arguments:\n");
-  printf("  directory             Project directory (default: current directory)\n");
+  printf(
+      "  directory             Project directory (default: current "
+      "directory)\n");
 }
 
 }  // namespace
@@ -67,6 +74,9 @@ int CmdClean(Slice<const char*> args, Allocator*) {
   } else {
     printf("No cached database for '%s'\n", source_directory);
   }
+
+  CmdBuffer blobs_dir(cache_dir, "/blobs");
+  RemoveBlobsDir(blobs_dir.str());
   return 0;
 }
 

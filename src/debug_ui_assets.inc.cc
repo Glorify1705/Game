@@ -91,8 +91,9 @@ void DebugUI::DrawAssetAudioTab() {
   sqlite3* db = engine_->db;
   if (db == nullptr) return;
   SqlStmt stmt(db,
-               "SELECT name, channels, samplerate, samples, length(contents) "
-               "FROM audios ORDER BY name");
+               "SELECT a.name, a.channels, a.samplerate, a.samples, m.size "
+               "FROM audios a INNER JOIN asset_metadata m ON m.name = a.name "
+               "ORDER BY a.name");
   if (!stmt.ok()) return;
   if (ImGui::BeginTable("AudioTable", 5,
                         ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
@@ -177,7 +178,7 @@ void DebugUI::DrawAssetDbTab(const char* label, const char* sql) {
 // displays in a TextEditor, and optionally saves + triggers hot reload.
 namespace {
 
-void DrawCodeEditorTab(Engine* engine, const char* table_name,
+void DrawCodeEditorTab(Engine* engine, const char* asset_type, BlobStore* blobs,
                        const TextEditor::Language* lang, const char* filter,
                        DebugUI::CodeEditorState* state) {
   TextEditor* editor = &state->editor;
@@ -189,10 +190,11 @@ void DrawCodeEditorTab(Engine* engine, const char* table_name,
   // Left: script list.
   float list_width = 180.0f;
   if (ImGui::BeginChild("##list", ImVec2(list_width, 0), true)) {
-    SmallBuffer sql;
-    sql.AppendF("SELECT name FROM %s ORDER BY name", table_name);
-    SqlStmt stmt(db, sql.str());
+    SqlStmt stmt(db,
+                 "SELECT name FROM asset_metadata WHERE type = ? "
+                 "ORDER BY name");
     if (stmt.ok()) {
+      stmt.BindText(1, asset_type);
       while (MUST(stmt.Step())) {
         auto name = stmt.ColumnText(0);
         if (name.empty()) continue;
@@ -200,16 +202,21 @@ void DrawCodeEditorTab(Engine* engine, const char* table_name,
         bool selected = (loaded_name->view() == name);
         if (ImGui::Selectable(name.data(), selected)) {
           if (!selected) {
-            SmallBuffer load_sql;
-            load_sql.AppendF("SELECT contents FROM %s WHERE name = ?",
-                             table_name);
-            SqlStmt load_stmt(db, load_sql.str());
+            SqlStmt load_stmt(db,
+                              "SELECT size, blob_hash FROM asset_metadata "
+                              "WHERE name = ?");
             if (load_stmt.ok()) {
               load_stmt.BindText(1, name);
               if (MUST(load_stmt.Step())) {
-                auto contents = load_stmt.ColumnText(0);
-                if (!contents.empty()) {
-                  editor->SetText(std::string(contents));
+                const size_t size = load_stmt.ColumnInt64(0);
+                const uint64_t blob_hash =
+                    static_cast<uint64_t>(load_stmt.ColumnInt64(1));
+                std::string contents(size, '\0');
+                auto read =
+                    ReadBlob(blob_hash,
+                             reinterpret_cast<uint8_t*>(contents.data()), size);
+                if (!read.is_error() && !contents.empty()) {
+                  editor->SetText(contents);
                   if (lang != nullptr) {
                     editor->SetLanguage(lang);
                   } else {
@@ -243,25 +250,37 @@ void DrawCodeEditorTab(Engine* engine, const char* table_name,
                          "Select a file from the list.");
     } else {
       ImGui::Text("%s", loaded_name->str());
-      ImGui::SameLine();
-      if (ImGui::SmallButton(*read_only ? "Edit" : "Read-only")) {
-        *read_only = !*read_only;
-        editor->SetReadOnlyEnabled(*read_only);
+      // Editing requires a writable blob store, which only exists in dev
+      // mode; packaged builds read blobs from a zip archive.
+      if (blobs != nullptr) {
+        ImGui::SameLine();
+        if (ImGui::SmallButton(*read_only ? "Edit" : "Read-only")) {
+          *read_only = !*read_only;
+          editor->SetReadOnlyEnabled(*read_only);
+        }
       }
-      if (!*read_only) {
+      if (!*read_only && blobs != nullptr) {
         ImGui::SameLine();
         if (ImGui::SmallButton("Save & Reload")) {
           std::string text = editor->GetText();
-          SmallBuffer save_sql;
-          save_sql.AppendF("UPDATE %s SET contents = ? WHERE name = ?",
-                           table_name);
-          SqlStmt save_stmt(db, save_sql.str());
-          if (save_stmt.ok()) {
-            save_stmt.BindText(1, text);
-            save_stmt.BindText(2, loaded_name->view());
-            auto step = save_stmt.Step();
-            if (!step.is_error()) {
-              engine->lua.RequestHotload();
+          auto put = blobs->Put(MakeByteSlice(text.data(), text.size()));
+          if (!put.is_error()) {
+            const uint64_t blob_hash = put.release_value();
+            // Also update the source checksum so the next assets Load()
+            // treats this asset as changed and reloads it. The edit lasts
+            // until the source file itself changes on disk.
+            SqlStmt save_stmt(db,
+                              "UPDATE asset_metadata SET blob_hash = ?, "
+                              "size = ?, hash = ? WHERE name = ?");
+            if (save_stmt.ok()) {
+              save_stmt.BindInt64(1, static_cast<int64_t>(blob_hash));
+              save_stmt.BindInt64(2, static_cast<int64_t>(text.size()));
+              save_stmt.BindInt64(3, static_cast<int64_t>(blob_hash));
+              save_stmt.BindText(4, loaded_name->view());
+              auto step = save_stmt.Step();
+              if (!step.is_error()) {
+                engine->lua.RequestHotload();
+              }
             }
           }
         }
@@ -276,13 +295,14 @@ void DrawCodeEditorTab(Engine* engine, const char* table_name,
 }  // namespace
 
 void DebugUI::DrawAssetScriptsTab() {
-  DrawCodeEditorTab(engine_, "scripts", /*lang=*/nullptr, asset_filter_,
-                    &script_editor_);
+  DrawCodeEditorTab(engine_, "script", blob_store_, /*lang=*/nullptr,
+                    asset_filter_, &script_editor_);
 }
 
 void DebugUI::DrawAssetShadersTab() {
-  DrawCodeEditorTab(engine_, "shaders", TextEditor::Language::Glsl(),
-                    asset_filter_, &shader_editor_);
+  DrawCodeEditorTab(engine_, "shader", blob_store_,
+                    TextEditor::Language::Glsl(), asset_filter_,
+                    &shader_editor_);
 }
 
 void DebugUI::DrawAssetSqlTab() {
@@ -398,7 +418,8 @@ void DebugUI::DrawAssetViewer() {
       ImGui::EndTabItem();
     }
     DrawAssetDbTab("Fonts",
-                   "SELECT name, length(contents) FROM fonts ORDER BY name");
+                   "SELECT name, size FROM asset_metadata "
+                   "WHERE type = 'font' ORDER BY name");
     if (ImGui::BeginTabItem("SQL")) {
       DrawAssetSqlTab();
       ImGui::EndTabItem();

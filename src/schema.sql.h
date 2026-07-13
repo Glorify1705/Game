@@ -9,8 +9,7 @@ inline static constexpr const char kSqlSchema[] = R"sql(
 CREATE TABLE IF NOT EXISTS images(id INTEGER PRIMARY KEY AUTOINCREMENT,
                                   name VARCHAR(255) UNIQUE NOT NULL,
                                   width INT NOT NULL, height INT NOT NULL,
-                                  components INT NOT NULL,
-                                  contents BLOB NOT NULL);
+                                  components INT NOT NULL);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_images_name ON images(name);
 
@@ -34,35 +33,18 @@ CREATE TABLE IF NOT EXISTS audios(id INTEGER PRIMARY KEY AUTOINCREMENT,
                                   name VARCHAR(255) UNIQUE NOT NULL,
                                   channels INT NOT NULL DEFAULT 0,
                                   samplerate INT NOT NULL DEFAULT 0,
-                                  samples INT NOT NULL DEFAULT 0,
-                                  contents BLOB NOT NULL);
+                                  samples INT NOT NULL DEFAULT 0);
 
-CREATE TABLE IF NOT EXISTS scripts(id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                   name VARCHAR(255) UNIQUE NOT NULL,
-                                   contents BLOB NOT NULL);
-
-CREATE TABLE IF NOT EXISTS shaders(id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                   name VARCHAR(255) UNIQUE NOT NULL,
-                                   shader_type VARCHAR(255) NOT NULL,
-                                   contents BLOB NOT NULL);
-
-CREATE TABLE IF NOT EXISTS fonts(id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                 name VARCHAR(255) UNIQUE NOT NULL,
-                                 contents BLOB NOT NULL);
-
-CREATE TABLE IF NOT EXISTS text_files(id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                      name VARCHAR(255) UNIQUE NOT NULL,
-                                      contents BLOB NOT NULL);
-
-CREATE TABLE IF NOT EXISTS proto_descriptors(id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                             name VARCHAR(255) UNIQUE NOT NULL,
-                                             contents BLOB NOT NULL);
-
+-- Asset contents live outside the database in a content-addressed blob
+-- store (loose files in dev mode, assets.zip in packaged builds), keyed by
+-- blob_hash. hash is the checksum of the source file, used to skip
+-- unchanged files when repacking.
 CREATE TABLE IF NOT EXISTS asset_metadata(id INTEGER PRIMARY KEY AUTOINCREMENT,
                                           name VARCHAR(255) UNIQUE NOT NULL,
                                           type VARCHAR(255) NOT NULL,
                                           size INTEGER NOT NULL,
                                           hash INTEGER NOT NULL,
+                                          blob_hash INTEGER NOT NULL DEFAULT 0,
                                           processing_order INTEGER NOT NULL);
 
 CREATE TABLE IF NOT EXISTS compilation_cache(
@@ -93,6 +75,8 @@ CREATE TABLE IF NOT EXISTS trace_span(id INTEGER PRIMARY KEY AUTOINCREMENT,
 CREATE TABLE IF NOT EXISTS
 trace_span_attribute(id INTEGER PRIMARY KEY AUTOINCREMENT, parent INTEGER,
                      key VARCHAR(255), value VARCHAR(255));
+
+PRAGMA user_version = 2;
 )sql";
 
 }  // namespace G

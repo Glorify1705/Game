@@ -7,6 +7,7 @@
 #include <mutex>
 
 #include "allocators.h"
+#include "blob_store.h"
 #include "executor.h"
 #include "file_watcher.h"
 #include "libraries/sqlite3.h"
@@ -31,7 +32,9 @@ struct HotReloadChanges {
 // a reload is needed.
 class HotReloadManager {
  public:
-  HotReloadManager(const char* source_directory, sqlite3* db,
+  // blobs receives repacked asset contents; non-owning, may be null when
+  // source_directory is null (packaged mode, no watching).
+  HotReloadManager(const char* source_directory, sqlite3* db, BlobStore* blobs,
                    ThreadPoolExecutor* pool, Allocator* allocator);
 
   // Begin watching the source directory (if non-null) and submit the
@@ -56,6 +59,7 @@ class HotReloadManager {
 
   const char* source_directory_;
   sqlite3* db_;
+  BlobStore* blobs_;
   ThreadPoolExecutor* pool_;
   ArenaAllocator hotload_allocator_;
   FileWatcher watcher_;
