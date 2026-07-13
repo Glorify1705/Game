@@ -14,7 +14,16 @@ local DAMAGE_SPRITES = { "playerShip1_damage1", "playerShip1_damage2", "playerSh
 
 local Player = Entity:extend()
 
+local function bind_actions()
+	G.input.bind("thrust_up", { "key:w", "key:up", "gamepad:dpadu" })
+	G.input.bind("thrust_down", { "key:s", "key:down", "gamepad:dpadd" })
+	G.input.bind("turn_right", { "key:d", "key:right", "gamepad:dpadr" })
+	G.input.bind("turn_left", { "key:a", "key:left", "gamepad:dpadl" })
+	G.input.bind("fire", { "key:space", "mouse:left", "gamepad:a", "touch" })
+end
+
 function Player:new(x, y)
+	bind_actions()
 	Player.super.new(self, x, y, 0, "playerShip1_green", "player", {
 		category = "player",
 		collides_with = { "meteor", "powerup", "enemy", "enemy_bullet" },
@@ -121,19 +130,19 @@ function Player:update(dt)
 		end
 	end
 
-	if G.input.is_key_down("w") then
+	if G.input.is_action_down("thrust_up") then
 		self.physics:apply_force(0, -FORCE)
-	elseif G.input.is_key_down("s") then
+	elseif G.input.is_action_down("thrust_down") then
 		self.physics:apply_force(0, FORCE)
 	end
 
-	if G.input.is_key_down("d") then
+	if G.input.is_action_down("turn_right") then
 		self.physics:apply_torque(ANGLE_DELTA)
-	elseif G.input.is_key_down("a") then
+	elseif G.input.is_action_down("turn_left") then
 		self.physics:apply_torque(-ANGLE_DELTA)
 	end
 
-	if (G.input.is_key_down("space") or G.input.is_mouse_down(0)) and self.fire_timer <= 0 then
+	if G.input.is_action_down("fire") and self.fire_timer <= 0 then
 		self:shoot()
 		self.fire_timer = self.fire_cooldown
 	end

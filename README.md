@@ -356,6 +356,23 @@ G.input.is_controller_button_pressed(button) -> boolean
 G.input.is_controller_button_down(button) -> boolean
 G.input.is_controller_button_released(button) -> boolean
 G.input.get_controller_axis(axis) -> number
+
+-- Touch (multi-finger; positions in viewport coordinates)
+G.input.touch_count() -> number
+G.input.touches() -> {{id, x, y, pressure}, ...}
+G.input.is_touch_pressed() -> boolean      -- Any finger began this frame
+G.input.is_touch_down() -> boolean
+G.input.is_touch_released() -> boolean
+
+-- Actions: named inputs bound to any combination of sources. Binding
+-- sources: "key:<name>", "mouse:<left|middle|right|0|1|2>",
+-- "gamepad:<button>", "touch" (any finger).
+G.input.bind(action, bindings)             -- e.g. bind("jump", {"key:space", "touch"})
+G.input.is_action_pressed(action) -> boolean
+G.input.is_action_down(action) -> boolean
+G.input.is_action_released(action) -> boolean
+G.input.action_time(action) -> number      -- Seconds held, 0 if up
+G.input.get_bindings(action) -> {string}   -- For settings menus / G.save
 ```
 
 Text input is delivered to the game module through the

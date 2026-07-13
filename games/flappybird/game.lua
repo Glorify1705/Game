@@ -36,6 +36,7 @@ local bird_shape = G.collision.aabb(BIRD_W - BIRD_MARGIN * 2,
 local pipe_shape = G.collision.aabb(PIPE_W, PIPE_H)
 
 function Game:init()
+  G.input.bind("flap", { "key:space", "key:up", "mouse:left", "touch" })
   self.state = "menu"
   self.bird_y = SCREEN_H / 2 - 20
   self.bird_vy = 0
@@ -113,9 +114,7 @@ function Game:die()
 end
 
 function Game:input_pressed()
-  return G.input.is_key_pressed("space") or
-         G.input.is_key_pressed("up") or
-         G.input.is_mouse_pressed(0)
+  return G.input.is_action_pressed("flap")
 end
 
 function Game:update(t, dt)
