@@ -16,6 +16,23 @@
 
 namespace G {
 
+// Maps a window-space position to viewport space, accounting for
+// aspect-correct letterboxing (black bars on the sides or top/bottom).
+// Returns the input unchanged when either size is unset or they match.
+inline FVec2 MapWindowToViewport(FVec2 pos, FVec2 window_size,
+                                 FVec2 viewport_size) {
+  if (window_size.x <= 0 || viewport_size.x <= 0 ||
+      window_size == viewport_size) {
+    return pos;
+  }
+  const float scale_x = window_size.x / viewport_size.x;
+  const float scale_y = window_size.y / viewport_size.y;
+  const float scale = scale_x < scale_y ? scale_x : scale_y;
+  const FVec2 draw_size = viewport_size * scale;
+  const FVec2 offset = (window_size - draw_size) * 0.5f;
+  return (pos - offset) / scale;
+}
+
 class Keyboard {
  public:
   struct PressConditions {
@@ -99,24 +116,12 @@ class Mouse {
     std::fill(pressed_.begin(), pressed_.end(), false);
     std::fill(previous_pressed_.begin(), previous_pressed_.end(), false);
   }
-  enum Button { kLeft = 0, kRight = 1, kMiddle = 2 };
+  enum Button { kLeft = 0, kMiddle = 1, kRight = 2 };
   FVec2 GetPosition() const {
     if (test_mode_) return test_position_;
     float x, y;
     SDL_GetMouseState(&x, &y);
-    FVec2 pos(x, y);
-    // Map from window coordinates to viewport coordinates, accounting for
-    // aspect-correct letterboxing (black bars on sides or top/bottom).
-    if (window_size_.x > 0 && viewport_size_.x > 0 &&
-        window_size_ != viewport_size_) {
-      float scale_x = window_size_.x / viewport_size_.x;
-      float scale_y = window_size_.y / viewport_size_.y;
-      float scale = scale_x < scale_y ? scale_x : scale_y;
-      FVec2 draw_size = viewport_size_ * scale;
-      FVec2 offset = (window_size_ - draw_size) * 0.5f;
-      pos = (pos - offset) / scale;
-    }
-    return pos;
+    return MapWindowToViewport(FVec(x, y), window_size_, viewport_size_);
   }
 
   // Updates the window and viewport sizes for mouse coordinate mapping.
@@ -286,6 +291,88 @@ class Controllers {
   Dictionary<SDL_GamepadButton> button_table_;
   Dictionary<SDL_GamepadAxis> axis_table_;
   std::array<int, SDL_GAMEPAD_AXIS_COUNT> test_axes_ = {};
+  bool test_mode_ = false;
+};
+
+// Tracks multi-finger touch input. SDL reports fingers in normalized 0-1
+// window coordinates; queries return viewport coordinates using the same
+// letterbox mapping as Mouse::GetPosition. A released finger's slot
+// survives exactly one frame so release edges are observable.
+class Touch {
+ public:
+  // Maximum simultaneously tracked fingers; extras are ignored.
+  inline static constexpr size_t kMaxFingers = 10;
+
+  // One active finger, in viewport coordinates.
+  struct Finger {
+    // Stable identifier for the duration of the contact.
+    int64_t id;
+    // Position in viewport coordinates.
+    FVec2 position;
+    // Normalized pressure; browsers report 1.0.
+    float pressure;
+  };
+
+  // Updates the window and viewport sizes for coordinate mapping.
+  void SetWindowAndViewport(FVec2 window, FVec2 viewport) {
+    window_size_ = window;
+    viewport_size_ = viewport;
+  }
+
+  // Rolls per-frame edge state and frees slots released last frame.
+  // Called from Engine::StartFrame like the other input devices.
+  void InitForFrame();
+
+  // Consumes SDL_EVENT_FINGER_DOWN/MOTION/UP/CANCELED.
+  void PushEvent(const SDL_Event& event);
+
+  // Number of fingers currently touching.
+  size_t DownCount() const;
+
+  // Copies up to |capacity| currently-down fingers into |out|, positions in
+  // viewport coordinates. Returns the number written.
+  size_t GetFingers(Finger* out, size_t capacity) const;
+
+  // True while any finger is touching.
+  bool AnyDown() const;
+
+  // True the frame any finger begins touching.
+  bool AnyPressed() const;
+
+  // True the frame any finger stops touching.
+  bool AnyReleased() const;
+
+  // Enables synthetic-input mode: injected positions are interpreted as
+  // viewport coordinates directly, bypassing the window mapping.
+  void SetTestMode(bool enabled) { test_mode_ = enabled; }
+
+  // Synthetically starts, moves, or ends a finger contact. x/y are
+  // viewport coordinates. Only valid in test mode.
+  void InjectFingerDown(int64_t id, float x, float y, float pressure);
+  void InjectFingerMove(int64_t id, float x, float y);
+  void InjectFingerUp(int64_t id);
+
+ private:
+  struct Slot {
+    int64_t id = 0;
+    // Normalized 0-1 window position (or viewport coords in test mode).
+    FVec2 position = FVec2::Zero();
+    float pressure = 0;
+    bool down = false;
+    bool previous_down = false;
+    bool used = false;
+  };
+
+  // Returns the slot tracking |id|, or null.
+  Slot* FindSlot(int64_t id);
+  // Returns a free slot, or null when kMaxFingers are already tracked.
+  Slot* AllocSlot(int64_t id);
+  // Converts a slot position to viewport coordinates.
+  FVec2 SlotPosition(const Slot& slot) const;
+
+  std::array<Slot, kMaxFingers> slots_;
+  FVec2 window_size_ = FVec2::Zero();
+  FVec2 viewport_size_ = FVec2::Zero();
   bool test_mode_ = false;
 };
 

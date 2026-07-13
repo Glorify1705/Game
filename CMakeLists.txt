@@ -457,6 +457,7 @@ if(NOT CMAKE_CROSSCOMPILING)
       tests/test_zip_writer.cc
       tests/test_blob_store.cc
       tests/test_packer.cc
+      tests/test_touch.cc
   )
 
   target_compile_features(Tests PRIVATE cxx_std_17)

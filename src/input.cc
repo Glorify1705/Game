@@ -222,4 +222,138 @@ Controllers::~Controllers() {
   }
 }
 
+Touch::Slot* Touch::FindSlot(int64_t id) {
+  for (Slot& slot : slots_) {
+    if (slot.used && slot.id == id) return &slot;
+  }
+  return nullptr;
+}
+
+Touch::Slot* Touch::AllocSlot(int64_t id) {
+  for (Slot& slot : slots_) {
+    if (!slot.used) {
+      slot = Slot{};
+      slot.used = true;
+      slot.id = id;
+      return &slot;
+    }
+  }
+  return nullptr;
+}
+
+FVec2 Touch::SlotPosition(const Slot& slot) const {
+  // Test-mode injections are already viewport coordinates.
+  if (test_mode_) return slot.position;
+  const FVec2 window_pos(slot.position.x * window_size_.x,
+                         slot.position.y * window_size_.y);
+  return MapWindowToViewport(window_pos, window_size_, viewport_size_);
+}
+
+void Touch::InitForFrame() {
+  for (Slot& slot : slots_) {
+    if (!slot.used) continue;
+    if (!slot.down && !slot.previous_down) {
+      // Released last frame; the release edge has been observable for one
+      // full frame, so the slot can be reused.
+      slot.used = false;
+      continue;
+    }
+    slot.previous_down = slot.down;
+  }
+}
+
+void Touch::PushEvent(const SDL_Event& event) {
+  switch (event.type) {
+    case SDL_EVENT_FINGER_DOWN: {
+      Slot* slot = FindSlot(event.tfinger.fingerID);
+      if (slot == nullptr) slot = AllocSlot(event.tfinger.fingerID);
+      // More than kMaxFingers simultaneous contacts: ignore the extras.
+      if (slot == nullptr) return;
+      slot->position = FVec(event.tfinger.x, event.tfinger.y);
+      slot->pressure = event.tfinger.pressure;
+      slot->down = true;
+      break;
+    }
+    case SDL_EVENT_FINGER_MOTION: {
+      Slot* slot = FindSlot(event.tfinger.fingerID);
+      if (slot == nullptr) return;
+      slot->position = FVec(event.tfinger.x, event.tfinger.y);
+      slot->pressure = event.tfinger.pressure;
+      break;
+    }
+    case SDL_EVENT_FINGER_UP:
+    case SDL_EVENT_FINGER_CANCELED: {
+      // A canceled contact (system gesture stole the touch) ends like a
+      // release; games cannot tell the difference and should not need to.
+      Slot* slot = FindSlot(event.tfinger.fingerID);
+      if (slot == nullptr) return;
+      slot->down = false;
+      break;
+    }
+  }
+}
+
+size_t Touch::DownCount() const {
+  size_t count = 0;
+  for (const Slot& slot : slots_) {
+    if (slot.used && slot.down) count++;
+  }
+  return count;
+}
+
+size_t Touch::GetFingers(Finger* out, size_t capacity) const {
+  size_t count = 0;
+  for (const Slot& slot : slots_) {
+    if (count == capacity) break;
+    if (!slot.used || !slot.down) continue;
+    out[count].id = slot.id;
+    out[count].position = SlotPosition(slot);
+    out[count].pressure = slot.pressure;
+    count++;
+  }
+  return count;
+}
+
+bool Touch::AnyDown() const {
+  for (const Slot& slot : slots_) {
+    if (slot.used && slot.down) return true;
+  }
+  return false;
+}
+
+bool Touch::AnyPressed() const {
+  for (const Slot& slot : slots_) {
+    if (slot.used && slot.down && !slot.previous_down) return true;
+  }
+  return false;
+}
+
+bool Touch::AnyReleased() const {
+  for (const Slot& slot : slots_) {
+    if (slot.used && !slot.down && slot.previous_down) return true;
+  }
+  return false;
+}
+
+void Touch::InjectFingerDown(int64_t id, float x, float y, float pressure) {
+  Slot* slot = FindSlot(id);
+  if (slot == nullptr) slot = AllocSlot(id);
+  if (slot == nullptr) return;
+  slot->position = FVec(x, y);
+  slot->pressure = pressure;
+  slot->down = true;
+}
+
+void Touch::InjectFingerMove(int64_t id, float x, float y) {
+  Slot* slot = FindSlot(id);
+  if (slot == nullptr) return;
+  slot->position = FVec(x, y);
+}
+
+void Touch::InjectFingerUp(int64_t id) {
+  Slot* slot = FindSlot(id);
+  if (slot == nullptr) return;
+  slot->down = false;
+}
+
 }  // namespace G

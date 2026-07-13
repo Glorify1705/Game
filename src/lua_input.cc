@@ -149,6 +149,64 @@ const struct LuaApiFunction kInputLib[] = {
            state, controllers->AxisPositions(controllers->StrToAxisOrTrigger(c),
                                              controllers->active_controller()));
        return 1;
+     }},
+    {"touch_count",
+     "Returns the number of fingers currently touching the screen",
+     {},
+     {{"count", "the number of active touches", "number"}},
+     [](lua_State* state) {
+       auto* touch = Registry<Touch>::Retrieve(state);
+       lua_pushinteger(state, static_cast<lua_Integer>(touch->DownCount()));
+       return 1;
+     }},
+    {"touches",
+     "Returns the active touches as an array of {id, x, y, pressure} "
+     "tables, with positions in viewport coordinates",
+     {},
+     {{"touches", "array of active touches", "table"}},
+     [](lua_State* state) {
+       auto* touch = Registry<Touch>::Retrieve(state);
+       Touch::Finger fingers[Touch::kMaxFingers];
+       const size_t count = touch->GetFingers(fingers, Touch::kMaxFingers);
+       lua_createtable(state, static_cast<int>(count), 0);
+       for (size_t i = 0; i < count; ++i) {
+         lua_createtable(state, 0, 4);
+         // Finger ids fit comfortably in a double's 53-bit mantissa.
+         lua_pushnumber(state, static_cast<lua_Number>(fingers[i].id));
+         lua_setfield(state, -2, "id");
+         lua_pushnumber(state, fingers[i].position.x);
+         lua_setfield(state, -2, "x");
+         lua_pushnumber(state, fingers[i].position.y);
+         lua_setfield(state, -2, "y");
+         lua_pushnumber(state, fingers[i].pressure);
+         lua_setfield(state, -2, "pressure");
+         lua_rawseti(state, -2, static_cast<int>(i + 1));
+       }
+       return 1;
+     }},
+    {"is_touch_down",
+     "Returns true while any finger is touching the screen",
+     {},
+     {{"down", "whether any finger is down", "boolean"}},
+     [](lua_State* state) {
+       lua_pushboolean(state, Registry<Touch>::Retrieve(state)->AnyDown());
+       return 1;
+     }},
+    {"is_touch_pressed",
+     "Returns true if any finger began touching this frame",
+     {},
+     {{"pressed", "whether any finger began touching", "boolean"}},
+     [](lua_State* state) {
+       lua_pushboolean(state, Registry<Touch>::Retrieve(state)->AnyPressed());
+       return 1;
+     }},
+    {"is_touch_released",
+     "Returns true if any finger stopped touching this frame",
+     {},
+     {{"released", "whether any finger stopped touching", "boolean"}},
+     [](lua_State* state) {
+       lua_pushboolean(state, Registry<Touch>::Retrieve(state)->AnyReleased());
+       return 1;
      }}};
 
 }  // namespace

@@ -198,6 +198,9 @@ Game::FrameResult Game::RunFrame() {
       engine->mouse.SetWindowAndViewport(
           FVec(static_cast<float>(win_w), static_cast<float>(win_h)),
           FVec(static_cast<float>(vp.x), static_cast<float>(vp.y)));
+      engine->touch.SetWindowAndViewport(
+          FVec(static_cast<float>(win_w), static_cast<float>(win_h)),
+          FVec(static_cast<float>(vp.x), static_cast<float>(vp.y)));
     }
     {
       ZONE("PollEvents");
@@ -326,7 +329,11 @@ void Game::PollEvents() {
         (event.type == SDL_EVENT_MOUSE_MOTION ||
          event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
          event.type == SDL_EVENT_MOUSE_BUTTON_UP ||
-         event.type == SDL_EVENT_MOUSE_WHEEL)) {
+         event.type == SDL_EVENT_MOUSE_WHEEL ||
+         event.type == SDL_EVENT_FINGER_DOWN ||
+         event.type == SDL_EVENT_FINGER_MOTION ||
+         event.type == SDL_EVENT_FINGER_UP ||
+         event.type == SDL_EVENT_FINGER_CANCELED)) {
       continue;
     }
     // Skip viewport resize when the debug UI resized the window without
@@ -648,6 +655,7 @@ GameContext* SetupGame(const GameOptions& opts, sqlite3* db,
       ctx->engine->keyboard.SetTestMode(true);
       ctx->engine->mouse.SetTestMode(true);
       ctx->engine->controllers.SetTestMode(true);
+      ctx->engine->touch.SetTestMode(true);
     }
     ctx->engine->Initialize();
     ctx->engine->lua.Init();

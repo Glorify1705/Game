@@ -75,6 +75,42 @@ const struct LuaApiFunction kTestLib[] = {
        mouse->InjectWheel(dx, dy);
        return 0;
      }},
+    {"touch_down",
+     "Synthetically starts a finger contact at viewport coordinates.",
+     {{"id", "finger identifier", "number"},
+      {"x", "x position in viewport coordinates", "number"},
+      {"y", "y position in viewport coordinates", "number"},
+      {"pressure", "normalized pressure (default 1)", "number?"}},
+     {},
+     [](lua_State* state) {
+       const int64_t id = static_cast<int64_t>(luaL_checknumber(state, 1));
+       const float x = luaL_checknumber(state, 2);
+       const float y = luaL_checknumber(state, 3);
+       const float pressure = luaL_optnumber(state, 4, 1.0);
+       Registry<Touch>::Retrieve(state)->InjectFingerDown(id, x, y, pressure);
+       return 0;
+     }},
+    {"touch_move",
+     "Moves a synthetic finger contact to viewport coordinates.",
+     {{"id", "finger identifier", "number"},
+      {"x", "x position in viewport coordinates", "number"},
+      {"y", "y position in viewport coordinates", "number"}},
+     {},
+     [](lua_State* state) {
+       const int64_t id = static_cast<int64_t>(luaL_checknumber(state, 1));
+       Registry<Touch>::Retrieve(state)->InjectFingerMove(
+           id, luaL_checknumber(state, 2), luaL_checknumber(state, 3));
+       return 0;
+     }},
+    {"touch_up",
+     "Ends a synthetic finger contact.",
+     {{"id", "finger identifier", "number"}},
+     {},
+     [](lua_State* state) {
+       Registry<Touch>::Retrieve(state)->InjectFingerUp(
+           static_cast<int64_t>(luaL_checknumber(state, 1)));
+       return 0;
+     }},
     {"controller_down",
      "Injects a controller button-down event by name.",
      {{"button", "the controller button name", "string"}},

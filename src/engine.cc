@@ -81,6 +81,7 @@ void Engine::Initialize() {
   lua.Register(&keyboard);
   lua.Register(&mouse);
   lua.Register(&controllers);
+  lua.Register(&touch);
   lua.Register(&shaders);
   lua.Register(&sound);
   lua.Register(&filesystem);
@@ -196,6 +197,7 @@ void Engine::StartFrame() {
   mouse.InitForFrame();
   keyboard.InitForFrame();
   controllers.InitForFrame();
+  touch.InitForFrame();
 }
 
 void Engine::ForwardEventToLua(const SDL_Event& event) {
@@ -263,6 +265,12 @@ void Engine::HandleEvent(const SDL_Event& event) {
       event.type == SDL_EVENT_MOUSE_MOTION ||
       event.type == SDL_EVENT_MOUSE_WHEEL) {
     mouse.PushEvent(event);
+  }
+  if (event.type == SDL_EVENT_FINGER_DOWN ||
+      event.type == SDL_EVENT_FINGER_MOTION ||
+      event.type == SDL_EVENT_FINGER_UP ||
+      event.type == SDL_EVENT_FINGER_CANCELED) {
+    touch.PushEvent(event);
   }
   controllers.PushEvent(event);
   ForwardEventToLua(event);

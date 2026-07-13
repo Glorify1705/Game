@@ -64,6 +64,7 @@ struct Engine {
   Keyboard keyboard;
   Mouse mouse;
   Controllers controllers;
+  Touch touch;
   Sound sound;
   Renderer renderer;
   Camera camera;
