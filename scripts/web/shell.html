@@ -1,0 +1,67 @@
+<!doctype html>
+<!-- Shipped HTML shell for web-packaged games; emitted by
+     `game package --target web` with {{TITLE}} substituted. Everything is
+     local (no CDNs) and iframe-friendly for itch.io embeds. -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0; background: #000; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    #canvas { display: block; outline: none; max-width: 100%; max-height: 100%; }
+    #status {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      color: #999; font: 16px system-ui, sans-serif; text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Loading&hellip;</div>
+  <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+  <script>
+    var Module = {
+      canvas: document.getElementById('canvas'),
+      preRun: [function() {
+        var FS = Module.FS;
+        FS.mkdir('/game');
+        // The engine reads the packaged asset files from /game; each fetch
+        // registers a run dependency so main() waits for them. The metadata
+        // database is writable: the engine caches compiled scripts in it.
+        ['assets.sqlite3', 'assets.zip'].forEach(function(name) {
+          FS.createPreloadedFile('/game', name, name, /*canRead=*/true,
+                                 /*canWrite=*/true);
+        });
+        // Save data persists to IndexedDB; block startup on the initial
+        // hydration so saves are readable from the first frame.
+        FS.mkdir('/save');
+        FS.mount(IDBFS, {}, '/save');
+        Module.addRunDependency('idbfs');
+        FS.syncfs(/*populate=*/true, function(err) {
+          if (err) console.warn('Could not load saved data:', err);
+          Module.removeRunDependency('idbfs');
+        });
+      }],
+      postRun: [function() {
+        document.getElementById('status').style.display = 'none';
+        document.getElementById('canvas').focus();
+      }],
+      onAbort: function(what) {
+        document.getElementById('status').textContent =
+            'The game crashed: ' + what;
+        document.getElementById('status').style.display = 'block';
+      }
+    };
+    // Keyboard focus inside iframes (itch.io embeds) requires a click first;
+    // take focus back whenever the player interacts with the page.
+    window.addEventListener('pointerdown', function() {
+      document.getElementById('canvas').focus();
+    });
+  </script>
+  <script src="game.js"></script>
+</body>
+</html>

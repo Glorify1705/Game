@@ -170,6 +170,29 @@ Bundle a project for distribution.
 | `--strip` | Strip debug symbols from the binary |
 | `--engine-binary <path>` | Use a pre-built binary (for cross-platform packaging) |
 | `--sfx` | Produce a self-extracting .7z.exe archive (Windows) |
+| `--target <native\|web>` | Package for desktop (default) or the browser |
+
+#### Web packaging
+
+Build the web engine once with `game-build-web` (requires the devenv
+shell, which provides Emscripten), then:
+
+```sh
+game package mygame --target web -o dist-web
+python3 -m http.server -d dist-web   # test locally (must be HTTP, not file://)
+```
+
+`dist-web/` contains `index.html`, `game.js`, `game.wasm`,
+`assets.sqlite3`, and `assets.zip`. For itch.io, zip the directory
+contents (index.html at the zip root), upload, and mark the file as
+playable in the browser — or `butler push dist-web user/game:html5`.
+For a personal site, copy the directory anywhere served over HTTP
+(`.wasm` should be served as `application/wasm`).
+
+Web limitations (v1): no networking (`G.network` raises an error),
+single-threaded, 512 MB fixed memory, lines render 1px wide, and only
+`G.save` data persists (to IndexedDB); `G.filesystem` writes are lost on
+reload.
 
 ### `game stubs [--output <path>]`
 

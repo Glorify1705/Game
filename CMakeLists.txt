@@ -186,6 +186,17 @@ add_custom_command(
     DEPENDS "${PROJECT_SOURCE_DIR}/libraries/lua-protobuf/protoc.lua"
     COMMENT "Embedding protoc.lua")
 
+# Embed the web HTML shell for `game package --target web`.
+add_custom_command(
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/web_shell_html.h"
+    COMMAND "${CMAKE_COMMAND}"
+        -DINPUT="${PROJECT_SOURCE_DIR}/scripts/web/shell.html"
+        -DOUTPUT="${CMAKE_CURRENT_BINARY_DIR}/web_shell_html.h"
+        -DVARNAME=kWebShellHtml
+        -P "${PROJECT_SOURCE_DIR}/cmake/EmbedFile.cmake"
+    DEPENDS "${PROJECT_SOURCE_DIR}/scripts/web/shell.html"
+    COMMENT "Embedding web shell.html")
+
 # Engine static library. All engine code except main().
 set(ENGINE_SRCS
     src/assets.cc
@@ -266,7 +277,8 @@ set(ENGINE_SRCS
     $<$<BOOL:${ENABLE_IMGUI}>:src/physics_debug_draw.cc>
     libraries/lua-protobuf/pb.c)
 
-add_library(engine STATIC ${ENGINE_SRCS} "${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h")
+add_library(engine STATIC ${ENGINE_SRCS} "${CMAKE_CURRENT_BINARY_DIR}/protoc_lua.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/web_shell_html.h")
 
 target_compile_features(engine PUBLIC cxx_std_17)
 

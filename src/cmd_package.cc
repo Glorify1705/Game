@@ -18,6 +18,7 @@
 #include "sqlite_helpers.h"
 #include "stringlib.h"
 #include "units.h"
+#include "web_shell_html.h"
 #include "zip_writer.h"
 
 namespace G {
@@ -185,6 +186,88 @@ int BuildSfxArchive(const char* output_dir, const char* binary_name,
   return 0;
 }
 
+// Replaces occurrences of `placeholder` in the template with `value`,
+// writing the result to out.
+void SubstitutePlaceholder(StringBuffer* out, std::string_view text,
+                           std::string_view placeholder,
+                           std::string_view value) {
+  size_t pos = 0;
+  while (true) {
+    const size_t found = text.find(placeholder, pos);
+    if (found == std::string_view::npos) break;
+    out->Append(text.substr(pos, found - pos));
+    out->Append(value);
+    pos = found + placeholder.size();
+  }
+  out->Append(text.substr(pos));
+}
+
+// Assembles a browser-ready directory: the prebuilt web engine
+// (game.js + game.wasm), the packaged assets already written to output_dir,
+// and an index.html generated from the embedded shell template.
+int PackageForWeb(const char* output_dir, const char* engine_binary,
+                  const char* title, const GameConfig* config,
+                  const char* db_path, const char* zip_path) {
+  // Locate the prebuilt web engine: --engine-binary, or the build-web tree
+  // next to this binary's directory.
+  CmdBuffer engine_js;
+  if (engine_binary != nullptr) {
+    engine_js.Append(engine_binary);
+  } else {
+    char exe_dir[1024];
+    if (GetExeDir(exe_dir, sizeof(exe_dir)).is_error()) {
+      fprintf(stderr, "Error: could not determine engine binary path.\n");
+      return 1;
+    }
+    engine_js.Append(exe_dir, "../build-web/game.js");
+  }
+  if (!FileExists(engine_js.str())) {
+    fprintf(stderr,
+            "Error: web engine not found at '%s'.\n"
+            "Build it with scripts/game-build-web.sh, or pass "
+            "--engine-binary <path/to/game.js>.\n",
+            engine_js.str());
+    return 1;
+  }
+  std::string_view wasm_base(engine_js.view());
+  CHECK(ConsumeSuffix(&wasm_base, ".js"), "engine binary must be a .js file");
+  CmdBuffer engine_wasm(wasm_base, ".wasm");
+  if (!FileExists(engine_wasm.str())) {
+    fprintf(stderr, "Error: '%s' has no companion game.wasm.\n",
+            engine_js.str());
+    return 1;
+  }
+
+  // The shell references fixed names; do not rename to the game title.
+  CmdBuffer js_out(output_dir, "/game.js");
+  CmdBuffer wasm_out(output_dir, "/game.wasm");
+  MUST(CopyFile(engine_js.str(), js_out.str()));
+  MUST(CopyFile(engine_wasm.str(), wasm_out.str()));
+
+  const char* page_title =
+      config->window_title[0] != '\0' ? config->window_title : title;
+  CmdBuffer html_out(output_dir, "/index.html");
+  FixedStringBuffer<Kilobytes(8)> html(kTruncating);
+  SubstitutePlaceholder(&html,
+                        std::string_view(kWebShellHtml, kWebShellHtmlLen),
+                        "{{TITLE}}", page_title);
+  MUST(WriteEntireFile(html_out.str(), MakeByteSlice(html.str(), html.size())));
+
+  printf("Packaged game for the web in '%s':\n", output_dir);
+  printf("  %s\n", html_out.str());
+  printf("  %s + %s\n", js_out.str(), wasm_out.str());
+  printf("  %s\n", db_path);
+  printf("  %s\n", zip_path);
+  printf(
+      "\nServe over HTTP to test locally:\n"
+      "  python3 -m http.server -d %s\n"
+      "\nFor itch.io: zip the directory contents (index.html at the zip\n"
+      "root), upload, and mark the file 'This file will be played in the\n"
+      "browser'. Or: butler push %s user/game:html5\n",
+      output_dir, output_dir);
+  return 0;
+}
+
 void PrintHelp() {
   printf("Usage: game package [directory] [options]\n");
   printf("\n");
@@ -205,6 +288,7 @@ void PrintHelp() {
   printf(
       "  --engine-binary <path>  Use a specific engine binary instead of "
       "self\n");
+  printf("  --target <native|web> Package for desktop (default) or browser\n");
   printf("  --strip               Strip debug symbols from the binary\n");
   printf(
       "  --sfx                 Build a self-extracting archive (requires "
@@ -218,6 +302,7 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   const char* output_dir = "dist";
   const char* name_override = nullptr;
   const char* engine_binary = nullptr;
+  const char* target = "native";
   bool strip = false;
   bool sfx = false;
 
@@ -233,6 +318,8 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
       name_override = args[++i];
     } else if (arg == "--engine-binary" && i + 1 < args.size()) {
       engine_binary = args[++i];
+    } else if (arg == "--target" && i + 1 < args.size()) {
+      target = args[++i];
     } else if (arg == "--strip") {
       strip = true;
     } else if (arg == "--sfx") {
@@ -240,6 +327,16 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
     } else if (arg[0] != '-') {
       source_directory = args[i];
     }
+  }
+
+  const bool web = std::string_view(target) == "web";
+  if (!web && std::string_view(target) != "native") {
+    fprintf(stderr, "Error: unknown --target '%s' (native or web).\n", target);
+    return 1;
+  }
+  if (web && (strip || sfx)) {
+    fprintf(stderr, "Error: --strip and --sfx do not apply to --target web.\n");
+    return 1;
   }
 
   // Validate project.
@@ -310,6 +407,12 @@ int CmdPackage(Slice<const char*> args, Allocator* allocator) {
   CmdBuffer zip_path(output_dir, "/assets.zip");
   MUST(BuildAssetZip(db, blobs.directory(), zip_path.str(), &packer_arena));
   sqlite3_close(db);
+
+  if (web) {
+    PHYSFS_CHECK(PHYSFS_deinit(), "Could not close PhysFS");
+    return PackageForWeb(output_dir, engine_binary, binary_name, &config,
+                         db_path.str(), zip_path.str());
+  }
 
   // Copy the engine binary.
   const char* src_binary = nullptr;
