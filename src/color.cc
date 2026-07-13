@@ -6,7 +6,9 @@
 namespace G {
 
 struct ColorTable {
-  StaticAllocator<Megabytes(16)> allocator;
+  // The table holds ~950 named colors; each Dictionary node costs 48 bytes
+  // after arena alignment (~46 KB total), so 128 KB leaves ample headroom.
+  StaticAllocator<Kilobytes(128)> allocator;
   Dictionary<Color> table;
 
   ColorTable() : table(&allocator) {
