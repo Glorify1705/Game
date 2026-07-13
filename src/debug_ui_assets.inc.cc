@@ -45,7 +45,7 @@ void DebugUI::DrawAssetImagesTab() {
 
 void DebugUI::DrawAssetSpritesTab() {
   Renderer* renderer = &engine_->renderer;
-  auto sprites = renderer->GetSprites();
+  const auto& sprites = renderer->GetSprites();
   for (size_t i = 0; i < sprites.size(); ++i) {
     const auto& spr = sprites[i];
     if (!MatchesFilter(spr.name.data(), asset_filter_)) continue;

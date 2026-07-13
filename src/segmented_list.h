@@ -39,6 +39,9 @@ class SegmentedList {
     }
   }
 
+  SegmentedList(const SegmentedList&) = delete;
+  SegmentedList& operator=(const SegmentedList&) = delete;
+
   T& operator[](size_t index) {
     DCHECK(index < size_, index, " vs ", size_);
     auto [shelf, offset] = Locate(index);

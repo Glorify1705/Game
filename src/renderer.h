@@ -12,6 +12,7 @@
 #include "libraries/stb_truetype.h"
 #include "mat.h"
 #include "particles.h"
+#include "segmented_list.h"
 #include "shaders.h"
 #include "transformations.h"
 #include "vec.h"
@@ -555,8 +556,8 @@ class Renderer {
     return result;
   }
 
-  Slice<DbAssets::Sprite> GetSprites() const {
-    return MakeSlice(loaded_sprites_);
+  const SegmentedList<DbAssets::Sprite>& GetSprites() const {
+    return loaded_sprites_;
   }
 
   Slice<DbAssets::Image> GetImages() const { return MakeSlice(loaded_images_); }
@@ -569,8 +570,8 @@ class Renderer {
     return renderer_->GetTextureId(textures_[idx]);
   }
 
-  Slice<DbAssets::Spritesheet> GetSpritesheets() const {
-    return MakeSlice(loaded_spritesheets_);
+  const SegmentedList<DbAssets::Spritesheet>& GetSpritesheets() const {
+    return loaded_spritesheets_;
   }
 
   // Sets the active texture to the spritesheet with the given name.
@@ -769,10 +770,12 @@ class Renderer {
   FixedArray<GLuint> textures_;
 
   Dictionary<DbAssets::Spritesheet*> loaded_spritesheets_table_;
-  FixedArray<DbAssets::Spritesheet> loaded_spritesheets_;
+  // Grows per loaded asset. Segmented so the pointers held by the lookup
+  // tables stay stable as it grows.
+  SegmentedList<DbAssets::Spritesheet> loaded_spritesheets_;
 
   Dictionary<DbAssets::Sprite*> loaded_sprites_table_;
-  FixedArray<DbAssets::Sprite> loaded_sprites_;
+  SegmentedList<DbAssets::Sprite> loaded_sprites_;
 
   Dictionary<DbAssets::Image*> loaded_images_table_;
   FixedArray<DbAssets::Image> loaded_images_;
