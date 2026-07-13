@@ -101,7 +101,11 @@ class PackerTest : public ::testing::Test {
   void WriteSource(const char* name, const char* contents) {
     char path[1024];
     std::snprintf(path, sizeof(path), "%s/%s", source_dir_, name);
-    ASSERT_FALSE(WriteFile(path, contents).is_error());
+    // Binary mode: text mode would turn \n into \r\n on Windows and shift
+    // the sizes and hashes the tests assert on.
+    ASSERT_FALSE(
+        WriteEntireFile(path, MakeByteSlice(contents, strlen(contents)))
+            .is_error());
   }
 
   // Writes a 2x2 RGBA PNG that the packer transcodes to QOI.
