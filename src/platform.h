@@ -82,6 +82,18 @@ void ComputeCacheDir(const char* source_directory, char* out, size_t out_size);
 // macOS: ~/Library/Application Support/<app>/
 void GetUserSaveDir(const char* app_name, char* out, size_t out_size);
 
+#ifdef GAME_WEB
+// Marks browser-persistent data (IDBFS) dirty; MaybeSyncIdb flushes it to
+// IndexedDB with a debounce, SyncIdbNow immediately.
+void RequestIdbSync();
+void MaybeSyncIdb();
+void SyncIdbNow();
+#else
+inline void RequestIdbSync() {}
+inline void MaybeSyncIdb() {}
+inline void SyncIdbNow() {}
+#endif
+
 // Platform constants.
 extern const char* const kExeExtension;
 

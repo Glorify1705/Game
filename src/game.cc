@@ -244,6 +244,8 @@ Game::FrameResult Game::RunFrame() {
                                  1024.0f);
     debug_ui->AddBreakdownSample(last_breakdown_);
   }
+  // Persist dirty save data to IndexedDB (no-op off web).
+  MaybeSyncIdb();
   return FrameResult::kContinue;
 }
 
@@ -706,6 +708,7 @@ int TeardownGame(GameContext* ctx, ArenaAllocator* allocator) {
 void WebFrame(void* arg) {
   auto* ctx = static_cast<GameContext*>(arg);
   if (ctx->loop->RunFrame() == Game::FrameResult::kExit) {
+    SyncIdbNow();
     emscripten_cancel_main_loop();
   }
 }

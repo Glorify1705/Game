@@ -40,12 +40,22 @@ ErrorOr<void> Save::Open(const char* save_dir) {
   // Retry internally for up to 1 second on SQLITE_BUSY.
   sqlite3_busy_timeout(db_, /*ms=*/1000);
 
-  // Enable WAL mode for crash safety and concurrent reads.
   char* err = nullptr;
+#ifdef GAME_WEB
+  // WAL needs shared-memory files and locking that Emscripten's FS does
+  // not implement faithfully. Durability on web comes from the explicit
+  // IndexedDB sync (RequestIdbSync), not from fsync.
+  sqlite3_exec(db_, "PRAGMA journal_mode = MEMORY", nullptr, nullptr, &err);
+  if (err != nullptr) sqlite3_free(err);
+  sqlite3_exec(db_, "PRAGMA synchronous = OFF", nullptr, nullptr, &err);
+  if (err != nullptr) sqlite3_free(err);
+#else
+  // Enable WAL mode for crash safety and concurrent reads.
   sqlite3_exec(db_, "PRAGMA journal_mode = WAL", nullptr, nullptr, &err);
   if (err != nullptr) sqlite3_free(err);
   sqlite3_exec(db_, "PRAGMA synchronous = NORMAL", nullptr, nullptr, &err);
   if (err != nullptr) sqlite3_free(err);
+#endif
 
   // Create the KV table if it doesn't exist.
   rc = sqlite3_exec(db_,
@@ -68,10 +78,10 @@ ErrorOr<void> Save::Open(const char* save_dir) {
   // Prepare cached statements. Close the database on any failure so we don't
   // leak the handle and partially-prepared statements.
   auto prepare_all = [&]() -> ErrorOr<void> {
-    TRY(Prepare(
-        "INSERT OR REPLACE INTO kv (namespace, key, value, updated_at) "
-        "VALUES (?1, ?2, ?3, ?4)",
-        &set_stmt_));
+    TRY(
+        Prepare("INSERT OR REPLACE INTO kv (namespace, key, value, updated_at) "
+                "VALUES (?1, ?2, ?3, ?4)",
+                &set_stmt_));
     TRY(Prepare("SELECT value FROM kv WHERE namespace = ?1 AND key = ?2",
                 &get_stmt_));
     TRY(Prepare("SELECT 1 FROM kv WHERE namespace = ?1 AND key = ?2 LIMIT 1",
@@ -127,6 +137,7 @@ ErrorOr<void> Save::Set(std::string_view ns, std::string_view key,
     ELOG("save set failed: ", sqlite3_errmsg(db_));
     return Error::Message("save set failed");
   }
+  RequestIdbSync();
   return {};
 }
 
@@ -183,6 +194,7 @@ ErrorOr<void> Save::Delete(std::string_view ns, std::string_view key) {
     ELOG("save delete failed: ", sqlite3_errmsg(db_));
     return Error::Message("save delete failed");
   }
+  RequestIdbSync();
   return {};
 }
 
@@ -197,6 +209,7 @@ ErrorOr<void> Save::Clear(std::string_view ns) {
     ELOG("save clear failed: ", sqlite3_errmsg(db_));
     return Error::Message("save clear failed");
   }
+  RequestIdbSync();
   return {};
 }
 
@@ -247,12 +260,17 @@ ErrorOr<void> Save::Namespaces(SaveNamespacesCallback callback,
 
 ErrorOr<void> Save::Flush() {
   CHECK(db_ != nullptr, "Save database not open");
+#ifdef GAME_WEB
+  // No WAL on web; persist straight to IndexedDB.
+  SyncIdbNow();
+#else
   int rc = sqlite3_wal_checkpoint_v2(db_, nullptr, SQLITE_CHECKPOINT_PASSIVE,
                                      nullptr, nullptr);
   if (rc != SQLITE_OK) {
     ELOG("WAL checkpoint failed: ", sqlite3_errmsg(db_));
     return Error::Message("WAL checkpoint failed");
   }
+#endif
   return {};
 }
 
