@@ -37,35 +37,35 @@ void DebugUI::DrawEntityInspector() {
   lua_pushvalue(L, LUA_GLOBALSINDEX);
   int globals_idx = lua_gettop(L);
   bool has_user_globals = false;
-  LuaTableForEach(L, globals_idx, [&](const char* key_cstr,
-                                      std::string_view key) {
-    if (key == "G" || key == "_Game" || key == "_G" || key == "_Docs" ||
-        key == "_VERSION" || key == "string" || key == "table" ||
-        key == "math" || key == "io" || key == "os" ||
-        key == "coroutine" || key == "debug" || key == "package" ||
-        key == "arg" || lua_type(L, -1) == LUA_TFUNCTION) {
-      return false;
-    }
-    if (has_filter && key.find(filter) == std::string_view::npos) {
-      return false;
-    }
-    if (!has_user_globals) {
-      has_user_globals = true;
-      ImGui::Separator();
-      ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Globals");
-    }
-    if (lua_type(L, -1) == LUA_TTABLE) {
-      if (ImGui::TreeNode(key_cstr)) {
-        DrawLuaValue(L, 1, globals_idx, lua_gettop(L) - 1);
-        ImGui::TreePop();
-      }
-    } else {
-      Str val_buf;
-      FormatLuaValue(L, -1, &val_buf);
-      ImGui::Text("%s = %s", key_cstr, val_buf.str());
-    }
-    return false;
-  });
+  LuaTableForEach(
+      L, globals_idx, [&](const char* key_cstr, std::string_view key) {
+        if (key == "G" || key == "_Game" || key == "_G" || key == "_Docs" ||
+            key == "_VERSION" || key == "string" || key == "table" ||
+            key == "math" || key == "io" || key == "os" || key == "coroutine" ||
+            key == "debug" || key == "package" || key == "arg" ||
+            lua_type(L, -1) == LUA_TFUNCTION) {
+          return false;
+        }
+        if (has_filter && key.find(filter) == std::string_view::npos) {
+          return false;
+        }
+        if (!has_user_globals) {
+          has_user_globals = true;
+          ImGui::Separator();
+          ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Globals");
+        }
+        if (lua_type(L, -1) == LUA_TTABLE) {
+          if (ImGui::TreeNode(key_cstr)) {
+            DrawLuaValue(L, 1, globals_idx, lua_gettop(L) - 1);
+            ImGui::TreePop();
+          }
+        } else {
+          Str val_buf;
+          FormatLuaValue(L, -1, &val_buf);
+          ImGui::Text("%s = %s", key_cstr, val_buf.str());
+        }
+        return false;
+      });
 
   ImGui::End();
 }

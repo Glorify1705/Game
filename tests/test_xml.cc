@@ -1,7 +1,6 @@
-#include "xml.h"
-
 #include "allocators.h"
 #include "gtest/gtest.h"
+#include "xml.h"
 
 namespace G {
 

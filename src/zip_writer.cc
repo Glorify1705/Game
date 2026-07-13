@@ -27,7 +27,11 @@ struct Crc32Table {
     for (uint32_t i = 0; i < 256; ++i) {
       uint32_t c = i;
       for (int bit = 0; bit < 8; ++bit) {
-        c = (c & 1) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
+        if (c & 1) {
+          c = 0xEDB88320u ^ (c >> 1);
+        } else {
+          c = c >> 1;
+        }
       }
       entries[i] = c;
     }

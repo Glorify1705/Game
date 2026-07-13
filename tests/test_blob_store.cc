@@ -63,7 +63,7 @@ class BlobStoreTest : public ::testing::Test {
 
   // Mounts the store directory at the blob mount point for ReadBlob tests.
   void Mount() {
-    ASSERT_NE(PHYSFS_mount(dir_, kBlobMountPoint, 0), 0)
+    ASSERT_NE(PHYSFS_mount(dir_, kBlobMountPoint, /*append=*/0), 0)
         << PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode());
     mounted_ = true;
   }

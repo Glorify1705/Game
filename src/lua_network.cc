@@ -64,8 +64,7 @@ const struct LuaApiFunction kNetworkLib[] = {
      "Sends data to a specific peer",
      {{"peer_id", "peer to send to", "integer"},
       {"data", "binary data to send", "string"},
-      {"opts",
-       "options table with channel (int) and reliable (bool) fields",
+      {"opts", "options table with channel (int) and reliable (bool) fields",
        "table?"}},
      {},
      [](lua_State* state) {
@@ -84,16 +83,15 @@ const struct LuaApiFunction kNetworkLib[] = {
          lua_pop(state, 1);
        }
        ByteSlice slice = MakeByteSlice(data, len);
-       Reliability r = reliable ? Reliability::kReliable
-                                : Reliability::kUnreliable;
+       Reliability r =
+           reliable ? Reliability::kReliable : Reliability::kUnreliable;
        net->Send(peer_id, slice, channel, r);
        return 0;
      }},
     {"broadcast",
      "Broadcasts data to all connected peers",
      {{"data", "binary data to send", "string"},
-      {"opts",
-       "options table with channel (int) and reliable (bool) fields",
+      {"opts", "options table with channel (int) and reliable (bool) fields",
        "table?"}},
      {},
      [](lua_State* state) {
@@ -111,8 +109,8 @@ const struct LuaApiFunction kNetworkLib[] = {
          lua_pop(state, 1);
        }
        ByteSlice slice = MakeByteSlice(data, len);
-       Reliability r = reliable ? Reliability::kReliable
-                                : Reliability::kUnreliable;
+       Reliability r =
+           reliable ? Reliability::kReliable : Reliability::kUnreliable;
        net->Broadcast(slice, channel, r);
        return 0;
      }},
@@ -148,9 +146,7 @@ const struct LuaApiFunction kNetworkLib[] = {
 
 }  // namespace
 
-void AddNetworkLibrary(Lua* lua) {
-  lua->AddLibrary("network", kNetworkLib);
-}
+void AddNetworkLibrary(Lua* lua) { lua->AddLibrary("network", kNetworkLib); }
 
 LuaLibraryDef GetNetworkLibraryDef() {
   static const LuaLibraryDef::Library kLibs[] = {

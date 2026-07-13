@@ -4,15 +4,13 @@ void DebugUI::DrawAudioPanel() {
   Sound* sound = &engine_->sound;
   ImGui::SetNextWindowPos(ImVec2(620, 30), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(420, 350), ImGuiCond_FirstUseEver);
-  if (!ImGui::Begin("Audio", nullptr,
-                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+  if (!ImGui::Begin("Audio", nullptr, ImGuiWindowFlags_NoFocusOnAppearing)) {
     ImGui::End();
     return;
   }
 
   float global_gain = sound->global_gain();
-  if (ImGui::SliderFloat("Global Volume", &global_gain, 0.0f, 1.0f,
-                          "%.2f")) {
+  if (ImGui::SliderFloat("Global Volume", &global_gain, 0.0f, 1.0f, "%.2f")) {
     sound->SetGlobalGain(global_gain);
   }
   ImGui::Separator();
@@ -30,8 +28,7 @@ void DebugUI::DrawAudioPanel() {
   if (used > 0 &&
       ImGui::BeginTable("Streams", 7,
                         ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-                            ImGuiTableFlags_Resizable |
-                            ImGuiTableFlags_ScrollY,
+                            ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY,
                         ImVec2(0, 0))) {
     ImGui::TableSetupColumn("Name");
     ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed, 55);
@@ -75,15 +72,13 @@ void DebugUI::DrawAudioPanel() {
 void DebugUI::DrawMemoryPanel(size_t lua_memory_bytes) {
   ImGui::SetNextWindowPos(ImVec2(620, 390), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(380, 280), ImGuiCond_FirstUseEver);
-  if (!ImGui::Begin("Memory", nullptr,
-                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+  if (!ImGui::Begin("Memory", nullptr, ImGuiWindowFlags_NoFocusOnAppearing)) {
     ImGui::End();
     return;
   }
 
   if (engine_arena_ != nullptr &&
-      ImGui::CollapsingHeader("Engine Arena",
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::CollapsingHeader("Engine Arena", ImGuiTreeNodeFlags_DefaultOpen)) {
     DrawMemoryBar("Used / Total", engine_arena_->used_memory(),
                   engine_arena_->total_memory());
   }
@@ -111,9 +106,9 @@ void DebugUI::DrawMemoryPanel(size_t lua_memory_bytes) {
         if (v > lua_max) lua_max = v;
       }
       ImGui::PlotLines("##lua_mem_sparkline", lua_values,
-                        static_cast<int>(lua_count), /*values_offset=*/0,
-                        /*overlay_text=*/nullptr, /*scale_min=*/0.0f,
-                        /*scale_max=*/lua_max * 1.5f, ImVec2(0, 40));
+                       static_cast<int>(lua_count), /*values_offset=*/0,
+                       /*overlay_text=*/nullptr, /*scale_min=*/0.0f,
+                       /*scale_max=*/lua_max * 1.5f, ImVec2(0, 40));
     }
   }
   ImGui::Separator();
@@ -135,14 +130,12 @@ void DebugUI::DrawRendererPanel(const FrameContext& ctx) {
   const auto& fs = ctx.frame_stats;
   ImGui::SetNextWindowPos(ImVec2(10, 440), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(420, 450), ImGuiCond_FirstUseEver);
-  if (!ImGui::Begin("Renderer", nullptr,
-                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+  if (!ImGui::Begin("Renderer", nullptr, ImGuiWindowFlags_NoFocusOnAppearing)) {
     ImGui::End();
     return;
   }
 
-  if (ImGui::CollapsingHeader("Batch Stats",
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (ImGui::CollapsingHeader("Batch Stats", ImGuiTreeNodeFlags_DefaultOpen)) {
     ImGui::Text("Draw calls: %d", fs.draw_calls);
     ImGui::Text("Vertices:   %d", fs.vertices);
     ImGui::Text("Commands:   %d", fs.commands);
@@ -158,14 +151,10 @@ void DebugUI::DrawRendererPanel(const FrameContext& ctx) {
         int count;
       };
       FlushEntry entries[] = {
-          {"Texture", fs.flush_texture},
-          {"Transform", fs.flush_transform},
-          {"Shader", fs.flush_shader},
-          {"Blend Mode", fs.flush_blend},
-          {"Canvas", fs.flush_canvas},
-          {"Line End", fs.flush_line_end},
-          {"Overflow", fs.flush_overflow},
-          {"Other", fs.flush_other},
+          {"Texture", fs.flush_texture},   {"Transform", fs.flush_transform},
+          {"Shader", fs.flush_shader},     {"Blend Mode", fs.flush_blend},
+          {"Canvas", fs.flush_canvas},     {"Line End", fs.flush_line_end},
+          {"Overflow", fs.flush_overflow}, {"Other", fs.flush_other},
       };
       for (const auto& e : entries) {
         if (e.count == 0) continue;
@@ -256,8 +245,7 @@ void DebugUI::DrawCameraPanel() {
   Camera* camera = &engine_->camera;
   ImGui::SetNextWindowPos(ImVec2(440, 440), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(340, 350), ImGuiCond_FirstUseEver);
-  if (!ImGui::Begin("Camera", nullptr,
-                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+  if (!ImGui::Begin("Camera", nullptr, ImGuiWindowFlags_NoFocusOnAppearing)) {
     ImGui::End();
     return;
   }
@@ -268,10 +256,9 @@ void DebugUI::DrawCameraPanel() {
   float zoom = camera->GetZoom();
   ImGui::Text("Zoom: %.3f", static_cast<double>(zoom));
   float rotation = camera->GetRotation();
-  ImGui::Text("Rotation: %.3f rad (%.1f deg)",
-              static_cast<double>(rotation),
-              static_cast<double>(rotation * 180.0f /
-                                  static_cast<float>(M_PI)));
+  ImGui::Text(
+      "Rotation: %.3f rad (%.1f deg)", static_cast<double>(rotation),
+      static_cast<double>(rotation * 180.0f / static_cast<float>(M_PI)));
   ImGui::Separator();
 
   if (ImGui::CollapsingHeader("Follow", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -362,15 +349,13 @@ void DebugUI::DrawPhysicsPanel() {
   Physics* physics = &engine_->physics;
   ImGui::SetNextWindowPos(ImVec2(820, 30), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(400, 450), ImGuiCond_FirstUseEver);
-  if (!ImGui::Begin("Physics", nullptr,
-                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+  if (!ImGui::Begin("Physics", nullptr, ImGuiWindowFlags_NoFocusOnAppearing)) {
     ImGui::End();
     return;
   }
 
-  ImGui::Text("Bodies: %d  Joints: %d  Contacts: %d",
-              physics->GetBodyCount(), physics->GetJointCount(),
-              physics->GetContactCount());
+  ImGui::Text("Bodies: %d  Joints: %d  Contacts: %d", physics->GetBodyCount(),
+              physics->GetJointCount(), physics->GetContactCount());
   ImGui::Text("Pixels/meter: %.1f",
               static_cast<double>(physics->GetPixelsPerMeter()));
   ImGui::Separator();
@@ -402,8 +387,7 @@ void DebugUI::DrawPhysicsPanel() {
   }
   ImGui::Separator();
 
-  if (ImGui::CollapsingHeader("Debug Draw",
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (ImGui::CollapsingHeader("Debug Draw", ImGuiTreeNodeFlags_DefaultOpen)) {
     if (ImGui::Checkbox("Enable", &physics_debug_draw_)) {
       if (physics_debug_draw_) {
         physics->EnableDebugDraw(physics_debug_flags_);
@@ -452,8 +436,7 @@ void DebugUI::DrawPhysicsPanel() {
       if (selected_body_->GetType() == b2_staticBody) type_str = "Static";
       if (selected_body_->GetType() == b2_kinematicBody) type_str = "Kinematic";
       ImGui::Text("Type: %s", type_str);
-      ImGui::Text("Position: (%.1f, %.1f)",
-                  static_cast<double>(pos.x * ppm),
+      ImGui::Text("Position: (%.1f, %.1f)", static_cast<double>(pos.x * ppm),
                   static_cast<double>(pos.y * ppm));
       ImGui::Text("Velocity: (%.1f, %.1f)  Speed: %.1f",
                   static_cast<double>(vel.x * ppm),
@@ -466,8 +449,8 @@ void DebugUI::DrawPhysicsPanel() {
                   selected_body_->IsAwake() ? "Yes" : "No",
                   selected_body_->IsFixedRotation() ? "Yes" : "No");
       int fixture_count = 0;
-      for (const b2Fixture* f = selected_body_->GetFixtureList();
-           f != nullptr; f = f->GetNext()) {
+      for (const b2Fixture* f = selected_body_->GetFixtureList(); f != nullptr;
+           f = f->GetNext()) {
         ++fixture_count;
       }
       ImGui::Text("Fixtures: %d", fixture_count);
@@ -509,8 +492,7 @@ void DebugUI::DrawPhysicsPanel() {
         ImGui::PushID(body);
         if (ImGui::Selectable(type_str, is_selected,
                               ImGuiSelectableFlags_SpanAllColumns)) {
-          selected_body_ = is_selected ? nullptr
-                                       : const_cast<b2Body*>(body);
+          selected_body_ = is_selected ? nullptr : const_cast<b2Body*>(body);
         }
         ImGui::PopID();
         ImGui::TableNextColumn();
@@ -536,8 +518,7 @@ void DebugUI::DrawNetworkPanel() {
   Network* net = &engine_->network;
   ImGui::SetNextWindowPos(ImVec2(620, 400), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(420, 300), ImGuiCond_FirstUseEver);
-  if (!ImGui::Begin("Network", nullptr,
-                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+  if (!ImGui::Begin("Network", nullptr, ImGuiWindowFlags_NoFocusOnAppearing)) {
     ImGui::End();
     return;
   }
@@ -561,10 +542,8 @@ void DebugUI::DrawNetworkPanel() {
   ImGui::Separator();
 
   // Bandwidth stats.
-  ImGui::Text("Total Sent: %.1f KB",
-              host->totalSentData / 1024.0);
-  ImGui::Text("Total Received: %.1f KB",
-              host->totalReceivedData / 1024.0);
+  ImGui::Text("Total Sent: %.1f KB", host->totalSentData / 1024.0);
+  ImGui::Text("Total Received: %.1f KB", host->totalReceivedData / 1024.0);
   ImGui::Text("Packets Sent: %u", host->totalSentPackets);
   ImGui::Text("Packets Received: %u", host->totalReceivedPackets);
   ImGui::Separator();

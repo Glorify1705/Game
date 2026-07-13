@@ -1,10 +1,9 @@
-#include "qoa.h"
-
 #include <cmath>
 #include <cstring>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "qoa.h"
 #include "test_fixture.h"
 
 namespace G {
@@ -33,7 +32,8 @@ TEST_F(QoaTest, RoundtripSilence) {
   desc.samplerate = 44100;
   desc.samples = kSamples;
 
-  auto encoded = QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
+  auto encoded =
+      QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
   ASSERT_GT(encoded.size(), 0u);
 
   QoaDesc decoded_desc{};
@@ -58,7 +58,8 @@ TEST_F(QoaTest, RoundtripSineWave) {
   desc.samplerate = 44100;
   desc.samples = kSamples;
 
-  auto encoded = QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
+  auto encoded =
+      QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
   ASSERT_GT(encoded.size(), 0u);
 
   QoaDesc decoded_desc{};
@@ -83,7 +84,8 @@ TEST_F(QoaTest, RoundtripStereo) {
   desc.samplerate = 44100;
   desc.samples = kSamples;
 
-  auto encoded = QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
+  auto encoded =
+      QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
   ASSERT_GT(encoded.size(), 0u);
 
   QoaDesc decoded_desc{};
@@ -119,7 +121,8 @@ TEST_F(QoaTest, ExactFrameBoundary) {
   desc.samplerate = 44100;
   desc.samples = kSamples;
 
-  auto encoded = QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
+  auto encoded =
+      QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
   ASSERT_GT(encoded.size(), 0u);
 
   QoaDesc decoded_desc{};
@@ -138,7 +141,8 @@ TEST_F(QoaTest, MultipleFrames) {
   desc.samplerate = 44100;
   desc.samples = kSamples;
 
-  auto encoded = QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
+  auto encoded =
+      QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
   ASSERT_GT(encoded.size(), 0u);
 
   QoaDesc decoded_desc{};
@@ -156,7 +160,8 @@ TEST_F(QoaTest, StreamingMatchesBulk) {
   desc.samplerate = 44100;
   desc.samples = kSamples;
 
-  auto encoded = QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
+  auto encoded =
+      QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
   ASSERT_GT(encoded.size(), 0u);
 
   // Bulk decode.
@@ -168,8 +173,8 @@ TEST_F(QoaTest, StreamingMatchesBulk) {
   // Streaming decode.
   QoaStreamDecoder stream;
   QoaDesc stream_desc{};
-  ASSERT_TRUE(stream.Init(MakeByteSlice(encoded.data(), encoded.size()),
-                          &stream_desc));
+  ASSERT_TRUE(
+      stream.Init(MakeByteSlice(encoded.data(), encoded.size()), &stream_desc));
   EXPECT_EQ(stream_desc.samples, kSamples);
 
   std::vector<int16_t> streamed;
@@ -194,13 +199,14 @@ TEST_F(QoaTest, StreamingRewind) {
   desc.samplerate = 44100;
   desc.samples = kSamples;
 
-  auto encoded = QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
+  auto encoded =
+      QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
   ASSERT_GT(encoded.size(), 0u);
 
   QoaStreamDecoder stream;
   QoaDesc stream_desc{};
-  ASSERT_TRUE(stream.Init(MakeByteSlice(encoded.data(), encoded.size()),
-                          &stream_desc));
+  ASSERT_TRUE(
+      stream.Init(MakeByteSlice(encoded.data(), encoded.size()), &stream_desc));
 
   // First pass.
   std::vector<int16_t> pass1;
@@ -234,17 +240,19 @@ TEST_F(QoaTest, DecodeFramePastEnd) {
   desc.samplerate = 44100;
   desc.samples = kSamples;
 
-  auto encoded = QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
+  auto encoded =
+      QoaEncode(Slice<int16_t>(pcm.data(), pcm.size()), &desc, alloc);
   ASSERT_GT(encoded.size(), 0u);
 
   QoaStreamDecoder stream;
   QoaDesc stream_desc{};
-  ASSERT_TRUE(stream.Init(MakeByteSlice(encoded.data(), encoded.size()),
-                          &stream_desc));
+  ASSERT_TRUE(
+      stream.Init(MakeByteSlice(encoded.data(), encoded.size()), &stream_desc));
 
   int16_t frame_buf[kQoaFrameLen];
   // Drain all frames.
-  while (stream.DecodeFrame(frame_buf, kQoaFrameLen) > 0) {}
+  while (stream.DecodeFrame(frame_buf, kQoaFrameLen) > 0) {
+  }
   // Past end should return 0.
   EXPECT_EQ(stream.DecodeFrame(frame_buf, kQoaFrameLen), 0u);
 }

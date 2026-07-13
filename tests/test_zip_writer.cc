@@ -95,7 +95,7 @@ TEST_F(ZipWriterTest, RoundTripThroughPhysfs) {
   }
   ASSERT_FALSE(writer.Finish().is_error());
 
-  ASSERT_NE(PHYSFS_mount(zip_path_, "/ziptest", 0), 0)
+  ASSERT_NE(PHYSFS_mount(zip_path_, "/ziptest", /*append=*/0), 0)
       << PHYSFS_getErrorByCode(PHYSFS_getLastErrorCode());
   for (int i = 0; i < 3; ++i) {
     char vfs_path[128];
@@ -121,7 +121,7 @@ TEST_F(ZipWriterTest, BinaryContentsRoundTrip) {
   ASSERT_FALSE(writer.AddEntry("bytes", ByteSlice(data, 256)).is_error());
   ASSERT_FALSE(writer.Finish().is_error());
 
-  ASSERT_NE(PHYSFS_mount(zip_path_, "/ziptest", 0), 0);
+  ASSERT_NE(PHYSFS_mount(zip_path_, "/ziptest", /*append=*/0), 0);
   PHYSFS_File* f = PHYSFS_openRead("/ziptest/bytes");
   ASSERT_NE(f, nullptr);
   ASSERT_EQ(PHYSFS_fileLength(f), 256);

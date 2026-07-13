@@ -88,8 +88,8 @@ class SqlStmt {
 
   // Column readers (0-indexed). Only valid after Step() returned true.
   std::string_view ColumnText(int col) {
-    const char* text = reinterpret_cast<const char*>(
-        sqlite3_column_text(stmt_, col));
+    const char* text =
+        reinterpret_cast<const char*>(sqlite3_column_text(stmt_, col));
     if (text == nullptr) return {};
     return text;
   }

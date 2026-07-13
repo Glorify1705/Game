@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -270,7 +271,7 @@ ErrorOr<void> CaptureShader(DbAssets::Shader* shader, void* ud) {
 
 TEST_F(PackerTest, DbAssetsLoadsFromBlobStore) {
   Pack();
-  ASSERT_NE(PHYSFS_mount(blobs_dir_, kBlobMountPoint, 0), 0);
+  ASSERT_NE(PHYSFS_mount(blobs_dir_, kBlobMountPoint, /*append=*/0), 0);
 
   DbAssets assets(db_, &arena_);
   CapturedAssets captured;
@@ -332,7 +333,7 @@ TEST_F(PackerTest, PackagedZipFormatEndToEnd) {
   }
 
   // Load assets with only the zip mounted, as a packaged game would.
-  ASSERT_NE(PHYSFS_mount(zip_path, kBlobMountPoint, 0), 0);
+  ASSERT_NE(PHYSFS_mount(zip_path, kBlobMountPoint, /*append=*/0), 0);
   DbAssets assets(db_, &arena_);
   CapturedAssets captured;
   assets.RegisterScriptLoad(CaptureScript, &captured);

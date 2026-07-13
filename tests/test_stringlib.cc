@@ -1,5 +1,5 @@
-#include "stringlib.h"
 #include "gtest/gtest.h"
+#include "stringlib.h"
 
 namespace G {
 

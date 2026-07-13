@@ -310,7 +310,9 @@ void PrintHelp() {
   printf("  input-dir             Directory containing sprite images\n");
   printf("\n");
   printf("Options:\n");
-  printf("  -o, --output <dir>    Output directory (default: current directory)\n");
+  printf(
+      "  -o, --output <dir>    Output directory (default: current "
+      "directory)\n");
   printf("  --name <name>         Atlas base name (default: atlas)\n");
   printf("  --size <WxH>          Atlas dimensions (default: 2048x2048)\n");
   printf("  --padding <px>        Padding between sprites (default: 1)\n");

@@ -37,8 +37,8 @@ void DebugUI::EvalReplCode(std::string_view code) {
         }
         for (int c = 0; c < ncols; ++c) {
           if (c > 0) result.Append(" | ");
-          const char* val = reinterpret_cast<const char*>(
-              sqlite3_column_text(stmt, c));
+          const char* val =
+              reinterpret_cast<const char*>(sqlite3_column_text(stmt, c));
           result.Append(val ? val : "NULL");
         }
         ++rows;
@@ -73,17 +73,16 @@ void DebugUI::EvalReplCode(std::string_view code) {
 void DebugUI::DrawWatchPanel() {
   ImGui::SetNextWindowPos(ImVec2(820, 30), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(380, 350), ImGuiCond_FirstUseEver);
-  if (!ImGui::Begin("Watch", nullptr,
-                    ImGuiWindowFlags_NoFocusOnAppearing)) {
+  if (!ImGui::Begin("Watch", nullptr, ImGuiWindowFlags_NoFocusOnAppearing)) {
     ImGui::End();
     return;
   }
 
   // Input to add a new watch expression.
   ImGui::SetNextItemWidth(-60);
-  bool add = ImGui::InputTextWithHint(
-      "##watch_add", "#_Game.enemies", watch_input_, kWatchPathSize,
-      ImGuiInputTextFlags_EnterReturnsTrue);
+  bool add = ImGui::InputTextWithHint("##watch_add", "#_Game.enemies",
+                                      watch_input_, kWatchPathSize,
+                                      ImGuiInputTextFlags_EnterReturnsTrue);
   ImGui::SameLine();
   if (ImGui::Button("Add") || add) {
     if (watch_input_[0] != '\0' && watch_count_ < (int)kMaxWatches) {
@@ -98,13 +97,12 @@ void DebugUI::DrawWatchPanel() {
     bool has_error = engine_->lua.HasError();
     int remove_idx = -1;
 
-    if (ImGui::BeginTable("##watches", 3,
-                          ImGuiTableFlags_BordersInnerV |
-                              ImGuiTableFlags_RowBg)) {
+    if (ImGui::BeginTable(
+            "##watches", 3,
+            ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg)) {
       ImGui::TableSetupColumn("Expr", ImGuiTableColumnFlags_WidthStretch);
       ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
-      ImGui::TableSetupColumn("##rm", ImGuiTableColumnFlags_WidthFixed,
-                              20.0f);
+      ImGui::TableSetupColumn("##rm", ImGuiTableColumnFlags_WidthFixed, 20.0f);
       ImGui::TableHeadersRow();
 
       for (int i = 0; i < watch_count_; ++i) {
@@ -177,12 +175,11 @@ void DebugUI::DrawRepl() {
     repl_editor_.SetLanguage(editor_lang);
   }
   ImGui::SameLine();
-  if (ImGui::SmallButton("Run") ||
-      (ImGui::IsKeyDown(ImGuiMod_Ctrl) &&
-       ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+  if (ImGui::SmallButton("Run") || (ImGui::IsKeyDown(ImGuiMod_Ctrl) &&
+                                    ImGui::IsKeyPressed(ImGuiKey_Enter))) {
     std::string code = repl_editor_.GetText();
-    while (!code.empty() && (code.back() == '\n' || code.back() == '\r' ||
-                             code.back() == ' ')) {
+    while (!code.empty() &&
+           (code.back() == '\n' || code.back() == '\r' || code.back() == ' ')) {
       code.pop_back();
     }
     if (!code.empty()) {
@@ -227,5 +224,5 @@ void DebugUI::DrawRepl() {
   ImGui::Separator();
   ImGui::Spacing();
   repl_editor_.Render("##repl_editor",
-                     ImVec2(0, ImGui::GetContentRegionAvail().y));
+                      ImVec2(0, ImGui::GetContentRegionAvail().y));
 }

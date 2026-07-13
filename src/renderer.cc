@@ -365,9 +365,9 @@ size_t BatchRenderer::LoadTexture(const void* data, size_t width,
   // Check against the hardware texture unit limit.
   GLint max_units = 0;
   glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &max_units);
-  CHECK(static_cast<int>(index) < max_units,
-        "Exceeded maximum texture units (", max_units,
-        "). Loaded ", index, " textures. "
+  CHECK(static_cast<int>(index) < max_units, "Exceeded maximum texture units (",
+        max_units, "). Loaded ", index,
+        " textures. "
         "This usually means too many individual images are being loaded. "
         "Combine small images into spritesheets, or remove unused assets "
         "(e.g. zip files with many PNGs).");

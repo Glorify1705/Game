@@ -1,8 +1,7 @@
-#include "stats.h"
-
 #include <cmath>
 
 #include "gtest/gtest.h"
+#include "stats.h"
 
 namespace G {
 

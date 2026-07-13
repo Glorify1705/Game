@@ -83,7 +83,9 @@ function Game:init()
 	}
 
 	G.physics.on_begin_contact(function(a, b)
-		if a == nil or b == nil then return end
+		if a == nil or b == nil then
+			return
+		end
 		local ak = type(a) == "table" and a.kind or "?"
 		local bk = type(b) == "table" and b.kind or "?"
 		print(string.format("contact: %s <-> %s", ak, bk))
@@ -159,8 +161,10 @@ function Game:draw()
 	local px, py = G.physics.position(platform.handle)
 	G.graphics.set_color(80, 180, 255, 255)
 	G.graphics.draw_rect(
-		px - PLATFORM_W / 2, py - PLATFORM_H / 2,
-		px + PLATFORM_W / 2, py + PLATFORM_H / 2
+		px - PLATFORM_W / 2,
+		py - PLATFORM_H / 2,
+		px + PLATFORM_W / 2,
+		py + PLATFORM_H / 2
 	)
 
 	-- Draw ball.
@@ -188,9 +192,14 @@ function Game:draw()
 	G.graphics.print(string.format("Ball vel: %.1f, %.1f", vx, vy), 10, 85)
 
 	if ray_hit then
-		local dist = math.sqrt((ray_hit.x - bx) * (ray_hit.x - bx) + (ray_hit.y - by) * (ray_hit.y - by))
+		local dist =
+			math.sqrt((ray_hit.x - bx) * (ray_hit.x - bx) + (ray_hit.y - by) * (ray_hit.y - by))
 		local kind = type(ray_hit) == "table" and "hit" or "?"
-		G.graphics.print(string.format("Raycast: dist=%.0f  nx=%.2f ny=%.2f", dist, ray_hit.nx, ray_hit.ny), 10, 105)
+		G.graphics.print(
+			string.format("Raycast: dist=%.0f  nx=%.2f ny=%.2f", dist, ray_hit.nx, ray_hit.ny),
+			10,
+			105
+		)
 	else
 		G.graphics.print("Raycast: no hit", 10, 105)
 	end

@@ -265,8 +265,8 @@ int CheckColorTable(lua_State* L, int idx, float* color) {
   lua_getfield(L, idx, "r");
   lua_getfield(L, idx, "g");
   lua_getfield(L, idx, "b");
-  bool is_color = lua_isnumber(L, -3) && lua_isnumber(L, -2) &&
-                  lua_isnumber(L, -1);
+  bool is_color =
+      lua_isnumber(L, -3) && lua_isnumber(L, -2) && lua_isnumber(L, -1);
   if (!is_color) {
     lua_pop(L, 3);
     return 0;
@@ -423,8 +423,9 @@ bool CompileFennel(lua_State* L, std::string_view code, StringBuffer* output) {
     // Last resort: try require("fennel"). This loads the compiler from
     // scratch but only happens once since we cache the result.
     if (!lua_istable(L, -1)) {
-      WLOG("Fennel compiler not in _fennel or package.loaded, "
-           "falling back to require");
+      WLOG(
+          "Fennel compiler not in _fennel or package.loaded, "
+          "falling back to require");
 
       lua_pop(L, 1);
       lua_getglobal(L, "require");
@@ -498,24 +499,71 @@ const TextEditor::Language* FennelLanguage() {
     language.stringEscape = '\\';
 
     static const char* const keywords[] = {
-        "fn",       "lambda",    "hashfn",   "let",       "local",
-        "var",      "set",       "tset",     "global",    "do",
-        "if",       "when",      "each",     "for",       "while",
-        "match",    "match-try", "case",     "guard",
-        "collect",  "icollect",  "fcollect", "accumulate",
-        "doto",     "->",        "->>",      "-?>",       "-?>>",
-        "macro",    "macros",    "import-macros",
-        "require",  "include",   "eval-compiler",
-        "and",      "or",        "not",
-        "true",     "false",     "nil",
-        "values",   "pick-values",
-        "with-open", "partial",  "pick-args",
-        "comment",  "doc",       "assert",
-        "error",    "pcall",     "xpcall",
-        "ipairs",   "pairs",     "unpack",
-        "select",   "type",      "tostring", "tonumber",
-        "string",   "table",     "math",     "io",        "os",
-        "print",    "length",
+        "fn",
+        "lambda",
+        "hashfn",
+        "let",
+        "local",
+        "var",
+        "set",
+        "tset",
+        "global",
+        "do",
+        "if",
+        "when",
+        "each",
+        "for",
+        "while",
+        "match",
+        "match-try",
+        "case",
+        "guard",
+        "collect",
+        "icollect",
+        "fcollect",
+        "accumulate",
+        "doto",
+        "->",
+        "->>",
+        "-?>",
+        "-?>>",
+        "macro",
+        "macros",
+        "import-macros",
+        "require",
+        "include",
+        "eval-compiler",
+        "and",
+        "or",
+        "not",
+        "true",
+        "false",
+        "nil",
+        "values",
+        "pick-values",
+        "with-open",
+        "partial",
+        "pick-args",
+        "comment",
+        "doc",
+        "assert",
+        "error",
+        "pcall",
+        "xpcall",
+        "ipairs",
+        "pairs",
+        "unpack",
+        "select",
+        "type",
+        "tostring",
+        "tonumber",
+        "string",
+        "table",
+        "math",
+        "io",
+        "os",
+        "print",
+        "length",
     };
 
     for (auto& kw : keywords) language.keywords.insert(kw);
@@ -527,10 +575,9 @@ const TextEditor::Language* FennelLanguage() {
     for (auto& decl : declarations) language.declarations.insert(decl);
 
     language.isPunctuation = [](ImWchar ch) -> bool {
-      return ch == '(' || ch == ')' || ch == '[' || ch == ']' ||
-             ch == '{' || ch == '}' || ch == ':' || ch == '#' ||
-             ch == '~' || ch == '@' || ch == ',' || ch == '`' ||
-             ch == '\'';
+      return ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' ||
+             ch == '}' || ch == ':' || ch == '#' || ch == '~' || ch == '@' ||
+             ch == ',' || ch == '`' || ch == '\'';
     };
     language.getIdentifier = GetFennelIdentifier;
     language.getNumber = nullptr;

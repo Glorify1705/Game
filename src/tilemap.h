@@ -67,9 +67,9 @@ struct TilemapObject {
 struct TilemapObjectGroup {
   static constexpr int kMaxObjects = 256;
   char name[64];
-  TilemapObject* objects;    // Array of objects (allocated).
-  int object_count;          // Number of objects parsed.
-  int allocated_count;       // Number of objects allocated (for dealloc).
+  TilemapObject* objects;  // Array of objects (allocated).
+  int object_count;        // Number of objects parsed.
+  int allocated_count;     // Number of objects allocated (for dealloc).
 };
 
 // Result of a tilemap move (AABB sweep against solid tiles).

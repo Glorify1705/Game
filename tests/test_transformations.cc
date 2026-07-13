@@ -1,8 +1,7 @@
-#include "transformations.h"
-
 #include <cmath>
 
 #include "gtest/gtest.h"
+#include "transformations.h"
 
 namespace G {
 

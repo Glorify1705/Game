@@ -10,8 +10,8 @@ ImVec2 PhysicsDebugDraw::ToScreen(const b2Vec2& v) const {
   // Apply camera transform if the camera is actively used (has non-default
   // position or is following a target). Games that don't use camera.attach()
   // draw in raw screen coordinates and don't need the transform.
-  if (camera_ != nullptr && (camera_->IsFollowing() ||
-                              camera_->GetPosition() != FVec2::Zero())) {
+  if (camera_ != nullptr &&
+      (camera_->IsFollowing() || camera_->GetPosition() != FVec2::Zero())) {
     FVec2 screen = camera_->ToScreen(world_px, viewport_);
     return ImVec2(screen.x, screen.y);
   }
@@ -47,7 +47,8 @@ void PhysicsDebugDraw::DrawSolidPolygon(const b2Vec2* vertices,
 void PhysicsDebugDraw::DrawCircle(const b2Vec2& center, float radius,
                                   const b2Color& color) {
   ImDrawList* dl = ImGui::GetBackgroundDrawList();
-  dl->AddCircle(ToScreen(center), radius * ppm_, ToImCol(color), /*num_segments=*/24, 1.0f);
+  dl->AddCircle(ToScreen(center), radius * ppm_, ToImCol(color),
+                /*num_segments=*/24, 1.0f);
 }
 
 void PhysicsDebugDraw::DrawSolidCircle(const b2Vec2& center, float radius,

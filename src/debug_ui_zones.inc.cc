@@ -28,8 +28,7 @@ void DebugUI::DrawZonesPanel() {
   for (int i = 0; i < count; ++i) indices[i] = i;
   for (int i = 0; i < count - 1; ++i) {
     for (int j = i + 1; j < count; ++j) {
-      if (zs->zone(indices[j]).stats.avg() >
-          zs->zone(indices[i]).stats.avg()) {
+      if (zs->zone(indices[j]).stats.avg() > zs->zone(indices[i]).stats.avg()) {
         int tmp = indices[i];
         indices[i] = indices[j];
         indices[j] = tmp;
@@ -39,8 +38,7 @@ void DebugUI::DrawZonesPanel() {
 
   if (ImGui::BeginTable("##zones", 7,
                         ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-                            ImGuiTableFlags_ScrollY |
-                            ImGuiTableFlags_Sortable,
+                            ImGuiTableFlags_ScrollY | ImGuiTableFlags_Sortable,
                         ImVec2(0, 0))) {
     ImGui::TableSetupColumn("Zone", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("Calls", ImGuiTableColumnFlags_WidthFixed, 55);
@@ -66,8 +64,7 @@ void DebugUI::DrawZonesPanel() {
 
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
-      ImGui::TextColored(color, "%.*s",
-                         static_cast<int>(zone.name.size()),
+      ImGui::TextColored(color, "%.*s", static_cast<int>(zone.name.size()),
                          zone.name.data());
       ImGui::TableNextColumn();
       ImGui::Text("%.0f", s.samples());

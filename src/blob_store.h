@@ -44,6 +44,8 @@ class BlobStore {
  private:
   explicit BlobStore(const char* directory);
 
+  // Plain array rather than PathBuffer: the store is returned by value from
+  // Create() through ErrorOr, and FixedStringBuffer is not movable.
   char dir_[kMaxPathLength + 1];
 };
 

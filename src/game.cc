@@ -468,9 +468,8 @@ void Game::RenderDebugUI() {
 // Deletes dev-cache blobs no longer referenced by any asset_metadata row.
 // Runs once at startup, before the hot-reload watcher starts, so a sweep can
 // never delete a blob out from under an in-flight assets Load().
-void SweepUnreferencedBlobs(sqlite3* db, BlobStore* blobs,
-                            Allocator* allocator) {
-  DynArray<uint64_t> referenced(allocator);
+void SweepUnreferencedBlobs(sqlite3* db, BlobStore* blobs, Allocator* scratch) {
+  DynArray<uint64_t> referenced(scratch);
   SqlStmt stmt(
       db, "SELECT DISTINCT blob_hash FROM asset_metadata WHERE blob_hash != 0");
   CHECK(stmt.ok(), "Failed to prepare blob sweep query");

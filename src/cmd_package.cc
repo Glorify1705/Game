@@ -57,8 +57,8 @@ void CopyRuntimeDlls(const char* src_binary, const char* output_dir) {
 // in ascending hash order, so packaging identical assets twice produces
 // byte-identical archives.
 ErrorOr<void> BuildAssetZip(sqlite3* db, const char* blob_dir,
-                            const char* zip_path, Allocator* allocator) {
-  DynArray<uint64_t> hashes(allocator);
+                            const char* zip_path, Allocator* scratch) {
+  DynArray<uint64_t> hashes(scratch);
   {
     SqlStmt stmt(db,
                  "SELECT DISTINCT blob_hash FROM asset_metadata "
@@ -71,9 +71,9 @@ ErrorOr<void> BuildAssetZip(sqlite3* db, const char* blob_dir,
   // Sort in unsigned order; SQL ORDER BY would compare as signed int64.
   std::sort(hashes.begin(), hashes.end());
 
-  ZipWriter zip(allocator);
+  ZipWriter zip(scratch);
   TRY(zip.Open(zip_path));
-  ArenaAllocator blob_scratch(allocator, Megabytes(256));
+  ArenaAllocator blob_scratch(scratch, Megabytes(256));
   for (size_t i = 0; i < hashes.size(); ++i) {
     char name[17];
     FormatBlobName(hashes[i], name);

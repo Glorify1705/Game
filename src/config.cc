@@ -92,7 +92,8 @@ void LoadConfigFromDatabase(sqlite3* db, GameConfig* config,
   }
   const size_t size = stmt.ColumnInt64(0);
   const uint64_t blob_hash = static_cast<uint64_t>(stmt.ColumnInt64(1));
-  auto* contents = static_cast<uint8_t*>(allocator->Alloc(size + 1, 1));
+  auto* contents =
+      static_cast<uint8_t*>(allocator->Alloc(size + 1, /*align=*/1));
   CHECK(contents != nullptr, "Failed to allocate bytes for config file");
   DEFER([&] { allocator->Dealloc(contents, size + 1); });
   auto result = ReadBlob(blob_hash, contents, size);

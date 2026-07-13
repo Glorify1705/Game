@@ -1,5 +1,4 @@
 #include "allocators.h"
-
 #include "gtest/gtest.h"
 #include "test_fixture.h"
 

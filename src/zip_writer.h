@@ -23,6 +23,7 @@ class ZipWriter {
  public:
   // allocator backs the central directory entry list.
   explicit ZipWriter(Allocator* allocator) : entries_(allocator) {}
+  // Crashes if the archive was opened but Finish() was never called.
   ~ZipWriter();
 
   ZipWriter(const ZipWriter&) = delete;

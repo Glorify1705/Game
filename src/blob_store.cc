@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "libraries/rapidhash.h"
+#include "logging.h"
 #include "physfs.h"
 #include "platform.h"
 #include "stringlib.h"

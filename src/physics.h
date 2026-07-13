@@ -50,7 +50,7 @@ struct PhysicsShapeOptions {
 // Tracked joint slot for safe handle invalidation.
 struct JointSlot {
   // The Box2D joint pointer, or nullptr if the slot is free/invalidated.
-  b2Joint* joint = nullptr;
+  b2Joint *joint = nullptr;
   // Bumped on each invalidation so stale handles fail safely.
   uint32_t generation = 0;
 };
@@ -63,8 +63,7 @@ struct JointHandle {
   uint32_t generation = 0;
 };
 
-class Physics final : public b2ContactListener,
-                      public b2DestructionListener {
+class Physics final : public b2ContactListener, public b2DestructionListener {
  public:
   inline static constexpr float kPixelsPerMeter = 60;
   // Maximum number of user-created joints.
@@ -234,7 +233,7 @@ class Physics final : public b2ContactListener,
 
   // Draws physics debug visualization if enabled. Call during the ImGui pass
   // so shapes render on top of canvases and post-processing.
-  void DrawDebug(const Camera* camera, FVec2 viewport);
+  void DrawDebug(const Camera *camera, FVec2 viewport);
 
   // Returns true if debug drawing is enabled.
   bool debug_draw_enabled() const { return debug_draw_ != nullptr; }
@@ -280,7 +279,7 @@ class Physics final : public b2ContactListener,
   void DestroyJoint(JointHandle handle);
 
   // Resolves a joint handle to a b2Joint pointer. Returns nullptr if invalid.
-  b2Joint* ResolveJoint(JointHandle handle) const;
+  b2Joint *ResolveJoint(JointHandle handle) const;
 
   // Returns the joint angle in radians (revolute only).
   float GetJointAngle(JointHandle handle) const;
@@ -328,16 +327,16 @@ class Physics final : public b2ContactListener,
   void SetJointDampingRatio(JointHandle handle, float ratio);
 
   // Finds the body at a world pixel position. Returns nullptr if none found.
-  b2Body* QueryPoint(FVec2 world_pixels);
+  b2Body *QueryPoint(FVec2 world_pixels);
 
   // Creates a mouse joint for dragging a body. Returns the joint handle.
-  b2Joint* CreateMouseJoint(b2Body* body, FVec2 world_pixels);
+  b2Joint *CreateMouseJoint(b2Body *body, FVec2 world_pixels);
 
   // Updates the mouse joint target to follow the cursor.
-  void UpdateMouseJoint(b2Joint* joint, FVec2 world_pixels);
+  void UpdateMouseJoint(b2Joint *joint, FVec2 world_pixels);
 
   // Destroys a mouse joint.
-  void DestroyMouseJoint(b2Joint* joint);
+  void DestroyMouseJoint(b2Joint *joint);
 
  private:
   static void DefaultDestroy(uintptr_t, void *) {}
@@ -354,7 +353,7 @@ class Physics final : public b2ContactListener,
   b2World world_;
   b2Body *ground_ = nullptr;
   bool walls_ = false;
-  PhysicsDebugDraw* debug_draw_ = nullptr;
+  PhysicsDebugDraw *debug_draw_ = nullptr;
 
   ContactCallback begin_contact_callback_ = DefaultContact;
   void *begin_contact_userdata_ = this;
@@ -375,10 +374,10 @@ class Physics final : public b2ContactListener,
 
   // Allocates a slot for a tracked joint. Stores the b2Joint* and writes the
   // slot index (+1) into the joint's userData so SayGoodbye can find it.
-  JointHandle AllocJointSlot(b2Joint* joint);
+  JointHandle AllocJointSlot(b2Joint *joint);
 
   // Clears the slot for a joint (called from SayGoodbye or DestroyJoint).
-  void InvalidateJointSlot(b2Joint* joint);
+  void InvalidateJointSlot(b2Joint *joint);
 
   // Generation-indexed joint slots for safe handle invalidation.
   JointSlot joint_slots_[kMaxJoints] = {};
