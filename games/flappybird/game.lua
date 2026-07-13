@@ -46,7 +46,7 @@ function Game:init()
   self.pipes = {}
   self.pipe_timer = 0
   self.score = 0
-  self.best_score = 0
+  self.best_score = G.save.get("flappybird", "best_score") or 0
 
   self.base_x = 0
 
@@ -108,6 +108,7 @@ function Game:die()
   end)
   if self.score > self.best_score then
     self.best_score = self.score
+    G.save.set("flappybird", "best_score", self.best_score)
   end
 end
 
