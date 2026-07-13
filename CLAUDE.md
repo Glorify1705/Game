@@ -10,7 +10,8 @@ This is a 2D game engine written in C++17. Games are scripted in Lua 5.1 (with
 optional Fennel). The engine handles graphics (SDL2 + OpenGL), audio (QOA
 streaming), physics (Box2D), collision detection, input, and asset management.
 A CLI tool (`game`) drives the workflow: `game init`, `game run` (with
-hot-reload), `game package`.
+hot-reload), `game package` (desktop, or `--target web` for
+browser/itch.io deployment).
 
 ## Build System
 
@@ -19,6 +20,7 @@ provides wrapped build commands:
 
 ```sh
 game-build          # CMake configure + Ninja build (preferred)
+game-build-web      # Emscripten/WebAssembly build (build-web/game.{js,wasm})
 game-test           # Build and run tests (GoogleTest, always with sanitizers)
 game-run            # Run the engine with hot-reload
 game-format         # clang-format all source files
