@@ -17,6 +17,11 @@ namespace G {
 
 namespace {
 
+// Size of the process-global SQLite memsys5 heap. Shared by the asset
+// metadata database, the Lua compilation cache, and the save database (WAL
+// mode), so it is sized with headroom over observed peaks.
+constexpr size_t kSqliteHeapSize = Megabytes(32);
+
 void PrintHelp() {
   printf("Usage: game run [directory] [options] [-- game-args...]\n");
   printf("\n");
@@ -100,11 +105,14 @@ int CmdRun(Slice<const char*> args, Allocator* allocator) {
     remove(db_path.str());
   }
 
-  // Configure SQLite memory.
-  ArenaAllocator sqlite_arena(allocator, Megabytes(16));
+  // Configure SQLite memory. The memsys5 heap is process-global and shared
+  // by every database: asset metadata, the Lua compilation cache, and the
+  // game's save database. RunGame logs the high-water mark at exit; retune
+  // the budget from that if games start pushing against it.
+  ArenaAllocator sqlite_arena(allocator, kSqliteHeapSize);
   CHECK(sqlite3_config(SQLITE_CONFIG_HEAP,
-                       sqlite_arena.Alloc(Megabytes(16), kMaxAlign),
-                       Megabytes(16), 64) == SQLITE_OK,
+                       sqlite_arena.Alloc(kSqliteHeapSize, kMaxAlign),
+                       kSqliteHeapSize, 64) == SQLITE_OK,
         "Failed to configure SQLite memsys5 heap");
 
   // Open/create the database.
@@ -148,11 +156,14 @@ int CmdRunPackaged(Slice<const char*> args, Allocator* allocator) {
     return 1;
   }
 
-  // Configure SQLite memory.
-  ArenaAllocator sqlite_arena(allocator, Megabytes(16));
+  // Configure SQLite memory. The memsys5 heap is process-global and shared
+  // by every database: asset metadata, the Lua compilation cache, and the
+  // game's save database. RunGame logs the high-water mark at exit; retune
+  // the budget from that if games start pushing against it.
+  ArenaAllocator sqlite_arena(allocator, kSqliteHeapSize);
   CHECK(sqlite3_config(SQLITE_CONFIG_HEAP,
-                       sqlite_arena.Alloc(Megabytes(16), kMaxAlign),
-                       Megabytes(16), 64) == SQLITE_OK,
+                       sqlite_arena.Alloc(kSqliteHeapSize, kMaxAlign),
+                       kSqliteHeapSize, 64) == SQLITE_OK,
         "Failed to configure SQLite memsys5 heap");
 
   sqlite3* db = nullptr;

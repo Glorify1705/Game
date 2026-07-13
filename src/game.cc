@@ -627,6 +627,8 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
   ShutdownSdl(&sdl);
   LOG("Statistics (in ms): ", loop.stats);
   sqlite3_close(db);
+  LOG("SQLite heap high-water: ",
+      sqlite3_memory_highwater(/*resetFlag=*/0) / 1024, " KB");
   return exit_code;
 }
 
