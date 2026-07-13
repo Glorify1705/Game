@@ -26,35 +26,6 @@ inline void AsOpenglUniform(const FVec4& v, GLint location) {
   glUniform4f(location, v.x, v.y, v.z, v.w);
 }
 
-#ifdef GAME_WEB
-// GLES3 has no double-precision uniforms; upload as float.
-inline void AsOpenglUniform(const DVec2& v, GLint location) {
-  glUniform2f(location, static_cast<float>(v.x), static_cast<float>(v.y));
-}
-
-inline void AsOpenglUniform(const DVec3& v, GLint location) {
-  glUniform3f(location, static_cast<float>(v.x), static_cast<float>(v.y),
-              static_cast<float>(v.z));
-}
-
-inline void AsOpenglUniform(const DVec4& v, GLint location) {
-  glUniform4f(location, static_cast<float>(v.x), static_cast<float>(v.y),
-              static_cast<float>(v.z), static_cast<float>(v.w));
-}
-#else
-inline void AsOpenglUniform(const DVec2& v, GLint location) {
-  glUniform2d(location, v.x, v.y);
-}
-
-inline void AsOpenglUniform(const DVec3& v, GLint location) {
-  glUniform3d(location, v.x, v.y, v.z);
-}
-
-inline void AsOpenglUniform(const DVec4& v, GLint location) {
-  glUniform4d(location, v.x, v.y, v.z, v.w);
-}
-#endif
-
 inline void AsOpenglUniform(const FMat2x2 m, GLint location) {
   glUniformMatrix2fv(location, 1, GL_TRUE, m.v);
 }
@@ -66,20 +37,6 @@ inline void AsOpenglUniform(const FMat3x3 m, GLint location) {
 inline void AsOpenglUniform(const FMat4x4 m, GLint location) {
   glUniformMatrix4fv(location, 1, GL_TRUE, m.v);
 }
-
-#ifndef GAME_WEB
-inline void AsOpenglUniform(const DMat2x2 m, GLint location) {
-  glUniformMatrix2dv(location, 1, GL_TRUE, m.v);
-}
-
-inline void AsOpenglUniform(const DMat3x3 m, GLint location) {
-  glUniformMatrix3dv(location, 1, GL_TRUE, m.v);
-}
-
-inline void AsOpenglUniform(const DMat4x4 m, GLint location) {
-  glUniformMatrix4dv(location, 1, GL_TRUE, m.v);
-}
-#endif
 
 }  // namespace internal
 
