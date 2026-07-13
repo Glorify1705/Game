@@ -25,6 +25,7 @@
 #include "sqlite_helpers.h"
 #include "stats.h"
 #include "stringlib.h"
+#include "third_party_heap.h"
 #include "thread.h"
 #include "units.h"
 #include "vec.h"
@@ -609,6 +610,12 @@ int RunGame(const GameOptions& opts, sqlite3* db) {
 
 int Main(int argc, const char* argv[]) {
   InstallSignalHandlers();
+  // Route all SDL allocations into a fixed heap before any SDL call so the
+  // process never grows the system heap through SDL at runtime.
+  InitThirdPartyHeap(Megabytes(64));
+  CHECK(SDL_SetMemoryFunctions(ThirdPartyMalloc, ThirdPartyCalloc,
+                               ThirdPartyRealloc, ThirdPartyFree),
+        "Failed to install SDL memory functions: ", SDL_GetError());
   // Top-level arena for CLI subcommand memory.
   // Sized to comfortably hold the packer's 512MB sub-arena plus the
   // config arena and other CLI scratch state.

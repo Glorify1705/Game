@@ -222,6 +222,7 @@ set(ENGINE_SRCS
     src/stats.cc
     src/string_table.cc
     src/stringlib.cc
+    src/third_party_heap.cc
     src/timer.cc
     src/executor.cc
     src/zone_stats.cc
