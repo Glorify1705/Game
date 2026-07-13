@@ -192,9 +192,7 @@ void PrintHelp() {
   printf("  input                 Input file path\n");
   printf("\n");
   printf("Options:\n");
-  printf(
-      "  -o, --output <path>   Output file path (default: input with new "
-      "extension)\n");
+  printf("  -o, --output <path>   Output file path (default: input with new extension)\n");
   printf("  -f, --format <fmt>    Output format (e.g. qoi, png, qoa, wav)\n");
 }
 

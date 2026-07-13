@@ -1,7 +1,7 @@
 #include "lua_data.h"
 
-#include <lauxlib.h>
 #include <lua.h>
+#include <lauxlib.h>
 
 #include "libraries/lua-protobuf/lua_pb.h"
 

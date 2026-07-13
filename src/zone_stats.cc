@@ -19,7 +19,9 @@ void ZoneStats::Record(std::string_view name, double ms) {
   }
 }
 
-void ZoneStats::Reset() { zone_count_ = 0; }
+void ZoneStats::Reset() {
+  zone_count_ = 0;
+}
 
 ZoneStats* GetZoneStats() {
   static ZoneStats instance;

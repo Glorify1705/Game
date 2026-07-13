@@ -68,10 +68,10 @@ ErrorOr<void> Save::Open(const char* save_dir) {
   // Prepare cached statements. Close the database on any failure so we don't
   // leak the handle and partially-prepared statements.
   auto prepare_all = [&]() -> ErrorOr<void> {
-    TRY(
-        Prepare("INSERT OR REPLACE INTO kv (namespace, key, value, updated_at) "
-                "VALUES (?1, ?2, ?3, ?4)",
-                &set_stmt_));
+    TRY(Prepare(
+        "INSERT OR REPLACE INTO kv (namespace, key, value, updated_at) "
+        "VALUES (?1, ?2, ?3, ?4)",
+        &set_stmt_));
     TRY(Prepare("SELECT value FROM kv WHERE namespace = ?1 AND key = ?2",
                 &get_stmt_));
     TRY(Prepare("SELECT 1 FROM kv WHERE namespace = ?1 AND key = ?2 LIMIT 1",

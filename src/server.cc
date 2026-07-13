@@ -14,8 +14,8 @@
 #endif
 
 extern "C" {
-#include <lauxlib.h>
 #include <lua.h>
+#include <lauxlib.h>
 #include <lualib.h>
 }
 
@@ -71,8 +71,8 @@ int LuaNetSend(lua_State* L) {
       static_cast<size_t>(peer_id) >= g_host->peerCount) {
     return 0;
   }
-  ENetPacket* packet =
-      enet_packet_create(data, len, reliable ? ENET_PACKET_FLAG_RELIABLE : 0);
+  ENetPacket* packet = enet_packet_create(
+      data, len, reliable ? ENET_PACKET_FLAG_RELIABLE : 0);
   enet_peer_send(&g_host->peers[peer_id], channel, packet);
   return 0;
 }
@@ -92,8 +92,8 @@ int LuaNetBroadcast(lua_State* L) {
     lua_pop(L, 1);
   }
   if (g_host == nullptr) return 0;
-  ENetPacket* packet =
-      enet_packet_create(data, len, reliable ? ENET_PACKET_FLAG_RELIABLE : 0);
+  ENetPacket* packet = enet_packet_create(
+      data, len, reliable ? ENET_PACKET_FLAG_RELIABLE : 0);
   enet_host_broadcast(g_host, channel, packet);
   return 0;
 }
@@ -206,8 +206,7 @@ void RegisterPbModule(lua_State* L) {
   lua_setglobal(L, "pb");
 }
 
-// Registers G.network (send, broadcast, peer_count) and G.data (encode,
-// decode).
+// Registers G.network (send, broadcast, peer_count) and G.data (encode, decode).
 void RegisterServerLibraries(lua_State* L) {
   lua_newtable(L);  // G
   {
@@ -338,7 +337,8 @@ int main(int argc, const char* argv[]) {
     // Poll ENet events.
     ENetEvent event;
     while (enet_host_service(host, &event, 0) > 0) {
-      uint32_t peer_id = static_cast<uint32_t>(event.peer - host->peers);
+      uint32_t peer_id =
+          static_cast<uint32_t>(event.peer - host->peers);
       switch (event.type) {
         case ENET_EVENT_TYPE_CONNECT:
           lua_pushinteger(L, peer_id);

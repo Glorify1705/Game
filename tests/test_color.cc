@@ -67,7 +67,7 @@ TEST(ColorTest, NamedColors) {
 TEST(ColorTest, AlphaIsAlways255) {
   // All table colors should have full alpha.
   for (const char* name : {"red", "green", "blue", "cyan", "yellow", "white",
-                           "black", "orange", "purple", "pink"}) {
+                            "black", "orange", "purple", "pink"}) {
     auto result = ColorFromTable(name);
     if (!result.is_error()) {
       EXPECT_EQ(result.value().a, 255) << "Color: " << name;

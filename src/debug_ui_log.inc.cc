@@ -45,8 +45,8 @@ void DebugUI::DrawLogConsole() {
       CmdBuffer dir(write_dir, "logs");
       auto mkdir_result = MakeDirs(dir.str());
       if (mkdir_result.is_error()) return;
-      CmdBuffer path(dir.str(), "/log_", static_cast<uint64_t>(SDL_GetTicks()),
-                     ".txt");
+      CmdBuffer path(dir.str(), "/log_",
+                     static_cast<uint64_t>(SDL_GetTicks()), ".txt");
       FILE* f = fopen(path.str(), "w");
       if (f != nullptr) {
         size_t count = log_entries_->size();
@@ -66,8 +66,8 @@ void DebugUI::DrawLogConsole() {
                            sizeof(log_text_filter_));
 
   // Level filter toggles.
-  const char* level_names[] = {"Fatal", "Error", "Warn",
-                               "Info",  "Debug", "Trace"};
+  const char* level_names[] = {"Fatal", "Error", "Warn", "Info", "Debug",
+                               "Trace"};
   for (int i = 0; i < 6; ++i) {
     if (i > 0) ImGui::SameLine();
     ImGui::PushStyleColor(ImGuiCol_Text,
@@ -101,9 +101,10 @@ void DebugUI::DrawLogConsole() {
   // Lua eval input.
   ImGui::Separator();
   bool reclaim_focus = false;
-  ImGuiInputTextFlags input_flags = ImGuiInputTextFlags_EnterReturnsTrue |
-                                    ImGuiInputTextFlags_EscapeClearsAll |
-                                    ImGuiInputTextFlags_CallbackHistory;
+  ImGuiInputTextFlags input_flags =
+      ImGuiInputTextFlags_EnterReturnsTrue |
+      ImGuiInputTextFlags_EscapeClearsAll |
+      ImGuiInputTextFlags_CallbackHistory;
   ImGui::SetNextItemWidth(-1);
   if (ImGui::InputText("##eval", eval_input_, kEvalInputSize, input_flags,
                        EvalHistoryCallback, this)) {

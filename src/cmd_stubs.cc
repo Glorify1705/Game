@@ -21,9 +21,9 @@
 #include "lua_scene.h"
 #include "lua_sound.h"
 #include "lua_stubs.h"
+#include "lua_tilemap.h"
 #include "lua_system.h"
 #include "lua_test.h"
-#include "lua_tilemap.h"
 #include "lua_timer.h"
 #include "platform.h"
 
@@ -39,8 +39,7 @@ void PrintHelp() {
   printf("in editors that support the Lua Language Server.\n");
   printf("\n");
   printf("Options:\n");
-  printf(
-      "  --output <path>       Output file (default: definitions/game.lua)\n");
+  printf("  --output <path>       Output file (default: definitions/game.lua)\n");
 }
 
 }  // namespace
@@ -78,7 +77,8 @@ int CmdStubs(Slice<const char*> args, Allocator* /*allocator*/) {
       GetCollisionLibraryDef(),  GetJsonLibraryDef(),
       GetTestLibraryDef(),       GetTimerLibraryDef(),
       GetSceneLibraryDef(),      GetParticlesLibraryDef(),
-      GetSaveLibraryDef(),       GetTilemapLibraryDef(),
+      GetSaveLibraryDef(),
+      GetTilemapLibraryDef(),
   };
 
   WriteLuaLSStubs(output, defs, std::size(defs));

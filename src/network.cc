@@ -17,7 +17,9 @@ void ENET_CALLBACK EnetFree(void* memory, size_t size, void* ctx) {
 }
 
 // ENet callback when allocation fails. Crashes — cannot recover.
-void ENET_CALLBACK EnetNoMemory() { CHECK(false, "ENet: out of memory"); }
+void ENET_CALLBACK EnetNoMemory() {
+  CHECK(false, "ENet: out of memory");
+}
 
 }  // namespace
 
@@ -27,8 +29,8 @@ Network::~Network() { Shutdown(); }
 
 ErrorOr<void> Network::Init() {
   if (initialized_) return {};
-  ENetCallbacks callbacks = {EnetMalloc, EnetFree, EnetNoMemory,
-                             allocator_, nullptr,  nullptr};
+  ENetCallbacks callbacks = {EnetMalloc, EnetFree, EnetNoMemory, allocator_,
+                             nullptr, nullptr};
   if (enet_initialize_with_callbacks(ENET_VERSION, &callbacks) != 0) {
     return Error::Message("Failed to initialize ENet");
   }
