@@ -47,6 +47,9 @@ tags: [index]
 | [Scene and state management](Scene%20and%20state%20management.md) | scenes, state, lua-api, gameplay | G.scene API with switch/push/pop, lifecycle hooks, deferred transitions |
 | [Tilemap system](Tilemap%20system.md) | tilemap, rendering, collision, lua-api, gameplay | TMX loading, multi-layer rendering, AABB sweep collision, parallax, object layers, debug UI panel |
 | [LLM ergonomics](LLM%20ergonomics.md) | lua-api, tooling, llm | Direction constants (UP/DOWN/LEFT/RIGHT), semantic helpers (move_toward, look_at), CLAUDE.md conventions |
+| [Content-addressed asset storage](Content-addressed%20asset%20storage.md) | assets, packaging, storage | Blobs moved out of SQLite into a rapidhash64-keyed store (loose files in dev, deterministic assets.zip packaged); metadata-only DB with schema versioning (PR #92) |
+| [Web target](Web%20target.md) | wasm, web, emscripten, packaging | Emscripten/WebGL2 build + `game package --target web`; itch.io-ready output, IndexedDB saves, headless-browser verification harness (PR #93) |
+| [Input action binding](Input%20action%20binding.md) | input, touch, actions, lua-api | Named actions over key/mouse/gamepad/touch bindings with rebinding and hold detection; multi-finger Touch subsystem |
 
 ## In Progress
 
@@ -73,11 +76,11 @@ tags: [index]
 | Document | Tags | Summary |
 |----------|------|---------|
 | [AI utilities](AI%20utilities.md) | gameplay, ai | Behavior trees, decision trees, and AI scaffolding |
-| [Asset system improvements](Asset%20system%20improvements.md) | assets, packaging | ZIP archive + SQLite index for lazy loading and modding |
+| [Asset system improvements](Asset%20system%20improvements.md) | assets, packaging | Largely superseded by [Content-addressed asset storage](Content-addressed%20asset%20storage.md); remaining idea: lazy/streamed loading |
 | [LuaJIT Migration](LuaJIT%20Migration.md) | lua, performance | Migration from Lua 5.1 to LuaJIT with WASM fallback |
-| [Module memory budgets](Module%20memory%20budgets.md) | memory, allocators, architecture | Only batch renderer overflow fix shipped; per-module sub-arenas, watermarks, and budget system not started |
-| [Multiplatform support](Multiplatform%20support.md) | wasm, android, ios, portability | WASM, Android, and iOS support: shader precompiler, touch input, lifecycle events, build toolchains |
-| [Zip asset packs](Zip%20asset%20packs.md) | assets, packaging, modding | ZIP-based asset packs with overlay/mod support, replacing raw directory loading |
+| [Module memory budgets](Module%20memory%20budgets.md) | memory, allocators, architecture | Per-module budgets shipped as per-platform constants (src/memory_budgets.h); watermarks and runtime instrumentation not started |
+| [Multiplatform support](Multiplatform%20support.md) | wasm, android, ios, portability | WASM done ([Web target](Web%20target.md)) and touch input done ([Input action binding](Input%20action%20binding.md)); Android and iOS (lifecycle events, build toolchains) remain |
+| [Zip asset packs](Zip%20asset%20packs.md) | assets, packaging, modding | Base mechanism superseded by [Content-addressed asset storage](Content-addressed%20asset%20storage.md); remaining idea: overlay/mod pack support |
 
 ## Reference
 
@@ -96,7 +99,8 @@ the engine stand out and what's needed to ship complete games.
 scripting, CLI tooling, SDF fonts, SQLite asset pipeline, type stubs for IDE,
 arena memory management, vendored SDL3 source build, Linux-to-Windows
 cross-compilation with SFX packaging, Debug UI with REPL, ENet networking,
-shell completions and man page generation.
+shell completions and man page generation, one-command web/itch.io
+packaging with a headless-browser verification harness.
 
 ### P0 — Finish what's started
 
@@ -110,14 +114,15 @@ Low effort, high return. Complete in-progress work to close gaps cheaply.
 
 ### P1 — High-impact missing features
 
-The biggest remaining gaps vs other engines. Required to ship non-trivial games.
+The biggest remaining gaps vs other engines. Required to ship non-trivial
+games. **All P1 items are now complete.**
 
 | Feature                                             | Rationale                                                                                                                                                                                | Status |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | ~~[Save and persistence](Save%20and%20persistence.md)~~ | ~~SQLite KV store, platform save dirs.~~ | **Done** (PR #84). CLI tooling and `set_bytes`/`get_bytes` pending. |
 | ~~[Test input system](Test%20input%20system.md)~~   | ~~Automated testing via synthetic input.~~ | **Phase 1 done.** Headless mode, record/replay pending. |
 | ~~Math utilities~~                                  | ~~Lerp, distance, angle, direction. Used in virtually every game script.~~ | **Done.** G.math now has lerp, inverse_lerp, remap, smoothstep, sign, round, distance, angle, direction, radians, degrees; vec2 has rotate, reflect, project, perpendicular. |
-| Input action binding                                | Abstract action mapping (buttons to "jump"/"shoot"), rebinding, hold detection. high_impact and Anchor support this.                                                                     | Not started |
+| ~~[Input action binding](Input%20action%20binding.md)~~ | ~~Abstract action mapping (buttons to "jump"/"shoot"), rebinding, hold detection.~~ | **Done.** G.input.bind + is_action_* + action_time + touch source; example games converted. |
 
 ### P2 — Strengthen differentiators
 
@@ -135,7 +140,7 @@ Reaching more platforms multiplies the value of everything above.
 
 | Document | Rationale |
 |----------|-----------|
-| [Multiplatform support](Multiplatform%20support.md) | WASM, Android, iOS. Instant sharing via browser is the biggest platform gap (5 of 6 comparison engines ship to web). Mobile extends reach further. |
+| [Multiplatform support](Multiplatform%20support.md) | **WASM done** ([Web target](Web%20target.md)): browser builds ship to itch.io with touch input and IndexedDB saves. Remaining: Android and iOS. |
 
 ### P4 — Future
 
@@ -144,7 +149,7 @@ Valuable but not blocking. Build these when a specific game needs them.
 | Document                                                      | Rationale                                                                                                        |
 | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Drawing primitives                                            | Ellipses, arcs, rounded rects, polygons, gradients. Raylib is the reference.                                     |
-| [Module memory budgets](Module%20memory%20budgets.md)         | Per-module sub-arenas and watermarks. Only needed before targeting memory-constrained platforms (web, mobile).    |
+| [Module memory budgets](Module%20memory%20budgets.md)         | Budget constants shipped (src/memory_budgets.h, sized for the 512 MB web target); watermarks/instrumentation when a game needs tuning data. |
 | [AI utilities](AI%20utilities.md)                             | Only needed for games with AI agents.                                                                            |
 | [LuaJIT Migration](LuaJIT%20Migration.md)                    | Performance optimization. Current Lua 5.1 is adequate for most games.                                            |
-| [Asset system improvements](Asset%20system%20improvements.md) | Current SQLite system works. ZIP+index is an optimization for large games.                                       |
+| [Asset system improvements](Asset%20system%20improvements.md) | Storage redesign shipped ([Content-addressed asset storage](Content-addressed%20asset%20storage.md)); lazy/streamed loading remains an option for large games. |
